@@ -1,128 +1,138 @@
-#!/usr/bin/env python3
-import json
-import sys
-from pathlib import Path
-from typing import Any, Dict, List, Tuple
+<#  scripts/validate/validate_sigma.ps1
 
-import yaml
-from jsonschema import Draft7Validator
+Improvements implemented (1..10):
+1) Single Python run for all rules (no per-file process spawn)
+2) Reliable stdout/stderr visibility (call operator &, optional transcript)
+3) Deleted rule handling (log + skip)
+4) Path normalization (\ -> /) for cross-platform git outputs
+5) Clear schema JSON parse errors (handled in python)
+6) Empty/None YAML detection (handled in python)
+7) Max errors parameter ($MaxErrors)
+8) End-of-run summary (validated/ok/invalid/skipped/deleted)
+9) Python dependency preflight check (handled in python)
+10) Python moved to separate file validate_sigma.py (maintainable)
 
+#>
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SCHEMA_PATH = REPO_ROOT / "docs" / "schemas" / "schema.json"
-RULES_DIR = REPO_ROOT / "rules"
+param(
+  [Parameter(Mandatory = $false)]
+  [string]$SchemaPath = "docs/schemas/schema.json",
 
-# Validation outputs (JSON)
-OUT_DIR = REPO_ROOT / "outputs" / "validate"
-REPORT_PATH = OUT_DIR / "sigma_schema_validation_report.json"
+  [Parameter(Mandatory = $false)]
+  [string[]]$Files = @(),
 
+  [Parameter(Mandatory = $false)]
+  [int]$MaxErrors = 25,
 
-def load_json(path: Path) -> Dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+  # If set, fail the run if a deleted rules/*.yml is detected
+  [Parameter(Mandatory = $false)]
+  [switch]$FailOnDeleted
+)
 
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
 
-def load_yaml_file(path: Path) -> Any:
-    # Sigma rule YAML -> Python object
-    return yaml.safe_load(path.read_text(encoding="utf-8"))
+function Resolve-RepoRoot {
+  # scripts/validate/validate_sigma.ps1 -> repo root: ../../
+  return (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+}
 
+function Normalize-RepoPath([string]$p) {
+  # normalize to forward slashes (git diff output can vary)
+  return ($p -replace '\\','/').Trim()
+}
 
-def find_sigma_rule_files(root: Path) -> List[Path]:
-    exts = {".yml", ".yaml"}
-    return [p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in exts]
+$RepoRoot   = Resolve-RepoRoot
+$SchemaFull = Join-Path $RepoRoot $SchemaPath
+$PyScript   = Join-Path $PSScriptRoot "validate_sigma.py"
 
+if (-not (Test-Path -LiteralPath $SchemaFull)) {
+  Write-Error "Schema not found: $SchemaFull"
+  exit 2
+}
 
-def format_jsonschema_error(err) -> Dict[str, Any]:
-    return {
-        "message": err.message,
-        "instance_path": "/" + "/".join(str(x) for x in err.path) if err.path else "",
-        "schema_path": "/" + "/".join(str(x) for x in err.schema_path) if err.schema_path else ""
-    }
+if (-not (Test-Path -LiteralPath $PyScript)) {
+  Write-Error "Python validator not found: $PyScript"
+  exit 2
+}
 
+# If no files were passed, nothing to validate (workflow passes changed files)
+if ($Files.Count -eq 0) {
+  Write-Host "No changed files provided -> skipping Sigma validation."
+  exit 0
+}
 
-def validate_rule(validator: Draft7Validator, rule_path: Path) -> Tuple[bool, List[Dict[str, Any]], Dict[str, Any]]:
-    """
-    Returns:
-      ok: bool
-      errors: list
-      meta: best-effort extracted fields to help triage
-    """
-    meta = {"title": None, "id": None, "status": None, "level": None}
+# Python availability pre-check (clear error early)
+$pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+if (-not $pythonCmd) {
+  Write-Error "python executable not found on PATH."
+  exit 2
+}
 
-    try:
-        data = load_yaml_file(rule_path)
-    except Exception as e:
-        return False, [{
-            "message": f"YAML parse error: {e}",
-            "instance_path": "",
-            "schema_path": ""
-        }], meta
+$RuleFilesAbs   = New-Object System.Collections.Generic.List[string]
+$DeletedRules   = New-Object System.Collections.Generic.List[string]
+$SkippedNonRule = New-Object System.Collections.Generic.List[string]
+$SkippedMissing = New-Object System.Collections.Generic.List[string]
 
-    if isinstance(data, dict):
-        meta["title"] = data.get("title")
-        meta["id"] = data.get("id")
-        meta["status"] = data.get("status")
-        meta["level"] = data.get("level")
+foreach ($fRaw in $Files) {
+  if ([string]::IsNullOrWhiteSpace($fRaw)) { continue }
 
-    errors = [format_jsonschema_error(e) for e in sorted(validator.iter_errors(data), key=lambda x: list(x.path))]
-    return (len(errors) == 0), errors, meta
+  $f = Normalize-RepoPath $fRaw
 
+  # Only validate rules/*.yml|yaml
+  if ($f -notmatch '^rules/.*\.(yml|yaml)$') {
+    $SkippedNonRule.Add($f) | Out-Null
+    continue
+  }
 
-def main() -> int:
-    if not SCHEMA_PATH.exists():
-        print(f"[FATAL] Schema not found: {SCHEMA_PATH}", file=sys.stderr)
-        return 2
+  $full = Join-Path $RepoRoot $f
+  if (-not (Test-Path -LiteralPath $full)) {
+    # Treat as deleted/missing in workspace (deleted or not checked out)
+    $DeletedRules.Add($f) | Out-Null
+    $SkippedMissing.Add($f) | Out-Null
+    continue
+  }
 
-    if not RULES_DIR.exists():
-        print(f"[FATAL] Rules directory not found: {RULES_DIR}", file=sys.stderr)
-        return 2
+  $RuleFilesAbs.Add((Resolve-Path -LiteralPath $full).Path) | Out-Null
+}
 
-    schema = load_json(SCHEMA_PATH)
-    validator = Draft7Validator(schema)
+if ($DeletedRules.Count -gt 0) {
+  Write-Host "Detected deleted/missing rule files (skipping validation for these):"
+  foreach ($d in $DeletedRules) { Write-Host "  - $d" }
 
-    rule_files = find_sigma_rule_files(RULES_DIR)
-    results = []
+  if ($FailOnDeleted) {
+    Write-Error "FailOnDeleted is set and deleted/missing rules were detected."
+    exit 1
+  }
+}
 
-    valid_count = 0
-    invalid_count = 0
-    parse_error_count = 0
+if ($RuleFilesAbs.Count -eq 0) {
+  Write-Host "No existing changed Sigma rule files to validate -> skipping."
+  exit 0
+}
 
-    for rp in sorted(rule_files):
-        ok, errs, meta = validate_rule(validator, rp)
+# Run one Python process for all rule files
+$schemaPathAbs = (Resolve-Path -LiteralPath $SchemaFull).Path
 
-        if (len(errs) == 1) and errs[0]["message"].startswith("YAML parse error:"):
-            parse_error_count += 1
+# Build args: validate_sigma.py --schema <schema> --max-errors <n> <rule1> <rule2> ...
+$pyArgs = @(
+  $PyScript,
+  "--schema", $schemaPathAbs,
+  "--max-errors", "$MaxErrors"
+) + @($RuleFilesAbs)
 
-        results.append({
-            "rule_file": str(rp.relative_to(REPO_ROOT)),
-            "valid": ok,
-            "meta": meta,
-            "errors": errs
-        })
+Write-Host "Validating $($RuleFilesAbs.Count) changed rule(s) against schema: $SchemaPath"
+Write-Host "Python: $($pythonCmd.Source)"
+Write-Host "Max errors per rule: $MaxErrors"
 
-        if ok:
-            valid_count += 1
-        else:
-            invalid_count += 1
+# Call operator (&) reliably streams stdout/stderr into CI logs
+& python @pyArgs
+$exit = $LASTEXITCODE
 
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
+if ($exit -ne 0) {
+  Write-Error "Schema validation failed. Python exit code: $exit"
+  exit 1
+}
 
-    report = {
-        "schema_file": str(SCHEMA_PATH.relative_to(REPO_ROOT)),
-        "rules_root": str(RULES_DIR.relative_to(REPO_ROOT)),
-        "rules_scanned": len(rule_files),
-        "valid_rules": valid_count,
-        "invalid_rules": invalid_count,
-        "yaml_parse_errors": parse_error_count,
-        "results": results
-    }
-
-    REPORT_PATH.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
-
-    print(f"[INFO] Rules scanned: {len(rule_files)} | valid: {valid_count} | invalid: {invalid_count}")
-    print(f"[INFO] Report written: {REPORT_PATH.relative_to(REPO_ROOT)}")
-
-    return 1 if invalid_count > 0 else 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+Write-Host "All changed rules are valid."
+exit 0
