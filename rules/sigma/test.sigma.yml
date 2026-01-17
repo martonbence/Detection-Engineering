@@ -8,9 +8,8 @@ modified: 2000-12-01
 references:
   - https://example.com
 tags:
-  - attack.TAXXXX
-  - attack.TXXXX
-  - attack.TXXXX.XXX
+  - attack.TA1059
+  - attack.T1071
 logsource:
   product_category: edr
   product: gcp

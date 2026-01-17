@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import datetime
 from pathlib import Path
 
 
@@ -30,6 +31,16 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--max-errors", type=int, default=25, help="Max validation errors to print per rule")
     p.add_argument("rules", nargs="+", help="Absolute paths to YAML rule files")
     return p.parse_args()
+
+def normalize_dates(obj):
+    # Convert YAML-parsed datetime/date into ISO strings so JSON Schema "string" works
+    if isinstance(obj, (datetime.date, datetime.datetime)):
+        return obj.date().isoformat() if isinstance(obj, datetime.datetime) else obj.isoformat()
+    if isinstance(obj, dict):
+        return {k: normalize_dates(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [normalize_dates(v) for v in obj]
+    return obj
 
 
 def main() -> int:
@@ -104,6 +115,9 @@ def main() -> int:
             invalid_files.append(str(rule_path))
             print(f"[INVALID] {rule_path}: YAML parse error: {ex}")
             continue
+
+        # Normalize dates
+        data = normalize_dates(data)
 
         # (6) Empty YAML detection
         if data is None:
