@@ -6,7 +6,7 @@
         "**/*.sigma.yaml": "yaml"
     },
     "yaml.schemas": {
-        "${workspaceFolder}/docs/schemas/sigma_schema.json": [
+        "docs/schemas/sigma_schema.json": [
             "rules/**/*.yml",
             "rules/**/*.yaml",
             "**/*.sigma.yml",
