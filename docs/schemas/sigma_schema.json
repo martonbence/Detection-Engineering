@@ -141,7 +141,6 @@
                             "enum": [
                                 "security",
                                 "sysmon",
-                                "powershell",
                                 "apache",
                                 "nginx",
                                 "iis",
