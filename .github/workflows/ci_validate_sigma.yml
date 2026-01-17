@@ -6,18 +6,18 @@ on:
   push:
     branches: ["**"]
     paths:
-      - "rules/**.yml"
-      - "rules/**.yaml"
+      - "rules/**/*.yml"
+      - "rules/**/*.yaml"
       - "docs/schemas/sigma_schema.json"
       - "scripts/validate/**"
-      - "scripts/sigma_to_splunk.py"
+      - "scripts/convert/sigma_to_spl.py"
   pull_request:
     paths:
-      - "rules/**.yml"
-      - "rules/**.yaml"
+      - "rules/**/*.yml"
+      - "rules/**/*.yaml"
       - "docs/schemas/sigma_schema.json"
       - "scripts/validate/**"
-      - "scripts/sigma_to_splunk.py"
+      - "scripts/convert/sigma_to_spl.py"
 
 permissions:
   contents: read
@@ -72,7 +72,7 @@ jobs:
           # If schema or validator or converter changed => validate/convert ALL rules
           mode="changed"
           for f in "${files[@]}"; do
-            if [[ "$f" == "docs/schemas/sigma_schema.json" ]] || [[ "$f" == scripts/validate/* ]] || [[ "$f" == "scripts/sigma_to_splunk.py" ]]; then
+            if [[ "$f" == "docs/schemas/sigma_schema.json" ]] || [[ "$f" == scripts/validate/* ]] || [[ "$f" == "scripts/convertsigma_to_spl.py" ]]; then
               mode="all"
               break
             fi
@@ -84,7 +84,7 @@ jobs:
             # all tracked rule files
             while IFS= read -r rf; do
               [[ -n "$rf" ]] && rule_files+=("$rf")
-            done < <(git ls-files "rules/**/*.yml" "rules/**/*.yaml" || true)
+            done < <(git ls-files rules | grep -E '^rules/.*\.(yml|yaml)$' || true)
           else
             # only changed rules
             for f in "${files[@]}"; do
@@ -151,7 +151,7 @@ jobs:
           fi
 
           mkdir -p rules/splunk
-          python scripts/sigma_to_splunk.py --outdir rules/splunk $rules
+          python scripts/convertsigma_to_spl.py --outdir rules/splunk $rules
 
           echo "Generated SPL files:"
           ls -la rules/splunk
