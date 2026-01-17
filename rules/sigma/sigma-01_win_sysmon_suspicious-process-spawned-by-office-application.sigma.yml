@@ -1,0 +1,85 @@
+title: Suspicious Process Spawned by Office Application
+id: c48b34d1-55f2-4c5c-ba63-1a5dbdf076ee
+status: test
+description: Detects when Office applications spawn potentially malicious child processes
+author: Bence Marton
+date: 2026-01-17
+modified: 2026-01-17
+references:
+  - https://example.com
+tags:
+  - attack.ta0001
+  - attack.t1566
+  - attack.t1566.001
+  - attack.ta0002
+  - attack.t1204
+  - attack.t1204.002
+logsource:
+  product_category: os
+  product: windows
+  service: sysmon
+  event_type: process_creation
+
+detection:
+  selection_office_parents:
+    ParentImage|endswith:
+      - \WINWORD.EXE
+      - \EXCEL.EXE
+      - \POWERPNT.EXE
+      - \OUTLOOK.EXE
+      - \MSACCESS.EXE
+      - \MSPUB.EXE
+      - \VISIO.EXE
+      - \ONENOTE.EXE
+
+  selection_suspicious_children:
+    Image|endswith:
+      - \cmd.exe
+      - \powershell.exe
+      - \wscript.exe
+      - \cscript.exe
+      - \rundll32.exe
+      - \regsvr32.exe
+      - \mshta.exe
+      - \wmic.exe
+      - \bitsadmin.exe
+      - \certutil.exe
+
+  selection_suspicious_commands:
+    CommandLine|contains:
+      - "DownloadString"
+      - "DownloadFile"
+      - "Invoke-Expression"
+      - "IEX"
+      - "FromBase64String"
+      - "EncodedCommand"
+      - "-enc "
+      - "-e "
+      - "Hidden"
+      - "Bypass"
+
+  filter_legitimate_addins:
+    CommandLine|contains:
+      - "Microsoft.Office"
+      - 'Office16\GROOVEEX.DLL'
+
+  filter_legitimate_paths:
+    Image|contains:
+      - 'C:\Program Files\Microsoft Office\'
+      - 'C:\Program Files (x86)\Microsoft Office\'
+
+  timeframe: 5m
+
+  condition: selection_office_parents and selection_suspicious_children and not filter_legitimate_addins and not filter_legitimate_paths
+  fields:
+    - ParentImage
+    - ParentCommandLine
+    - Image
+    - CommandLine
+    - User
+
+falsepositives:
+  - Legitimate VBA macros
+  - Administrative scripts
+  - Third-party Office add-ins
+level: high
