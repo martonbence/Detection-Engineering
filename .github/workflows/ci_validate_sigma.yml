@@ -1,3 +1,7 @@
+# ----------------------------
+#1: Sigma validation against schema
+# ----------------------------
+
 name: Sigma Schema Validation
 
 on:
@@ -37,7 +41,7 @@ jobs:
       - name: Install Python deps (pyyaml + jsonschema)
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pyyaml==6.0.2 jsonschema==4.23.0
+          python -m pip install pyyaml==6.0.2 jsonschema==4.23.0 sigma-cli pysigma-backend-splunk
 
       - name: Determine changed files
         id: changes
@@ -105,3 +109,31 @@ jobs:
             -SchemaPath $schemaPath `
             -Files $files `
             -MaxErrors $maxErrors
+
+      # ----------------------------
+      #2: Sigma -> SPL conversion
+      # ----------------------------
+      - name: Convert changed Sigma rules to Splunk SPL
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p rules/splunk
+
+          # Get changed files from previous step
+          files="${{ steps.changes.outputs.files }}"
+
+          for f in $files; do
+            if [[ "$f" =~ ^rules/.*\.(yml|yaml)$ ]]; then
+              base="$(basename "$f")"
+              base="${base%.yml}"
+              base="${base%.yaml}"
+              base="${base%.sigma}"
+              out="rules/splunk/${base}.spl"
+
+              echo "Converting: $f -> $out"
+              sigma convert -t splunk "$f" > "$out"
+            fi
+          done
+
+          echo "Generated SPL files:"
+          ls -la rules/splunk
