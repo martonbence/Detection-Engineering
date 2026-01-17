@@ -111,6 +111,17 @@ if ($RuleFilesAbs.Count -eq 0) {
   exit 0
 }
 
+Write-Host ""
+Write-Host "=== Sigma rules to validate (changed + filtered) ==="
+foreach ($rf in $RuleFilesAbs) {
+  # print repo-relative if you want nicer output:
+  $rel = $rf.Replace($RepoRoot, "").TrimStart("\","/")
+  Write-Host " - $rel"
+}
+Write-Host "==============================================="
+Write-Host ""
+
+
 # Run one Python process for all rule files
 $schemaPathAbs = (Resolve-Path -LiteralPath $SchemaFull).Path
 
