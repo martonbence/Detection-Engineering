@@ -140,6 +140,7 @@ jobs:
             -MaxErrors $maxErrors
 
       - name: Convert Sigma rules to Splunk SPL (auto pipeline; changed or all)
+        id: convert
         shell: bash
         run: |
           set -euo pipefail
@@ -147,11 +148,27 @@ jobs:
           rules="${{ steps.changes.outputs.rule_files }}"
           if [[ -z "${rules// }" ]]; then
             echo "No rule files to convert -> skipping."
+            echo "has_spl=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           mkdir -p rules/splunk
           python scripts/convert/sigma_to_spl.py --outdir rules/splunk $rules
 
-          echo "Generated SPL files:"
-          ls -la rules/splunk
+          # Check if any .spl files were created
+          if compgen -G "rules/splunk/*.spl" > /dev/null; then
+            echo "Generated SPL files:"
+            ls -la rules/splunk
+            echo "has_spl=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No SPL files generated."
+            echo "has_spl=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload SPL outputs (artifact)
+        if: steps.convert.outputs.has_spl == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: splunk-spl-output
+          path: rules/splunk/*.spl
+          if-no-files-found: error
