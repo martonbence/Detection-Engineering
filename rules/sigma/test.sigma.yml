@@ -30,4 +30,4 @@ detection:
     - Field2
 falsepositives:
   - Legit admin activity
-level: low
+level: high
