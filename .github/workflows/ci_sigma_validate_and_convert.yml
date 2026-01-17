@@ -1,6 +1,6 @@
 # .github/workflows/sigma_schema_validation.yml
 
-name: Sigma Schema Validation
+name: CI - Sigma Validate & Convert
 
 on:
   push:
