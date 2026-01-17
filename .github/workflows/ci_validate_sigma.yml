@@ -72,7 +72,7 @@ jobs:
           # If schema or validator or converter changed => validate/convert ALL rules
           mode="changed"
           for f in "${files[@]}"; do
-            if [[ "$f" == "docs/schemas/sigma_schema.json" ]] || [[ "$f" == scripts/validate/* ]] || [[ "$f" == "scripts/convertsigma_to_spl.py" ]]; then
+            if [[ "$f" == "docs/schemas/sigma_schema.json" ]] || [[ "$f" == scripts/validate/* ]] || [[ "$f" == "scripts/convert/sigma_to_spl.py" ]]; then
               mode="all"
               break
             fi
@@ -151,7 +151,7 @@ jobs:
           fi
 
           mkdir -p rules/splunk
-          python scripts/convertsigma_to_spl.py --outdir rules/splunk $rules
+          python scripts/convert/sigma_to_spl.py --outdir rules/splunk $rules
 
           echo "Generated SPL files:"
           ls -la rules/splunk
