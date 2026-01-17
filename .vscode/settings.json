@@ -1,0 +1,32 @@
+{
+    "files.associations": {
+        "rules/**/*.yml": "yaml",
+        "rules/**/*.yaml": "yaml",
+        "**/*.sigma.yml": "yaml",
+        "**/*.sigma.yaml": "yaml"
+    },
+    "yaml.schemas": {
+        "${workspaceFolder}/docs/schemas/sigma_schema.json": [
+            "rules/**/*.yml",
+            "rules/**/*.yaml",
+            "**/*.sigma.yml",
+            "**/*.sigma.yaml"
+        ]
+    },
+    "[yaml]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2,
+        "editor.autoIndent": "advanced",
+        "diffEditor.ignoreTrimWhitespace": false,
+        "editor.defaultColorDecorators": "never",
+        "editor.quickSuggestions": {
+            "strings": "on"
+        }
+    },
+    "editor.formatOnSave": true,
+    "files.trimTrailingWhitespace": true,
+    "editor.rulers": [
+        80,
+        120
+    ]
+}

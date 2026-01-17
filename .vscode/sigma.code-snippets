@@ -1,0 +1,43 @@
+{
+    "Sigma New Rule (de)": {
+        "prefix": "newrule",
+        "scope": "yaml",
+        "description": "User defined Sigma rule template",
+        "body": [
+            "title: ${1:Rule title}",
+            "id: ${2:uuid-here from: https://www.uuidgenerator.net/}",
+            "status: ${3|experimental,test,stable,deprecated|}",
+            "description: ${4:What does this detect?}",
+            "author: ${5:Bence Marton}",
+            "date: ${6:YYYY-MM-DD}",
+            "modified: ${7:YYYY-MM-DD}",
+            "references:",
+            "  - ${8:https://example.com}",
+            "tags:",
+            "  - attack.ta${9:xxxx}",
+            "  - attack.t${10:xxxx}",
+            "  - attack.t${11:XXXX.XXX}",
+            "logsource:",
+            "  product_category: ${12}",
+            "  product: ${13}",
+            "  service: ${14}",
+            "  event_type: ${15}",
+            "detection:",
+            "  selection:",
+            "    ${16:Field}: ${17:Value}",
+            "  filter:",
+            "    ${18:Field}: ${19:Value}",
+            "    ${20:Field}|contains:",
+            "      - ${21:Value1}",
+            "      - ${22:Value2}",
+            "  timeframe: ${23}",
+            "  condition: selection",
+            "  fields:",
+            "    - ${24:Field1}",
+            "    - ${25:Field2}",
+            "falsepositives:",
+            "  - ${26:Legit admin activity}",
+            "level: ${27|low,medium,high,critical|}"
+        ]
+    }
+}

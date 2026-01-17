@@ -1,6 +1,4 @@
-# ----------------------------
-#1: Sigma validation against schema
-# ----------------------------
+# .github/workflows/sigma_schema_validation.yml
 
 name: Sigma Schema Validation
 
@@ -12,12 +10,14 @@ on:
       - "rules/**.yaml"
       - "docs/schemas/sigma_schema.json"
       - "scripts/validate/**"
+      - "scripts/sigma_to_splunk.py"
   pull_request:
     paths:
       - "rules/**.yml"
       - "rules/**.yaml"
       - "docs/schemas/sigma_schema.json"
       - "scripts/validate/**"
+      - "scripts/sigma_to_splunk.py"
 
 permissions:
   contents: read
@@ -30,7 +30,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Needed for reliable git diff against base
           fetch-depth: 0
 
       - name: Setup Python
@@ -38,23 +37,16 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Python deps (pyyaml + jsonschema)
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install pyyaml==6.0.2 jsonschema==4.23.0 sigma-cli pysigma-backend-splunk
-
       - name: Determine changed files
         id: changes
         shell: bash
         run: |
           set -euo pipefail
 
-          # Figure out base/head depending on event type
           if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
             BASE_SHA="${{ github.event.pull_request.base.sha }}"
             HEAD_SHA="${{ github.event.pull_request.head.sha }}"
           else
-            # push
             BASE_SHA="${{ github.event.before }}"
             HEAD_SHA="${{ github.sha }}"
           fi
@@ -62,30 +54,68 @@ jobs:
           echo "BASE_SHA=$BASE_SHA"
           echo "HEAD_SHA=$HEAD_SHA"
 
-          # Ensure base commit exists locally (fetch-depth:0 should do, but be safe)
           git fetch --no-tags --prune --depth=0 origin || true
 
-          # Get changed files (added/modified/renamed/copied). Deleted are excluded by default in this filter.
           mapfile -t files < <(git diff --name-only --diff-filter=AMRC "$BASE_SHA" "$HEAD_SHA" || true)
 
           if [[ "${#files[@]}" -eq 0 ]]; then
             echo "No changed files detected."
             echo "files=" >> "$GITHUB_OUTPUT"
+            echo "rule_files=" >> "$GITHUB_OUTPUT"
+            echo "mode=none" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-
-          # Join into a space-separated string for PowerShell
-          joined=""
-          for f in "${files[@]}"; do
-            joined+="$f "
-          done
 
           echo "Changed files:"
           printf ' - %s\n' "${files[@]}"
 
-          echo "files=$joined" >> "$GITHUB_OUTPUT"
+          # If schema or validator or converter changed => validate/convert ALL rules
+          mode="changed"
+          for f in "${files[@]}"; do
+            if [[ "$f" == "docs/schemas/sigma_schema.json" ]] || [[ "$f" == scripts/validate/* ]] || [[ "$f" == "scripts/sigma_to_splunk.py" ]]; then
+              mode="all"
+              break
+            fi
+          done
 
-      - name: Validate changed Sigma rules against schema
+          # Build rule file list
+          rule_files=()
+          if [[ "$mode" == "all" ]]; then
+            # all tracked rule files
+            while IFS= read -r rf; do
+              [[ -n "$rf" ]] && rule_files+=("$rf")
+            done < <(git ls-files "rules/**/*.yml" "rules/**/*.yaml" || true)
+          else
+            # only changed rules
+            for f in "${files[@]}"; do
+              if [[ "$f" =~ ^rules/.*\.(yml|yaml)$ ]]; then
+                rule_files+=("$f")
+              fi
+            done
+          fi
+
+          # Join for outputs (space-separated)
+          joined_files=""
+          for f in "${files[@]}"; do
+            joined_files+="$f "
+          done
+
+          joined_rules=""
+          for r in "${rule_files[@]}"; do
+            joined_rules+="$r "
+          done
+
+          echo "Mode: $mode"
+          echo "files=$joined_files" >> "$GITHUB_OUTPUT"
+          echo "rule_files=$joined_rules" >> "$GITHUB_OUTPUT"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+
+      - name: Install Python deps (pyyaml + jsonschema + sigma)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyyaml jsonschema sigma-cli pysigma-backend-splunk
+
+      - name: Validate Sigma rules against schema (changed or all)
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -93,47 +123,35 @@ jobs:
           $schemaPath = "docs/schemas/sigma_schema.json"
           $maxErrors = 25
 
-          $filesRaw = "${{ steps.changes.outputs.files }}"
+          $rulesRaw = "${{ steps.changes.outputs.rule_files }}"
 
-          if ([string]::IsNullOrWhiteSpace($filesRaw)) {
-            Write-Host "No changed files -> skipping."
+          if ([string]::IsNullOrWhiteSpace($rulesRaw)) {
+            Write-Host "No rule files to validate -> skipping."
             exit 0
           }
 
-          # Split on whitespace into an array
-          $files = $filesRaw -split '\s+' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+          $rules = $rulesRaw -split '\s+' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
 
-          Write-Host "Passing $($files.Count) changed file(s) to validator."
+          Write-Host "Validating $($rules.Count) rule file(s) against schema."
 
           ./scripts/validate/validate_sigma.ps1 `
             -SchemaPath $schemaPath `
-            -Files $files `
+            -Files $rules `
             -MaxErrors $maxErrors
 
-      # ----------------------------
-      #2: Sigma -> SPL conversion
-      # ----------------------------
-      - name: Convert changed Sigma rules to Splunk SPL
+      - name: Convert Sigma rules to Splunk SPL (auto pipeline; changed or all)
         shell: bash
         run: |
           set -euo pipefail
+
+          rules="${{ steps.changes.outputs.rule_files }}"
+          if [[ -z "${rules// }" ]]; then
+            echo "No rule files to convert -> skipping."
+            exit 0
+          fi
+
           mkdir -p rules/splunk
-
-          # Get changed files from previous step
-          files="${{ steps.changes.outputs.files }}"
-
-          for f in $files; do
-            if [[ "$f" =~ ^rules/.*\.(yml|yaml)$ ]]; then
-              base="$(basename "$f")"
-              base="${base%.yml}"
-              base="${base%.yaml}"
-              base="${base%.sigma}"
-              out="rules/splunk/${base}.spl"
-
-              echo "Converting: $f -> $out"
-              sigma convert -t splunk "$f" > "$out"
-            fi
-          done
+          python scripts/sigma_to_splunk.py --outdir rules/splunk $rules
 
           echo "Generated SPL files:"
           ls -la rules/splunk
