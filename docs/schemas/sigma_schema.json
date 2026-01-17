@@ -1,1 +1,226 @@
-asd
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Sigma Rule - Required Meta Schema (DE Lab)",
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+        "title",
+        "id",
+        "status",
+        "description",
+        "author",
+        "date",
+        "modified",
+        "references",
+        "tags",
+        "logsource",
+        "detection",
+        "falsepositives",
+        "level"
+    ],
+    "properties": {
+        "title": {
+            "type": "string",
+            "minLength": 5
+        },
+        "id": {
+            "type": "string",
+            "description": "UUID v4 recommended",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "status": {
+            "type": "string",
+            "enum": [
+                "experimental",
+                "test",
+                "stable",
+                "deprecated"
+            ]
+        },
+        "description": {
+            "type": "string",
+            "minLength": 10
+        },
+        "author": {
+            "type": "string",
+            "minLength": 3
+        },
+        "date": {
+            "type": "string",
+            "description": "Rule creation date (YYYY-MM-DD)",
+            "pattern": "^(19|20)\\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$"
+        },
+        "modified": {
+            "type": "string",
+            "description": "Rule last modified date (YYYY-MM-DD)",
+            "pattern": "^(19|20)\\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$"
+        },
+        "references": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "string",
+                "minLength": 8
+            }
+        },
+        "tags": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "string"
+            },
+            "allOf": [
+                {
+                    "description": "At least one ATT&CK tag must exist: attack.TAxxxx or attack.Txxxx or attack.Txxxx.xxx",
+                    "contains": {
+                        "type": "string",
+                        "pattern": "^attack\\.(TA\\d{4}|T\\d{4}(\\.\\d{3})?)$"
+                    }
+                }
+            ]
+        },
+        "logsource": {
+            "type": "object",
+            "required": [
+                "product_category",
+                "product",
+                "service",
+                "event_type"
+            ],
+            "properties": {
+                "product_category": {
+                    "type": "string",
+                    "description": "High-level log source category (suggested values available, free-form allowed)",
+                    "anyOf": [
+                        {
+                            "enum": [
+                                "os",
+                                "cloud",
+                                "firewall",
+                                "web",
+                                "edr",
+                                "ips",
+                                "iam",
+                                "exchange",
+                                "proxy"
+                            ]
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ]
+                },
+                "product": {
+                    "type": "string",
+                    "description": "Product (suggested values available, free-form allowed)",
+                    "anyOf": [
+                        {
+                            "enum": [
+                                "windows",
+                                "linux",
+                                "macos",
+                                "aws",
+                                "azure",
+                                "gcp",
+                                "opnsense",
+                                "webserver",
+                                "okta",
+                                "m365"
+                            ]
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ]
+                },
+                "service": {
+                    "type": "string",
+                    "description": "Service / log channel (suggested values available, free-form allowed)",
+                    "anyOf": [
+                        {
+                            "enum": [
+                                "security",
+                                "sysmon",
+                                "powershell",
+                                "apache",
+                                "nginx",
+                                "iis",
+                                "tomcat",
+                                "owa",
+                                "sshd",
+                                "rdp",
+                                "dns",
+                                "dhcp",
+                                "windows_defender",
+                                "proxy"
+                            ]
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ]
+                },
+                "event_type": {
+                    "type": "string",
+                    "description": "Event type (suggested values available, free-form allowed)",
+                    "anyOf": [
+                        {
+                            "enum": [
+                                "process_creation",
+                                "file_event",
+                                "registry_event",
+                                "access_history",
+                                "authentication_success",
+                                "authentication_failure"
+                            ]
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ]
+                }
+            }
+        },
+        "detection": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": [
+                "condition"
+            ],
+            "properties": {
+                "timeframe": {
+                    "type": "string",
+                    "pattern": "^[0-9]+(s|m|h|d)$"
+                },
+                "condition": {
+                    "type": "string",
+                    "minLength": 3
+                },
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                }
+            }
+        },
+        "falsepositives": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "string",
+                "minLength": 5
+            }
+        },
+        "level": {
+            "type": "string",
+            "enum": [
+                "low",
+                "medium",
+                "high",
+                "critical"
+            ]
+        }
+    }
+}
