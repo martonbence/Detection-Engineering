@@ -1,4 +1,4 @@
-# scripts/sigma_to_spl.py
+# scripts/convert/sigma_to_spl.py
 import argparse
 import subprocess
 import sys
@@ -6,7 +6,6 @@ from pathlib import Path
 
 import yaml
 
-PIPELINE_GENERAL = "splunk_cim"
 PIPELINE_WINDOWS = "splunk_windows"
 PIPELINE_SYSMON = "splunk_sysmon_acceleration"
 
@@ -19,9 +18,10 @@ def _normalize_service(rule: dict) -> str:
 def pick_pipeline(rule: dict) -> str:
     """
     Pipeline selection:
-      - service == "sysmon"    -> splunk_sysmon_acceleration
-      - service == "security"  -> splunk_windows
-      - anything else / missing -> splunk_cim
+      - service == "sysmon"     -> splunk_sysmon_acceleration
+      - service == "security"   -> splunk_windows
+      - anything else / missing -> NO pipeline (fallback to --without-pipeline)
+
     Optional override:
       custom:
         splunk_pipeline: <pipeline_name>
@@ -36,7 +36,9 @@ def pick_pipeline(rule: dict) -> str:
         return PIPELINE_SYSMON
     if service == "security":
         return PIPELINE_WINDOWS
-    return PIPELINE_GENERAL
+
+    # everything else: no pipeline
+    return ""
 
 
 def output_name_for_rule(rule_path: Path) -> str:
@@ -52,17 +54,16 @@ def output_name_for_rule(rule_path: Path) -> str:
 
 
 def run_sigma_convert(rule_path: Path, out_path: Path, pipeline: str) -> None:
-    cmd = [
-        "sigma",
-        "convert",
-        "-t",
-        "splunk",
-        "-p",
-        pipeline,
-        str(rule_path),
-        "-o",
-        str(out_path),
-    ]
+    cmd = ["sigma", "convert", "-t", "splunk"]
+
+    # pipeline is required for some backends, but CIM pipeline is not universal.
+    # For non-security/sysmon rules, we intentionally fall back to --without-pipeline.
+    if pipeline:
+        cmd += ["-p", pipeline]
+    else:
+        cmd += ["--without-pipeline"]
+
+    cmd += [str(rule_path), "-o", str(out_path)]
     subprocess.run(cmd, check=True)
 
 
@@ -96,7 +97,10 @@ def main() -> int:
         pipeline = pick_pipeline(rule)
         out_path = outdir / output_name_for_rule(rule_path)
 
-        print(f"Converting: {rule_path} -> {out_path} (pipeline={pipeline})")
+        mode = f"pipeline={pipeline}" if pipeline else "without-pipeline"
+        service = _normalize_service(rule)
+        print(f"Converting: {rule_path} -> {out_path} ({mode}, service={service or 'N/A'})")
+
         try:
             run_sigma_convert(rule_path, out_path, pipeline)
         except subprocess.CalledProcessError as e:
