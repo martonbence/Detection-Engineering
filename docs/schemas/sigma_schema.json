@@ -74,7 +74,7 @@
                     "description": "At least one ATT&CK tag must exist: attack.TAxxxx or attack.Txxxx or attack.Txxxx.xxx",
                     "contains": {
                         "type": "string",
-                        "pattern": "^attack\\.(TA\\d{4}|T\\d{4}(\\.\\d{3})?)$"
+                        "pattern": "^attack\\.([Tt][Aa]\\d{4}|[Tt]\\d{4}(\\.\\d{3})?)$"
                     }
                 }
             ]
