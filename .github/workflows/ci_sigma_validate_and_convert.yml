@@ -23,7 +23,7 @@ permissions:
   contents: write
 
 jobs:
-  Sigma Validate and Convert to SPL:
+  Sigma Validate & Convert to SPL:
     runs-on: ubuntu-latest
 
     steps:
