@@ -44,7 +44,7 @@
             "",
             "falsepositives:",
             "  - ${26:Legit admin activity}",
-            "#",
+            "",
             "level: ${27|low,medium,high,critical|}"
         ]
     }

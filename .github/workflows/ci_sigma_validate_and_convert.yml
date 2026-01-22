@@ -20,7 +20,7 @@ on:
       - "scripts/convert/sigma_to_spl.py"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate-sigma:
@@ -165,10 +165,23 @@ jobs:
             echo "has_spl=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Upload SPL outputs (artifact)
-        if: steps.convert.outputs.has_spl == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: splunk-spl-output
-          path: rules/splunk/*.spl
-          if-no-files-found: error
+      - name: Commit converted SPL outputs to repo (push only)
+        if: github.event_name == 'push' && steps.convert.outputs.has_spl == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Stage only converted outputs
+          git add -A rules/splunk
+
+          # If nothing changed, do nothing
+          if git diff --cached --quiet; then
+            echo "No SPL changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git commit -m "chore(splunk): update sigma-converted SPL outputs"
+          git push

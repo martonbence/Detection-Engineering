@@ -50,7 +50,7 @@ def output_name_for_rule(rule_path: Path) -> str:
         name = name[:-5]
     if name.endswith(".sigma"):
         name = name[:-6]
-    return f"{name}.spl"
+    return f"{name}.sigma.spl"
 
 
 def run_sigma_convert(rule_path: Path, out_path: Path, pipeline: str) -> None:
