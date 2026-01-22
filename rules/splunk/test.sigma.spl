@@ -1,0 +1,1 @@
+Field="Value" NOT (Field="Value" Field IN ("*Value1*", "*Value2*"))
