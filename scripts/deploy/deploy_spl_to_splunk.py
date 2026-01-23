@@ -36,8 +36,39 @@ def savedsearch_name_from_file(p: Path) -> str:
     return name
 
 
+def read_spl_query(path: Path) -> str:
+    """
+    Splunk savedsearch 'search' field should be valid SPL.
+    If you keep CI comments in files, strip leading '#' comment lines to avoid parse errors.
+    """
+    lines = path.read_text(encoding="utf-8").splitlines()
+
+    # Drop UTF-8 BOM if present in first line
+    if lines and lines[0].startswith("\ufeff"):
+        lines[0] = lines[0].lstrip("\ufeff")
+
+    # Strip leading blank lines
+    while lines and not lines[0].strip():
+        lines.pop(0)
+
+    # Strip leading comment lines (common in generated artifacts)
+    while lines and lines[0].lstrip().startswith("#"):
+        lines.pop(0)
+        while lines and not lines[0].strip():
+            lines.pop(0)
+
+    return "\n".join(lines).strip()
+
+
 def splunk_post(session: requests.Session, url: str, data: dict) -> requests.Response:
+    # Splunkd REST expects form-encoded by default; requests does this with data=
     return session.post(url, data=data, timeout=30)
+
+
+def is_already_exists(resp_text: str) -> bool:
+    # Splunk error messages vary by version; this catches the common ones.
+    t = (resp_text or "").lower()
+    return ("already exists" in t) or ("conflict" in t) or ("in use" in t)
 
 
 def main(argv: list[str]) -> int:
@@ -56,11 +87,10 @@ def main(argv: list[str]) -> int:
     s = requests.Session()
     s.verify = verify_tls
     s.auth = (username, password)
-
-    # Splunk often returns XML by default; ask for JSON for friendlier errors.
     s.headers.update({"Accept": "application/json"})
 
-    create_url = f"{base_url}/servicesNS/{quote(owner)}/{quote(app)}/saved/searches"
+    # Ask Splunk for JSON output to make errors/logging consistent
+    create_url = f"{base_url}/servicesNS/{quote(owner)}/{quote(app)}/saved/searches?output_mode=json"
 
     failed = 0
 
@@ -71,52 +101,68 @@ def main(argv: list[str]) -> int:
             continue
 
         search_name = savedsearch_name_from_file(f)
-        search_query = f.read_text(encoding="utf-8").strip()
+
+        try:
+            search_query = read_spl_query(f)
+        except Exception as e:
+            print(f"ERROR: failed reading SPL file {f}: {e}", file=sys.stderr)
+            failed += 1
+            continue
 
         if not search_query:
-            print(f"ERROR: empty SPL file: {f}", file=sys.stderr)
+            print(f"ERROR: empty SPL query after preprocessing: {f}", file=sys.stderr)
             failed += 1
             continue
 
         print(f"Deploying savedsearch '{search_name}' from {f}")
 
-        # 1) Try create
-        r = splunk_post(
-            s,
-            create_url,
-            {
-                "name": search_name,
-                "search": search_query,
-                "disabled": "0",
-            },
-        )
+        payload_create = {
+            "name": search_name,
+            "search": search_query,
+            "disabled": "0",
+            # optional: make CI-owned objects obvious in Splunk UI
+            "description": "Managed by CI/CD (Detection-Engineering repo)",
+        }
+
+        r = splunk_post(s, create_url, payload_create)
 
         if r.status_code in (200, 201):
             print(f"Created: {search_name}")
             continue
 
-        # 2) If exists -> update
-        update_url = f"{create_url}/{quote(search_name)}"
-        r2 = splunk_post(
-            s,
-            update_url,
-            {
-                "search": search_query,
-                "disabled": "0",
-            },
-        )
-
-        if r2.status_code == 200:
-            print(f"Updated: {search_name}")
+        # If auth/permission error -> fail fast (do not mask with update attempt)
+        if r.status_code in (401, 403):
+            print(f"ERROR: auth/permission error creating {search_name} (HTTP {r.status_code})", file=sys.stderr)
+            print(f"Response (first 800 chars): {r.text[:800]}", file=sys.stderr)
+            failed += 1
             continue
 
-        print(
-            f"ERROR: failed deploying {search_name}. "
-            f"Create={r.status_code} Update={r2.status_code}",
-            file=sys.stderr,
-        )
+        # Only fall back to update if it's a 'already exists' scenario.
+        update_url = f"{base_url}/servicesNS/{quote(owner)}/{quote(app)}/saved/searches/{quote(search_name)}?output_mode=json"
+
+        if r.status_code in (409,) or is_already_exists(r.text):
+            payload_update = {
+                "search": search_query,
+                "disabled": "0",
+                "description": "Managed by CI/CD (Detection-Engineering repo)",
+            }
+            r2 = splunk_post(s, update_url, payload_update)
+
+            if r2.status_code == 200:
+                print(f"Updated: {search_name}")
+                continue
+
+            print(
+                f"ERROR: failed updating {search_name}. Update={r2.status_code}",
+                file=sys.stderr,
+            )
+            print(f"Update response (first 800 chars): {r2.text[:800]}", file=sys.stderr)
+            failed += 1
+            continue
+
+        # Other create failures -> report and fail
+        print(f"ERROR: failed creating {search_name}. Create={r.status_code}", file=sys.stderr)
         print(f"Create response (first 800 chars): {r.text[:800]}", file=sys.stderr)
-        print(f"Update response (first 800 chars): {r2.text[:800]}", file=sys.stderr)
         failed += 1
 
     return 2 if failed else 0
