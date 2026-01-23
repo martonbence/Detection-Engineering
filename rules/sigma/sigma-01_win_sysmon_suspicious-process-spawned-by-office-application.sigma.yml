@@ -3,8 +3,8 @@ id: c48b34d1-55f2-4c5c-ba63-1a5dbdf076ee
 status: test
 description: Detects when Office applications spawn potentially malicious child processes
 author: Bence Marton
-date: 2026-01-22
-modified: 2026-01-22
+date: 2026-01-23
+modified: 2026-01-23
 references:
   - https://example.com
 tags:
