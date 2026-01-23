@@ -1,5 +1,6 @@
 # scripts/convert/sigma_to_spl.py
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -42,7 +43,7 @@ def pick_pipeline(rule: dict) -> str:
 
 
 def output_name_for_rule(rule_path: Path) -> str:
-    # rules/sigma/foo.sigma.yml -> foo.spl
+    # rules/sigma/foo.sigma.yml -> foo.sigma.spl (always keep .sigma marker)
     name = rule_path.name
     if name.endswith(".yml"):
         name = name[:-4]
@@ -65,6 +66,53 @@ def run_sigma_convert(rule_path: Path, out_path: Path, pipeline: str) -> None:
 
     cmd += [str(rule_path), "-o", str(out_path)]
     subprocess.run(cmd, check=True)
+
+
+def _safe_str(v) -> str:
+    return str(v).strip() if v is not None else ""
+
+
+def build_ci_header(rule_path: Path, rule: dict, mode: str, pipeline: str) -> str:
+    """
+    Header is intentionally comments only.
+    Deploy script will strip leading '#' lines before sending SPL to Splunk.
+    """
+    sigma_id = _safe_str(rule.get("id"))
+    title = _safe_str(rule.get("title"))
+    status = _safe_str(rule.get("status"))
+    date = _safe_str(rule.get("date"))
+    modified = _safe_str(rule.get("modified"))
+    service = _normalize_service(rule) or "N/A"
+
+    git_sha = (os.getenv("GITHUB_SHA") or os.getenv("CI_COMMIT_SHA") or "").strip()
+    git_ref = (os.getenv("GITHUB_REF_NAME") or "").strip()
+
+    lines = [
+        "# CI-MANAGED: true",
+        "# ORIGIN: sigma_to_spl.py",
+        f"# SIGMA_FILE: {rule_path.as_posix()}",
+        f"# SIGMA_ID: {sigma_id}",
+        f"# SIGMA_TITLE: {title}",
+        f"# SIGMA_STATUS: {status}",
+        f"# SIGMA_DATE: {date}",
+        f"# SIGMA_MODIFIED: {modified}",
+        f"# LOGSOURCE_SERVICE: {service}",
+        f"# CONVERT_MODE: {mode}",
+        f"# SIGMA_PIPELINE: {pipeline or 'without-pipeline'}",
+    ]
+
+    if git_sha:
+        lines.append(f"# GIT_SHA: {git_sha}")
+    if git_ref:
+        lines.append(f"# GIT_REF: {git_ref}")
+
+    lines.append("# ---")
+    return "\n".join(lines) + "\n"
+
+
+def prepend_header(out_path: Path, header: str) -> None:
+    content = out_path.read_text(encoding="utf-8")
+    out_path.write_text(header + content, encoding="utf-8")
 
 
 def main() -> int:
@@ -99,6 +147,7 @@ def main() -> int:
 
         mode = f"pipeline={pipeline}" if pipeline else "without-pipeline"
         service = _normalize_service(rule)
+
         print(f"Converting: {rule_path} -> {out_path} ({mode}, service={service or 'N/A'})")
 
         try:
@@ -106,6 +155,16 @@ def main() -> int:
         except subprocess.CalledProcessError as e:
             print(f"ERROR: sigma convert failed for {rule_path}: {e}", file=sys.stderr)
             failed += 1
+            continue  # do not write header if conversion failed
+
+        # Always prepend header AFTER successful conversion
+        try:
+            header = build_ci_header(rule_path, rule, mode=mode, pipeline=pipeline)
+            prepend_header(out_path, header)
+        except Exception as e:
+            print(f"ERROR: failed writing header for {out_path}: {e}", file=sys.stderr)
+            failed += 1
+            continue
 
     return 2 if failed else 0
 
