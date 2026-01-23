@@ -1,20 +1,18 @@
-# .github/workflows/sigma_schema_validation.yml
-
 name: CI - Sigma Validate & Convert
 
 on:
   push:
     branches: ["**"]
     paths:
-      - "rules/**/*.yml"
-      - "rules/**/*.yaml"
+      - "rules/sigma/**/*.yml"
+      - "rules/sigma/**/*.yaml"
       - "docs/schemas/sigma_schema.json"
       - "scripts/validate/**"
       - "scripts/convert/sigma_to_spl.py"
   pull_request:
     paths:
-      - "rules/**/*.yml"
-      - "rules/**/*.yaml"
+      - "rules/sigma/**/*.yml"
+      - "rules/sigma/**/*.yaml"
       - "docs/schemas/sigma_schema.json"
       - "scripts/validate/**"
       - "scripts/convert/sigma_to_spl.py"
@@ -56,9 +54,16 @@ jobs:
 
           git fetch --no-tags --prune --depth=0 origin || true
 
-          mapfile -t files < <(git diff --name-only --diff-filter=AMRC "$BASE_SHA" "$HEAD_SHA" || true)
+          mode="changed"
 
-          if [[ "${#files[@]}" -eq 0 ]]; then
+          # If BASE_SHA is missing/unusable, fall back to ALL rules
+          if [[ -z "${BASE_SHA}" || "${BASE_SHA}" =~ ^0+$ ]]; then
+            mode="all"
+          fi
+
+          mapfile -t files < <(git diff --name-only --diff-filter=AMRC "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true)
+
+          if [[ "${#files[@]}" -eq 0 && "$mode" != "all" ]]; then
             echo "No changed files detected."
             echo "files=" >> "$GITHUB_OUTPUT"
             echo "rule_files=" >> "$GITHUB_OUTPUT"
@@ -66,44 +71,47 @@ jobs:
             exit 0
           fi
 
-          echo "Changed files:"
-          printf ' - %s\n' "${files[@]}"
+          if [[ "${#files[@]}" -gt 0 ]]; then
+            echo "Changed files:"
+            printf ' - %s\n' "${files[@]}"
+          fi
 
           # If schema or validator or converter changed => validate/convert ALL rules
-          mode="changed"
-          for f in "${files[@]}"; do
-            if [[ "$f" == "docs/schemas/sigma_schema.json" ]] || [[ "$f" == scripts/validate/* ]] || [[ "$f" == "scripts/convert/sigma_to_spl.py" ]]; then
-              mode="all"
-              break
-            fi
-          done
+          if [[ "$mode" != "all" ]]; then
+            for f in "${files[@]}"; do
+              if [[ "$f" == "docs/schemas/sigma_schema.json" ]] || [[ "$f" == scripts/validate/* ]] || [[ "$f" == "scripts/convert/sigma_to_spl.py" ]]; then
+                mode="all"
+                break
+              fi
+            done
+          fi
 
-          # Build rule file list
           rule_files=()
           if [[ "$mode" == "all" ]]; then
-            # all tracked rule files
             while IFS= read -r rf; do
               [[ -n "$rf" ]] && rule_files+=("$rf")
-            done < <(git ls-files rules | grep -E '^rules/.*\.(yml|yaml)$' || true)
+            done < <(git ls-files "rules/sigma/**/*.yml" "rules/sigma/**/*.yaml" || true)
           else
-            # only changed rules
             for f in "${files[@]}"; do
-              if [[ "$f" =~ ^rules/.*\.(yml|yaml)$ ]]; then
+              if [[ "$f" =~ ^rules/sigma/.*\.(yml|yaml)$ ]]; then
                 rule_files+=("$f")
               fi
             done
           fi
 
-          # Join for outputs (space-separated)
+          if [[ "${#rule_files[@]}" -eq 0 ]]; then
+            echo "No Sigma rule files to process."
+            echo "files=" >> "$GITHUB_OUTPUT"
+            echo "rule_files=" >> "$GITHUB_OUTPUT"
+            echo "mode=none" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           joined_files=""
-          for f in "${files[@]}"; do
-            joined_files+="$f "
-          done
+          for f in "${files[@]}"; do joined_files+="$f "; done
 
           joined_rules=""
-          for r in "${rule_files[@]}"; do
-            joined_rules+="$r "
-          done
+          for r in "${rule_files[@]}"; do joined_rules+="$r "; done
 
           echo "Mode: $mode"
           echo "files=$joined_files" >> "$GITHUB_OUTPUT"
@@ -142,6 +150,9 @@ jobs:
       - name: Convert Sigma rules to Splunk SPL (auto pipeline; changed or all)
         id: convert
         shell: bash
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
 
@@ -155,10 +166,9 @@ jobs:
           mkdir -p rules/splunk
           python scripts/convert/sigma_to_spl.py --outdir rules/splunk $rules
 
-          # Check if any .spl files were created
-          if compgen -G "rules/splunk/*.spl" > /dev/null; then
+          if find rules/splunk -type f -name '*.spl' -print -quit | grep -q .; then
             echo "Generated SPL files:"
-            ls -la rules/splunk
+            find rules/splunk -type f -name '*.spl' -maxdepth 2 -print
             echo "has_spl=true" >> "$GITHUB_OUTPUT"
           else
             echo "No SPL files generated."
