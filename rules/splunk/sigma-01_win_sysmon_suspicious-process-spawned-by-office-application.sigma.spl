@@ -1,0 +1,15 @@
+# CI-MANAGED: true
+# ORIGIN: sigma_to_spl.py
+# SIGMA_FILE: rules/sigma/sigma-01_win_sysmon_suspicious-process-spawned-by-office-application.sigma.yml
+# SIGMA_ID: c48b34d1-55f2-4c5c-ba63-1a5dbdf076ee
+# SIGMA_TITLE: Suspicious Process Spawned by Office Application
+# SIGMA_STATUS: test
+# SIGMA_DATE: 2026-01-22
+# SIGMA_MODIFIED: 2026-01-22
+# LOGSOURCE_SERVICE: sysmon
+# CONVERT_MODE: pipeline=splunk_sysmon_acceleration
+# SIGMA_PIPELINE: splunk_sysmon_acceleration
+# GIT_SHA: 986138859aec7e06b5548c02de50137baf9c2918
+# GIT_REF: main
+# ---
+ParentImage IN ("*\\WINWORD.EXE", "*\\EXCEL.EXE", "*\\POWERPNT.EXE", "*\\OUTLOOK.EXE", "*\\MSACCESS.EXE", "*\\MSPUB.EXE", "*\\VISIO.EXE", "*\\ONENOTE.EXE") Image IN ("*\\cmd.exe", "*\\powershell.exe", "*\\wscript.exe", "*\\cscript.exe", "*\\rundll32.exe", "*\\regsvr32.exe", "*\\mshta.exe", "*\\wmic.exe", "*\\bitsadmin.exe", "*\\certutil.exe") NOT (CommandLine IN ("*Microsoft.Office*", "*Office16\\GROOVEEX.DLL*")) NOT (Image IN ("*C:\\Program Files\\Microsoft Office\\*", "*C:\\Program Files (x86)\\Microsoft Office\\*"))
