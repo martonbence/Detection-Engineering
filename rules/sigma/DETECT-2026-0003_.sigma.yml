@@ -1,0 +1,130 @@
+title: Rule title
+id: a11687f9-5bb8-406d-98c0-0dfc6e2f194b
+detect_id: DETECT-2026-0003
+status: test
+description: Detects PowerShell execution with encoded/obfuscated payloads and suspicious patterns
+author: Bence Marton
+date: 2026-01-24
+modified: 2026-01-24
+references:
+  - https://example.com
+tags:
+  - attack.ta0002
+  - attack.t1059
+  - attack.t1059.001
+  - attack.ta0005
+  - attack.t1027
+  - attack.t1140
+
+logsource:
+  product_category: os
+  product: windows
+  service: sysmon
+  event_type: procecc_creation
+
+detection:
+  # PowerShell processes
+  selection_powershell:
+    Image|endswith:
+      - '\powershell.exe'
+      - '\pwsh.exe'
+
+  # Encoded command indicators
+  selection_encoded:
+    CommandLine|contains:
+      - "-EncodedCommand"
+      - "-enc"
+      - "-e "
+      - "/e:"
+      - "/enc:"
+      - "/encodedcommand:"
+
+  # Base64 patterns (long strings indicate large payloads)
+  selection_base64_large:
+    CommandLine|re: "[A-Za-z0-9+/]{100,}={0,2}" # Base64 string 100+ chars
+
+  # Common base64 prefixes in malicious scripts
+  selection_base64_suspicious:
+    CommandLine|contains:
+      - "JAB" # Common base64 prefix for "$"
+      - "SUVYI" # Common base64 prefix for "IEX"
+      - "SQBFAFgA" # Base64 for "IEX"
+      - "aQBlAHgA" # Base64 for "iex"
+      - "IABpAGUAeAAgA" # Base64 pattern
+      - "PABzAGMAcgBpAHAAdAA" # Base64 for "<script"
+      - "aWV4" # Base64 for "iex"
+
+  # Obfuscation techniques
+  selection_obfuscation:
+    CommandLine|contains:
+      - "`" # Backtick obfuscation
+      - "+'+" # String concatenation
+      - '("{0}{1}' # Format string obfuscation
+      - "[char]" # Character obfuscation
+      - "-join" # Array join obfuscation
+      - "-replace" # String replacement
+      - "[convert]::" # Type conversion
+
+  # Download/execution patterns
+  selection_download_execute:
+    CommandLine|contains:
+      - "DownloadString"
+      - "DownloadFile"
+      - "DownloadData"
+      - "Net.WebClient"
+      - "Net.WebRequest"
+      - "Invoke-WebRequest"
+      - "Invoke-RestMethod"
+      - "IEX"
+      - "Invoke-Expression"
+      - "|IEX"
+      - "|iex"
+      - "&([scriptblock]"
+
+  # Execution bypass flags
+  selection_bypass:
+    CommandLine|contains:
+      - "-NoProfile"
+      - "-NoP"
+      - "-NonInteractive"
+      - "-NonI"
+      - "-NoLogo"
+      - "-WindowStyle Hidden"
+      - "-w hidden"
+      - "-window hidden"
+      - "-ExecutionPolicy Bypass"
+      - "-exec bypass"
+      - "-ep bypass"
+
+  # Filter legitimate tools
+  filter_legitimate_tools:
+    ParentImage|endswith:
+      - '\services.exe'
+      - '\svchost.exe'
+      - '\MsiExec.exe'
+      - '\WMIC.exe'
+
+  filter_legitimate_paths:
+    CommandLine|contains:
+      - "Microsoft.PowerShell.Utility"
+      - "Microsoft.PowerShell.Management"
+      - "Microsoft.PowerShell.Security"
+      - "Microsoft.WSMan.Management"
+
+  # Must be PowerShell + Encoded command + suspicious patterns
+  condition: selection_powershell and ((selection_encoded and (selection_base64_large or selection_base64_suspicious)) or (selection_encoded and selection_obfuscation and selection_download_execute) or (selection_base64_suspicious and selection_download_execute and selection_bypass)) and not filter_legitimate_tools and not filter_legitimate_paths
+
+fields:
+  - CommandLine
+  - ParentImage
+  - ParentCommandLine
+  - Image
+  - User
+  - ProcessId
+
+falsepositives:
+  - Complex legitimate administrative scripts
+  - Software deployment scripts
+  - Configuration management tools
+
+level: high
