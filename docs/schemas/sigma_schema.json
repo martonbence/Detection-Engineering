@@ -118,24 +118,17 @@
                 "product": {
                     "type": "string",
                     "description": "Product (suggested values available, free-form allowed)",
-                    "anyOf": [
-                        {
-                            "enum": [
-                                "windows",
-                                "linux",
-                                "macos",
-                                "aws",
-                                "azure",
-                                "gcp",
-                                "opnsense",
-                                "webserver",
-                                "okta",
-                                "m365"
-                            ]
-                        },
-                        {
-                            "type": "string"
-                        }
+                    "enum": [
+                        "windows",
+                        "linux",
+                        "macos",
+                        "aws",
+                        "azure",
+                        "gcp",
+                        "opnsense",
+                        "webserver",
+                        "okta",
+                        "m365"
                     ]
                 },
                 "service": {
