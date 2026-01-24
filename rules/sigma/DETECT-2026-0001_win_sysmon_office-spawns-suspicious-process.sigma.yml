@@ -1,5 +1,6 @@
 title: Office Spawns Suspicious Process
-id: DETECT-2026-0001
+id: 18cfa613-1515-482f-a7c8-b72e7570e029
+detect_id: DETECT-2026-0001
 status: test
 description: Detects when Office applications spawn potentially malicious child processes
 author: Bence Marton
