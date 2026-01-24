@@ -1,0 +1,18 @@
+# CI-MANAGED: true
+# ORIGIN: sigma_to_spl.py
+# SIGMA_FILE: rules/sigma/DETECT-2026-0003_suspicious-powershell-command-with-encoded-payload.sigma.yml
+# SIGMA_ID: a11687f9-5bb8-406d-98c0-0dfc6e2f194b
+# SIGMA_TITLE: Suspicious PowerShell Command with Encoded Payload
+# SIGMA_STATUS: test
+# SIGMA_DATE: 2026-01-24
+# SIGMA_MODIFIED: 2026-01-24
+# LOGSOURCE_SERVICE: sysmon
+# CONVERT_MODE: pipeline=splunk_sysmon_acceleration
+# SIGMA_PIPELINE: splunk_sysmon_acceleration
+# GIT_SHA: f36aab1e812960575020509c8e52ad3af9fcb691
+# GIT_REF: main
+# ---
+
+| rex field=CommandLine "(?<CommandLineMatch>[A-Za-z0-9+/]{100,}={0,2})"
+| eval CommandLineCondition=if(isnotnull(CommandLineMatch), "true", "false")
+| search Image IN ("*\\powershell.exe", "*\\pwsh.exe") (CommandLine IN ("*-EncodedCommand*", "*-enc*", "*-e *", "*/e:*", "*/enc:*", "*/encodedcommand:*") CommandLineCondition="true" OR CommandLine IN ("*JAB*", "*SUVYI*", "*SQBFAFgA*", "*aQBlAHgA*", "*IABpAGUAeAAgA*", "*PABzAGMAcgBpAHAAdAA*", "*aWV4*")) OR (CommandLine IN ("*-EncodedCommand*", "*-enc*", "*-e *", "*/e:*", "*/enc:*", "*/encodedcommand:*") CommandLine IN ("*`*", "*+'+*", "*(\"{0}{1}*", "*[char]*", "*-join*", "*-replace*", "*[convert]::*") CommandLine IN ("*DownloadString*", "*DownloadFile*", "*DownloadData*", "*Net.WebClient*", "*Net.WebRequest*", "*Invoke-WebRequest*", "*Invoke-RestMethod*", "*IEX*", "*Invoke-Expression*", "*|IEX*", "*|iex*", "*&([scriptblock]*")) OR (CommandLine IN ("*JAB*", "*SUVYI*", "*SQBFAFgA*", "*aQBlAHgA*", "*IABpAGUAeAAgA*", "*PABzAGMAcgBpAHAAdAA*", "*aWV4*") CommandLine IN ("*DownloadString*", "*DownloadFile*", "*DownloadData*", "*Net.WebClient*", "*Net.WebRequest*", "*Invoke-WebRequest*", "*Invoke-RestMethod*", "*IEX*", "*Invoke-Expression*", "*|IEX*", "*|iex*", "*&([scriptblock]*") CommandLine IN ("*-NoProfile*", "*-NoP*", "*-NonInteractive*", "*-NonI*", "*-NoLogo*", "*-WindowStyle Hidden*", "*-w hidden*", "*-window hidden*", "*-ExecutionPolicy Bypass*", "*-exec bypass*", "*-ep bypass*")) NOT (ParentImage IN ("*\\services.exe", "*\\svchost.exe", "*\\MsiExec.exe", "*\\WMIC.exe")) NOT (CommandLine IN ("*Microsoft.PowerShell.Utility*", "*Microsoft.PowerShell.Management*", "*Microsoft.PowerShell.Security*", "*Microsoft.WSMan.Management*")) | table CommandLine,ParentImage,ParentCommandLine,Image,User,ProcessId
