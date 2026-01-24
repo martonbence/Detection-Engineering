@@ -25,7 +25,12 @@
         },
         "id": {
             "type": "string",
-            "description": "UDetection Engineering identifier (DETECT-YYYY-NNNN)",
+            "description": "UUIDv4 identifier",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "detect_id": {
+            "type": "string",
+            "description": "Detection Engineering identifier (DETECT-YYYY-NNNN)",
             "pattern": "^DETECT-20\\d{2}-\\d{4}$"
         },
         "status": {
