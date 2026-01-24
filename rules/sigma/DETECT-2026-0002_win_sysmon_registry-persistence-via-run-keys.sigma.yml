@@ -4,8 +4,8 @@ detect_id: DETECT-2026-0002
 status: test
 description: Detects modifications to registry run keys commonly used for persistence
 author: Bence Marton
-date: 2026-01-24
-modified: 2026-01-24
+date: 2026-01-23
+modified: 2026-01-23
 references:
     - https://example.com
 tags:
