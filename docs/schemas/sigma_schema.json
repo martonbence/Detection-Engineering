@@ -25,8 +25,8 @@
         },
         "id": {
             "type": "string",
-            "description": "UUID v4 recommended",
-            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+            "description": "UDetection Engineering identifier (DETECT-YYYY-NNNN)",
+            "pattern": "^DETECT-20\\d{2}-\\d{4}$"
         },
         "status": {
             "type": "string",
