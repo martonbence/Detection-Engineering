@@ -4,12 +4,12 @@
 # SIGMA_ID: a11687f9-5bb8-406d-98c0-0dfc6e2f194b
 # SIGMA_TITLE: Suspicious PowerShell Command with Encoded Payload
 # SIGMA_STATUS: test
-# SIGMA_DATE: 2026-01-24
-# SIGMA_MODIFIED: 2026-01-24
+# SIGMA_DATE: 2026-01-23
+# SIGMA_MODIFIED: 2026-01-23
 # LOGSOURCE_SERVICE: sysmon
 # CONVERT_MODE: pipeline=splunk_sysmon_acceleration
 # SIGMA_PIPELINE: splunk_sysmon_acceleration
-# GIT_SHA: 1214bb0dab0f16adb28434909498ff5f3077084f
+# GIT_SHA: 57b0c563785f9006c7b68f3c88a2f82b29d38631
 # GIT_REF: main
 # ---
 
