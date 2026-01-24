@@ -1,4 +1,4 @@
-title: Rule title
+title: Suspicious PowerShell Command with Encoded Payload
 id: a11687f9-5bb8-406d-98c0-0dfc6e2f194b
 detect_id: DETECT-2026-0003
 status: test
