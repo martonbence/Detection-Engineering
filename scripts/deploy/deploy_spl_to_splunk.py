@@ -92,7 +92,7 @@ def build_savedsearch_description(ci_constant: str, sigma_description: str, max_
     if sigma:
         if len(sigma) > max_len:
             sigma = sigma[:max_len] + "..."
-        return f"{base}\n\n{sigma}"
+        return f"{base}\n{sigma}"
 
     return base
 
