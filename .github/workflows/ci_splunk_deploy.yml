@@ -80,6 +80,10 @@ jobs:
           SPLUNK_APP: ${{ secrets.SPLUNK_APP }}
           SPLUNK_OWNER: ${{ secrets.SPLUNK_OWNER }}
           SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS || 'false' }}
+          SPLUNK_SHARING: app
+          SPLUNK_PERMS_READ: "*"
+          SPLUNK_PERMS_WRITE: admin,ci_deploy_savedsearches
+
         run: |
           set -euo pipefail
           mapfile -t spl_files <<'EOF'

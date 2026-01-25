@@ -43,6 +43,7 @@ def read_spl_query(path: Path) -> str:
     """
     lines = path.read_text(encoding="utf-8").splitlines()
 
+
     # Drop UTF-8 BOM if present in first line
     if lines and lines[0].startswith("\ufeff"):
         lines[0] = lines[0].lstrip("\ufeff")
@@ -59,6 +60,41 @@ def read_spl_query(path: Path) -> str:
 
     return "\n".join(lines).strip()
 
+def extract_ci_header_value(path: Path, key: str) -> str:
+    """
+    Extract a CI header value from leading '#' lines.
+    Example key: "SIGMA_DESCRIPTION"
+    Looks for a line like: "# SIGMA_DESCRIPTION: <value>"
+    Stops parsing when non-comment line is encountered.
+    """
+    prefix = f"# {key}:"
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.lstrip().startswith("#"):
+                break
+            if line.startswith(prefix):
+                return line[len(prefix):].strip()
+    except Exception:
+        return ""
+    return ""
+
+
+def build_savedsearch_description(ci_constant: str, sigma_description: str, max_len: int = 800) -> str:
+    """
+    Combine constant CI description + Sigma rule description into a single Splunk savedsearch description.
+    """
+    base = (ci_constant or "").strip()
+    sigma = (sigma_description or "").strip()
+
+    # Flatten multi-line sigma descriptions for Splunk UI
+    sigma = " ".join(sigma.split())
+
+    if sigma:
+        if len(sigma) > max_len:
+            sigma = sigma[:max_len] + "..."
+        return f"{base}\n\n{sigma}"
+
+    return base
 
 def splunk_post(session: requests.Session, url: str, data: dict) -> requests.Response:
     # Splunkd REST expects form-encoded by default; requests does this with data=
@@ -71,6 +107,38 @@ def is_already_exists(resp_text: str) -> bool:
     return ("already exists" in t) or ("conflict" in t) or ("in use" in t)
 
 
+def set_acl(
+    session: requests.Session,
+    base_url: str,
+    owner: str,
+    app: str,
+    search_name: str,
+    sharing: str,
+    perms_read: str,
+    perms_write: str,
+) -> tuple[bool, str]:
+    """
+    Set object-level ACL for a saved search to ensure consistent sharing and permissions.
+    """
+    acl_url = (
+        f"{base_url}/servicesNS/{quote(owner, safe='')}/{quote(app, safe='')}"
+        f"/saved/searches/{quote(search_name, safe='')}/acl?output_mode=json"
+    )
+
+    payload = {
+        "sharing": sharing,          # "app" or "global"
+        "perms.read": perms_read,    # "*" or "admin,power"
+        "perms.write": perms_write,  # "admin" or "ci_deploy_savedsearches"
+    }
+
+    r = splunk_post(session, acl_url, payload)
+
+    if r.status_code == 200:
+        return True, "ACL updated"
+
+    return False, f"ACL update failed HTTP {r.status_code}: {r.text[:300]}"
+
+
 def main(argv: list[str]) -> int:
     base_url = env_required("SPLUNK_BASE_URL").rstrip("/")
     username = env_required("SPLUNK_USERNAME")
@@ -78,6 +146,10 @@ def main(argv: list[str]) -> int:
     app = env_required("SPLUNK_APP")
     owner = env_required("SPLUNK_OWNER")
     verify_tls = env_bool("SPLUNK_VERIFY_TLS", default=True)
+
+    sharing = (os.getenv("SPLUNK_SHARING") or "app").strip().lower()
+    perms_read = (os.getenv("SPLUNK_PERMS_READ") or "*").strip()
+    perms_write = (os.getenv("SPLUNK_PERMS_WRITE") or "admin").strip()
 
     files = [Path(a) for a in argv]
     if not files:
@@ -89,8 +161,10 @@ def main(argv: list[str]) -> int:
     s.auth = (username, password)
     s.headers.update({"Accept": "application/json"})
 
-    # Ask Splunk for JSON output to make errors/logging consistent
-    create_url = f"{base_url}/servicesNS/{quote(owner)}/{quote(app)}/saved/searches?output_mode=json"
+    create_url = (
+        f"{base_url}/servicesNS/{quote(owner, safe='')}/{quote(app, safe='')}"
+        f"/saved/searches?output_mode=json"
+    )
 
     failed = 0
 
@@ -116,18 +190,28 @@ def main(argv: list[str]) -> int:
 
         print(f"Deploying savedsearch '{search_name}' from {f}")
 
+        sigma_desc = extract_ci_header_value(f, "SIGMA_DESCRIPTION")
+        final_desc = build_savedsearch_description(
+            "Managed by CI/CD (Detection-Engineering repo)",
+            sigma_desc,
+            max_len=800,
+        )
+
         payload_create = {
             "name": search_name,
             "search": search_query,
             "disabled": "0",
-            # optional: make CI-owned objects obvious in Splunk UI
-            "description": "Managed by CI/CD (Detection-Engineering repo)",
+            "is_scheduled": "0",
+            "description": final_desc,
         }
 
         r = splunk_post(s, create_url, payload_create)
 
         if r.status_code in (200, 201):
             print(f"Created: {search_name}")
+            ok, msg = set_acl(s, base_url, owner, app, search_name, sharing, perms_read, perms_write)
+            if not ok:
+                print(f"WARNING: {search_name}: {msg}", file=sys.stderr)
             continue
 
         # If auth/permission error -> fail fast (do not mask with update attempt)
@@ -137,25 +221,28 @@ def main(argv: list[str]) -> int:
             failed += 1
             continue
 
-        # Only fall back to update if it's a 'already exists' scenario.
-        update_url = f"{base_url}/servicesNS/{quote(owner)}/{quote(app)}/saved/searches/{quote(search_name)}?output_mode=json"
+        update_url = (
+            f"{base_url}/servicesNS/{quote(owner, safe='')}/{quote(app, safe='')}"
+            f"/saved/searches/{quote(search_name, safe='')}?output_mode=json"
+        )
 
         if r.status_code in (409,) or is_already_exists(r.text):
             payload_update = {
                 "search": search_query,
                 "disabled": "0",
-                "description": "Managed by CI/CD (Detection-Engineering repo)",
+                "is_scheduled": "0",
+                "description": final_desc,
             }
             r2 = splunk_post(s, update_url, payload_update)
 
             if r2.status_code == 200:
                 print(f"Updated: {search_name}")
+                ok, msg = set_acl(s, base_url, owner, app, search_name, sharing, perms_read, perms_write)
+                if not ok:
+                    print(f"WARNING: {search_name}: {msg}", file=sys.stderr)
                 continue
 
-            print(
-                f"ERROR: failed updating {search_name}. Update={r2.status_code}",
-                file=sys.stderr,
-            )
+            print(f"ERROR: failed updating {search_name}. Update={r2.status_code}", file=sys.stderr)
             print(f"Update response (first 800 chars): {r2.text[:800]}", file=sys.stderr)
             failed += 1
             continue

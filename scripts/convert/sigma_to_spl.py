@@ -78,7 +78,9 @@ def build_ci_header(rule_path: Path, rule: dict, mode: str, pipeline: str) -> st
     Deploy script will strip leading '#' lines before sending SPL to Splunk.
     """
     sigma_id = _safe_str(rule.get("id"))
+    detect_id = _safe_str(rule.get("detect_id"))
     title = _safe_str(rule.get("title"))
+    description = _safe_str(rule.get("description"))
     status = _safe_str(rule.get("status"))
     date = _safe_str(rule.get("date"))
     modified = _safe_str(rule.get("modified"))
@@ -92,7 +94,9 @@ def build_ci_header(rule_path: Path, rule: dict, mode: str, pipeline: str) -> st
         "# ORIGIN: sigma_to_spl.py",
         f"# SIGMA_FILE: {rule_path.as_posix()}",
         f"# SIGMA_ID: {sigma_id}",
+        f"# DETECT_ID: {detect_id}",
         f"# SIGMA_TITLE: {title}",
+        f"# SIGMA_DESCRIPTION: {description}",
         f"# SIGMA_STATUS: {status}",
         f"# SIGMA_DATE: {date}",
         f"# SIGMA_MODIFIED: {modified}",
