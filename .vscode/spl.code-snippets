@@ -1,0 +1,25 @@
+{
+    "SPL Detection Rule": {
+        "prefix": "spl-rule",
+        "description": "Template for a CI-managed native Splunk SPL detection rule",
+        "body": [
+            "# CI-MANAGED: true",
+            "# DETECT_ID: DETECT-${1:2026}-${2:0001}",
+            "# TITLE: ${3:Office Spawns Suspicious Process}",
+            "# DESCRIPTION: ${4:Detects when Office applications spawn potentially malicious child processes}",
+            "# STATUS: ${5|draft,test,production|}",
+            "# DATE: ${6:2026-01-26}",
+            "# MODIFIED: ${6:2026-01-26}",
+            "# LOGSOURCE_SERVICE: ${7|sysmon,security,powershell,windows|}",
+            "# SPLUNK_MODE: ${8|report,alert|}",
+            "# SPLUNK_CRON: */5 * * * *",
+            "# SPLUNK_EARLIEST: -5m",
+            "# SPLUNK_LATEST: now",
+            "# SPLUNK_SEVERITY: ${9|low,medium,high,critical|}",
+            "# ---",
+            "",
+            "${10:index=sysmon EventCode=1}",
+            "| ${11:stats count by host user Image CommandLine}"
+        ]
+    }
+}
