@@ -1,0 +1,17 @@
+# CI-MANAGED: true
+# ORIGIN: sigma_to_spl.py
+# SIGMA_FILE: rules/sigma/DETECT-2026-0002_win_sysmon_registry-persistence-via-run-keys.sigma.yml
+# SIGMA_ID: 1e336273-391e-48ab-9d07-2792cfd9bf32
+# DETECT_ID: DETECT-2026-0002
+# SIGMA_TITLE: Registry Persistence via Run Keys
+# SIGMA_DESCRIPTION: Detects modifications to registry run keys commonly used for persistence
+# SIGMA_STATUS: test
+# SIGMA_DATE: 2026-01-25
+# SIGMA_MODIFIED: 2026-01-25
+# LOGSOURCE_SERVICE: sysmon
+# CONVERT_MODE: pipeline=splunk_sysmon_acceleration
+# SIGMA_PIPELINE: splunk_sysmon_acceleration
+# GIT_SHA: af4fe773b41c3d0af98c2f92bd49093e83503b71
+# GIT_REF: main
+# ---
+TargetObject IN ("*\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run\\*", "*\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\RunOnce\\*", "*\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Run\\*", "*\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\RunOnce\\*", "*\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer\\Run\\*", "*\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\\Userinit*", "*\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\\Shell*", "*\\SOFTWARE\\Microsoft\\Active Setup\\Installed Components\\*") Details IN ("*\\AppData\\Local\\Temp\\*", "*\\Users\\Public\\*", "*\\ProgramData\\*", "*\\Windows\\Temp\\*", "*%temp%*", "*%tmp%*", "*%appdata%*") OR Details IN ("*rundll32*", "*regsvr32*", "*powershell*", "*pwsh*", "*cmd.exe /c*", "*cmd /c*", "*wscript*", "*cscript*", "*mshta*", "*wmic*") OR Details IN ("*.vbs*", "*.vbe*", "*.js*", "*.jse*", "*.wsf*", "*.wsh*", "*.ps1*", "*.bat*", "*.cmd*", "*javascript:*", "*.dll,RunDLL*") NOT (Details IN ("*Microsoft\\Windows\\CurrentVersion\\Run\\SecurityHealth*", "*Windows Defender*", "*OneDrive*", "*Teams*", "*Skype*", "*Chrome*", "*Firefox*", "*Adobe*")) NOT (Details IN ("C:\\Program Files\\*", "C:\\Program Files (x86)\\*", "C:\\Windows\\System32\\*", "\"C:\\Program Files\\*", "\"C:\\Program Files (x86)\\*")) | table EventID,TargetObject,Details,Image,User
