@@ -218,6 +218,43 @@
                 "high",
                 "critical"
             ]
+        },
+        "custom": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+                "splunk": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "mode": {
+                            "type": "string",
+                            "enum": [
+                                "report",
+                                "alert"
+                            ]
+                        },
+                        "cron": {
+                            "type": "string"
+                        },
+                        "earliest": {
+                            "type": "string"
+                        },
+                        "latest": {
+                            "type": "string"
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": [
+                                "low",
+                                "medium",
+                                "high",
+                                "critical"
+                            ]
+                        }
+                    }
+                }
+            }
         }
     }
 }
