@@ -110,6 +110,26 @@ def build_ci_header(rule_path: Path, rule: dict, mode: str, pipeline: str) -> st
     if git_ref:
         lines.append(f"# GIT_REF: {git_ref}")
 
+    custom = rule.get("custom") or {}
+    splunk_meta = custom.get("splunk") if isinstance(custom, dict) else None
+    if isinstance(splunk_meta, dict):
+        mode_v = _safe_str(splunk_meta.get("mode"))
+        cron_v = _safe_str(splunk_meta.get("cron"))
+        earliest_v = _safe_str(splunk_meta.get("earliest"))
+        latest_v = _safe_str(splunk_meta.get("latest"))
+        sev_v = _safe_str(splunk_meta.get("severity"))
+
+        if mode_v:
+            lines.append(f"# SPLUNK_MODE: {mode_v}")
+        if cron_v:
+            lines.append(f"# SPLUNK_CRON: {cron_v}")
+        if earliest_v:
+            lines.append(f"# SPLUNK_EARLIEST: {earliest_v}")
+        if latest_v:
+            lines.append(f"# SPLUNK_LATEST: {latest_v}")
+        if sev_v:
+            lines.append(f"# SPLUNK_SEVERITY: {sev_v}")
+
     lines.append("# ---")
     return "\n".join(lines) + "\n"
 
