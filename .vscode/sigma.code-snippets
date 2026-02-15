@@ -1,6 +1,6 @@
 {
     "Sigma New Rule (de)": {
-        "prefix": "newrule",
+        "prefix": "sigma-rule",
         "scope": "yaml",
         "description": "User defined Sigma rule template",
         "body": [
