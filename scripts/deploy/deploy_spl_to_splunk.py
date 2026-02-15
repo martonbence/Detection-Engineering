@@ -78,6 +78,55 @@ def extract_ci_header_value(path: Path, key: str) -> str:
         return ""
     return ""
 
+def _norm_mode(v: str) -> str:
+    v = (v or "").strip().lower()
+    return v if v in ("report", "alert") else ""
+
+
+def _default_if_empty(v: str, default: str) -> str:
+    v = (v or "").strip()
+    return v if v else default
+
+
+def build_splunk_runtime_payload_from_header(path: Path) -> dict:
+    """
+    Create savedsearch runtime fields (report vs alert) from CI header.
+
+    Header keys we support:
+      - SPLUNK_MODE: report|alert
+      - SPLUNK_CRON: */5 * * * *
+      - SPLUNK_EARLIEST: -5m
+      - SPLUNK_LATEST: now
+    """
+    mode = _norm_mode(extract_ci_header_value(path, "SPLUNK_MODE"))
+
+    # Default behavior: if mode missing/invalid -> report (not scheduled)
+    if mode != "alert":
+        return {
+            "is_scheduled": "0",
+            # Keep it enabled as an object (just not scheduled)
+            "disabled": "0",
+        }
+
+    cron = _default_if_empty(extract_ci_header_value(path, "SPLUNK_CRON"), "*/5 * * * *")
+    earliest = _default_if_empty(extract_ci_header_value(path, "SPLUNK_EARLIEST"), "-5m")
+    latest = _default_if_empty(extract_ci_header_value(path, "SPLUNK_LATEST"), "now")
+
+    return {
+        "is_scheduled": "1",
+        "cron_schedule": cron,
+        "dispatch.earliest_time": earliest,
+        "dispatch.latest_time": latest,
+        "disabled": "0",
+
+        # Trigger an alert when results exist (events > 0)
+        "alert_type": "number of events",
+        "alert_comparator": "greater than",
+        "alert_threshold": "0",
+
+        # Optional but useful for visibility in Splunk UI/alerting
+        "alert.track": "1",
+    }
 
 def build_savedsearch_description(ci_constant: str, sigma_description: str, max_len: int = 800) -> str:
     """
@@ -197,12 +246,14 @@ def main(argv: list[str]) -> int:
             max_len=800,
         )
 
+        runtime_payload = build_splunk_runtime_payload_from_header(f)
+
         payload_create = {
             "name": search_name,
             "search": search_query,
-            "disabled": "0",
-            "is_scheduled": "0",
             "description": final_desc,
+            **runtime_payload,
+
         }
 
         r = splunk_post(s, create_url, payload_create)
@@ -227,11 +278,13 @@ def main(argv: list[str]) -> int:
         )
 
         if r.status_code in (409,) or is_already_exists(r.text):
+
+            runtime_payload = build_splunk_runtime_payload_from_header(f)
+
             payload_update = {
                 "search": search_query,
-                "disabled": "0",
-                "is_scheduled": "0",
                 "description": final_desc,
+                **runtime_payload,
             }
             r2 = splunk_post(s, update_url, payload_update)
 
