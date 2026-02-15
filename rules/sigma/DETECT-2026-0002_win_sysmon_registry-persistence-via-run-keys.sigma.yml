@@ -113,3 +113,6 @@ falsepositives:
     - Security software updates
 
 level: high
+custom:
+    splunk:
+        mode: report
