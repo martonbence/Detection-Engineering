@@ -11,7 +11,8 @@
 # LOGSOURCE_SERVICE: sysmon
 # CONVERT_MODE: pipeline=splunk_sysmon_acceleration
 # SIGMA_PIPELINE: splunk_sysmon_acceleration
-# GIT_SHA: 99957f7fa77af561cc735a7165afcfd7268f304b
+# GIT_SHA: d4d5b2f0a3266678f114ac98f1b107bea93f67ac
 # GIT_REF: main
+# SPLUNK_MODE: alert
 # ---
 ParentImage IN ("*\\WINWORD.EXE", "*\\EXCEL.EXE", "*\\POWERPNT.EXE", "*\\OUTLOOK.EXE", "*\\MSACCESS.EXE", "*\\MSPUB.EXE", "*\\VISIO.EXE", "*\\ONENOTE.EXE") Image IN ("*\\cmd.exe", "*\\powershell.exe", "*\\wscript.exe", "*\\cscript.exe", "*\\rundll32.exe", "*\\regsvr32.exe", "*\\mshta.exe", "*\\wmic.exe", "*\\bitsadmin.exe", "*\\certutil.exe") NOT (CommandLine IN ("*Microsoft.Office*", "*Office16\\GROOVEEX.DLL*")) NOT (Image IN ("*C:\\Program Files\\Microsoft Office\\*", "*C:\\Program Files (x86)\\Microsoft Office\\*"))
