@@ -11,7 +11,8 @@
 # LOGSOURCE_SERVICE: sysmon
 # CONVERT_MODE: pipeline=splunk_sysmon_acceleration
 # SIGMA_PIPELINE: splunk_sysmon_acceleration
-# GIT_SHA: 99957f7fa77af561cc735a7165afcfd7268f304b
+# GIT_SHA: d4d5b2f0a3266678f114ac98f1b107bea93f67ac
 # GIT_REF: main
+# SPLUNK_MODE: report
 # ---
 TargetObject IN ("*\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run\\*", "*\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\RunOnce\\*", "*\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Run\\*", "*\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\RunOnce\\*", "*\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer\\Run\\*", "*\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\\Userinit*", "*\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\\Shell*", "*\\SOFTWARE\\Microsoft\\Active Setup\\Installed Components\\*") Details IN ("*\\AppData\\Local\\Temp\\*", "*\\Users\\Public\\*", "*\\ProgramData\\*", "*\\Windows\\Temp\\*", "*%temp%*", "*%tmp%*", "*%appdata%*") OR Details IN ("*rundll32*", "*regsvr32*", "*powershell*", "*pwsh*", "*cmd.exe /c*", "*cmd /c*", "*wscript*", "*cscript*", "*mshta*", "*wmic*") OR Details IN ("*.vbs*", "*.vbe*", "*.js*", "*.jse*", "*.wsf*", "*.wsh*", "*.ps1*", "*.bat*", "*.cmd*", "*javascript:*", "*.dll,RunDLL*") NOT (Details IN ("*Microsoft\\Windows\\CurrentVersion\\Run\\SecurityHealth*", "*Windows Defender*", "*OneDrive*", "*Teams*", "*Skype*", "*Chrome*", "*Firefox*", "*Adobe*")) NOT (Details IN ("C:\\Program Files\\*", "C:\\Program Files (x86)\\*", "C:\\Windows\\System32\\*", "\"C:\\Program Files\\*", "\"C:\\Program Files (x86)\\*")) | table EventID,TargetObject,Details,Image,User
