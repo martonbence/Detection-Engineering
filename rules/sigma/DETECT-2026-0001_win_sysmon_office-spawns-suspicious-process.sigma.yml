@@ -84,3 +84,6 @@ falsepositives:
   - Administrative scripts
   - Third-party Office add-ins
 level: high
+custom:
+  splunk:
+    mode: alert
