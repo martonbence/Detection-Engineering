@@ -1,0 +1,22 @@
+# CI-MANAGED: true
+# ORIGIN: sigma_to_spl.py
+# SIGMA_FILE: rules/sigma/test.sigma.yml
+# SIGMA_ID: b835ac80-6e0e-4353-bbc3-1d96d6541d85
+# DETECT_ID: DETECT-2026-0004
+# SIGMA_TITLE: Test Sigma Rule
+# SIGMA_DESCRIPTION: Test Sigma rule for demonstration purposes.
+# SIGMA_STATUS: test
+# SIGMA_DATE: 2026-01-01
+# SIGMA_MODIFIED: 2026-01-01
+# LOGSOURCE_SERVICE: sysmon
+# CONVERT_MODE: pipeline=splunk_sysmon_acceleration
+# SIGMA_PIPELINE: splunk_sysmon_acceleration
+# GIT_SHA: 66a8a7a78053088d1a3cf40b05369ba92cfa16ae
+# GIT_REF: main
+# SPLUNK_MODE: alert
+# SPLUNK_CRON: */5 * * * *
+# SPLUNK_EARLIEST: -5m
+# SPLUNK_LATEST: now
+# SPLUNK_SEVERITY: low
+# ---
+Image="*\\powershell.exe" CommandLine IN ("* -e *", "* -enc *", "* -encodedcommand *")
