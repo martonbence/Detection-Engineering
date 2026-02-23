@@ -1,0 +1,41 @@
+title: Test Sigma Rule
+id: b835ac80-6e0e-4353-bbc3-1d96d6541d85
+detect_id: DETECT-2026-0004
+status: test
+description: Test Sigma rule for demonstration purposes.
+author: Bence Marton
+date: 2026-01-01
+modified: 2026-01-01
+references:
+  - https://example.com
+tags:
+  - attack.ta0002
+  - attack.t1059
+  - attack.1059.001
+
+logsource:
+  product_category: os
+  product: windows
+  service: sysmon
+  event_type: process_creation
+
+detection:
+  selection_image:
+    Image|endswith: '\powershell.exe'
+  selection_encoded_flag:
+    CommandLine|contains:
+      - " -e "
+      - " -enc "
+      - " -encodedcommand "
+  condition: selection_image and selection_encoded_flag
+falsepositives:
+  - Legitimate administrative scripts using EncodedCommand
+level: medium
+
+custom:
+  splunk:
+    mode: alert
+    cron: "*/5 * * * *"
+    earliest: "-5m"
+    latest: "now"
+    severity: low
