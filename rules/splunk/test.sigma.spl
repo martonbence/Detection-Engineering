@@ -11,7 +11,7 @@
 # LOGSOURCE_SERVICE: sysmon
 # CONVERT_MODE: pipeline=splunk_sysmon_acceleration
 # SIGMA_PIPELINE: splunk_sysmon_acceleration
-# GIT_SHA: a2d204d13c224b385c47d61e39c5f6934ba4653b
+# GIT_SHA: 9e39649296aec87a0fce0b895da3cffb208e3fde
 # GIT_REF: main
 # SPLUNK_MODE: alert
 # SPLUNK_CRON: */5 * * * *
@@ -19,4 +19,4 @@
 # SPLUNK_LATEST: now
 # SPLUNK_SEVERITY: low
 # ---
-Image="*\\powershell.exe" CommandLine IN ("* -e *", "* -enc *", "* -encodedcommand *")
+index="sysmon" Image="*\\powershell.exe" CommandLine IN ("* -e *", "* -enc *", "* -encodedcommand *")
