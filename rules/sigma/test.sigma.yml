@@ -20,6 +20,8 @@ logsource:
   event_type: process_creation
 
 detection:
+  index:
+    index: "sysmon"
   selection_image:
     Image|endswith: '\powershell.exe'
   selection_encoded_flag:
@@ -27,7 +29,7 @@ detection:
       - " -e "
       - " -enc "
       - " -encodedcommand "
-  condition: selection_image and selection_encoded_flag
+  condition: index and selection_image and selection_encoded_flag
 falsepositives:
   - Legitimate administrative scripts using EncodedCommand
 level: medium
