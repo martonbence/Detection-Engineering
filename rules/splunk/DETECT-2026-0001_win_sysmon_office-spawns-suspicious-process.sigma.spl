@@ -4,14 +4,15 @@ META_START
   "detect_id": "DETECT-2026-0001",
   "description": "Detects when Office applications spawn potentially malicious child processes",
   "sigma_file": "rules/sigma/DETECT-2026-0001_win_sysmon_office-spawns-suspicious-process.sigma.yml",
+  "level": "high",
   "status": "test",
   "author": "Bence Marton",
-  "date": "2026-01-29",
-  "modified": "2026-01-29",
+  "date": "2026-02-02",
+  "modified": "2026-02-02",
 
-  "convert_time": "2026-02-28T10:26:42+01:00",
-  "rule_version": "1.15",
-  "git_sha": "6bd7a81ad3a12681e8c5cf54b7746a045c3da83c",
+  "convert_time": "2026-02-28T10:51:36+01:00",
+  "rule_version": "1.18",
+  "git_sha": "dc8d36b1381f0a3db98baa8f812f76e5205fb05f",
   "ci_managed": true,
   "origin": "sigma_to_spl.py",
   "convert_mode": "report",
@@ -20,6 +21,7 @@ META_START
   "references": [
     "https://example.com"
   ],
+
   "tags": [
     "attack.initial_access",
     "attack.t1566.001",
@@ -38,8 +40,7 @@ META_START
     "Legitimate VBA macros",
     "Administrative scripts",
     "Third-party Office add-ins"
-  ],
-  "level": "high"
+  ]
 }
 META_END
 ---
