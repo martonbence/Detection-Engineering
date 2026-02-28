@@ -19,6 +19,7 @@
         "editor.autoIndent": "advanced",
         "diffEditor.ignoreTrimWhitespace": false,
         "editor.defaultColorDecorators": "never",
+        "editor.snippetSuggestions": "inline",
         "editor.quickSuggestions": {
             "strings": "on"
         }
