@@ -1,0 +1,61 @@
+name: Update META for native SPL rules (git_sha, rule_version)
+
+on:
+  push:
+    paths:
+      - "rules/splunk/**/*.spl"
+      - "scripts/update_spl_meta.py"
+      - ".github/workflows/update_native_spl_meta.yml"
+  pull_request:
+    paths:
+      - "rules/splunk/**/*.spl"
+      - "scripts/update_spl_meta.py"
+      - ".github/workflows/update_native_spl_meta.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      native_spl: ${{ steps.filter.outputs.native_spl }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            native_spl:
+              - "rules/splunk/**/*.spl"
+              - "!rules/splunk/**/*.sigma.spl"
+
+  update_native_spl_meta:
+    needs: changes
+    if: ${{ needs.changes.outputs.native_spl == 'true' && github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Update META fields (native SPL only)
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          python3 scripts/update_spl_meta.py --root rules/splunk
+
+      - name: Commit META updates (if any)
+        run: |
+          git config user.name "ci"
+          git config user.email "ci@local"
+          git add "rules/splunk/**/*.spl" ":!rules/splunk/**/*.sigma.spl" || true
+          git diff --cached --quiet || git commit -m "chore(native spl): update META git_sha/rule_version"
+          git push
