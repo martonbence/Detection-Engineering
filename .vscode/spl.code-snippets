@@ -1,7 +1,7 @@
 {
     "SPL Detection Rule": {
         "prefix": "spl-rule",
-        "scope": "spl",
+        "scope": "plaintext",
         "description": "Template for a CI-managed native Splunk SPL detection rule using META_START JSON + SPL body",
         "body": [
             "META_START",

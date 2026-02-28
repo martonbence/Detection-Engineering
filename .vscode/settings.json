@@ -1,5 +1,6 @@
 {
     "files.associations": {
+        "**/*.spl": "plaintext",
         "rules/**/*.yml": "yaml",
         "rules/**/*.yaml": "yaml",
         "**/*.sigma.yml": "yaml",
