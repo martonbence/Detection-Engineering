@@ -9,7 +9,7 @@ META_START
   "status": "test",
   "author": "Bence Marton",
   "date": "2023-12-28",
-  "modified": "2023-12-29",
+  "modified": "2023-12-30",
 
   "convert_time": "2026-02-28T14:34:45.775821+01:00",
   "rule_version": "1.10",
