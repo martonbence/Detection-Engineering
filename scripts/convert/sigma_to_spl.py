@@ -167,7 +167,7 @@ def _format_meta_json_with_spacing(meta: dict) -> str:
     return "\n".join(out)
 
 
-def build_ci_header(rule_path: Path, rule: dict, convert_mode: str, pipeline: str) -> str:
+def build_ci_header(rule_path: Path, rule: dict, deploy_mode: str, pipeline: str) -> str:
     """
     Output format:
       - Everything that is NOT the SPL query is stored inside a single JSON block
@@ -237,7 +237,7 @@ def build_ci_header(rule_path: Path, rule: dict, convert_mode: str, pipeline: st
     # CI/conversion context (kept in JSON only)
     meta["ci_managed"] = True
     meta["origin"] = "sigma_to_spl.py"
-    meta["convert_mode"] = convert_mode
+    meta["deploy_mode"] = deploy_mode
     meta["sigma_pipeline"] = pipeline or "without-pipeline"
 
     # Append remaining Sigma meta keys (preserve their original order)
@@ -283,21 +283,21 @@ def main() -> int:
 
         pipeline = pick_pipeline(rule)
         out_path = outdir / output_name_for_rule(rule_path)
-        # convert_mode must come from the Sigma rule's custom.splunk.mode (report|alert)
+        # deploy_mode must come from the Sigma rule's custom.splunk.mode (report|alert)
         custom = rule.get("custom") or {}
         splunk_custom = custom.get("splunk") if isinstance(custom, dict) else None
-        convert_mode = ""
+        deploy_mode = ""
         if isinstance(splunk_custom, dict):
-            convert_mode = _safe_str(splunk_custom.get("mode"))
-        if not convert_mode:
-            convert_mode = _safe_str(custom.get("mode")) if isinstance(custom, dict) else ""
-        if not convert_mode:
-            convert_mode = "alert"
+            deploy_mode = _safe_str(splunk_custom.get("mode"))
+        if not deploy_mode:
+            deploy_mode = _safe_str(custom.get("mode")) if isinstance(custom, dict) else ""
+        if not deploy_mode:
+            deploy_mode = "alert"
 
         service = _normalize_service(rule)
         print_mode = f"pipeline={pipeline}" if pipeline else "without-pipeline"
 
-        print(f"Converting: {rule_path} -> {out_path} ({print_mode}, service={service or 'N/A'}, mode={convert_mode})")
+        print(f"Converting: {rule_path} -> {out_path} ({print_mode}, service={service or 'N/A'}, mode={deploy_mode})")
 
         try:
             run_sigma_convert(rule_path, out_path, pipeline)
@@ -308,7 +308,7 @@ def main() -> int:
 
         # Always prepend header AFTER successful conversion
         try:
-            header = build_ci_header(rule_path, rule, convert_mode, pipeline)
+            header = build_ci_header(rule_path, rule, deploy_mode, pipeline)
             prepend_header(out_path, header)
         except Exception as e:
             print(f"ERROR: failed writing header for {out_path}: {e}", file=sys.stderr)
