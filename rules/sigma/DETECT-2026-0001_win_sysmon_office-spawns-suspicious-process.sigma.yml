@@ -9,11 +9,9 @@ modified: 2026-01-29
 references:
   - https://example.com
 tags:
-  - attack.ta0001
-  - attack.t1566
+  - attack.initial_access
   - attack.t1566.001
-  - attack.ta0002
-  - attack.t1204
+  - attack.execution
   - attack.t1204.002
 logsource:
   product_category: os
@@ -83,7 +81,9 @@ falsepositives:
   - Legitimate VBA macros
   - Administrative scripts
   - Third-party Office add-ins
+
 level: high
+
 custom:
   splunk:
     mode: report
