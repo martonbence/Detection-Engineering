@@ -9,9 +9,9 @@ META_START
   "date": "2026-01-29",
   "modified": "2026-01-29",
 
-  "convert_time": "2026-02-28T10:17:57+01:00",
-  "rule_version": "1.14",
-  "git_sha": "5872221e11b685a8ef9be968a5e294abaef24939",
+  "convert_time": "2026-02-28T10:26:42+01:00",
+  "rule_version": "1.15",
+  "git_sha": "6bd7a81ad3a12681e8c5cf54b7746a045c3da83c",
   "ci_managed": true,
   "origin": "sigma_to_spl.py",
   "convert_mode": "report",
@@ -21,11 +21,9 @@ META_START
     "https://example.com"
   ],
   "tags": [
-    "attack.ta0001",
-    "attack.t1566",
+    "attack.initial_access",
     "attack.t1566.001",
-    "attack.ta0002",
-    "attack.t1204",
+    "attack.execution",
     "attack.t1204.002"
   ],
 
