@@ -5,7 +5,7 @@ status: test
 description: Detects modifications to registry run keys commonly used for persistence
 author: Bence Marton
 date: 2026-01-24
-modified: 2026-01-26
+modified: 2026-01-27
 references:
     - https://example.com
 tags:

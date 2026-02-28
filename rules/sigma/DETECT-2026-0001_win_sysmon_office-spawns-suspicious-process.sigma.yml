@@ -5,7 +5,7 @@ status: test
 description: Detects when Office applications spawn potentially malicious child processes
 author: Bence Marton
 date: 2026-02-04
-modified: 2026-02-05
+modified: 2026-02-06
 references:
   - https://example.com
 tags:
