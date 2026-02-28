@@ -20,7 +20,7 @@
             "  \"rule_version\": \"${10:auto}\",",
             "  \"git_sha\": \"${11:auto}\",",
             "",
-            "  \"ci_managed\": true,",
+            "  \"ci_managed\": \"true\",",
             "  \"origin\": \"spl-rule\",",
             "  \"convert_mode\": \"${12|report,alert|}\",",
             "  \"sigma_pipeline\": \"Since this detection was authored natively as an SPL rule, there is no associated Sigma pipeline.\",",
