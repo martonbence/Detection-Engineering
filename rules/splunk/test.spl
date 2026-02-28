@@ -1,0 +1,45 @@
+META_START
+{
+  "title": "Rule title",
+  "detect_id": "DETECT-YYYY-NNNN",
+  "description": "What does this detect?",
+  "sigma_file": "No Sigma source is associated with this detection; it was authored natively as an SPL rule.",
+  "level": "low",
+  "status": "experimental",
+  "author": "Bence Marton",
+  "date": "YYYY-MM-DD",
+  "modified": "YYYY-MM-DD",
+
+  "convert_time": "Since this detection was authored natively as an SPL rule, there is no associated Sigma source. Consequently, there is no convert time associated with this logic.",
+  "rule_version": "auto",
+  "git_sha": "auto",
+
+  "ci_managed": true,
+  "origin": "spl-rule",
+  "convert_mode": "report",
+  "sigma_pipeline": "without-pipeline",
+
+  "references": [
+    "https://example.com"
+  ],
+
+  "tags": [
+    "attack.",
+    "attack.t1547.001"
+  ],
+
+  "logsource": {
+    "product_category": "os",
+    "product": "windows",
+    "service": "security",
+    "event_type": "process_creation"
+  },
+
+  "falsepositives": [
+    "Legit admin activity"
+  ]
+}
+META_END
+---
+index=sysmon EventCode=1
+| stats count by host user Image CommandLine
