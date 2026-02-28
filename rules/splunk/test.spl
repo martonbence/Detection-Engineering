@@ -8,7 +8,7 @@ META_START
   "status": "experimental",
   "author": "Bence Marton",
   "date": "2023-12-24",
-  "modified": "2023-12-24",
+  "modified": "2023-12-27",
 
   "convert_time": "Since this detection was authored natively as an SPL rule, there is no associated Sigma source. Consequently, there is no convert time associated with this logic.",
   "rule_version": "auto",
