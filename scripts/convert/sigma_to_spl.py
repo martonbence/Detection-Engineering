@@ -114,6 +114,7 @@ def _format_meta_json_with_spacing(meta: dict) -> str:
     JSON is still valid with extra blank lines. We insert a few empty lines for readability:
       - after "modified"
       - before "references"
+      - before "tags"
       - before and after "logsource"
     """
     raw = json.dumps(meta, ensure_ascii=False, indent=2, default=str)
@@ -135,6 +136,11 @@ def _format_meta_json_with_spacing(meta: dict) -> str:
 
         # blank line before references
         if stripped.startswith('"references":') or stripped.startswith('"references" :'):
+            if out and out[-1] != "":
+                out.append("")
+
+        # blank line before tags
+        if stripped.startswith(\'"tags":\') or stripped.startswith(\'"tags" :\'):
             if out and out[-1] != "":
                 out.append("")
 
@@ -194,7 +200,7 @@ def build_ci_header(rule_path: Path, rule: dict, convert_mode: str, pipeline: st
         sigma_meta[k] = v
 
     # Build ordered JSON meta:
-    # title -> detect_id -> description -> sigma_file -> status -> author -> date -> modified
+    # title -> detect_id -> description -> sigma_file -> level -> status -> author -> date -> modified
     meta = {}
 
     if "title" in sigma_meta:
@@ -208,6 +214,9 @@ def build_ci_header(rule_path: Path, rule: dict, convert_mode: str, pipeline: st
         meta["description"] = sigma_meta.pop("description")
 
     meta["sigma_file"] = sigma_file_value
+
+    if "level" in sigma_meta:
+        meta["level"] = sigma_meta.pop("level")
 
     if "status" in sigma_meta:
         meta["status"] = sigma_meta.pop("status")
