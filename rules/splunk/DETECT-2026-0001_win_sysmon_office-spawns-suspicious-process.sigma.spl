@@ -1,18 +1,50 @@
-# CI-MANAGED: true
-# ORIGIN: sigma_to_spl.py
-# SIGMA_FILE: rules/sigma/DETECT-2026-0001_win_sysmon_office-spawns-suspicious-process.sigma.yml
-# SIGMA_ID: 18cfa613-1515-482f-a7c8-b72e7570e029
-# DETECT_ID: DETECT-2026-0001
-# SIGMA_TITLE: Office Spawns Suspicious Process
-# SIGMA_DESCRIPTION: Detects when Office applications spawn potentially malicious child processes
-# SIGMA_STATUS: test
-# SIGMA_DATE: 2026-01-26
-# SIGMA_MODIFIED: 2026-01-26
-# LOGSOURCE_SERVICE: sysmon
-# CONVERT_MODE: pipeline=splunk_sysmon_acceleration
-# SIGMA_PIPELINE: splunk_sysmon_acceleration
-# GIT_SHA: d5c2c46a2187ea9167732c9f77d1c7af042f84ac
-# GIT_REF: main
-# SPLUNK_MODE: report
-# ---
+META_START
+{
+  "title": "Office Spawns Suspicious Process",
+  "detect_id": "DETECT-2026-0001",
+  "description": "Detects when Office applications spawn potentially malicious child processes",
+  "sigma_file": "rules/sigma/DETECT-2026-0001_win_sysmon_office-spawns-suspicious-process.sigma.yml",
+  "status": "test",
+  "author": "Bence Marton",
+  "date": "2026-01-27",
+  "modified": "2026-01-27",
+  "convert_time": "2026-02-28T09:53:25+01:00",
+  "rule_version": "1.0",
+  "git_sha": "4070dc59a03d921bcc684c1b35757da5e01087e5",
+  "ci_managed": true,
+  "origin": "sigma_to_spl.py",
+  "convert_mode": "pipeline=splunk_sysmon_acceleration",
+  "sigma_pipeline": "splunk_sysmon_acceleration",
+  "git_ref": "main",
+  "references": [
+    "https://example.com"
+  ],
+  "tags": [
+    "attack.ta0001",
+    "attack.t1566",
+    "attack.t1566.001",
+    "attack.ta0002",
+    "attack.t1204",
+    "attack.t1204.002"
+  ],
+  "logsource": {
+    "product_category": "os",
+    "product": "windows",
+    "service": "sysmon",
+    "event_type": "process_creation"
+  },
+  "falsepositives": [
+    "Legitimate VBA macros",
+    "Administrative scripts",
+    "Third-party Office add-ins"
+  ],
+  "level": "high",
+  "custom": {
+    "splunk": {
+      "mode": "report"
+    }
+  }
+}
+META_END
+---
 ParentImage IN ("*\\WINWORD.EXE", "*\\EXCEL.EXE", "*\\POWERPNT.EXE", "*\\OUTLOOK.EXE", "*\\MSACCESS.EXE", "*\\MSPUB.EXE", "*\\VISIO.EXE", "*\\ONENOTE.EXE") Image IN ("*\\cmd.exe", "*\\powershell.exe", "*\\wscript.exe", "*\\cscript.exe", "*\\rundll32.exe", "*\\regsvr32.exe", "*\\mshta.exe", "*\\wmic.exe", "*\\bitsadmin.exe", "*\\certutil.exe") NOT (CommandLine IN ("*Microsoft.Office*", "*Office16\\GROOVEEX.DLL*")) NOT (Image IN ("*C:\\Program Files\\Microsoft Office\\*", "*C:\\Program Files (x86)\\Microsoft Office\\*"))
