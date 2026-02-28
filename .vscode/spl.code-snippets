@@ -23,7 +23,7 @@
             "  \"ci_managed\": true,",
             "  \"origin\": \"spl-rule\",",
             "  \"convert_mode\": \"${12|report,alert|}\",",
-            "  \"sigma_pipeline\": \"without-pipeline\",",
+            "  \"sigma_pipeline\": \"Since this detection was authored natively as an SPL rule, there is no associated Sigma pipeline.\",",
             "",
             "  \"references\": [",
             "    \"${13:https://example.com}\"",
