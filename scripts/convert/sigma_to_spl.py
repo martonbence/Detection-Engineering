@@ -76,57 +76,134 @@ def _safe_str(v) -> str:
     return str(v).strip() if v is not None else ""
 
 
-def build_ci_header(rule_path: Path, rule: dict, mode: str, pipeline: str) -> str:
+def _git_commit_count_for_path(rule_path: Path) -> int:
+    """
+    Returns how many commits touched the given file in the current git repo.
+    If git is unavailable (e.g., running outside a repo), returns 0.
+    """
+    try:
+        # Use relative path for git, but fall back to absolute if needed.
+        rel = str(rule_path)
+        # 'git rev-list --count HEAD -- <path>'
+        res = subprocess.run(
+            ["git", "rev-list", "--count", "HEAD", "--", rel],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return int(res.stdout.strip() or "0")
+    except Exception:
+        return 0
+
+
+def _compute_rule_version(rule_path: Path) -> str:
+    """
+    Rule versioning scheme:
+      - First commit of the file -> 1.0
+      - Second commit -> 1.1
+      - Third commit -> 1.2
+    Derived from commit count for the file. If unavailable, defaults to 1.0.
+    """
+    cnt = _git_commit_count_for_path(rule_path)
+    minor = max(0, cnt - 1)
+    return f"1.{minor}"
+
+
+def _format_meta_json_with_spacing(meta: dict) -> str:
+    """
+    JSON is still valid with extra blank lines. We insert a few empty lines for readability:
+      - after "modified"
+      - before "references"
+      - before and after "logsource"
+    """
+    raw = json.dumps(meta, ensure_ascii=False, indent=2, default=str)
+    lines = raw.splitlines()
+
+    out = []
+    inside_logsource = False
+    depth = 0
+
+    for i, line in enumerate(lines):
+        stripped = line.lstrip()
+
+        # blank line before logsource
+        if stripped.startswith('"logsource":') or stripped.startswith('"logsource" :'):
+            if out and out[-1] != "":
+                out.append("")
+            inside_logsource = True
+            depth = 0  # will be updated below
+
+        # blank line before references
+        if stripped.startswith('"references":') or stripped.startswith('"references" :'):
+            if out and out[-1] != "":
+                out.append("")
+
+        out.append(line)
+
+        # blank line after modified
+        if stripped.startswith('"modified":'):
+            out.append("")
+
+        # Track logsource object depth to add blank line after it ends
+        if inside_logsource:
+            depth += line.count("{") - line.count("}")
+            # When we reach the end of the logsource object, depth will hit 0
+            # after consuming the closing brace line.
+            if depth == 0:
+                inside_logsource = False
+                out.append("")
+
+    # Remove trailing blank lines right before closing brace if any
+    # (keep JSON clean-looking)
+    while len(out) > 1 and out[-1] == "" and out[-2].strip() == "}":
+        out.pop(-1)
+
+    return "\n".join(out)
+
+
+def build_ci_header(rule_path: Path, rule: dict, convert_mode: str, pipeline: str) -> str:
     """
     Output format:
       - Everything that is NOT the SPL query is stored inside a single JSON block
         between META_START and META_END.
-      - The converted SPL query follows below META_END.
+      - The converted SPL query follows below META_END (after a '---' delimiter).
     """
-    # CI context
-    git_sha = (os.getenv("GITHUB_SHA") or os.getenv("CI_COMMIT_SHA") or "").strip()
-    git_ref = (os.getenv("GITHUB_REF_NAME") or "").strip()
 
     # Sigma file reference (or native SPL message)
     sigma_file_value = rule_path.as_posix() if rule_path and rule_path.name else (
         "No Sigma source is associated with this detection; it was authored natively as an SPL rule."
     )
 
-    # Rule version (X.X). Prefer explicit rule_version/version fields from the YAML (or custom.splunk),
-    # otherwise default to 1.0
-    custom = rule.get("custom") or {}
-    splunk_meta = custom.get("splunk") if isinstance(custom, dict) else None
-    yaml_rule_version = _safe_str(rule.get("rule_version")) or _safe_str(rule.get("version"))
-    splunk_rule_version = _safe_str(splunk_meta.get("rule_version")) if isinstance(splunk_meta, dict) else ""
-    rule_version = splunk_rule_version or yaml_rule_version or "1.0"
+    # Rule version derived from git commit count (1.0, 1.1, 1.2, ...)
+    rule_version = _compute_rule_version(rule_path)
 
     # Convert time in Hungary (Europe/Budapest) with offset (CET/CEST)
     convert_time = datetime.datetime.now(ZoneInfo("Europe/Budapest")).replace(microsecond=0).isoformat()
 
+    # CI context
+    git_sha = (os.getenv("GITHUB_SHA") or os.getenv("CI_COMMIT_SHA") or "").strip()
     git_sha_value = git_sha or "unknown"
 
-    # Base Sigma meta (everything except 'detection')
+    # Sigma meta (everything except 'detection' and keys we don't want to carry)
     sigma_meta = {}
     for k, v in (rule or {}).items():
         if k == "detection":
             continue
-        if k in ("id", "fields"):  # 'id' is redundant next to detect_id; 'fields' not needed
+        if k in ("id", "fields", "custom"):  # id redundant; fields not needed; custom omitted at end
             continue
         sigma_meta[k] = v
 
     # Build ordered JSON meta:
     # title -> detect_id -> description -> sigma_file -> status -> author -> date -> modified
-    # then convert_time -> rule_version -> git_sha
-    # then CI fields (ci_managed/origin/convert_mode/sigma_pipeline[/git_ref])
-    # then the remaining Sigma meta keys (references/tags/logsource/falsepositives/level/custom/...)
     meta = {}
 
-    # Primary identification block
     if "title" in sigma_meta:
         meta["title"] = sigma_meta.pop("title")
+
     detect_id = _safe_str(sigma_meta.pop("detect_id", ""))
     if detect_id:
         meta["detect_id"] = detect_id
+
     if "description" in sigma_meta:
         meta["description"] = sigma_meta.pop("description")
 
@@ -151,21 +228,17 @@ def build_ci_header(rule_path: Path, rule: dict, mode: str, pipeline: str) -> st
     # CI/conversion context (kept in JSON only)
     meta["ci_managed"] = True
     meta["origin"] = "sigma_to_spl.py"
-    meta["convert_mode"] = mode
+    meta["convert_mode"] = convert_mode
     meta["sigma_pipeline"] = pipeline or "without-pipeline"
-    if git_ref:
-        meta["git_ref"] = git_ref
 
     # Append remaining Sigma meta keys (preserve their original order)
     for k, v in sigma_meta.items():
-        # Avoid accidental overwrites
         if k in meta:
             continue
         meta[k] = v
 
-    meta_json = json.dumps(meta, ensure_ascii=False, indent=2, default=str)
+    meta_json = _format_meta_json_with_spacing(meta)
     return "META_START\n" + meta_json + "\nMETA_END\n---\n"
-
 
 def prepend_header(out_path: Path, header: str) -> None:
     content = out_path.read_text(encoding="utf-8")
@@ -201,11 +274,21 @@ def main() -> int:
 
         pipeline = pick_pipeline(rule)
         out_path = outdir / output_name_for_rule(rule_path)
+        # convert_mode must come from the Sigma rule's custom.splunk.mode (report|alert)
+        custom = rule.get("custom") or {}
+        splunk_custom = custom.get("splunk") if isinstance(custom, dict) else None
+        convert_mode = ""
+        if isinstance(splunk_custom, dict):
+            convert_mode = _safe_str(splunk_custom.get("mode"))
+        if not convert_mode:
+            convert_mode = _safe_str(custom.get("mode")) if isinstance(custom, dict) else ""
+        if not convert_mode:
+            convert_mode = "alert"
 
-        mode = f"pipeline={pipeline}" if pipeline else "without-pipeline"
         service = _normalize_service(rule)
+        print_mode = f"pipeline={pipeline}" if pipeline else "without-pipeline"
 
-        print(f"Converting: {rule_path} -> {out_path} ({mode}, service={service or 'N/A'})")
+        print(f"Converting: {rule_path} -> {out_path} ({print_mode}, service={service or 'N/A'}, mode={convert_mode})")
 
         try:
             run_sigma_convert(rule_path, out_path, pipeline)
@@ -216,7 +299,7 @@ def main() -> int:
 
         # Always prepend header AFTER successful conversion
         try:
-            header = build_ci_header(rule_path, rule, mode=mode, pipeline=pipeline)
+            header = build_ci_header(rule_path, rule, convert_mode, pipeline)
             prepend_header(out_path, header)
         except Exception as e:
             print(f"ERROR: failed writing header for {out_path}: {e}", file=sys.stderr)
