@@ -140,7 +140,7 @@ def _format_meta_json_with_spacing(meta: dict) -> str:
                 out.append("")
 
         # blank line before tags
-        if stripped.startswith(\'"tags":\') or stripped.startswith(\'"tags" :\'):
+        if stripped.startswith('"tags":') or stripped.startswith('"tags" :'):
             if out and out[-1] != "":
                 out.append("")
 
