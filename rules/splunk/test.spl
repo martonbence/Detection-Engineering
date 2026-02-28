@@ -11,9 +11,9 @@ META_START
   "date": "2023-12-28",
   "modified": "2023-12-30",
 
-  "convert_time": "2026-02-28T14:34:45.775821+01:00",
-  "rule_version": "1.10",
-  "git_sha": "c948d6d",
+  "convert_time": "2026-02-28T14:59:56.502097+01:00",
+  "rule_version": "1.13",
+  "git_sha": "5b99755",
   "ci_managed": "true",
   "origin": "spl-rule",
   "convert_mode": "report",
