@@ -1,6 +1,6 @@
 META_START
 {
-  "title": "Test,
+  "title": "Test",
   "detect_id": "DETECT-2030-0001",
   "description": "Test",
   "sigma_file": "No Sigma source is associated with this detection; it was authored natively as an SPL rule.",
