@@ -6,16 +6,17 @@ META_START
   "sigma_file": "rules/sigma/DETECT-2026-0001_win_sysmon_office-spawns-suspicious-process.sigma.yml",
   "status": "test",
   "author": "Bence Marton",
-  "date": "2026-01-28",
-  "modified": "2026-01-28",
-  "convert_time": "2026-02-28T10:00:27+01:00",
-  "rule_version": "1.0",
-  "git_sha": "87a53767754d696b5238712704d384bc0446adbc",
+  "date": "2026-01-29",
+  "modified": "2026-01-29",
+
+  "convert_time": "2026-02-28T10:17:57+01:00",
+  "rule_version": "1.14",
+  "git_sha": "5872221e11b685a8ef9be968a5e294abaef24939",
   "ci_managed": true,
   "origin": "sigma_to_spl.py",
-  "convert_mode": "pipeline=splunk_sysmon_acceleration",
+  "convert_mode": "report",
   "sigma_pipeline": "splunk_sysmon_acceleration",
-  "git_ref": "main",
+
   "references": [
     "https://example.com"
   ],
@@ -27,23 +28,20 @@ META_START
     "attack.t1204",
     "attack.t1204.002"
   ],
+
   "logsource": {
     "product_category": "os",
     "product": "windows",
     "service": "sysmon",
     "event_type": "process_creation"
   },
+
   "falsepositives": [
     "Legitimate VBA macros",
     "Administrative scripts",
     "Third-party Office add-ins"
   ],
-  "level": "high",
-  "custom": {
-    "splunk": {
-      "mode": "report"
-    }
-  }
+  "level": "high"
 }
 META_END
 ---
