@@ -9,8 +9,7 @@ modified: 2026-01-26
 references:
     - https://example.com
 tags:
-    - attack.ta0003
-    - attack.t1547
+    - attack.persistence
     - attack.t1547.001
 
 logsource:
