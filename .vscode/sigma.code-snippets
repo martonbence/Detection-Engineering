@@ -5,7 +5,6 @@
         "description": "User defined Sigma rule template",
         "body": [
             "title: ${1:Rule title}",
-            "id: ${2:UUID-GOES-HERE from: https://www.uuidgenerator.net/}",
             "detect_id: ${3:DETECT-YYYY-NNNN}",
             "status: ${4|experimental,test,stable,deprecated|}",
             "description: ${5:What does this detect?}",
