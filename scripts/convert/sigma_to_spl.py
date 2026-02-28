@@ -2,6 +2,9 @@
 import argparse
 import os
 import subprocess
+import datetime
+import json
+from zoneinfo import ZoneInfo
 import sys
 from pathlib import Path
 
@@ -9,6 +12,7 @@ import yaml
 
 PIPELINE_WINDOWS = "splunk_windows"
 PIPELINE_SYSMON = "splunk_sysmon_acceleration"
+
 
 
 def _normalize_service(rule: dict) -> str:
@@ -74,64 +78,93 @@ def _safe_str(v) -> str:
 
 def build_ci_header(rule_path: Path, rule: dict, mode: str, pipeline: str) -> str:
     """
-    Header is intentionally comments only.
-    Deploy script will strip leading '#' lines before sending SPL to Splunk.
+    Output format:
+      - Everything that is NOT the SPL query is stored inside a single JSON block
+        between META_START and META_END.
+      - The converted SPL query follows below META_END.
     """
-    sigma_id = _safe_str(rule.get("id"))
-    detect_id = _safe_str(rule.get("detect_id"))
-    title = _safe_str(rule.get("title"))
-    description = _safe_str(rule.get("description"))
-    status = _safe_str(rule.get("status"))
-    date = _safe_str(rule.get("date"))
-    modified = _safe_str(rule.get("modified"))
-    service = _normalize_service(rule) or "N/A"
-
+    # CI context
     git_sha = (os.getenv("GITHUB_SHA") or os.getenv("CI_COMMIT_SHA") or "").strip()
     git_ref = (os.getenv("GITHUB_REF_NAME") or "").strip()
 
-    lines = [
-        "# CI-MANAGED: true",
-        "# ORIGIN: sigma_to_spl.py",
-        f"# SIGMA_FILE: {rule_path.as_posix()}",
-        f"# SIGMA_ID: {sigma_id}",
-        f"# DETECT_ID: {detect_id}",
-        f"# SIGMA_TITLE: {title}",
-        f"# SIGMA_DESCRIPTION: {description}",
-        f"# SIGMA_STATUS: {status}",
-        f"# SIGMA_DATE: {date}",
-        f"# SIGMA_MODIFIED: {modified}",
-        f"# LOGSOURCE_SERVICE: {service}",
-        f"# CONVERT_MODE: {mode}",
-        f"# SIGMA_PIPELINE: {pipeline or 'without-pipeline'}",
-    ]
+    # Sigma file reference (or native SPL message)
+    sigma_file_value = rule_path.as_posix() if rule_path and rule_path.name else (
+        "No Sigma source is associated with this detection; it was authored natively as an SPL rule."
+    )
 
-    if git_sha:
-        lines.append(f"# GIT_SHA: {git_sha}")
-    if git_ref:
-        lines.append(f"# GIT_REF: {git_ref}")
-
+    # Rule version (X.X). Prefer explicit rule_version/version fields from the YAML (or custom.splunk),
+    # otherwise default to 1.0
     custom = rule.get("custom") or {}
     splunk_meta = custom.get("splunk") if isinstance(custom, dict) else None
-    if isinstance(splunk_meta, dict):
-        mode_v = _safe_str(splunk_meta.get("mode"))
-        cron_v = _safe_str(splunk_meta.get("cron"))
-        earliest_v = _safe_str(splunk_meta.get("earliest"))
-        latest_v = _safe_str(splunk_meta.get("latest"))
-        sev_v = _safe_str(splunk_meta.get("severity"))
+    yaml_rule_version = _safe_str(rule.get("rule_version")) or _safe_str(rule.get("version"))
+    splunk_rule_version = _safe_str(splunk_meta.get("rule_version")) if isinstance(splunk_meta, dict) else ""
+    rule_version = splunk_rule_version or yaml_rule_version or "1.0"
 
-        if mode_v:
-            lines.append(f"# SPLUNK_MODE: {mode_v}")
-        if cron_v:
-            lines.append(f"# SPLUNK_CRON: {cron_v}")
-        if earliest_v:
-            lines.append(f"# SPLUNK_EARLIEST: {earliest_v}")
-        if latest_v:
-            lines.append(f"# SPLUNK_LATEST: {latest_v}")
-        if sev_v:
-            lines.append(f"# SPLUNK_SEVERITY: {sev_v}")
+    # Convert time in Hungary (Europe/Budapest) with offset (CET/CEST)
+    convert_time = datetime.datetime.now(ZoneInfo("Europe/Budapest")).replace(microsecond=0).isoformat()
 
-    lines.append("# ---")
-    return "\n".join(lines) + "\n"
+    git_sha_value = git_sha or "unknown"
+
+    # Base Sigma meta (everything except 'detection')
+    sigma_meta = {}
+    for k, v in (rule or {}).items():
+        if k == "detection":
+            continue
+        if k in ("id", "fields"):  # 'id' is redundant next to detect_id; 'fields' not needed
+            continue
+        sigma_meta[k] = v
+
+    # Build ordered JSON meta:
+    # title -> detect_id -> description -> sigma_file -> status -> author -> date -> modified
+    # then convert_time -> rule_version -> git_sha
+    # then CI fields (ci_managed/origin/convert_mode/sigma_pipeline[/git_ref])
+    # then the remaining Sigma meta keys (references/tags/logsource/falsepositives/level/custom/...)
+    meta = {}
+
+    # Primary identification block
+    if "title" in sigma_meta:
+        meta["title"] = sigma_meta.pop("title")
+    detect_id = _safe_str(sigma_meta.pop("detect_id", ""))
+    if detect_id:
+        meta["detect_id"] = detect_id
+    if "description" in sigma_meta:
+        meta["description"] = sigma_meta.pop("description")
+
+    meta["sigma_file"] = sigma_file_value
+
+    if "status" in sigma_meta:
+        meta["status"] = sigma_meta.pop("status")
+
+    if "author" in sigma_meta:
+        meta["author"] = sigma_meta.pop("author")
+
+    if "date" in sigma_meta:
+        meta["date"] = sigma_meta.pop("date")
+    if "modified" in sigma_meta:
+        meta["modified"] = sigma_meta.pop("modified")
+
+    # Enrichment fields (directly under modified/date section)
+    meta["convert_time"] = convert_time
+    meta["rule_version"] = rule_version
+    meta["git_sha"] = git_sha_value
+
+    # CI/conversion context (kept in JSON only)
+    meta["ci_managed"] = True
+    meta["origin"] = "sigma_to_spl.py"
+    meta["convert_mode"] = mode
+    meta["sigma_pipeline"] = pipeline or "without-pipeline"
+    if git_ref:
+        meta["git_ref"] = git_ref
+
+    # Append remaining Sigma meta keys (preserve their original order)
+    for k, v in sigma_meta.items():
+        # Avoid accidental overwrites
+        if k in meta:
+            continue
+        meta[k] = v
+
+    meta_json = json.dumps(meta, ensure_ascii=False, indent=2, default=str)
+    return "META_START\n" + meta_json + "\nMETA_END\n---\n"
 
 
 def prepend_header(out_path: Path, header: str) -> None:
