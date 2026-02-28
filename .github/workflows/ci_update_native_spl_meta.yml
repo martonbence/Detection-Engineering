@@ -56,6 +56,11 @@ jobs:
         run: |
           git config user.name "ci"
           git config user.email "ci@local"
-          git add "rules/splunk/**/*.spl" ":!rules/splunk/**/*.sigma.spl" || true
+
+          # Stage all changes under rules/splunk, then unstage generated sigma outputs
+          git add rules/splunk || true
+          git reset -q -- rules/splunk/**/*.sigma.spl 2>/dev/null || true
+          git reset -q -- '**/*.sigma.spl' 2>/dev/null || true
+
           git diff --cached --quiet || git commit -m "chore(native spl): update META git_sha/rule_version"
           git push
