@@ -14,7 +14,7 @@ META_START
   "rule_version": "auto",
   "git_sha": "auto",
 
-  "ci_managed": true,
+  "ci_managed": "true",
   "origin": "spl-rule",
   "convert_mode": "report",
   "sigma_pipeline": "Since this detection was authored natively as an SPL rule, there is no associated Sigma pipeline.",
@@ -29,7 +29,7 @@ META_START
   ],
 
   "logsource": {
-    "product_category": "os,
+    "product_category": "os",
     "product": "windows",
     "service": "security",
     "event_type": "process_creation"

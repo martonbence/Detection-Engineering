@@ -1,4 +1,4 @@
-name: Update META for native SPL rules (git_sha, rule_version)
+name: CI - Update Native SPL META
 
 on:
   push:
