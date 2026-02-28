@@ -4,8 +4,8 @@ detect_id: DETECT-2026-0001
 status: test
 description: Detects when Office applications spawn potentially malicious child processes
 author: Bence Marton
-date: 2026-01-26
-modified: 2026-01-26
+date: 2026-01-27
+modified: 2026-01-27
 references:
   - https://example.com
 tags:
