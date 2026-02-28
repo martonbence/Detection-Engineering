@@ -1,11 +1,11 @@
 META_START
 {
-  "title": "Rule title",
-  "detect_id": "DETECT-YYYY-NNNN",
-  "description": "What does this detect?",
+  "title": "Test,
+  "detect_id": "DETECT-2030-0001",
+  "description": "Test",
   "sigma_file": "No Sigma source is associated with this detection; it was authored natively as an SPL rule.",
   "level": "low",
-  "status": "experimental",
+  "status": "test",
   "author": "Bence Marton",
   "date": "2023-12-24",
   "modified": "2023-12-27",
