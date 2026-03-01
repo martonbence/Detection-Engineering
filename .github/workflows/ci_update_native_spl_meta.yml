@@ -4,12 +4,12 @@ on:
   push:
     paths:
       - "rules/splunk/**/*.spl"
-      - "scripts/update_spl_meta.py"
+      - "scripts/docs/update_spl_meta.py"
       - ".github/workflows/update_native_spl_meta.yml"
   pull_request:
     paths:
       - "rules/splunk/**/*.spl"
-      - "scripts/update_spl_meta.py"
+      - "scripts/docs/update_spl_meta.py"
       - ".github/workflows/update_native_spl_meta.yml"
 
 permissions:
@@ -50,7 +50,7 @@ jobs:
         env:
           GITHUB_SHA: ${{ github.sha }}
         run: |
-          python3 scripts/update_spl_meta.py --root rules/splunk
+          python3 scripts/docs/update_spl_meta.py --root rules/splunk
 
       - name: Commit META updates (if any)
         run: |
