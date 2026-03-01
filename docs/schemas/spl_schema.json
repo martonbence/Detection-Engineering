@@ -1,99 +1,227 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "SPL Detection Rule Header Schema",
-  "description": "Schema for CI-managed Splunk SPL detection rules",
+  "title": "SPL Detection Rule META_START Header Schema",
+  "description": "JSON Schema for CI-managed Splunk SPL detection rules that embed a META_START/META_END JSON header.",
   "type": "object",
   "required": [
-    "CI-MANAGED",
-    "DETECT_ID",
-    "TITLE",
-    "DESCRIPTION",
-    "STATUS",
-    "DATE",
-    "MODIFIED",
-    "LOGSOURCE_SERVICE"
+    "title",
+    "detect_id",
+    "description",
+    "level",
+    "status",
+    "author",
+    "date",
+    "modified",
+    "ci_managed",
+    "origin",
+    "convert_mode",
+    "tags",
+    "logsource",
+    "falsepositives"
   ],
   "properties": {
-    "CI-MANAGED": {
-      "type": "boolean",
-      "description": "Whether the rule is managed by CI/CD"
+    "title": {
+      "type": "string",
+      "minLength": 5,
+      "description": "Human-readable rule title."
     },
-    "DETECT_ID": {
+    "detect_id": {
       "type": "string",
       "pattern": "^DETECT-[0-9]{4}-[0-9]{4}$",
-      "description": "Internal detection identifier"
+      "description": "Internal detection identifier (DETECT-YYYY-NNNN)."
     },
-    "TITLE": {
+    "description": {
       "type": "string",
-      "minLength": 5
+      "minLength": 10,
+      "description": "What the detection does."
     },
-    "DESCRIPTION": {
+    "sigma_file": {
       "type": "string",
-      "minLength": 10
+      "description": "Sigma source reference or explanatory text for native SPL rules."
     },
-    "STATUS": {
-      "type": "string",
-      "enum": [
-        "experimental",
-        "test",
-        "stable",
-        "deprecated"
-      ]
-    },
-    "DATE": {
-      "type": "string",
-      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
-    },
-    "MODIFIED": {
-      "type": "string",
-      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
-    },
-    "LOGSOURCE_SERVICE": {
-      "type": "string",
-      "enum": [
-        "sysmon",
-        "security",
-        "apache",
-        "nginx",
-        "iis",
-        "tomcat",
-        "owa",
-        "sshd",
-        "rdp",
-        "dns",
-        "dhcp",
-        "windows_defender",
-        "proxy"
-      ]
-    },
-    "SPLUNK_MODE": {
-      "type": "string",
-      "enum": [
-        "report",
-        "alert"
-      ],
-      "default": "report"
-    },
-    "SPLUNK_CRON": {
-      "type": "string",
-      "default": "*/5 * * * *"
-    },
-    "SPLUNK_EARLIEST": {
-      "type": "string",
-      "default": "-5m"
-    },
-    "SPLUNK_LATEST": {
-      "type": "string",
-      "default": "now"
-    },
-    "SPLUNK_SEVERITY": {
+    "level": {
       "type": "string",
       "enum": [
         "low",
         "medium",
         "high",
         "critical"
+      ],
+      "description": "Severity level for triage/alerting."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "experimental",
+        "test",
+        "stable",
+        "deprecated"
+      ],
+      "description": "Lifecycle status."
+    },
+    "author": {
+      "type": "string",
+      "minLength": 2,
+      "description": "Rule author."
+    },
+    "date": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "Creation date (YYYY-MM-DD)."
+    },
+    "modified": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "Last modified date (YYYY-MM-DD)."
+    },
+    "convert_time": {
+      "type": "string",
+      "description": "Conversion time or explanatory text for native SPL rules."
+    },
+    "rule_version": {
+      "type": "string",
+      "description": "Rule content version. CI may auto-populate.",
+      "minLength": 1
+    },
+    "git_sha": {
+      "type": "string",
+      "description": "Git commit SHA used by CI to build/deploy this rule.",
+      "pattern": "^(auto|[0-9a-fA-F]{7,40})$"
+    },
+    "ci_managed": {
+      "description": "Whether this rule is managed by CI/CD.",
+      "oneOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string",
+          "enum": [
+            "true",
+            "false"
+          ]
+        }
       ]
+    },
+    "origin": {
+      "type": "string",
+      "enum": [
+        "spl-rule",
+        "sigma"
+      ],
+      "description": "Content origin."
+    },
+    "convert_mode": {
+      "type": "string",
+      "enum": [
+        "report",
+        "alert"
+      ],
+      "default": "report",
+      "description": "Splunk savedsearch mode."
+    },
+    "sigma_pipeline": {
+      "type": "string",
+      "description": "Sigma pipeline reference or explanatory text."
+    },
+    "references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "External references (URLs, docs)."
+    },
+    "tags": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "pattern": "^(attack\\.[a-z_]+|attack\\.t[0-9]{4}(\\.[0-9]{3})?)$"
+      },
+      "description": "ATT&CK and other tags. Expected formats: attack.<tactic> and attack.t####(.###)."
+    },
+    "logsource": {
+      "type": "object",
+      "required": [
+        "product_category",
+        "product",
+        "service",
+        "event_type"
+      ],
+      "properties": {
+        "product_category": {
+          "type": "string",
+          "enum": [
+            "os",
+            "cloud",
+            "firewall",
+            "web",
+            "edr",
+            "ips",
+            "iam",
+            "exchange",
+            "proxy"
+          ],
+          "description": "High-level product category."
+        },
+        "product": {
+          "type": "string",
+          "enum": [
+            "windows",
+            "linux",
+            "macos",
+            "aws",
+            "azure",
+            "gcp",
+            "opnsense",
+            "apache",
+            "nginx",
+            "iis",
+            "tomcat",
+            "okta",
+            "m365"
+          ],
+          "description": "Product/platform."
+        },
+        "service": {
+          "type": "string",
+          "enum": [
+            "security",
+            "sysmon",
+            "access",
+            "owa",
+            "sshd",
+            "rdp",
+            "dns",
+            "dhcp",
+            "windows_defender"
+          ],
+          "description": "Service/log channel."
+        },
+        "event_type": {
+          "type": "string",
+          "enum": [
+            "process_creation",
+            "file_event",
+            "registry_event",
+            "access_history",
+            "authentication_success",
+            "authentication_failure"
+          ],
+          "description": "Event type classification."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Log source classification."
+    },
+    "falsepositives": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Known/expected benign triggers."
     }
   },
   "additionalProperties": true
