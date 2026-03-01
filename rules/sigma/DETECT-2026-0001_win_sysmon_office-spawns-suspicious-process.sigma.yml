@@ -70,12 +70,13 @@ detection:
   timeframe: 5m
 
   condition: selection_office_parents and selection_suspicious_children and not filter_legitimate_addins and not filter_legitimate_paths
-  fields:
-    - ParentImage
-    - ParentCommandLine
-    - Image
-    - CommandLine
-    - User
+
+fields:
+  - ParentImage
+  - ParentCommandLine
+  - Image
+  - CommandLine
+  - User
 
 falsepositives:
   - Legitimate VBA macros

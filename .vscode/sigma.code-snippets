@@ -38,7 +38,7 @@
             "",
             "  condition: ${23:selection and not filter}",
             "",
-            "  fields:",
+            "fields:",
             "    - ${24:Field1}",
             "    - ${25:Field2}",
             "",
