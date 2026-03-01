@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 from pathlib import Path
 from urllib.parse import quote
 
@@ -38,27 +39,40 @@ def savedsearch_name_from_file(p: Path) -> str:
 
 def read_spl_query(path: Path) -> str:
     """
-    Splunk savedsearch 'search' field should be valid SPL.
-    If you keep CI comments in files, strip leading '#' comment lines to avoid parse errors.
+    Return only the actual SPL query part (everything after the '---' separator).
+    The META_START/META_END header is CI metadata and must not be deployed as part of the savedsearch 'search'.
     """
-    lines = path.read_text(encoding="utf-8").splitlines()
+    content = path.read_text(encoding="utf-8")
+
+    if "---" not in content:
+        die(f"No query separator ('---') found in file: {path}")
+
+    _, query_part = content.split('---', 1)
+    query = query_part.strip()
+
+    if not query:
+        die(f"No SPL query found after '---' in file: {path}")
+
+    return query
 
 
-    # Drop UTF-8 BOM if present in first line
-    if lines and lines[0].startswith("\ufeff"):
-        lines[0] = lines[0].lstrip("\ufeff")
+def extract_meta(path: Path) -> dict:
+    """
+    Extract and parse META_START ... META_END JSON block from a CI-managed SPL artifact.
+    """
+    content = path.read_text(encoding="utf-8")
+    m = re.search(r"META_START\s*(\{.*?\})\s*META_END", content, re.DOTALL)
+    if not m:
+        die(f"META block not found in file: {path}")
 
-    # Strip leading blank lines
-    while lines and not lines[0].strip():
-        lines.pop(0)
+    meta_str = m.group(1)
+    try:
+        meta = json.loads(meta_str)
+    except json.JSONDecodeError as e:
+        die(f"Invalid META JSON in {path}: {e}")
 
-    # Strip leading comment lines (common in generated artifacts)
-    while lines and lines[0].lstrip().startswith("#"):
-        lines.pop(0)
-        while lines and not lines[0].strip():
-            lines.pop(0)
+    return meta
 
-    return "\n".join(lines).strip()
 
 def extract_ci_header_value(path: Path, key: str) -> str:
     """
@@ -90,27 +104,31 @@ def _default_if_empty(v: str, default: str) -> str:
 
 def build_splunk_runtime_payload_from_header(path: Path) -> dict:
     """
-    Create savedsearch runtime fields (report vs alert) from CI header.
+    Create savedsearch runtime fields (report vs alert) from META JSON.
 
-    Header keys we support:
-      - SPLUNK_MODE: report|alert
-      - SPLUNK_CRON: */5 * * * *
-      - SPLUNK_EARLIEST: -5m
-      - SPLUNK_LATEST: now
+    Supported META keys:
+      - deploy_mode: report|alert
+      - cron: */5 * * * *          (optional, defaults to */5 * * * *)
+      - earliest: -5m             (optional, defaults to -5m)
+      - latest: now               (optional, defaults to now)
     """
-    mode = _norm_mode(extract_ci_header_value(path, "SPLUNK_MODE"))
+    meta = extract_meta(path)
 
-    # Default behavior: if mode missing/invalid -> report (not scheduled)
-    if mode != "alert":
+    deploy_mode = (meta.get("deploy_mode") or "").strip().lower()
+    if deploy_mode not in ("report", "alert"):
+        die(f"Invalid deploy_mode in META for {path}: {deploy_mode!r} (allowed: 'report'|'alert')")
+
+    # Default behavior: report -> not scheduled
+    if deploy_mode != "alert":
         return {
             "is_scheduled": "0",
             # Keep it enabled as an object (just not scheduled)
             "disabled": "0",
         }
 
-    cron = _default_if_empty(extract_ci_header_value(path, "SPLUNK_CRON"), "*/5 * * * *")
-    earliest = _default_if_empty(extract_ci_header_value(path, "SPLUNK_EARLIEST"), "-5m")
-    latest = _default_if_empty(extract_ci_header_value(path, "SPLUNK_LATEST"), "now")
+    cron = _default_if_empty(str(meta.get("cron") or ""), "*/5 * * * *")
+    earliest = _default_if_empty(str(meta.get("earliest") or ""), "-5m")
+    latest = _default_if_empty(str(meta.get("latest") or ""), "now")
 
     return {
         "is_scheduled": "1",
@@ -127,6 +145,8 @@ def build_splunk_runtime_payload_from_header(path: Path) -> dict:
         # Optional but useful for visibility in Splunk UI/alerting
         "alert.track": "1",
     }
+
+
 
 def build_savedsearch_description(ci_constant: str, sigma_description: str, max_len: int = 800) -> str:
     """
@@ -238,11 +258,10 @@ def main(argv: list[str]) -> int:
             continue
 
         print(f"Deploying savedsearch '{search_name}' from {f}")
-
-        sigma_desc = extract_ci_header_value(f, "SIGMA_DESCRIPTION")
+        meta = extract_meta(f)
         final_desc = build_savedsearch_description(
             "Managed by CI/CD (Detection-Engineering repo)",
-            sigma_desc,
+            str(meta.get("description") or ""),
             max_len=800,
         )
 
