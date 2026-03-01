@@ -1,22 +1,44 @@
-# CI-MANAGED: true
-# ORIGIN: sigma_to_spl.py
-# SIGMA_FILE: rules/sigma/test.sigma.yml
-# SIGMA_ID: b835ac80-6e0e-4353-bbc3-1d96d6541d85
-# DETECT_ID: DETECT-2026-0004
-# SIGMA_TITLE: Test Sigma Rule
-# SIGMA_DESCRIPTION: Test Sigma rule for demonstration purposes.
-# SIGMA_STATUS: test
-# SIGMA_DATE: 2026-01-03
-# SIGMA_MODIFIED: 2026-01-01
-# LOGSOURCE_SERVICE: sysmon
-# CONVERT_MODE: pipeline=splunk_sysmon_acceleration
-# SIGMA_PIPELINE: splunk_sysmon_acceleration
-# GIT_SHA: 9e39649296aec87a0fce0b895da3cffb208e3fde
-# GIT_REF: main
-# SPLUNK_MODE: alert
-# SPLUNK_CRON: */5 * * * *
-# SPLUNK_EARLIEST: -5m
-# SPLUNK_LATEST: now
-# SPLUNK_SEVERITY: low
-# ---
+META_START
+{
+  "title": "Test Sigma Rule",
+  "detect_id": "DETECT-2026-0004",
+  "description": "Test Sigma rule for demonstration purposes.",
+  "sigma_file": "rules/sigma/test.sigma.yml",
+  "level": "medium",
+  "status": "test",
+  "author": "Bence Marton",
+  "date": "2026-01-03",
+  "modified": "2026-01-09",
+
+  "convert_time": "2026-03-01T16:18:06+01:00",
+  "rule_version": "1.13",
+  "git_sha": "27e2f48a197eb7f118a69b64c548be5e31625635",
+  "ci_managed": true,
+  "origin": "sigma_to_spl.py",
+  "deploy_mode": "alert",
+  "sigma_pipeline": "splunk_sysmon_acceleration",
+
+  "references": [
+    "https://example.com"
+  ],
+
+  "tags": [
+    "attack.ta0002",
+    "attack.t1059",
+    "attack.1059.001"
+  ],
+
+  "logsource": {
+    "product_category": "os",
+    "product": "windows",
+    "service": "sysmon",
+    "event_type": "process_creation"
+  },
+
+  "falsepositives": [
+    "Legitimate administrative scripts using EncodedCommand"
+  ]
+}
+META_END
+---
 index="sysmon" Image="*\\powershell.exe" CommandLine IN ("* -e *", "* -enc *", "* -encodedcommand *")
