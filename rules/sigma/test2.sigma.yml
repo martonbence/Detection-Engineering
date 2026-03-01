@@ -9,7 +9,7 @@ modified: 2026-01-09
 references:
   - https://example.com
 tags:
-  - attack.ta0002
+  - attack.execution
   - attack.t1059
   - attack.1059.001
 
