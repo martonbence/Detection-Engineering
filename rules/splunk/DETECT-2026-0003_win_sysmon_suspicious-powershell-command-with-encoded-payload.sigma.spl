@@ -10,9 +10,9 @@ META_START
   "date": "2026-01-26",
   "modified": "2026-01-24",
 
-  "convert_time": "2026-03-01T16:55:00+01:00",
-  "rule_version": "1.7",
-  "git_sha": "a940317b3895301f6d7453d32234d0dce9c61c6a",
+  "convert_time": "2026-03-01T17:35:46+01:00",
+  "rule_version": "1.8",
+  "git_sha": "93129bc44fe68fa451c8aa628d7e7decc44b8e09",
   "ci_managed": true,
   "origin": "sigma_to_spl.py",
   "deploy_mode": "report",
@@ -23,10 +23,9 @@ META_START
   ],
 
   "tags": [
-    "attack.ta0002",
-    "attack.t1059",
+    "attack.execution",
     "attack.t1059.001",
-    "attack.ta0005",
+    "attack.defense_evasion",
     "attack.t1027",
     "attack.t1140"
   ],
