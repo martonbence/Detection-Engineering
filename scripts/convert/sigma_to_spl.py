@@ -292,7 +292,7 @@ def main() -> int:
         if not deploy_mode:
             deploy_mode = _safe_str(custom.get("mode")) if isinstance(custom, dict) else ""
         if not deploy_mode:
-            deploy_mode = "alert"
+            deploy_mode = "report"
 
         service = _normalize_service(rule)
         print_mode = f"pipeline={pipeline}" if pipeline else "without-pipeline"
