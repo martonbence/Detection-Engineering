@@ -9,10 +9,9 @@ modified: 2026-01-24
 references:
   - https://example.com
 tags:
-  - attack.ta0002
-  - attack.t1059
+  - attack.execution
   - attack.t1059.001
-  - attack.ta0005
+  - attack.defense_evasion
   - attack.t1027
   - attack.t1140
 
