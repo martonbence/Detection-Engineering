@@ -105,7 +105,6 @@ fields:
     - Details
     - Image
     - User
-    - ProcessId
 
 falsepositives:
     - Legitimate software installations
