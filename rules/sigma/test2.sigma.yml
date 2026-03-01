@@ -30,8 +30,18 @@ detection:
       - " -enc "
       - " -encodedcommand "
   condition: index and selection_image and selection_encoded_flag
+
+fields:
+  - EventID
+  - TargetObject
+  - Details
+  - Image
+  - User
+  - ProcessId
+
 falsepositives:
   - Legitimate administrative scripts using EncodedCommand
+
 level: medium
 
 custom:
