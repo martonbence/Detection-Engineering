@@ -10,9 +10,9 @@ META_START
   "date": "2026-01-24",
   "modified": "2026-01-25",
 
-  "convert_time": "2026-03-01T16:25:03+01:00",
-  "rule_version": "1.13",
-  "git_sha": "a588bbb04b5c333bc300004ea8a73fca043f4008",
+  "convert_time": "2026-03-01T16:44:44+01:00",
+  "rule_version": "1.14",
+  "git_sha": "6ed37672fdb533f71773c9c51f6c238e65c7ec65",
   "ci_managed": true,
   "origin": "sigma_to_spl.py",
   "deploy_mode": "alert",
@@ -42,4 +42,4 @@ META_START
 }
 META_END
 ---
-TargetObject IN ("*\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run\\*", "*\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\RunOnce\\*", "*\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Run\\*", "*\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\RunOnce\\*", "*\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer\\Run\\*", "*\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\\Userinit*", "*\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\\Shell*", "*\\SOFTWARE\\Microsoft\\Active Setup\\Installed Components\\*") Details IN ("*\\AppData\\Local\\Temp\\*", "*\\Users\\Public\\*", "*\\ProgramData\\*", "*\\Windows\\Temp\\*", "*%temp%*", "*%tmp%*", "*%appdata%*") OR Details IN ("*rundll32*", "*regsvr32*", "*powershell*", "*pwsh*", "*cmd.exe /c*", "*cmd /c*", "*wscript*", "*cscript*", "*mshta*", "*wmic*") OR Details IN ("*.vbs*", "*.vbe*", "*.js*", "*.jse*", "*.wsf*", "*.wsh*", "*.ps1*", "*.bat*", "*.cmd*", "*javascript:*", "*.dll,RunDLL*") NOT (Details IN ("*Microsoft\\Windows\\CurrentVersion\\Run\\SecurityHealth*", "*Windows Defender*", "*OneDrive*", "*Teams*", "*Skype*", "*Chrome*", "*Firefox*", "*Adobe*")) NOT (Details IN ("C:\\Program Files\\*", "C:\\Program Files (x86)\\*", "C:\\Windows\\System32\\*", "\"C:\\Program Files\\*", "\"C:\\Program Files (x86)\\*")) | table EventID,TargetObject,Details,Image,User
+TargetObject IN ("*\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run\\*", "*\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\RunOnce\\*", "*\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Run\\*", "*\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\RunOnce\\*", "*\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer\\Run\\*", "*\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\\Userinit*", "*\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\\Shell*", "*\\SOFTWARE\\Microsoft\\Active Setup\\Installed Components\\*") Details IN ("*\\AppData\\Local\\Temp\\*", "*\\Users\\Public\\*", "*\\ProgramData\\*", "*\\Windows\\Temp\\*", "*%temp%*", "*%tmp%*", "*%appdata%*") OR Details IN ("*rundll32*", "*regsvr32*", "*powershell*", "*pwsh*", "*cmd.exe /c*", "*cmd /c*", "*wscript*", "*cscript*", "*mshta*", "*wmic*") OR Details IN ("*.vbs*", "*.vbe*", "*.js*", "*.jse*", "*.wsf*", "*.wsh*", "*.ps1*", "*.bat*", "*.cmd*", "*javascript:*", "*.dll,RunDLL*") NOT (Details IN ("*Microsoft\\Windows\\CurrentVersion\\Run\\SecurityHealth*", "*Windows Defender*", "*OneDrive*", "*Teams*", "*Skype*", "*Chrome*", "*Firefox*", "*Adobe*")) NOT (Details IN ("C:\\Program Files\\*", "C:\\Program Files (x86)\\*", "C:\\Windows\\System32\\*", "\"C:\\Program Files\\*", "\"C:\\Program Files (x86)\\*")) | table EventID,TargetObject,Details,Image,User,ProcessId
