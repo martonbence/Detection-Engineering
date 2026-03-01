@@ -1,0 +1,44 @@
+META_START
+{
+  "title": "Test Sigma Rule",
+  "detect_id": "DETECT-2026-0004",
+  "description": "Test Sigma rule for demonstration purposes.",
+  "sigma_file": "rules/sigma/test2.sigma.yml",
+  "level": "medium",
+  "status": "test",
+  "author": "Bence Marton",
+  "date": "2026-01-03",
+  "modified": "2026-01-09",
+
+  "convert_time": "2026-03-01T16:25:04+01:00",
+  "rule_version": "1.0",
+  "git_sha": "a588bbb04b5c333bc300004ea8a73fca043f4008",
+  "ci_managed": true,
+  "origin": "sigma_to_spl.py",
+  "deploy_mode": "alert",
+  "sigma_pipeline": "splunk_sysmon_acceleration",
+
+  "references": [
+    "https://example.com"
+  ],
+
+  "tags": [
+    "attack.ta0002",
+    "attack.t1059",
+    "attack.1059.001"
+  ],
+
+  "logsource": {
+    "product_category": "os",
+    "product": "windows",
+    "service": "sysmon",
+    "event_type": "process_creation"
+  },
+
+  "falsepositives": [
+    "Legitimate administrative scripts using EncodedCommand"
+  ]
+}
+META_END
+---
+index="sysmon" Image="*\\powershell.exe" CommandLine IN ("* -e *", "* -enc *", "* -encodedcommand *")
