@@ -10,9 +10,9 @@ META_START
   "date": "2026-01-03",
   "modified": "2026-01-09",
 
-  "convert_time": "2026-03-01T16:44:44+01:00",
-  "rule_version": "1.1",
-  "git_sha": "6ed37672fdb533f71773c9c51f6c238e65c7ec65",
+  "convert_time": "2026-03-01T16:55:00+01:00",
+  "rule_version": "1.2",
+  "git_sha": "a940317b3895301f6d7453d32234d0dce9c61c6a",
   "ci_managed": true,
   "origin": "sigma_to_spl.py",
   "deploy_mode": "alert",
@@ -41,4 +41,4 @@ META_START
 }
 META_END
 ---
-index="sysmon" Image="*\\powershell.exe" CommandLine IN ("* -e *", "* -enc *", "* -encodedcommand *") | table EventID,TargetObject,Details,Image,User,ProcessId
+index="sysmon" Image="*\\powershell.exe" CommandLine IN ("* -e *", "* -enc *", "* -encodedcommand *") | table EventID,TargetObject,Details,Image,User
