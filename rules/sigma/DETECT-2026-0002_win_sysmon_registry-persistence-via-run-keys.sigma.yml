@@ -114,4 +114,4 @@ falsepositives:
 level: high
 custom:
     splunk:
-        mode: alert
+        mode: report

@@ -127,3 +127,7 @@ falsepositives:
   - Configuration management tools
 
 level: high
+
+custom:
+  splunk:
+    mode: alert
