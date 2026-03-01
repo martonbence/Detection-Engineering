@@ -1,19 +1,51 @@
-# CI-MANAGED: true
-# ORIGIN: sigma_to_spl.py
-# SIGMA_FILE: rules/sigma/DETECT-2026-0003_win_sysmon_suspicious-powershell-command-with-encoded-payload.sigma.yml
-# SIGMA_ID: a11687f9-5bb8-406d-98c0-0dfc6e2f194b
-# DETECT_ID: DETECT-2026-0003
-# SIGMA_TITLE: Suspicious PowerShell Command with Encoded Payload
-# SIGMA_DESCRIPTION: Detects PowerShell execution with encoded/obfuscated payloads and suspicious patterns
-# SIGMA_STATUS: test
-# SIGMA_DATE: 2026-01-26
-# SIGMA_MODIFIED: 2026-01-26
-# LOGSOURCE_SERVICE: sysmon
-# CONVERT_MODE: pipeline=splunk_sysmon_acceleration
-# SIGMA_PIPELINE: splunk_sysmon_acceleration
-# GIT_SHA: 99957f7fa77af561cc735a7165afcfd7268f304b
-# GIT_REF: main
-# ---
+META_START
+{
+  "title": "Suspicious PowerShell Command with Encoded Payload",
+  "detect_id": "DETECT-2026-0003",
+  "description": "Detects PowerShell execution with encoded/obfuscated payloads and suspicious patterns",
+  "sigma_file": "rules/sigma/DETECT-2026-0003_win_sysmon_suspicious-powershell-command-with-encoded-payload.sigma.yml",
+  "level": "high",
+  "status": "test",
+  "author": "Bence Marton",
+  "date": "2026-01-26",
+  "modified": "2026-01-29",
+
+  "convert_time": "2026-03-01T16:18:06+01:00",
+  "rule_version": "1.5",
+  "git_sha": "27e2f48a197eb7f118a69b64c548be5e31625635",
+  "ci_managed": true,
+  "origin": "sigma_to_spl.py",
+  "deploy_mode": "alert",
+  "sigma_pipeline": "splunk_sysmon_acceleration",
+
+  "references": [
+    "https://example.com"
+  ],
+
+  "tags": [
+    "attack.ta0002",
+    "attack.t1059",
+    "attack.t1059.001",
+    "attack.ta0005",
+    "attack.t1027",
+    "attack.t1140"
+  ],
+
+  "logsource": {
+    "product_category": "os",
+    "product": "windows",
+    "service": "sysmon",
+    "event_type": "procecc_creation"
+  },
+
+  "falsepositives": [
+    "Complex legitimate administrative scripts",
+    "Software deployment scripts",
+    "Configuration management tools"
+  ]
+}
+META_END
+---
 
 | rex field=CommandLine "(?<CommandLineMatch>[A-Za-z0-9+/]{100,}={0,2})"
 | eval CommandLineCondition=if(isnotnull(CommandLineMatch), "true", "false")

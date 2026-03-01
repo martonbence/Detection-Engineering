@@ -10,9 +10,9 @@ META_START
   "date": "2026-02-04",
   "modified": "2026-02-07",
 
-  "convert_time": "2026-02-28T15:00:01+01:00",
-  "rule_version": "1.23",
-  "git_sha": "5b9975502cdd6c18b42ce9620ddeb08efa02561a",
+  "convert_time": "2026-03-01T16:18:05+01:00",
+  "rule_version": "1.24",
+  "git_sha": "27e2f48a197eb7f118a69b64c548be5e31625635",
   "ci_managed": true,
   "origin": "sigma_to_spl.py",
   "deploy_mode": "report",
@@ -44,4 +44,4 @@ META_START
 }
 META_END
 ---
-ParentImage IN ("*\\WINWORD.EXE", "*\\EXCEL.EXE", "*\\POWERPNT.EXE", "*\\OUTLOOK.EXE", "*\\MSACCESS.EXE", "*\\MSPUB.EXE", "*\\VISIO.EXE", "*\\ONENOTE.EXE") Image IN ("*\\cmd.exe", "*\\powershell.exe", "*\\wscript.exe", "*\\cscript.exe", "*\\rundll32.exe", "*\\regsvr32.exe", "*\\mshta.exe", "*\\wmic.exe", "*\\bitsadmin.exe", "*\\certutil.exe") NOT (CommandLine IN ("*Microsoft.Office*", "*Office16\\GROOVEEX.DLL*")) NOT (Image IN ("*C:\\Program Files\\Microsoft Office\\*", "*C:\\Program Files (x86)\\Microsoft Office\\*"))
+ParentImage IN ("*\\WINWORD.EXE", "*\\EXCEL.EXE", "*\\POWERPNT.EXE", "*\\OUTLOOK.EXE", "*\\MSACCESS.EXE", "*\\MSPUB.EXE", "*\\VISIO.EXE", "*\\ONENOTE.EXE") Image IN ("*\\cmd.exe", "*\\powershell.exe", "*\\wscript.exe", "*\\cscript.exe", "*\\rundll32.exe", "*\\regsvr32.exe", "*\\mshta.exe", "*\\wmic.exe", "*\\bitsadmin.exe", "*\\certutil.exe") NOT (CommandLine IN ("*Microsoft.Office*", "*Office16\\GROOVEEX.DLL*")) NOT (Image IN ("*C:\\Program Files\\Microsoft Office\\*", "*C:\\Program Files (x86)\\Microsoft Office\\*")) | table ParentImage,ParentCommandLine,Image,CommandLine,User
