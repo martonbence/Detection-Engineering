@@ -37,7 +37,6 @@ fields:
   - Details
   - Image
   - User
-  - ProcessId
 
 falsepositives:
   - Legitimate administrative scripts using EncodedCommand
