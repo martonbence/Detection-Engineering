@@ -10,12 +10,12 @@ META_START
   "date": "2026-01-24",
   "modified": "2026-01-25",
 
-  "convert_time": "2026-03-01T16:54:59+01:00",
-  "rule_version": "1.15",
-  "git_sha": "a940317b3895301f6d7453d32234d0dce9c61c6a",
+  "convert_time": "2026-03-01T17:44:21+01:00",
+  "rule_version": "1.16",
+  "git_sha": "114f254721d4e6d64648935e8deb81358c14a229",
   "ci_managed": true,
   "origin": "sigma_to_spl.py",
-  "deploy_mode": "alert",
+  "deploy_mode": "report",
   "sigma_pipeline": "splunk_sysmon_acceleration",
 
   "references": [
