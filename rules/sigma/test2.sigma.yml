@@ -10,8 +10,7 @@ references:
   - https://example.com
 tags:
   - attack.execution
-  - attack.t1059
-  - attack.1059.001
+  - attack.t1059.001
 
 logsource:
   product_category: os
@@ -20,8 +19,6 @@ logsource:
   event_type: process_creation
 
 detection:
-  index:
-    index: "sysmon"
   selection_image:
     Image|endswith: '\powershell.exe'
   selection_encoded_flag:
@@ -29,14 +26,14 @@ detection:
       - " -e "
       - " -enc "
       - " -encodedcommand "
-  condition: index and selection_image and selection_encoded_flag
+  condition: selection_image and selection_encoded_flag
 
 fields:
-  - EventID
-  - TargetObject
-  - Details
+  - CommandLine
+  - ParentImage
   - Image
   - User
+  - ProcessId
 
 falsepositives:
   - Legitimate administrative scripts using EncodedCommand
@@ -45,8 +42,17 @@ level: medium
 
 custom:
   splunk:
+    index: sysmon
     mode: alert
     cron: "*/5 * * * *"
     earliest: "-5m"
     latest: "now"
     severity: low
+
+  testing:
+    enabled: true
+    runner: windows-victim
+    type: atomic
+    atomics:
+      - technique: T1059.001
+        test_numbers: [15, 16]
