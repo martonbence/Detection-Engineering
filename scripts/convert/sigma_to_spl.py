@@ -1,6 +1,7 @@
 # scripts/convert/sigma_to_spl.py
 import argparse
 import os
+import re
 import subprocess
 import datetime
 import json
@@ -74,6 +75,46 @@ def run_sigma_convert(rule_path: Path, out_path: Path, pipeline: str) -> None:
 
 def _safe_str(v) -> str:
     return str(v).strip() if v is not None else ""
+
+
+def _get_splunk_index(rule: dict) -> str:
+    custom = rule.get("custom") or {}
+    splunk_custom = custom.get("splunk") if isinstance(custom, dict) else None
+    if not isinstance(splunk_custom, dict):
+        return ""
+    return _safe_str(splunk_custom.get("index"))
+
+
+def _inject_index_prefix(query: str, index_value: str) -> str:
+    """
+    Ensure SPL starts with the Sigma-defined index.
+
+    Behavior:
+      - "search <...>" -> "search index=<idx> <...>"
+      - "index=<...> <...>" -> replace leading index with Sigma index
+      - everything else -> prefix with "index=<idx> "
+    """
+    q = (query or "").strip()
+    idx = _safe_str(index_value)
+
+    if not q or not idx:
+        return q
+
+    m = re.match(r"(?i)^search\s+", q)
+    if m:
+        return f"search index={idx} {q[m.end():].lstrip()}"
+
+    m = re.match(r"(?i)^index=[^\s]+\s*", q)
+    if m:
+        return f"index={idx} {q[m.end():].lstrip()}".rstrip()
+
+    return f"index={idx} {q}"
+
+
+def enforce_index_prefix(out_path: Path, index_value: str) -> None:
+    content = out_path.read_text(encoding="utf-8")
+    updated = _inject_index_prefix(content, index_value)
+    out_path.write_text(updated + "\n", encoding="utf-8")
 
 
 def _git_commit_count_for_path(rule_path: Path) -> int:
@@ -286,6 +327,7 @@ def main() -> int:
         # deploy_mode must come from the Sigma rule's custom.splunk.mode (report|alert)
         custom = rule.get("custom") or {}
         splunk_custom = custom.get("splunk") if isinstance(custom, dict) else None
+        splunk_index = _get_splunk_index(rule)
         deploy_mode = ""
         if isinstance(splunk_custom, dict):
             deploy_mode = _safe_str(splunk_custom.get("mode"))
@@ -305,6 +347,14 @@ def main() -> int:
             print(f"ERROR: sigma convert failed for {rule_path}: {e}", file=sys.stderr)
             failed += 1
             continue  # do not write header if conversion failed
+
+        # Burn Sigma custom.splunk.index into the beginning of the generated SPL query
+        try:
+            enforce_index_prefix(out_path, splunk_index)
+        except Exception as e:
+            print(f"ERROR: failed applying index prefix for {out_path}: {e}", file=sys.stderr)
+            failed += 1
+            continue
 
         # Always prepend header AFTER successful conversion
         try:
