@@ -87,4 +87,19 @@ level: high
 
 custom:
   splunk:
+    index: sysmon
     mode: report
+    cron: "*/5 * * * *"
+    earliest: -5m
+    latest: now
+    severity: high
+
+  testing:
+    enabled: true
+    runner: windows-victim
+    type: atomic
+    atomics:
+      - technique: T1566.001
+        test_numbers: [1, 2]
+      - technique: T1204.002
+        test_numbers: [1, 2]

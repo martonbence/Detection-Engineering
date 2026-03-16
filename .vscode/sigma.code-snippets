@@ -49,11 +49,20 @@
             "",
             "custom:",
             "  splunk:",
-            "    mode: ${28|report,alert|}",
-            "    cron: \"${29:*/5 * * * *}\"",
-            "    earliest: \"${30:-5m}\"",
-            "    latest: \"${31:now}\"",
-            "    severity: ${32|low,medium,high,critical|}"
+            "    index: ${28|sysmon,wineventlog,windows,main|}",
+            "    mode: ${29|report,alert|}",
+            "    cron: \"${30:*/5 * * * *}\"",
+            "    earliest: \"${31:-5m}\"",
+            "    latest: \"${32:now}\"",
+            "    severity: ${33|low,medium,high,critical|}",
+            "",
+            "  testing:",
+            "    enabled: ${34|true,false|}",
+            "    runner: ${35|windows-victim,linux-victim|}",
+            "    type: ${36|atomic,emulation|}",
+            "    atomics:",
+            "      - technique: ${37:TXXXX.XXX}",
+            "        test_numbers: [${38:1,2}]"
         ]
     }
 }

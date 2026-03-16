@@ -15,8 +15,10 @@
         "tags",
         "logsource",
         "detection",
+        "fields",
         "falsepositives",
-        "level"
+        "level",
+        "custom"
     ],
     "properties": {
         "title": {
@@ -222,14 +224,15 @@
                 "condition": {
                     "type": "string",
                     "minLength": 3
-                },
-                "fields": {
-                    "type": "array",
-                    "items": {
-                        "type": "string",
-                        "minLength": 1
-                    }
                 }
+            }
+        },
+        "fields": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "string",
+                "minLength": 1
             }
         },
         "falsepositives": {
@@ -251,12 +254,29 @@
         },
         "custom": {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": false,
+            "required": [
+                "splunk",
+                "testing"
+            ],
             "properties": {
                 "splunk": {
                     "type": "object",
                     "additionalProperties": false,
+                    "required": [
+                        "index",
+                        "mode",
+                        "cron",
+                        "earliest",
+                        "latest",
+                        "severity"
+                    ],
                     "properties": {
+                        "index": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Splunk target index"
+                        },
                         "mode": {
                             "type": "string",
                             "enum": [
@@ -265,13 +285,16 @@
                             ]
                         },
                         "cron": {
-                            "type": "string"
+                            "type": "string",
+                            "minLength": 1
                         },
                         "earliest": {
-                            "type": "string"
+                            "type": "string",
+                            "minLength": 1
                         },
                         "latest": {
-                            "type": "string"
+                            "type": "string",
+                            "minLength": 1
                         },
                         "severity": {
                             "type": "string",
@@ -281,6 +304,60 @@
                                 "high",
                                 "critical"
                             ]
+                        }
+                    }
+                },
+                "testing": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "enabled",
+                        "type",
+                        "atomics"
+                    ],
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean"
+                        },
+                        "runner": {
+                            "type": "string",
+                            "enum": [
+                                "windows-victim",
+                                "linux-victim"
+                            ]
+                        },
+                        "type": {
+                            "type": "string",
+                            "enum": [
+                                "atomic",
+                                "emulation"
+                            ]
+                        },
+                        "atomics": {
+                            "type": "array",
+                            "minItems": 1,
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                    "technique",
+                                    "test_numbers"
+                                ],
+                                "properties": {
+                                    "technique": {
+                                        "type": "string",
+                                        "pattern": "^T\\d{4}(\\.\\d{3})?$"
+                                    },
+                                    "test_numbers": {
+                                        "type": "array",
+                                        "minItems": 1,
+                                        "items": {
+                                            "type": "integer",
+                                            "minimum": 1
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
