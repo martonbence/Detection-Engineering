@@ -8,11 +8,11 @@ META_START
   "status": "test",
   "author": "Bence Marton",
   "date": "2026-01-03",
-  "modified": "2026-01-10",
+  "modified": "2026-01-12",
 
-  "convert_time": "2026-03-16T21:38:50+01:00",
-  "rule_version": "1.5",
-  "git_sha": "54c90953942e9acc62b6f3361b4bd2654cae7825",
+  "convert_time": "2026-03-16T22:21:59+01:00",
+  "rule_version": "1.6",
+  "git_sha": "8c016eef0a08a2a087623aed89f65c160f37e91d",
   "ci_managed": true,
   "origin": "sigma_to_spl.py",
   "deploy_mode": "alert",
@@ -40,4 +40,4 @@ META_START
 }
 META_END
 ---
-Image="*\\powershell.exe" CommandLine IN ("* -e *", "* -enc *", "* -encodedcommand *") | table CommandLine,ParentImage,Image,User,ProcessId
+index=sysmon Image="*\\powershell.exe" CommandLine IN ("* -e *", "* -enc *", "* -encodedcommand *") | table CommandLine,ParentImage,Image,User,ProcessId
