@@ -38,7 +38,7 @@ fields:
 falsepositives:
   - Legitimate administrative scripts using EncodedCommand
 
-level: medium
+level: low
 
 custom:
   splunk:
@@ -47,7 +47,7 @@ custom:
     cron: "*/5 * * * *"
     earliest: "-5m"
     latest: "now"
-    severity: medium
+    severity: low
 
   testing:
     enabled: true
