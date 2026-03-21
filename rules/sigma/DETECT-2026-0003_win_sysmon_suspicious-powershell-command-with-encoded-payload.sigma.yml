@@ -4,8 +4,8 @@ detect_id: DETECT-2026-0003
 status: test
 description: Detects PowerShell execution with encoded/obfuscated payloads and suspicious patterns
 author: Bence Marton
-date: 2026-01-26
-modified: 2026-01-24
+date: 2026-03-20
+modified: 2026-03-21
 references:
   - https://example.com
 tags:
@@ -19,7 +19,7 @@ logsource:
   product_category: os
   product: windows
   service: sysmon
-  event_type: procecc_creation
+  event_type: process_creation
 
 detection:
   # PowerShell processes
@@ -130,4 +130,17 @@ level: high
 
 custom:
   splunk:
+    index: sysmon
     mode: alert
+    cron: "*/5 * * * *"
+    earliest: -5m
+    latest: now
+    severity: high
+
+  testing:
+    enabled: true
+    runner: windows-victim
+    type: atomic
+    atomics:
+      - technique: T1059.001
+        test_numbers: [9, 10, 14, 15, 16, 17, 18]

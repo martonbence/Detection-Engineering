@@ -103,6 +103,22 @@ def _default_if_empty(v: str, default: str) -> str:
     return v if v else default
 
 
+def _severity_to_splunk_value(v: str) -> str:
+    """
+    Map rule severity to Splunk savedsearch alert.severity.
+
+    Splunk REST expects numeric values:
+      1=info, 2=low, 3=medium, 4=high, 5=critical, 6=fatal
+    """
+    mapping = {
+        "low": "2",
+        "medium": "3",
+        "high": "4",
+        "critical": "5",
+    }
+    return mapping.get((v or "").strip().lower(), "")
+
+
 def build_splunk_runtime_payload_from_header(path: Path) -> dict:
     """
     Create savedsearch runtime fields (report vs alert) from META JSON.
@@ -130,8 +146,9 @@ def build_splunk_runtime_payload_from_header(path: Path) -> dict:
     cron = _default_if_empty(str(meta.get("cron") or ""), "*/5 * * * *")
     earliest = _default_if_empty(str(meta.get("earliest") or ""), "-5m")
     latest = _default_if_empty(str(meta.get("latest") or ""), "now")
+    severity = _severity_to_splunk_value(str(meta.get("severity") or ""))
 
-    return {
+    payload = {
         "is_scheduled": "1",
         "cron_schedule": cron,
         "dispatch.earliest_time": earliest,
@@ -146,6 +163,11 @@ def build_splunk_runtime_payload_from_header(path: Path) -> dict:
         # Optional but useful for visibility in Splunk UI/alerting
         "alert.track": "1",
     }
+
+    if severity:
+        payload["alert.severity"] = severity
+
+    return payload
 
 
 
