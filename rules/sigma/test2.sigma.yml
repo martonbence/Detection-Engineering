@@ -44,10 +44,10 @@ custom:
   splunk:
     index: sysmon
     mode: alert
-    cron: "*/5 * * * *"
+    cron: "*/10 * * * *"
     earliest: "-5m"
     latest: "now"
-    severity: low
+    severity: medium
 
   testing:
     enabled: true
