@@ -85,6 +85,12 @@ def _get_splunk_index(rule: dict) -> str:
     return _safe_str(splunk_custom.get("index"))
 
 
+def _get_splunk_custom(rule: dict) -> dict:
+    custom = rule.get("custom") or {}
+    splunk_custom = custom.get("splunk") if isinstance(custom, dict) else None
+    return splunk_custom if isinstance(splunk_custom, dict) else {}
+
+
 def _inject_index_prefix(query: str, index_value: str) -> str:
     """
     Ensure SPL starts with the Sigma-defined index.
@@ -281,6 +287,12 @@ def build_ci_header(rule_path: Path, rule: dict, deploy_mode: str, pipeline: str
     meta["deploy_mode"] = deploy_mode
     meta["sigma_pipeline"] = pipeline or "without-pipeline"
 
+    splunk_custom = _get_splunk_custom(rule)
+    for key in ("index", "cron", "earliest", "latest", "severity"):
+        value = _safe_str(splunk_custom.get(key))
+        if value:
+            meta[key] = value
+
     # Append remaining Sigma meta keys (preserve their original order)
     for k, v in sigma_meta.items():
         if k in meta:
@@ -326,10 +338,10 @@ def main() -> int:
         out_path = outdir / output_name_for_rule(rule_path)
         # deploy_mode must come from the Sigma rule's custom.splunk.mode (report|alert)
         custom = rule.get("custom") or {}
-        splunk_custom = custom.get("splunk") if isinstance(custom, dict) else None
+        splunk_custom = _get_splunk_custom(rule)
         splunk_index = _get_splunk_index(rule)
         deploy_mode = ""
-        if isinstance(splunk_custom, dict):
+        if splunk_custom:
             deploy_mode = _safe_str(splunk_custom.get("mode"))
         if not deploy_mode:
             deploy_mode = _safe_str(custom.get("mode")) if isinstance(custom, dict) else ""
