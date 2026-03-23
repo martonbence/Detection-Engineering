@@ -8,20 +8,39 @@ META_START
   "status": "test",
   "author": "Bence Marton",
   "date": "2026-03-20",
-  "modified": "2026-03-21",
+  "modified": "2026-03-22",
 
-  "convert_time": "2026-03-21T10:07:09+01:00",
-  "rule_version": "1.13",
-  "git_sha": "3a8d0fc2dd1e6581666d578e7b9b1dee6e2e6d34",
+  "convert_time": "2026-03-23T17:26:13+01:00",
+  "rule_version": "1.14",
+  "git_sha": "a52d20dd16b9c54650ee76334f8bbdcae74c4cad",
   "ci_managed": true,
   "origin": "sigma_to_spl.py",
-  "deploy_mode": "alert",
   "sigma_pipeline": "splunk_sysmon_acceleration",
+
+  "deploy_mode": "alert",
   "index": "sysmon",
   "cron": "*/5 * * * *",
   "earliest": "-5m",
   "latest": "now",
   "severity": "low",
+
+  "testing enabled": true,
+  "runner": "windows-victim",
+  "tester": "atomic",
+  "atomic tests": [
+    {
+      "technique": "T1059.001",
+      "test_numbers": [
+        9,
+        10,
+        14,
+        15,
+        16,
+        17,
+        18
+      ]
+    }
+  ],
 
   "references": [
     "https://example.com"
