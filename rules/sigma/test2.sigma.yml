@@ -42,7 +42,7 @@ level: low
 
 custom:
   splunk:
-    index: asd
+    index: sysmon
     mode: alert
     cron: "*/5 * * * *"
     earliest: "-5m"
@@ -56,5 +56,3 @@ custom:
     atomics:
       - technique: T1059.001
         test_numbers: [15, 16]
-      - technique: T1059.003
-        test_numbers: [1, 2]
