@@ -91,6 +91,55 @@ def _get_splunk_custom(rule: dict) -> dict:
     return splunk_custom if isinstance(splunk_custom, dict) else {}
 
 
+def _get_testing_custom(rule: dict) -> dict:
+    custom = rule.get("custom") or {}
+    testing_custom = custom.get("testing") if isinstance(custom, dict) else None
+    return testing_custom if isinstance(testing_custom, dict) else {}
+
+
+def _flatten_testing_meta(rule: dict) -> dict:
+    testing_custom = _get_testing_custom(rule)
+    if not testing_custom:
+        return {}
+
+    testing_meta = {}
+
+    if "enabled" in testing_custom:
+        testing_meta["testing enabled"] = testing_custom.get("enabled")
+
+    runner = _safe_str(testing_custom.get("runner"))
+    if runner:
+        testing_meta["runner"] = runner
+
+    tester = _safe_str(testing_custom.get("type"))
+    if tester:
+        testing_meta["tester"] = tester
+
+    atomics = testing_custom.get("atomics")
+    if isinstance(atomics, list):
+        atomic_tests = []
+        for atomic in atomics:
+            if not isinstance(atomic, dict):
+                continue
+
+            atomic_entry = {}
+            technique = _safe_str(atomic.get("technique"))
+            if technique:
+                atomic_entry["technique"] = technique
+
+            test_numbers = atomic.get("test_numbers")
+            if test_numbers is not None:
+                atomic_entry["test_numbers"] = test_numbers
+
+            if atomic_entry:
+                atomic_tests.append(atomic_entry)
+
+        if atomic_tests:
+            testing_meta["atomic tests"] = atomic_tests
+
+    return testing_meta
+
+
 def _inject_index_prefix(query: str, index_value: str) -> str:
     """
     Ensure SPL starts with the Sigma-defined index.
@@ -160,6 +209,8 @@ def _format_meta_json_with_spacing(meta: dict) -> str:
     """
     JSON is still valid with extra blank lines. We insert a few empty lines for readability:
       - after "modified"
+      - after "sigma_pipeline"
+      - before "testing enabled"
       - before "references"
       - before "tags"
       - before and after "logsource"
@@ -196,6 +247,17 @@ def _format_meta_json_with_spacing(meta: dict) -> str:
         # blank line after modified
         if stripped.startswith('"modified":'):
             out.append("")
+
+        # blank line after sigma_pipeline
+        if stripped.startswith('"sigma_pipeline":'):
+            out.append("")
+
+        # blank line before testing fields
+        if stripped.startswith('"testing enabled":') or stripped.startswith('"testing enabled" :'):
+            out.pop()
+            if out and out[-1] != "":
+                out.append("")
+            out.append(line)
 
         # Track logsource object depth to add blank line after it ends
         if inside_logsource:
@@ -284,14 +346,16 @@ def build_ci_header(rule_path: Path, rule: dict, deploy_mode: str, pipeline: str
     # CI/conversion context (kept in JSON only)
     meta["ci_managed"] = True
     meta["origin"] = "sigma_to_spl.py"
-    meta["deploy_mode"] = deploy_mode
     meta["sigma_pipeline"] = pipeline or "without-pipeline"
+    meta["deploy_mode"] = deploy_mode
 
     splunk_custom = _get_splunk_custom(rule)
     for key in ("index", "cron", "earliest", "latest", "severity"):
         value = _safe_str(splunk_custom.get(key))
         if value:
             meta[key] = value
+
+    meta.update(_flatten_testing_meta(rule))
 
     # Append remaining Sigma meta keys (preserve their original order)
     for k, v in sigma_meta.items():
