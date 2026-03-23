@@ -14,7 +14,7 @@
     "modified",
     "ci_managed",
     "origin",
-    "convert_mode",
+    "deploy_mode",
     "tags",
     "logsource",
     "falsepositives"
@@ -111,7 +111,7 @@
       ],
       "description": "Content origin."
     },
-    "convert_mode": {
+    "deploy_mode": {
       "type": "string",
       "enum": [
         "report",
@@ -123,6 +123,74 @@
     "sigma_pipeline": {
       "type": "string",
       "description": "Sigma pipeline reference or explanatory text."
+    },
+    "index": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Target Splunk index for the detection search."
+    },
+    "cron": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Saved search schedule in cron format."
+    },
+    "earliest": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Relative earliest time bound for the search."
+    },
+    "latest": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Relative latest time bound for the search."
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "description": "Alert severity used for deployment metadata."
+    },
+    "testing enabled": {
+      "type": "boolean",
+      "description": "Whether testing metadata is enabled for this rule."
+    },
+    "runner": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Target environment or runner used for executing tests."
+    },
+    "tester": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Testing framework or method type."
+    },
+    "atomic tests": {
+      "type": "array",
+      "description": "Atomic Red Team mappings associated with this detection.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "technique": {
+            "type": "string",
+            "pattern": "^T[0-9]{4}(\\.[0-9]{3})?$",
+            "description": "MITRE ATT&CK technique identifier."
+          },
+          "test_numbers": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "minItems": 1,
+            "description": "Atomic test case numbers for the mapped technique."
+          }
+        },
+        "additionalProperties": false
+      }
     },
     "references": {
       "type": "array",
