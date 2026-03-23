@@ -10,15 +10,15 @@ META_START
   "date": "2026-01-03",
   "modified": "2026-01-14",
 
-  "convert_time": "2026-03-23T17:47:51+01:00",
-  "rule_version": "1.12",
-  "git_sha": "89c962a7814d8e7b036190945702215cd4b0f482",
+  "convert_time": "2026-03-23T17:50:03+01:00",
+  "rule_version": "1.13",
+  "git_sha": "49f347bbdeb277ef0634b59c6e2a5cbeb49b8998",
   "ci_managed": true,
   "origin": "sigma_to_spl.py",
   "sigma_pipeline": "splunk_sysmon_acceleration",
 
   "deploy_mode": "alert",
-  "index": "asd",
+  "index": "sysmon",
   "cron": "*/5 * * * *",
   "earliest": "-5m",
   "latest": "now",
@@ -33,13 +33,6 @@ META_START
       "test_numbers": [
         15,
         16
-      ]
-    },
-    {
-      "technique": "T1059.003",
-      "test_numbers": [
-        1,
-        2
       ]
     }
   ],
@@ -66,4 +59,4 @@ META_START
 }
 META_END
 ---
-index=asd Image="*\\powershell.exe" CommandLine IN ("* -e *", "* -enc *", "* -encodedcommand *") | table CommandLine,ParentImage,Image,User,ProcessId
+index=sysmon Image="*\\powershell.exe" CommandLine IN ("* -e *", "* -enc *", "* -encodedcommand *") | table CommandLine,ParentImage,Image,User,ProcessId
