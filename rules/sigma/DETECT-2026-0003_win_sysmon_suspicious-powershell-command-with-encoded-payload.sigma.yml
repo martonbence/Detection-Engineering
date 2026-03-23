@@ -5,7 +5,7 @@ status: test
 description: Detects PowerShell execution with encoded/obfuscated payloads and suspicious patterns
 author: Bence Marton
 date: 2026-03-20
-modified: 2026-03-21
+modified: 2026-03-22
 references:
   - https://example.com
 tags:
