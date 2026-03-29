@@ -331,7 +331,7 @@ jobs:
           python pipeline_bundle/scripts/deploy/deploy_spl_to_splunk.py "${bundle_files[@]}"
 
   atomic_verify:
-    name: Atomic Verify
+    name: Atomic Red Team Test
     needs: [prepare_validate_convert, deploy_to_splunk]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.prepare_validate_convert.outputs.has_spl == 'true'
     runs-on: [self-hosted, X64, Windows, victim, atomic, windows-victim]
@@ -344,7 +344,7 @@ jobs:
           path: pipeline_bundle
 
       - name: Run Atomic Red Team tests embedded in deployed SPL metadata
-        shell: powershell
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
         env:
           ATOMIC_RUNNER: windows-victim
           ATOMIC_RED_TEAM_MODULE_PATH: ${{ vars.ATOMIC_RED_TEAM_MODULE_PATH }}
