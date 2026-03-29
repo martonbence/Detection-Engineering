@@ -344,7 +344,7 @@ jobs:
           path: pipeline_bundle
 
       - name: Run Atomic Red Team tests embedded in deployed SPL metadata
-        shell: pwsh
+        shell: powershell
         env:
           ATOMIC_RUNNER: windows-victim
           ATOMIC_RED_TEAM_MODULE_PATH: ${{ vars.ATOMIC_RED_TEAM_MODULE_PATH }}
