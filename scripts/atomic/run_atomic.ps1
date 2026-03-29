@@ -119,6 +119,72 @@ function Test-AtomicPrerequisites {
     Write-Host "Invoke-AtomicTest command is available."
 }
 
+function Invoke-AtomicTestCompat {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Technique,
+
+        [Parameter(Mandatory = $true)]
+        [int[]]$TestNumbers,
+
+        [string]$AtomicsFolder,
+
+        [switch]$ShowDetails,
+
+        [switch]$DryRun
+    )
+
+    $cmd = Get-Command Invoke-AtomicTest -ErrorAction Stop
+    $parameters = $cmd.Parameters
+
+    $invokeParams = @{
+        TestNumbers = $TestNumbers
+    }
+
+    if ($parameters.ContainsKey("Confirm")) {
+        $invokeParams["Confirm"] = $false
+    }
+
+    if ($parameters.ContainsKey("ShowDetails")) {
+        if ($ShowDetails.IsPresent) {
+            $invokeParams["ShowDetails"] = $true
+        }
+    }
+    elseif ($parameters.ContainsKey("ShowDetailsBrief")) {
+        if ($ShowDetails.IsPresent) {
+            $invokeParams["ShowDetails"] = $true
+        }
+        else {
+            $invokeParams["ShowDetailsBrief"] = $true
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($AtomicsFolder) -and $parameters.ContainsKey("PathToAtomicsFolder")) {
+        $invokeParams["PathToAtomicsFolder"] = $AtomicsFolder
+    }
+
+    if ($DryRun.IsPresent) {
+        Write-Host "Resolved Invoke-AtomicTest invocation:"
+        Write-Host "  Technique = $Technique"
+        $invokeParams.GetEnumerator() | Sort-Object Key | ForEach-Object {
+            Write-Host ("  {0} = {1}" -f $_.Key, $_.Value)
+        }
+        return
+    }
+
+    if ($parameters.ContainsKey("Technique")) {
+        & $cmd -Technique $Technique @invokeParams
+        return
+    }
+
+    if ($parameters.ContainsKey("AtomicTechnique")) {
+        & $cmd -AtomicTechnique $Technique @invokeParams
+        return
+    }
+
+    & $cmd $Technique @invokeParams
+}
+
 function Disable-DefenderRealtimeIfRequested {
     param(
         [string]$Requested
@@ -202,31 +268,13 @@ foreach ($technique in $collected.Keys) {
 
     Write-Host "Invoking Atomic Red Team: $technique tests [$printableTests]"
 
-    $invokeParams = @{
-        Technique        = $technique
-        TestNumbers      = $testNumbers
-        Confirm          = $false
-        ShowDetailsBrief = $true
-    }
-
-    if ($ShowDetails.IsPresent) {
-        $invokeParams["ShowDetails"] = $true
-        $invokeParams.Remove("ShowDetailsBrief")
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($AtomicsPath)) {
-        $invokeParams["PathToAtomicsFolder"] = $AtomicsPath
-    }
-
-    if ($DryRun.IsPresent) {
-        $invokeParams.GetEnumerator() | Sort-Object Key | ForEach-Object {
-            Write-Host ("  {0} = {1}" -f $_.Key, $_.Value)
-        }
-        continue
-    }
-
     try {
-        Invoke-AtomicTest @invokeParams
+        Invoke-AtomicTestCompat `
+            -Technique $technique `
+            -TestNumbers $testNumbers `
+            -AtomicsFolder $AtomicsPath `
+            -ShowDetails:$ShowDetails.IsPresent `
+            -DryRun:$DryRun.IsPresent
     }
     catch {
         $failures++
