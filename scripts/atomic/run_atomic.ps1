@@ -196,7 +196,7 @@ function Disable-DefenderRealtimeIfRequested {
 
     Write-Host "Disabling Microsoft Defender real-time monitoring for Atomic execution."
     Set-MpPreference -DisableRealtimeMonitoring $true
-    Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled
+    Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled | Out-String | Write-Host
     return $true
 }
 
