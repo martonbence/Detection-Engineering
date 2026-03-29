@@ -191,11 +191,26 @@ function Disable-DefenderRealtimeIfRequested {
     )
 
     if (-not (ConvertTo-Bool $Requested)) {
-        return
+        return $false
     }
 
     Write-Host "Disabling Microsoft Defender real-time monitoring for Atomic execution."
     Set-MpPreference -DisableRealtimeMonitoring $true
+    Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled
+    return $true
+}
+
+function Enable-DefenderRealtimeIfNeeded {
+    param(
+        [bool]$WasDisabledByScript
+    )
+
+    if (-not $WasDisabledByScript) {
+        return
+    }
+
+    Write-Host "Re-enabling Microsoft Defender real-time monitoring after Atomic execution."
+    Set-MpPreference -DisableRealtimeMonitoring $false
     Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled
 }
 
@@ -258,28 +273,34 @@ if ($PreflightOnly.IsPresent) {
     exit 0
 }
 
-Disable-DefenderRealtimeIfRequested -Requested $DisableDefender
-
 $failures = 0
+$defenderDisabledByScript = $false
 
-foreach ($technique in $collected.Keys) {
-    $testNumbers = @($collected[$technique] | Sort-Object)
-    $printableTests = $testNumbers -join ", "
+try {
+    $defenderDisabledByScript = Disable-DefenderRealtimeIfRequested -Requested $DisableDefender
 
-    Write-Host "Invoking Atomic Red Team: $technique tests [$printableTests]"
+    foreach ($technique in $collected.Keys) {
+        $testNumbers = @($collected[$technique] | Sort-Object)
+        $printableTests = $testNumbers -join ", "
 
-    try {
-        Invoke-AtomicTestCompat `
-            -Technique $technique `
-            -TestNumbers $testNumbers `
-            -AtomicsFolder $AtomicsPath `
-            -ShowDetails:$ShowDetails.IsPresent `
-            -DryRun:$DryRun.IsPresent
+        Write-Host "Invoking Atomic Red Team: $technique tests [$printableTests]"
+
+        try {
+            Invoke-AtomicTestCompat `
+                -Technique $technique `
+                -TestNumbers $testNumbers `
+                -AtomicsFolder $AtomicsPath `
+                -ShowDetails:$ShowDetails.IsPresent `
+                -DryRun:$DryRun.IsPresent
+        }
+        catch {
+            $failures++
+            Write-Error "Atomic execution failed for $technique : $($_.Exception.Message)"
+        }
     }
-    catch {
-        $failures++
-        Write-Error "Atomic execution failed for $technique : $($_.Exception.Message)"
-    }
+}
+finally {
+    Enable-DefenderRealtimeIfNeeded -WasDisabledByScript $defenderDisabledByScript
 }
 
 if ($failures -gt 0) {
