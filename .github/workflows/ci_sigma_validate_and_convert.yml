@@ -1,4 +1,4 @@
-name: CI - Sigma Validate & Convert
+name: CI - Sigma to Splunk Pipeline
 
 on:
   push:
@@ -9,6 +9,9 @@ on:
       - "docs/schemas/sigma_schema.json"
       - "scripts/validate/**"
       - "scripts/convert/sigma_to_spl.py"
+      - "scripts/deploy/deploy_spl_to_splunk.py"
+      - "scripts/atomic/run_atomic.ps1"
+      - ".github/workflows/ci_sigma_validate_and_convert.yml"
   pull_request:
     paths:
       - "rules/sigma/**/*.yml"
@@ -16,13 +19,23 @@ on:
       - "docs/schemas/sigma_schema.json"
       - "scripts/validate/**"
       - "scripts/convert/sigma_to_spl.py"
+      - "scripts/deploy/deploy_spl_to_splunk.py"
+      - "scripts/atomic/run_atomic.ps1"
+      - ".github/workflows/ci_sigma_validate_and_convert.yml"
 
 permissions:
   contents: write
 
 jobs:
-  Sigma-Validate-and-Convert-to-SPL:
+  prepare_validate_convert:
+    name: Prepare, Validate, Convert
     runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.changes.outputs.mode }}
+      has_rules: ${{ steps.changes.outputs.has_rules }}
+      has_spl: ${{ steps.bundle.outputs.has_spl }}
+      rule_files: ${{ steps.changes.outputs.rule_files }}
+      spl_files: ${{ steps.bundle.outputs.spl_files }}
 
     steps:
       - name: Checkout
@@ -35,7 +48,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Determine changed files
+      - name: Determine changed Sigma files
         id: changes
         shell: bash
         run: |
@@ -56,27 +69,17 @@ jobs:
 
           mode="changed"
 
-          # If BASE_SHA is missing/unusable, fall back to ALL rules
           if [[ -z "${BASE_SHA}" || "${BASE_SHA}" =~ ^0+$ ]]; then
             mode="all"
           fi
 
           mapfile -t files < <(git diff --name-only --diff-filter=AMRC "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true)
 
-          if [[ "${#files[@]}" -eq 0 && "$mode" != "all" ]]; then
-            echo "No changed files detected."
-            echo "files=" >> "$GITHUB_OUTPUT"
-            echo "rule_files=" >> "$GITHUB_OUTPUT"
-            echo "mode=none" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
           if [[ "${#files[@]}" -gt 0 ]]; then
             echo "Changed files:"
             printf ' - %s\n' "${files[@]}"
           fi
 
-          # If schema or validator or converter changed => validate/convert ALL rules
           if [[ "$mode" != "all" ]]; then
             for f in "${files[@]}"; do
               if [[ "$f" == "docs/schemas/sigma_schema.json" ]] || [[ "$f" == scripts/validate/* ]] || [[ "$f" == "scripts/convert/sigma_to_spl.py" ]]; then
@@ -101,29 +104,34 @@ jobs:
 
           if [[ "${#rule_files[@]}" -eq 0 ]]; then
             echo "No Sigma rule files to process."
-            echo "files=" >> "$GITHUB_OUTPUT"
-            echo "rule_files=" >> "$GITHUB_OUTPUT"
             echo "mode=none" >> "$GITHUB_OUTPUT"
+            echo "has_rules=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "rule_files<<EOF"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          joined_files=""
-          for f in "${files[@]}"; do joined_files+="$f "; done
-
-          joined_rules=""
-          for r in "${rule_files[@]}"; do joined_rules+="$r "; done
-
           echo "Mode: $mode"
-          echo "files=$joined_files" >> "$GITHUB_OUTPUT"
-          echo "rule_files=$joined_rules" >> "$GITHUB_OUTPUT"
+          echo "has_rules=true" >> "$GITHUB_OUTPUT"
           echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          {
+            echo "rule_files<<EOF"
+            printf '%s\n' "${rule_files[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
-      - name: Install Python deps (pyyaml + jsonschema + sigma)
+      - name: Install Python deps
+        if: steps.changes.outputs.has_rules == 'true'
+        shell: bash
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install pyyaml jsonschema sigma-cli pysigma-backend-splunk
 
-      - name: Validate Sigma rules against schema (changed or all)
+      - name: Validate Sigma rules
+        if: steps.changes.outputs.has_rules == 'true'
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -131,14 +139,14 @@ jobs:
           $schemaPath = "docs/schemas/sigma_schema.json"
           $maxErrors = 25
 
-          $rulesRaw = "${{ steps.changes.outputs.rule_files }}"
+          $rules = @'
+          ${{ steps.changes.outputs.rule_files }}
+          '@ -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
 
-          if ([string]::IsNullOrWhiteSpace($rulesRaw)) {
+          if ($rules.Count -eq 0) {
             Write-Host "No rule files to validate -> skipping."
             exit 0
           }
-
-          $rules = $rulesRaw -split '\s+' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
 
           Write-Host "Validating $($rules.Count) rule file(s) against schema."
 
@@ -147,8 +155,8 @@ jobs:
             -Files $rules `
             -MaxErrors $maxErrors
 
-      - name: Convert Sigma rules to Splunk SPL (auto pipeline; changed or all)
-        id: convert
+      - name: Convert Sigma rules to Splunk SPL
+        if: steps.changes.outputs.has_rules == 'true'
         shell: bash
         env:
           GITHUB_SHA: ${{ github.sha }}
@@ -156,52 +164,205 @@ jobs:
         run: |
           set -euo pipefail
 
-          rules="${{ steps.changes.outputs.rule_files }}"
-          if [[ -z "${rules// }" ]]; then
+          mapfile -t rules <<'EOF'
+          ${{ steps.changes.outputs.rule_files }}
+          EOF
+
+          if [[ "${#rules[@]}" -eq 0 ]]; then
             echo "No rule files to convert -> skipping."
-            echo "has_spl=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           mkdir -p rules/splunk
-          python scripts/convert/sigma_to_spl.py --outdir rules/splunk $rules
+          python scripts/convert/sigma_to_spl.py --outdir rules/splunk "${rules[@]}"
 
-          if find rules/splunk -type f -name '*.spl' -print -quit | grep -q .; then
-            echo "Generated SPL files:"
-            find rules/splunk -type f -name '*.spl' -maxdepth 2 -print
-            echo "has_spl=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "No SPL files generated."
-            echo "has_spl=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Commit converted SPL outputs to repo (push only)
-        if: github.event_name == 'push' && steps.convert.outputs.has_spl == 'true'
+      - name: Build pipeline bundle
+        id: bundle
+        if: steps.changes.outputs.has_rules == 'true'
         shell: bash
         run: |
           set -euo pipefail
 
-              # Stage only converted outputs
-              git add -A rules/splunk
+          rm -rf pipeline_bundle
+          mkdir -p pipeline_bundle/scripts/atomic pipeline_bundle/scripts/deploy
 
-              # If nothing changed, do nothing
-              if git diff --cached --quiet; then
-                echo "No SPL changes to commit."
-                exit 0
-              fi
+          cp scripts/atomic/run_atomic.ps1 pipeline_bundle/scripts/atomic/run_atomic.ps1
+          cp scripts/deploy/deploy_spl_to_splunk.py pipeline_bundle/scripts/deploy/deploy_spl_to_splunk.py
 
-              git config user.name "github-actions[bot]"
-              git config user.email "github-actions[bot]@users.noreply.github.com"
+          mapfile -t rules <<'EOF'
+          ${{ steps.changes.outputs.rule_files }}
+          EOF
 
-              git commit -m "chore(splunk): update sigma-converted SPL outputs"
+          spl_files=()
+          for rule in "${rules[@]}"; do
+            [[ -z "$rule" ]] && continue
 
-              for i in 1 2 3; do
-                git fetch origin main
-                git pull --rebase origin main || true
-                if git push origin HEAD:main; then
-                  echo "Push succeeded."
-                  break
-                fi
-                echo "Push failed (attempt $i), retrying..."
-                sleep 2
-              done
+            name="$(basename "$rule")"
+            name="${name%.yml}"
+            name="${name%.yaml}"
+            name="${name%.sigma}"
+
+            spl_path="rules/splunk/${name}.sigma.spl"
+            if [[ ! -f "$spl_path" ]]; then
+              echo "Expected generated SPL file is missing: $spl_path"
+              exit 1
+            fi
+
+            spl_files+=("$spl_path")
+            mkdir -p "pipeline_bundle/$(dirname "$spl_path")"
+            cp "$spl_path" "pipeline_bundle/$spl_path"
+          done
+
+          if [[ "${#spl_files[@]}" -eq 0 ]]; then
+            echo "No generated SPL files found."
+            echo "has_spl=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "spl_files<<EOF"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Generated SPL files selected for deploy + atomic verify:"
+          printf ' - %s\n' "${spl_files[@]}"
+
+          echo "has_spl=true" >> "$GITHUB_OUTPUT"
+          {
+            echo "spl_files<<EOF"
+            printf '%s\n' "${spl_files[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Commit converted SPL outputs to main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.bundle.outputs.has_spl == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git add -A rules/splunk
+
+          if git diff --cached --quiet; then
+            echo "No SPL changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git commit -m "chore(splunk): update sigma-converted SPL outputs"
+
+          for i in 1 2 3; do
+            git fetch origin main
+            git pull --rebase origin main || true
+            if git push origin HEAD:main; then
+              echo "Push succeeded."
+              exit 0
+            fi
+            echo "Push failed (attempt $i), retrying..."
+            sleep 2
+          done
+
+          echo "Push failed after 3 attempts."
+          exit 1
+
+      - name: Upload pipeline bundle
+        if: steps.bundle.outputs.has_spl == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: spl-pipeline-bundle
+          path: pipeline_bundle
+          if-no-files-found: error
+
+  deploy_to_splunk:
+    name: Deploy to Splunk
+    needs: prepare_validate_convert
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.prepare_validate_convert.outputs.has_spl == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download pipeline bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: spl-pipeline-bundle
+          path: pipeline_bundle
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deploy deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install requests
+
+      - name: Deploy selected SPL files to Splunk
+        shell: bash
+        env:
+          SPLUNK_BASE_URL: ${{ secrets.SPLUNK_BASE_URL }}
+          SPLUNK_USERNAME: ${{ secrets.SPLUNK_USERNAME }}
+          SPLUNK_PASSWORD: ${{ secrets.SPLUNK_PASSWORD }}
+          SPLUNK_APP: ${{ secrets.SPLUNK_APP }}
+          SPLUNK_OWNER: ${{ secrets.SPLUNK_OWNER }}
+          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS || 'false' }}
+          SPLUNK_SHARING: app
+          SPLUNK_PERMS_READ: "*"
+          SPLUNK_PERMS_WRITE: admin,ci_deploy_savedsearches
+        run: |
+          set -euo pipefail
+
+          mapfile -t spl_files <<'EOF'
+          ${{ needs.prepare_validate_convert.outputs.spl_files }}
+          EOF
+
+          bundle_files=()
+          for spl_file in "${spl_files[@]}"; do
+            [[ -z "$spl_file" ]] && continue
+            bundle_files+=("pipeline_bundle/$spl_file")
+          done
+
+          if [[ "${#bundle_files[@]}" -eq 0 ]]; then
+            echo "No SPL files to deploy."
+            exit 0
+          fi
+
+          python pipeline_bundle/scripts/deploy/deploy_spl_to_splunk.py "${bundle_files[@]}"
+
+  atomic_verify:
+    name: Atomic Verify
+    needs: [prepare_validate_convert, deploy_to_splunk]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.prepare_validate_convert.outputs.has_spl == 'true'
+    runs-on: [self-hosted, X64, Windows, victim, atomic, windows-victim]
+
+    steps:
+      - name: Download pipeline bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: spl-pipeline-bundle
+          path: pipeline_bundle
+
+      - name: Run Atomic Red Team tests embedded in deployed SPL metadata
+        shell: pwsh
+        env:
+          ATOMIC_RUNNER: windows-victim
+          ATOMIC_RED_TEAM_MODULE_PATH: ${{ vars.ATOMIC_RED_TEAM_MODULE_PATH }}
+          ATOMIC_RED_TEAM_PATH: ${{ vars.ATOMIC_RED_TEAM_PATH }}
+          ATOMIC_DISABLE_REALTIME_MONITORING: ${{ vars.ATOMIC_DISABLE_REALTIME_MONITORING || 'false' }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $splFiles = @'
+          ${{ needs.prepare_validate_convert.outputs.spl_files }}
+          '@ -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+          if ($splFiles.Count -eq 0) {
+            Write-Host "No SPL files selected for Atomic verification."
+            exit 0
+          }
+
+          $bundleSplFiles = $splFiles | ForEach-Object { Join-Path "pipeline_bundle" $_ }
+
+          .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles -PreflightOnly
+          .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles
