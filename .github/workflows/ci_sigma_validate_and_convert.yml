@@ -277,7 +277,7 @@ jobs:
     name: Deploy to Splunk
     needs: prepare_validate_convert
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.prepare_validate_convert.outputs.has_spl == 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, de-lab]
 
     steps:
       - name: Download pipeline bundle
