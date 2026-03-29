@@ -10,9 +10,9 @@ META_START
   "date": "2026-01-03",
   "modified": "2026-01-14",
 
-  "convert_time": "2026-03-29T17:24:35+02:00",
-  "rule_version": "1.18",
-  "git_sha": "f66dc181a76c7d9ce43d727047c97a5a6b18bd12",
+  "convert_time": "2026-03-29T17:31:50+02:00",
+  "rule_version": "1.19",
+  "git_sha": "8fdf16d2a27170ac0b76c573ecca245c82414157",
   "ci_managed": true,
   "origin": "sigma_to_spl.py",
   "sigma_pipeline": "splunk_sysmon_acceleration",
@@ -22,7 +22,7 @@ META_START
   "cron": "*/5 * * * *",
   "earliest": "-5m",
   "latest": "now",
-  "severity": "medium",
+  "severity": "high",
 
   "testing enabled": true,
   "runner": "windows-victim",
