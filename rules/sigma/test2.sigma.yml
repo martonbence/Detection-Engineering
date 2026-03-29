@@ -55,4 +55,4 @@ custom:
     type: atomic
     atomics:
       - technique: T1059.001
-        test_numbers: [15, 16]
+        test_numbers: [17]
