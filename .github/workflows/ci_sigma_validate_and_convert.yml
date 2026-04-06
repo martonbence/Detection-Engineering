@@ -435,8 +435,8 @@ jobs:
           fi
 
           python scripts/verify/check_saved_search_hits.py \
-            --earliest "-30m" \
-            --latest "now" \
+            --earliest="-5m" \
+            --latest="now" \
             --output-dir "outputs/verify/matched_events" \
             "${bundle_files[@]}"
 

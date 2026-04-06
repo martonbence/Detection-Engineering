@@ -179,7 +179,7 @@ def main(argv: list[str]) -> int:
         description="Dispatch deployed Splunk saved searches and record matched events"
     )
     parser.add_argument("spl_files", nargs="+", help="SPL files (used to derive saved search names)")
-    parser.add_argument("--earliest", default="-30m", help="Earliest time window (default: -30m)")
+    parser.add_argument("--earliest", default="-5m", help="Earliest time window (default: -5m)")
     parser.add_argument("--latest", default="now", help="Latest time window (default: now)")
     parser.add_argument(
         "--output-dir", default="outputs/verify/matched_events",
