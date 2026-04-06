@@ -397,7 +397,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
-          python -m pip install requests
+          python -m pip install requests pyyaml
 
       - name: Wait for Splunk indexing
         shell: bash
@@ -453,22 +453,28 @@ jobs:
           EVAL_EXIT=$?
           echo "exit_code=$EVAL_EXIT" >> "$GITHUB_OUTPUT"
 
-      - name: Commit verification results
+      - name: Generate stats and update README
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/docs/generate_stats.py
+
+      - name: Commit verification results and stats
         shell: bash
         run: |
           set -euo pipefail
 
-          git add outputs/verify/
+          git add outputs/verify/ outputs/reports/stats.json README.md
 
           if git diff --cached --quiet; then
-            echo "No verification result changes to commit."
+            echo "No changes to commit."
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git commit -m "chore(verify): update splunk verification results"
+          git commit -m "chore(verify): update verification results and stats"
 
           for i in 1 2 3; do
             git fetch origin main
