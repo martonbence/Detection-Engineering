@@ -1,0 +1,14 @@
+[
+  {
+    "detect_id": "DETECT-2026-0004",
+    "title": "Test Sigma Rule",
+    "search_name": "test2.sigma",
+    "rule_version": "1.26",
+    "git_sha": "85b40b827bd94bbaa1126d419ea79604e1572d94",
+    "earliest": "-5m",
+    "latest": "now",
+    "run_timestamp": "2026-04-06T14:49:29.014785+00:00",
+    "event_count": 1,
+    "error": null
+  }
+]
