@@ -1,14 +1,14 @@
 [
   {
-    "detect_id": "DETECT-2026-0004",
-    "title": "Test Sigma Rule",
-    "search_name": "test2.sigma",
-    "rule_version": "1.26",
-    "git_sha": "85b40b827bd94bbaa1126d419ea79604e1572d94",
+    "detect_id": "DETECT-2026-0005",
+    "title": "Scheduled Task Creation via schtasks.exe",
+    "search_name": "test1.sigma",
+    "rule_version": "1.0",
+    "git_sha": "580d65cb05ec03b89e53797f7d7887199ad6ef0b",
     "earliest": "-5m",
     "latest": "now",
-    "run_timestamp": "2026-04-06T14:49:29.014785+00:00",
-    "event_count": 1,
+    "run_timestamp": "2026-04-06T15:16:00.013156+00:00",
+    "event_count": 3,
     "error": null
   }
 ]
