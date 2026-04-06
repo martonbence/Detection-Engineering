@@ -1,0 +1,58 @@
+title: Scheduled Task Creation via schtasks.exe
+id: a3f2c810-7b1d-4e92-a5f3-2c84e1b67d20
+detect_id: DETECT-2026-0005
+status: test
+description: Detects the creation of a scheduled task via schtasks.exe, a common persistence and lateral movement technique.
+author: Bence Marton
+date: 2026-04-06
+modified: 2026-04-06
+references:
+  - https://attack.mitre.org/techniques/T1053/005/
+tags:
+  - attack.persistence
+  - attack.t1053.005
+  - attack.execution
+
+logsource:
+  product_category: os
+  product: windows
+  service: sysmon
+  event_type: process_creation
+
+detection:
+  selection_image:
+    Image|endswith: '\schtasks.exe'
+  selection_create:
+    CommandLine|contains: '/create'
+  condition: selection_image and selection_create
+
+fields:
+  - _time
+  - CommandLine
+  - ParentImage
+  - Image
+  - User
+  - ProcessId
+
+falsepositives:
+  - Legitimate software installers creating scheduled tasks
+  - Administrative automation scripts
+
+level: medium
+
+custom:
+  splunk:
+    index: sysmon
+    mode: alert
+    cron: "*/5 * * * *"
+    earliest: "-5m"
+    latest: "now"
+    severity: medium
+
+  testing:
+    enabled: true
+    runner: windows-victim
+    type: atomic
+    atomics:
+      - technique: T1053.005
+        test_numbers: [1, 2]
