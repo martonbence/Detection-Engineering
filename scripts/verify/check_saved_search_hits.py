@@ -203,7 +203,6 @@ def main(argv: list[str]) -> int:
     session.headers.update({"Accept": "application/json"})
 
     run_ts = datetime.now(timezone.utc).isoformat()
-    aggregate: list[dict] = []
 
     for spl_path_str in args.spl_files:
         path = Path(spl_path_str.strip())
@@ -265,13 +264,6 @@ def main(argv: list[str]) -> int:
         (rule_out_dir / "hits.json").write_text(
             json.dumps(hits, indent=2, ensure_ascii=False), encoding="utf-8"
         )
-
-        # Aggregate has no raw events (kept small for pass_fail_eval)
-        aggregate.append({k: v for k, v in hits.items() if k != "events"})
-
-    (output_dir / "aggregate_summary.json").write_text(
-        json.dumps(aggregate, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
 
     print(f"\nDone. Results written to: {output_dir}")
     return 0
