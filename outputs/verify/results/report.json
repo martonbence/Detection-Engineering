@@ -1,6 +1,6 @@
 {
   "overall": "PASS",
-  "run_timestamp": "2026-04-06T14:49:32.100737+00:00",
+  "run_timestamp": "2026-04-06T15:16:03.100974+00:00",
   "min_pass": 1,
   "max_pass": 10,
   "total_rules": 1,
@@ -8,18 +8,18 @@
   "failed": 0,
   "rules": [
     {
-      "detect_id": "DETECT-2026-0004",
-      "title": "Test Sigma Rule",
+      "detect_id": "DETECT-2026-0005",
+      "title": "Scheduled Task Creation via schtasks.exe",
       "verdict": "PASS",
-      "reason": "Event count 1 within expected range [1–10]",
-      "event_count": 1,
+      "reason": "Event count 3 within expected range [1–10]",
+      "event_count": 3,
       "min_pass": 1,
       "max_pass": 10,
       "earliest": "-5m",
       "latest": "now",
-      "run_timestamp": "2026-04-06T14:49:32.100737+00:00",
-      "rule_version": "1.26",
-      "git_sha": "85b40b827bd94bbaa1126d419ea79604e1572d94"
+      "run_timestamp": "2026-04-06T15:16:03.100974+00:00",
+      "rule_version": "1.0",
+      "git_sha": "580d65cb05ec03b89e53797f7d7887199ad6ef0b"
     }
   ]
 }
