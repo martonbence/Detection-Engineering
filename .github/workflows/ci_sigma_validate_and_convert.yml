@@ -11,6 +11,7 @@ on:
       - "scripts/convert/sigma_to_spl.py"
       - "scripts/deploy/deploy_spl_to_splunk.py"
       - "scripts/atomic/run_atomic.ps1"
+      - "scripts/verify/**"
       - ".github/workflows/ci_sigma_validate_and_convert.yml"
   pull_request:
     paths:
@@ -21,6 +22,7 @@ on:
       - "scripts/convert/sigma_to_spl.py"
       - "scripts/deploy/deploy_spl_to_splunk.py"
       - "scripts/atomic/run_atomic.ps1"
+      - "scripts/verify/**"
       - ".github/workflows/ci_sigma_validate_and_convert.yml"
 
 permissions:
@@ -366,3 +368,122 @@ jobs:
 
           .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles -PreflightOnly
           .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles
+
+  splunk_verify:
+    name: Splunk Verification
+    needs: [prepare_validate_convert, atomic_verify]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.prepare_validate_convert.outputs.has_spl == 'true'
+    runs-on: [self-hosted, linux, de-lab]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download pipeline bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: spl-pipeline-bundle
+          path: pipeline_bundle
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install requests
+
+      - name: Wait for Splunk indexing
+        shell: bash
+        run: |
+          WAIT=${SPLUNK_VERIFY_WAIT_SECONDS:-60}
+          echo "Waiting ${WAIT}s for Splunk to index atomic test events..."
+          sleep "$WAIT"
+
+      - name: Query Splunk for matched events
+        id: fetch
+        shell: bash
+        env:
+          SPLUNK_BASE_URL: ${{ secrets.SPLUNK_BASE_URL }}
+          SPLUNK_USERNAME: ${{ secrets.SPLUNK_USERNAME }}
+          SPLUNK_PASSWORD: ${{ secrets.SPLUNK_PASSWORD }}
+          SPLUNK_APP: ${{ secrets.SPLUNK_APP }}
+          SPLUNK_OWNER: ${{ secrets.SPLUNK_OWNER }}
+          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS || 'false' }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t spl_files <<'EOF'
+          ${{ needs.prepare_validate_convert.outputs.spl_files }}
+          EOF
+
+          bundle_files=()
+          for spl_file in "${spl_files[@]}"; do
+            [[ -z "$spl_file" ]] && continue
+            bundle_files+=("pipeline_bundle/$spl_file")
+          done
+
+          if [[ "${#bundle_files[@]}" -eq 0 ]]; then
+            echo "No SPL files to verify."
+            exit 0
+          fi
+
+          python scripts/verify/check_saved_search_hits.py \
+            --earliest "-30m" \
+            --latest "now" \
+            --output-dir "outputs/verify/matched_events" \
+            "${bundle_files[@]}"
+
+      - name: Evaluate Pass/Fail
+        id: eval
+        shell: bash
+        run: |
+          set +e
+          python scripts/verify/pass_fail_eval.py \
+            --matched-events-dir "outputs/verify/matched_events" \
+            --results-dir "outputs/verify/results" \
+            --min-pass 1 \
+            --max-pass 10
+          EVAL_EXIT=$?
+          echo "exit_code=$EVAL_EXIT" >> "$GITHUB_OUTPUT"
+
+      - name: Commit verification results
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git add outputs/verify/
+
+          if git diff --cached --quiet; then
+            echo "No verification result changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git commit -m "chore(verify): update splunk verification results"
+
+          for i in 1 2 3; do
+            git fetch origin main
+            git pull --rebase origin main || true
+            if git push origin HEAD:main; then
+              echo "Push succeeded."
+              exit 0
+            fi
+            echo "Push failed (attempt $i), retrying..."
+            sleep 2
+          done
+
+          echo "Push failed after 3 attempts."
+          exit 1
+
+      - name: Report verification verdict
+        shell: bash
+        run: exit ${{ steps.eval.outputs.exit_code || '0' }}
