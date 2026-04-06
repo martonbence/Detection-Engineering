@@ -114,16 +114,11 @@ def main(argv: list[str]) -> int:
     run_ts = datetime.now(timezone.utc).isoformat()
 
     summaries: list[dict] = []
-    aggregate_file = matched_dir / "aggregate_summary.json"
-    if aggregate_file.exists():
-        summaries = json.loads(aggregate_file.read_text(encoding="utf-8"))
-    else:
-        for subdir in sorted(matched_dir.iterdir()):
-            # hits.json contains event_count and error without the raw events array
-            hf = subdir / "hits.json"
-            if hf.is_file():
-                data = json.loads(hf.read_text(encoding="utf-8"))
-                summaries.append({k: v for k, v in data.items() if k != "events"})
+    for subdir in sorted(matched_dir.iterdir()):
+        hf = subdir / "hits.json"
+        if hf.is_file():
+            data = json.loads(hf.read_text(encoding="utf-8"))
+            summaries.append({k: v for k, v in data.items() if k != "events"})
 
     if not summaries:
         print("No verification summaries found in matched_events_dir. Nothing to evaluate.")
@@ -180,10 +175,6 @@ def main(argv: list[str]) -> int:
         "failed": sum(1 for r in report_rows if r["verdict"] == FAIL),
         "rules": report_rows,
     }
-
-    (results_dir / "report.json").write_text(
-        json.dumps(aggregate_report, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
 
     summary_path = os.getenv("GITHUB_STEP_SUMMARY")
     if summary_path:
