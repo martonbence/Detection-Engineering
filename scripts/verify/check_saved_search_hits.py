@@ -6,7 +6,7 @@ This script dispatches each saved search over a given time window via the REST A
 how many events matched — without re-parsing or re-running the raw SPL queries.
 
 Usage:
-    python check_saved_search_hits.py [--earliest -30m] [--latest now]
+    python check_saved_search_hits.py [--earliest -5m] [--latest now]
                                       [--output-dir outputs/verify/matched_events]
                                       [--max-events 100]
                                       <spl_file1> [spl_file2 ...]
