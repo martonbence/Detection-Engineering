@@ -29,6 +29,7 @@ detection:
   condition: selection_image and selection_encoded_flag
 
 fields:
+  - _time
   - CommandLine
   - ParentImage
   - Image
