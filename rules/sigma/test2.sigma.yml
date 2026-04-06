@@ -48,7 +48,7 @@ custom:
     cron: "*/5 * * * *"
     earliest: "-5m"
     latest: "now"
-    severity: high
+    severity: medium
 
   testing:
     enabled: true
