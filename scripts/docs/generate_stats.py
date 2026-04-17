@@ -68,11 +68,14 @@ def load_sigma_rules() -> list[dict]:
     return rules
 
 
-def count_native_spl_rules() -> int:
+def count_spl_rules() -> tuple[int, int]:
+    """Returns (total_spl, native_spl). Total includes sigma-converted .spl files."""
     splunk_dir = REPO_ROOT / "rules" / "splunk"
     if not splunk_dir.exists():
-        return 0
-    return sum(1 for p in splunk_dir.glob("*.spl") if ".sigma." not in p.name)
+        return 0, 0
+    all_spl = list(splunk_dir.glob("*.spl"))
+    native = sum(1 for p in all_spl if ".sigma." not in p.name)
+    return len(all_spl), native
 
 
 def load_verdicts() -> dict[str, str]:
@@ -113,7 +116,7 @@ def pass_rate_color(pct: int) -> str:
 
 def generate_stats() -> dict:
     sigma_rules = load_sigma_rules()
-    native_spl_count = count_native_spl_rules()
+    total_spl_count, native_spl_count = count_spl_rules()
     verdicts = load_verdicts()
 
     by_level: dict[str, int] = {}
@@ -162,6 +165,7 @@ def generate_stats() -> dict:
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "total_rules": total_rules,
         "total_sigma_rules": total_sigma,
+        "total_splunk_rules": total_spl_count,
         "total_native_spl_rules": native_spl_count,
         "verified_pass": verified_pass,
         "verified_fail": verified_fail,
@@ -185,14 +189,21 @@ def render_readme_section(stats: dict, repo: str) -> str:
     encoded_url = raw_base.replace(":", "%3A").replace("/", "%2F")
     b = f"https://img.shields.io/badge/dynamic/json?style=flat-square&url={encoded_url}"
 
-    badges = [
+    badges_row1 = [
+        f"![Total Rules]({b}&query=%24.total_rules&label=Total%20Rules&color=informational)",
         f"![Sigma Rules]({b}&query=%24.total_sigma_rules&label=Sigma%20Rules&color=blue)",
+        f"![Splunk Total]({b}&query=%24.total_splunk_rules&label=Splunk%20Total&color=orange)",
+        f"![Native SPL]({b}&query=%24.total_native_spl_rules&label=Native%20SPL&color=darkorange)",
+    ]
+    badges_row2 = [
         f"![Pass]({b}&query=%24.verified_pass&label=Pass&color=brightgreen)",
         f"![Fail]({b}&query=%24.verified_fail&label=Fail&color=red)",
         f"![Pass Rate]({b}&query=%24.pass_rate_pct&label=Pass%20Rate%20%25&color={stats['pass_rate_color']})",
         f"![Not Verified]({b}&query=%24.not_verified&label=Not%20Verified&color=lightgrey)",
     ]
-    lines.append(" ".join(badges))
+    lines.append(" ".join(badges_row1))
+    lines.append("")
+    lines.append(" ".join(badges_row2))
     lines.append("")
 
     # --- Verification status pie ---
