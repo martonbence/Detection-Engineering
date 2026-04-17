@@ -5,7 +5,7 @@ status: test
 description: Test Sigma rule for demonstration purposes.
 author: Bence Marton
 date: 2026-01-03
-modified: 2026-01-16
+modified: 2026-01-17
 references:
   - https://example.com
 tags:
