@@ -1,0 +1,14 @@
+{
+  "detect_id": "DETECT-2026-0001",
+  "title": "Scheduled Task Creation via schtasks.exe",
+  "verdict": "PASS",
+  "reason": "Event count 3 within expected range [1–10]",
+  "event_count": 3,
+  "min_pass": 1,
+  "max_pass": 10,
+  "earliest": "-5m",
+  "latest": "now",
+  "run_timestamp": "2026-04-17T15:39:22.852480+00:00",
+  "rule_version": "1.6",
+  "git_sha": "084d10e5a644e13e56b502727e280d5cef46ef09"
+}
