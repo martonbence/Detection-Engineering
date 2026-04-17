@@ -36,5 +36,5 @@ xychart-beta
 | `DETECT-2026-0003` | Test3 | Native SPL | 🟢 Low | test | ✅ PASS |
 | `DETECT-2026-0004` | Test Sigma Rule | Sigma | 🟢 Low | test | ⬜ N/A |
 
-*Generated at 2026-04-17T14:49:04 UTC*
+*Generated at 2026-04-17T15:18:01 UTC*
 <!-- STATS_END -->
