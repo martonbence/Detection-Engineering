@@ -1,8 +1,9 @@
 title: Scheduled Task Creation via schtasks.exe
 id: a3f2c810-7b1d-4e92-a5f3-2c84e1b67d20
-detect_id: DETECT-2026-0005
+detect_id: DETECT-2026-0001
 status: test
-description: Detects the creation of a scheduled task via schtasks.exe, a common persistence and lateral movement technique.
+description: Detects the creation of a scheduled task via schtasks.exe, a common
+  persistence and lateral movement technique.
 author: Bence Marton
 date: 2026-04-06
 modified: 2026-04-06
@@ -21,9 +22,9 @@ logsource:
 
 detection:
   selection_image:
-    Image|endswith: '\schtasks.exe'
+    Image|endswith: "\\schtasks.exe"
   selection_create:
-    CommandLine|contains: '/create'
+    CommandLine|contains: "/create"
   condition: selection_image and selection_create
 
 fields:
@@ -55,4 +56,4 @@ custom:
     type: atomic
     atomics:
       - technique: T1053.005
-        test_numbers: [1, 2]
+        test_numbers: [ 1, 2 ]

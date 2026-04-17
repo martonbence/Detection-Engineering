@@ -1,6 +1,6 @@
 title: Test Sigma Rule
-id: b835ac80-6e0e-4353-bbc3-1d96d6541d85
-detect_id: DETECT-2026-0002
+id: b835ac80-6e0e-4353-bbc3-1d96d6541d86
+detect_id: DETECT-2026-0004
 status: test
 description: Test Sigma rule for demonstration purposes.
 author: Bence Marton
