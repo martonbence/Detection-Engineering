@@ -1,0 +1,36 @@
+{
+  "detect_id": "DETECT-2026-0003",
+  "title": "Test3",
+  "search_name": "test3",
+  "rule_version": "1.6",
+  "git_sha": "62f46a1",
+  "earliest": "-5m",
+  "latest": "now",
+  "run_timestamp": "2026-04-17T13:57:05.096034+00:00",
+  "event_count": 2,
+  "error": null,
+  "events": [
+    {
+      "_time": "2026-04-17T15:55:08.080+02:00",
+      "CommandLine": "powershell.exe  -e  JgAgACgAZwBjAG0AIAAoACcAaQBlAHsAMAB9ACcAIAAtAGYAIAAnAHgAJwApACkAIAAoACIAVwByACIAKwAiAGkAdAAiACsAIgBlAC0ASAAiACsAIgBvAHMAdAAgACcASAAiACsAIgBlAGwAIgArACIAbABvACwAIABmAHIAIgArACIAbwBtACAAUAAiACsAIgBvAHcAIgArACIAZQByAFMAIgArACIAaAAiACsAIgBlAGwAbAAhACcAIgApAA==",
+      "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+      "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "User": [
+        "NOT_TRANSLATED",
+        "NT AUTHORITY\\SYSTEM"
+      ],
+      "ProcessId": "6452"
+    },
+    {
+      "_time": "2026-04-17T15:56:12.061+02:00",
+      "CommandLine": "powershell.exe  -e  JgAgACgAZwBjAG0AIAAoACcAaQBlAHsAMAB9ACcAIAAtAGYAIAAnAHgAJwApACkAIAAoACIAVwByACIAKwAiAGkAdAAiACsAIgBlAC0ASAAiACsAIgBvAHMAdAAgACcASAAiACsAIgBlAGwAIgArACIAbABvACwAIABmAHIAIgArACIAbwBtACAAUAAiACsAIgBvAHcAIgArACIAZQByAFMAIgArACIAaAAiACsAIgBlAGwAbAAhACcAIgApAA==",
+      "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+      "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "User": [
+        "NOT_TRANSLATED",
+        "NT AUTHORITY\\SYSTEM"
+      ],
+      "ProcessId": "6236"
+    }
+  ]
+}
