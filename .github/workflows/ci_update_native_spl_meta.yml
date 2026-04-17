@@ -2,7 +2,7 @@ name: CI - Native SPL Pipeline
 
 on:
   push:
-    branches: ["**"]
+    branches: [ "**" ]
     paths:
       - "rules/splunk/**/*.spl"
       - "docs/schemas/spl_schema.json"
@@ -220,7 +220,8 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Commit updated native SPL files to main
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.bundle.outputs.has_spl == 'true'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+          steps.bundle.outputs.has_spl == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -264,8 +265,9 @@ jobs:
   deploy_to_splunk:
     name: Deploy to Splunk
     needs: prepare_validate_bundle
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.prepare_validate_bundle.outputs.has_spl == 'true'
-    runs-on: [self-hosted, linux, de-lab]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      needs.prepare_validate_bundle.outputs.has_spl == 'true'
+    runs-on: [ self-hosted, linux, de-lab ]
 
     steps:
       - name: Download pipeline bundle
@@ -320,9 +322,10 @@ jobs:
 
   atomic_verify:
     name: Atomic Red Team Test
-    needs: [prepare_validate_bundle, deploy_to_splunk]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.prepare_validate_bundle.outputs.has_spl == 'true'
-    runs-on: [self-hosted, X64, Windows, victim, atomic, windows-victim]
+    needs: [ prepare_validate_bundle, deploy_to_splunk ]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      needs.prepare_validate_bundle.outputs.has_spl == 'true'
+    runs-on: [ self-hosted, X64, Windows, victim, atomic, windows-victim ]
 
     steps:
       - name: Download pipeline bundle
@@ -332,7 +335,8 @@ jobs:
           path: pipeline_bundle
 
       - name: Run Atomic Red Team tests embedded in deployed SPL metadata
-        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass
+          -Command ". '{0}'"
         env:
           ATOMIC_RUNNER: windows-victim
           ATOMIC_RED_TEAM_MODULE_PATH: ${{ vars.ATOMIC_RED_TEAM_MODULE_PATH }}
@@ -357,9 +361,10 @@ jobs:
 
   splunk_verify:
     name: Splunk Verification
-    needs: [prepare_validate_bundle, atomic_verify]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.prepare_validate_bundle.outputs.has_spl == 'true'
-    runs-on: [self-hosted, linux, de-lab]
+    needs: [ prepare_validate_bundle, atomic_verify ]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      needs.prepare_validate_bundle.outputs.has_spl == 'true'
+    runs-on: [ self-hosted, linux, de-lab ]
 
     steps:
       - name: Checkout
@@ -420,10 +425,13 @@ jobs:
             exit 0
           fi
 
+          MATCHED_EVENTS_DIR=$(mktemp -d)
+          echo "matched_events_dir=$MATCHED_EVENTS_DIR" >> "$GITHUB_ENV"
+
           python scripts/verify/check_saved_search_hits.py \
             --earliest="-5m" \
             --latest="now" \
-            --output-dir "outputs/verify/matched_events" \
+            --output-dir "$MATCHED_EVENTS_DIR" \
             "${bundle_files[@]}"
 
       - name: Evaluate Pass/Fail
@@ -432,12 +440,21 @@ jobs:
         run: |
           set +e
           python scripts/verify/pass_fail_eval.py \
-            --matched-events-dir "outputs/verify/matched_events" \
+            --matched-events-dir "${{ env.matched_events_dir }}" \
             --results-dir "outputs/verify/results" \
             --min-pass 1 \
             --max-pass 10
           EVAL_EXIT=$?
           echo "exit_code=$EVAL_EXIT" >> "$GITHUB_OUTPUT"
+
+      - name: Upload matched events artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: matched-events-native-spl-${{ github.run_id }}
+          path: ${{ env.matched_events_dir }}
+          retention-days: 90
+          if-no-files-found: ignore
 
       - name: Generate stats and update README
         shell: bash
@@ -450,7 +467,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          git add outputs/verify/ outputs/reports/stats.json README.md
+          git add outputs/verify/results/ outputs/reports/stats.json README.md
 
           if git diff --cached --quiet; then
             echo "No changes to commit."
