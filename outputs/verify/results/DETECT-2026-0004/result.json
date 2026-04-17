@@ -1,0 +1,14 @@
+{
+  "detect_id": "DETECT-2026-0004",
+  "title": "Test Sigma Rule",
+  "verdict": "PASS",
+  "reason": "Event count 1 within expected range [1–10]",
+  "event_count": 1,
+  "min_pass": 1,
+  "max_pass": 10,
+  "earliest": "-5m",
+  "latest": "now",
+  "run_timestamp": "2026-04-17T14:23:17.169105+00:00",
+  "rule_version": "1.2",
+  "git_sha": "b66519f027a60d4ef61ea738f88e33af69d4c1df"
+}
