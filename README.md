@@ -29,5 +29,5 @@ xychart-beta
 | `DETECT-2026-0004` | Test Sigma Rule | 🟢 Low | test | ✅ PASS |
 | `DETECT-2026-0005` | Scheduled Task Creation via schtasks.exe | 🟡 Medium | test | ✅ PASS |
 
-*Generated at 2026-04-06T15:41:03 UTC*
+*Generated at 2026-04-17T11:20:02 UTC*
 <!-- STATS_END -->
