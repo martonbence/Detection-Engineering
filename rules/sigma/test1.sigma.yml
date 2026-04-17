@@ -6,7 +6,7 @@ description: Detects the creation of a scheduled task via schtasks.exe, a common
   persistence and lateral movement technique.
 author: Bence Marton
 date: 2026-04-06
-modified: 2026-04-10
+modified: 2026-04-11
 references:
   - https://attack.mitre.org/techniques/T1053/005/
 tags:
