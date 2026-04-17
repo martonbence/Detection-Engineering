@@ -25,6 +25,10 @@ on:
       - "scripts/verify/**"
       - ".github/workflows/ci_sigma_validate_and_convert.yml"
 
+concurrency:
+  group: detection-pipeline-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
 

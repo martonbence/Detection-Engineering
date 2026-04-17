@@ -20,6 +20,10 @@ on:
       - "scripts/docs/update_spl_meta.py"
       - ".github/workflows/ci_update_native_spl_meta.yml"
 
+concurrency:
+  group: detection-pipeline-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
