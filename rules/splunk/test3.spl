@@ -1,3 +1,4 @@
+
 META_START
 {
   "title": "Test3",
@@ -10,28 +11,27 @@ META_START
   "date": "2026-04-17",
   "modified": "2026-04-17",
 
-  "convert_time": "Since this detection was authored natively as an SPL rule, there is no associated Sigma source. Consequently, there is no convert time associated with this logic.",
-  "rule_version": "auto",
-  "git_sha": "auto",
-
+  "convert_time": "2026-04-17T12:57:28.735501+02:00",
+  "rule_version": "1.0",
+  "git_sha": "b901e9c",
   "ci_managed": "true",
   "origin": "spl-rule",
   "sigma_pipeline": "Since this detection was authored natively as an SPL rule, there is no associated Sigma pipeline.",
-
   "deploy_mode": "alert",
   "index": "sysmon",
   "cron": "*/5 * * * *",
   "earliest": "-5m",
   "latest": "now",
   "severity": "low",
-
   "testing enabled": true,
   "runner": "windows-victim",
   "tester": "atomic",
   "atomic tests": [
     {
       "technique": "T1059.001",
-      "test_numbers": [17]
+      "test_numbers": [
+        17
+      ]
     }
   ],
 
