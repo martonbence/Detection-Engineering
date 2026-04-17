@@ -192,16 +192,15 @@ def render_readme_section(stats: dict, repo: str) -> str:
     row1 = f"![Total Rules]({b}&query=%24.total_rules&label=Total%20Rules&color=informational)"
     row2 = " ".join([
         f"![Sigma Rules]({b}&query=%24.total_sigma_rules&label=Sigma%20Rules&color=00ACD7)",
-        f"![SPL Rules]({b}&query=%24.total_splunk_rules&label=SPL%20Rules&color=65A637)",
+        f"![Native SPL]({b}&query=%24.total_native_spl_rules&label=Native%20SPL&color=FF6600)",
     ])
-    row3 = f"![Native SPL]({b}&query=%24.total_native_spl_rules&label=Native%20SPL&color=FF6600)"
-    row4 = " ".join([
+    row3 = " ".join([
         f"![Pass]({b}&query=%24.verified_pass&label=Pass&color=brightgreen)",
         f"![Fail]({b}&query=%24.verified_fail&label=Fail&color=red)",
         f"![Pass Rate]({b}&query=%24.pass_rate_pct&label=Pass%20Rate%20%25&color={stats['pass_rate_color']})",
         f"![Not Verified]({b}&query=%24.not_verified&label=Not%20Verified&color=lightgrey)",
     ])
-    for row in [row1, "", row2, "", row3, "", row4]:
+    for row in [row1, "", row2, "", row3]:
         lines.append(row)
     lines.append("")
 
