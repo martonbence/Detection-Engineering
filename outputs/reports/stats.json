@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-04-06T15:41:03.447018+00:00",
-  "total_rules": 2,
+  "generated_at": "2026-04-17T11:20:02.961797+00:00",
+  "total_rules": 3,
   "total_sigma_rules": 2,
-  "total_native_spl_rules": 0,
+  "total_native_spl_rules": 1,
   "verified_pass": 2,
   "verified_fail": 0,
   "not_verified": 0,

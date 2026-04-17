@@ -1,47 +1,25 @@
 {
   "detect_id": "DETECT-2026-0005",
-  "title": "Scheduled Task Creation via schtasks.exe",
-  "search_name": "test1.sigma",
-  "rule_version": "1.0",
-  "git_sha": "580d65cb05ec03b89e53797f7d7887199ad6ef0b",
+  "title": "Test3",
+  "search_name": "test3",
+  "rule_version": "1.2",
+  "git_sha": "0a31477",
   "earliest": "-5m",
   "latest": "now",
-  "run_timestamp": "2026-04-06T15:16:00.013156+00:00",
-  "event_count": 3,
+  "run_timestamp": "2026-04-17T11:19:59.824991+00:00",
+  "event_count": 1,
   "error": null,
   "events": [
     {
-      "_time": "2026-04-06T17:14:45.352+02:00",
-      "CommandLine": "SCHTASKS  /Create /SC ONCE /TN spawn /TR C:\\windows\\system32\\cmd.exe /ST 20:10",
+      "_time": "2026-04-17T13:18:40.722+02:00",
+      "CommandLine": "powershell.exe  -e  JgAgACgAZwBjAG0AIAAoACcAaQBlAHsAMAB9ACcAIAAtAGYAIAAnAHgAJwApACkAIAAoACIAVwByACIAKwAiAGkAdAAiACsAIgBlAC0ASAAiACsAIgBvAHMAdAAgACcASAAiACsAIgBlAGwAIgArACIAbABvACwAIABmAHIAIgArACIAbwBtACAAUAAiACsAIgBvAHcAIgArACIAZQByAFMAIgArACIAaAAiACsAIgBlAGwAbAAhACcAIgApAA==",
       "ParentImage": "C:\\Windows\\System32\\cmd.exe",
-      "Image": "C:\\Windows\\System32\\schtasks.exe",
+      "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
       "User": [
         "NOT_TRANSLATED",
         "NT AUTHORITY\\SYSTEM"
       ],
-      "ProcessId": "5428"
-    },
-    {
-      "_time": "2026-04-06T17:14:44.730+02:00",
-      "CommandLine": "schtasks  /create /tn \"T1053_005_OnStartup\" /sc onstart /ru system /tr \"cmd.exe /c calc.exe\"",
-      "ParentImage": "C:\\Windows\\System32\\cmd.exe",
-      "Image": "C:\\Windows\\System32\\schtasks.exe",
-      "User": [
-        "NOT_TRANSLATED",
-        "NT AUTHORITY\\SYSTEM"
-      ],
-      "ProcessId": "10676"
-    },
-    {
-      "_time": "2026-04-06T17:14:44.684+02:00",
-      "CommandLine": "schtasks  /create /tn \"T1053_005_OnLogon\" /sc onlogon /tr \"cmd.exe /c calc.exe\"",
-      "ParentImage": "C:\\Windows\\System32\\cmd.exe",
-      "Image": "C:\\Windows\\System32\\schtasks.exe",
-      "User": [
-        "NOT_TRANSLATED",
-        "NT AUTHORITY\\SYSTEM"
-      ],
-      "ProcessId": "10808"
+      "ProcessId": "8392"
     }
   ]
 }
