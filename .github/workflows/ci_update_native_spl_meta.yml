@@ -1,72 +1,235 @@
-name: CI - Update Native SPL META
+name: CI - Native SPL Pipeline
 
 on:
   push:
+    branches: ["**"]
     paths:
       - "rules/splunk/**/*.spl"
+      - "docs/schemas/spl_schema.json"
+      - "scripts/validate/validate_spl.py"
       - "scripts/docs/update_spl_meta.py"
-      - ".github/workflows/update_native_spl_meta.yml"
+      - "scripts/deploy/deploy_spl_to_splunk.py"
+      - "scripts/atomic/run_atomic.ps1"
+      - "scripts/verify/**"
+      - ".github/workflows/ci_update_native_spl_meta.yml"
   pull_request:
     paths:
       - "rules/splunk/**/*.spl"
+      - "docs/schemas/spl_schema.json"
+      - "scripts/validate/validate_spl.py"
       - "scripts/docs/update_spl_meta.py"
-      - ".github/workflows/update_native_spl_meta.yml"
+      - ".github/workflows/ci_update_native_spl_meta.yml"
 
 permissions:
   contents: write
 
 jobs:
-  changes:
+  prepare_validate_bundle:
+    name: Prepare, Validate, Bundle
     runs-on: ubuntu-latest
     outputs:
-      native_spl: ${{ steps.filter.outputs.native_spl }}
+      has_spl: ${{ steps.bundle.outputs.has_spl }}
+      spl_files: ${{ steps.bundle.outputs.spl_files }}
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - id: filter
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            native_spl:
-              - "rules/splunk/**/*.spl"
-              - "!rules/splunk/**/*.sigma.spl"
-
-  update_native_spl_meta:
-    needs: changes
-    if: ${{ needs.changes.outputs.native_spl == 'true' && github.event_name == 'push' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Update META fields (native SPL only)
-        env:
-          GITHUB_SHA: ${{ github.sha }}
-        run: |
-          python3 scripts/docs/update_spl_meta.py --root rules/splunk
-
-      - name: Commit META updates (if any)
+      - name: Determine changed native SPL files
+        id: changes
+        shell: bash
         run: |
           set -euo pipefail
 
-          git config user.name "ci"
-          git config user.email "ci@local"
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          else
+            BASE_SHA="${{ github.event.before }}"
+            HEAD_SHA="${{ github.sha }}"
+          fi
 
-          # Stage all changes under rules/splunk, then unstage generated sigma outputs
+          echo "BASE_SHA=$BASE_SHA"
+          echo "HEAD_SHA=$HEAD_SHA"
+
+          git fetch --no-tags --prune --depth=0 origin || true
+
+          mode="changed"
+
+          if [[ -z "${BASE_SHA}" || "${BASE_SHA}" =~ ^0+$ ]]; then
+            mode="all"
+          fi
+
+          mapfile -t files < <(git diff --name-only --diff-filter=AMRC "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true)
+
+          if [[ "${#files[@]}" -gt 0 ]]; then
+            echo "Changed files:"
+            printf ' - %s\n' "${files[@]}"
+          fi
+
+          if [[ "$mode" != "all" ]]; then
+            for f in "${files[@]}"; do
+              if [[ "$f" == "docs/schemas/spl_schema.json" ]] || \
+                 [[ "$f" == "scripts/validate/validate_spl.py" ]] || \
+                 [[ "$f" == "scripts/docs/update_spl_meta.py" ]]; then
+                mode="all"
+                break
+              fi
+            done
+          fi
+
+          spl_files=()
+          if [[ "$mode" == "all" ]]; then
+            while IFS= read -r rf; do
+              [[ -n "$rf" ]] && spl_files+=("$rf")
+            done < <(git ls-files | grep '^rules/splunk/.*\.spl$' | grep -v '\.sigma\.spl$' || true)
+          else
+            for f in "${files[@]}"; do
+              if [[ "$f" =~ ^rules/splunk/.*\.spl$ ]] && [[ "$f" != *".sigma.spl" ]]; then
+                spl_files+=("$f")
+              fi
+            done
+          fi
+
+          if [[ "${#spl_files[@]}" -eq 0 ]]; then
+            echo "No native SPL files to process."
+            echo "has_files=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "spl_files<<EOF"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Mode: $mode"
+          echo "Native SPL files to process:"
+          printf ' - %s\n' "${spl_files[@]}"
+
+          echo "has_files=true" >> "$GITHUB_OUTPUT"
+          {
+            echo "spl_files<<EOF"
+            printf '%s\n' "${spl_files[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Install Python deps
+        if: steps.changes.outputs.has_files == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install jsonschema
+
+      - name: Validate SPL META against schema
+        if: steps.changes.outputs.has_files == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t spl_files <<'EOF'
+          ${{ steps.changes.outputs.spl_files }}
+          EOF
+
+          spl_files=("${spl_files[@]// /}")
+          filtered=()
+          for f in "${spl_files[@]}"; do
+            [[ -n "$f" ]] && filtered+=("$f")
+          done
+
+          if [[ "${#filtered[@]}" -eq 0 ]]; then
+            echo "No files to validate -> skipping."
+            exit 0
+          fi
+
+          echo "Validating ${#filtered[@]} file(s) against spl_schema.json."
+          python scripts/validate/validate_spl.py \
+            --schema docs/schemas/spl_schema.json \
+            --max-errors 25 \
+            "${filtered[@]}"
+
+      - name: Update META fields (git_sha, rule_version, convert_time)
+        if: steps.changes.outputs.has_files == 'true' && github.event_name == 'push'
+        shell: bash
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python3 scripts/docs/update_spl_meta.py --root rules/splunk
+
+      - name: Build pipeline bundle
+        id: bundle
+        if: steps.changes.outputs.has_files == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rm -rf pipeline_bundle
+          mkdir -p pipeline_bundle/scripts/atomic pipeline_bundle/scripts/deploy
+
+          cp scripts/atomic/run_atomic.ps1 pipeline_bundle/scripts/atomic/run_atomic.ps1
+          cp scripts/deploy/deploy_spl_to_splunk.py pipeline_bundle/scripts/deploy/deploy_spl_to_splunk.py
+
+          mapfile -t spl_files <<'EOF'
+          ${{ steps.changes.outputs.spl_files }}
+          EOF
+
+          bundle_files=()
+          for spl_file in "${spl_files[@]}"; do
+            spl_file="${spl_file// /}"
+            [[ -z "$spl_file" ]] && continue
+
+            if [[ ! -f "$spl_file" ]]; then
+              echo "SPL file not found: $spl_file"
+              exit 1
+            fi
+
+            bundle_files+=("$spl_file")
+            mkdir -p "pipeline_bundle/$(dirname "$spl_file")"
+            cp "$spl_file" "pipeline_bundle/$spl_file"
+          done
+
+          if [[ "${#bundle_files[@]}" -eq 0 ]]; then
+            echo "No native SPL files bundled."
+            echo "has_spl=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "spl_files<<EOF"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Native SPL files selected for deploy + atomic verify:"
+          printf ' - %s\n' "${bundle_files[@]}"
+
+          echo "has_spl=true" >> "$GITHUB_OUTPUT"
+          {
+            echo "spl_files<<EOF"
+            printf '%s\n' "${bundle_files[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Commit updated native SPL files to main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.bundle.outputs.has_spl == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
           git add rules/splunk || true
-          git reset -q -- rules/splunk/**/*.sigma.spl 2>/dev/null || true
+          git reset -q -- 'rules/splunk/**/*.sigma.spl' 2>/dev/null || true
           git reset -q -- '**/*.sigma.spl' 2>/dev/null || true
 
-          # If nothing changed, do nothing
           if git diff --cached --quiet; then
-            echo "No META changes to commit."
+            echo "No native SPL changes to commit."
             exit 0
           fi
 
@@ -85,3 +248,230 @@ jobs:
 
           echo "Push failed after 3 attempts."
           exit 1
+
+      - name: Upload pipeline bundle
+        if: steps.bundle.outputs.has_spl == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: spl-pipeline-bundle-native
+          path: pipeline_bundle
+          if-no-files-found: error
+
+  deploy_to_splunk:
+    name: Deploy to Splunk
+    needs: prepare_validate_bundle
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.prepare_validate_bundle.outputs.has_spl == 'true'
+    runs-on: [self-hosted, linux, de-lab]
+
+    steps:
+      - name: Download pipeline bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: spl-pipeline-bundle-native
+          path: pipeline_bundle
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deploy deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install requests
+
+      - name: Deploy native SPL files to Splunk
+        shell: bash
+        env:
+          SPLUNK_BASE_URL: ${{ secrets.SPLUNK_BASE_URL }}
+          SPLUNK_USERNAME: ${{ secrets.SPLUNK_USERNAME }}
+          SPLUNK_PASSWORD: ${{ secrets.SPLUNK_PASSWORD }}
+          SPLUNK_APP: ${{ secrets.SPLUNK_APP }}
+          SPLUNK_OWNER: ${{ secrets.SPLUNK_OWNER }}
+          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS || 'false' }}
+          SPLUNK_SHARING: app
+          SPLUNK_PERMS_READ: "*"
+          SPLUNK_PERMS_WRITE: admin,ci_deploy_savedsearches
+        run: |
+          set -euo pipefail
+
+          mapfile -t spl_files <<'EOF'
+          ${{ needs.prepare_validate_bundle.outputs.spl_files }}
+          EOF
+
+          bundle_files=()
+          for spl_file in "${spl_files[@]}"; do
+            [[ -z "$spl_file" ]] && continue
+            bundle_files+=("pipeline_bundle/$spl_file")
+          done
+
+          if [[ "${#bundle_files[@]}" -eq 0 ]]; then
+            echo "No native SPL files to deploy."
+            exit 0
+          fi
+
+          python pipeline_bundle/scripts/deploy/deploy_spl_to_splunk.py "${bundle_files[@]}"
+
+  atomic_verify:
+    name: Atomic Red Team Test
+    needs: [prepare_validate_bundle, deploy_to_splunk]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.prepare_validate_bundle.outputs.has_spl == 'true'
+    runs-on: [self-hosted, X64, Windows, victim, atomic, windows-victim]
+
+    steps:
+      - name: Download pipeline bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: spl-pipeline-bundle-native
+          path: pipeline_bundle
+
+      - name: Run Atomic Red Team tests embedded in deployed SPL metadata
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ". '{0}'"
+        env:
+          ATOMIC_RUNNER: windows-victim
+          ATOMIC_RED_TEAM_MODULE_PATH: ${{ vars.ATOMIC_RED_TEAM_MODULE_PATH }}
+          ATOMIC_RED_TEAM_PATH: ${{ vars.ATOMIC_RED_TEAM_PATH }}
+          ATOMIC_DISABLE_REALTIME_MONITORING: ${{ vars.ATOMIC_DISABLE_REALTIME_MONITORING || 'true' }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $splFiles = @'
+          ${{ needs.prepare_validate_bundle.outputs.spl_files }}
+          '@ -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+          if ($splFiles.Count -eq 0) {
+            Write-Host "No native SPL files selected for Atomic verification."
+            exit 0
+          }
+
+          $bundleSplFiles = $splFiles | ForEach-Object { Join-Path "pipeline_bundle" $_ }
+
+          .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles -PreflightOnly
+          .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles
+
+  splunk_verify:
+    name: Splunk Verification
+    needs: [prepare_validate_bundle, atomic_verify]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.prepare_validate_bundle.outputs.has_spl == 'true'
+    runs-on: [self-hosted, linux, de-lab]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download pipeline bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: spl-pipeline-bundle-native
+          path: pipeline_bundle
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install requests pyyaml
+
+      - name: Wait for Splunk indexing
+        shell: bash
+        run: |
+          WAIT=${SPLUNK_VERIFY_WAIT_SECONDS:-60}
+          echo "Waiting ${WAIT}s for Splunk to index atomic test events..."
+          sleep "$WAIT"
+
+      - name: Query Splunk for matched events
+        id: fetch
+        shell: bash
+        env:
+          SPLUNK_BASE_URL: ${{ secrets.SPLUNK_BASE_URL }}
+          SPLUNK_USERNAME: ${{ secrets.SPLUNK_USERNAME }}
+          SPLUNK_PASSWORD: ${{ secrets.SPLUNK_PASSWORD }}
+          SPLUNK_APP: ${{ secrets.SPLUNK_APP }}
+          SPLUNK_OWNER: ${{ secrets.SPLUNK_OWNER }}
+          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS || 'false' }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t spl_files <<'EOF'
+          ${{ needs.prepare_validate_bundle.outputs.spl_files }}
+          EOF
+
+          bundle_files=()
+          for spl_file in "${spl_files[@]}"; do
+            [[ -z "$spl_file" ]] && continue
+            bundle_files+=("pipeline_bundle/$spl_file")
+          done
+
+          if [[ "${#bundle_files[@]}" -eq 0 ]]; then
+            echo "No native SPL files to verify."
+            exit 0
+          fi
+
+          python scripts/verify/check_saved_search_hits.py \
+            --earliest="-5m" \
+            --latest="now" \
+            --output-dir "outputs/verify/matched_events" \
+            "${bundle_files[@]}"
+
+      - name: Evaluate Pass/Fail
+        id: eval
+        shell: bash
+        run: |
+          set +e
+          python scripts/verify/pass_fail_eval.py \
+            --matched-events-dir "outputs/verify/matched_events" \
+            --results-dir "outputs/verify/results" \
+            --min-pass 1 \
+            --max-pass 10
+          EVAL_EXIT=$?
+          echo "exit_code=$EVAL_EXIT" >> "$GITHUB_OUTPUT"
+
+      - name: Generate stats and update README
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/docs/generate_stats.py
+
+      - name: Commit verification results and stats
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git add outputs/verify/ outputs/reports/stats.json README.md
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git commit -m "chore(verify): update verification results and stats"
+
+          for i in 1 2 3; do
+            git fetch origin main
+            git pull --rebase origin main || true
+            if git push origin HEAD:main; then
+              echo "Push succeeded."
+              exit 0
+            fi
+            echo "Push failed (attempt $i), retrying..."
+            sleep 2
+          done
+
+          echo "Push failed after 3 attempts."
+          exit 1
+
+      - name: Report verification verdict
+        shell: bash
+        run: exit ${{ steps.eval.outputs.exit_code || '0' }}
