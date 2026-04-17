@@ -1,17 +1,17 @@
 META_START
 {
   "title": "Test Sigma Rule",
-  "detect_id": "DETECT-2026-0002",
+  "detect_id": "DETECT-2026-0004",
   "description": "Test Sigma rule for demonstration purposes.",
-  "sigma_file": "rules/sigma/test2.sigma.yml",
+  "sigma_file": "rules/sigma/test4.sigma.yml",
   "level": "low",
   "status": "test",
   "author": "Bence Marton",
   "date": "2026-01-03",
   "modified": "2026-01-14",
 
-  "convert_time": "2026-04-17T15:01:49+02:00",
-  "rule_version": "1.27",
+  "convert_time": "2026-04-17T15:01:50+02:00",
+  "rule_version": "1.0",
   "git_sha": "1725a5b29105d9324c0dd4564fed7c61b01db779",
   "ci_managed": true,
   "origin": "sigma_to_spl.py",
