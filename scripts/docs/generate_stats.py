@@ -78,6 +78,27 @@ def count_spl_rules() -> tuple[int, int]:
     return len(all_spl), native
 
 
+def load_native_spl_rules() -> list[dict]:
+    """Read META block from native (non-sigma-converted) .spl files."""
+    rules = []
+    splunk_dir = REPO_ROOT / "rules" / "splunk"
+    if not splunk_dir.exists():
+        return rules
+    for p in sorted(splunk_dir.glob("*.spl")):
+        if ".sigma." in p.name:
+            continue
+        try:
+            content = p.read_text(encoding="utf-8")
+            m = re.search(r"META_START\s*(\{.*?\})\s*META_END", content, re.DOTALL)
+            if m:
+                meta = json.loads(m.group(1))
+                if isinstance(meta, dict):
+                    rules.append(meta)
+        except Exception:
+            pass
+    return rules
+
+
 def load_verdicts() -> dict[str, str]:
     """Returns {detect_id: verdict} from outputs/verify/results/*/result.json."""
     verdicts: dict[str, str] = {}
@@ -116,6 +137,7 @@ def pass_rate_color(pct: int) -> str:
 
 def generate_stats() -> dict:
     sigma_rules = load_sigma_rules()
+    native_spl_rules = load_native_spl_rules()
     total_spl_count, native_spl_count = count_spl_rules()
     verdicts = load_verdicts()
 
@@ -154,12 +176,40 @@ def generate_stats() -> dict:
             "title": title,
             "level": level,
             "status": status,
+            "source": "sigma",
+            "verdict": verdict,
+        })
+
+    for rule in native_spl_rules:
+        detect_id = str(rule.get("detect_id") or "")
+        title = str(rule.get("title") or "")
+        level = str(rule.get("level") or "").lower()
+        status = str(rule.get("status") or "").lower()
+
+        by_level[level] = by_level.get(level, 0) + 1
+        by_status[status] = by_status.get(status, 0) + 1
+
+        verdict = verdicts.get(detect_id, "N/A")
+        if verdict == "PASS":
+            verified_pass += 1
+        elif verdict == "FAIL":
+            verified_fail += 1
+        else:
+            not_verified += 1
+
+        rules_detail.append({
+            "detect_id": detect_id,
+            "title": title,
+            "level": level,
+            "status": status,
+            "source": "native_spl",
             "verdict": verdict,
         })
 
     total_sigma = len(sigma_rules)
     total_rules = total_sigma + native_spl_count
-    pass_rate = round(verified_pass / total_sigma * 100) if total_sigma > 0 else 0
+    total_verifiable = total_sigma + native_spl_count
+    pass_rate = round(verified_pass / total_verifiable * 100) if total_verifiable > 0 else 0
 
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -244,15 +294,16 @@ def render_readme_section(stats: dict, repo: str) -> str:
 
     # --- Rule table ---
     lines += [
-        "| ID | Title | Severity | Status | Verdict |",
-        "|:---|:------|:--------:|:------:|:-------:|",
+        "| ID | Title | Source | Severity | Status | Verdict |",
+        "|:---|:------|:------:|:--------:|:------:|:-------:|",
     ]
     for r in stats["rules"]:
         lvl = r["level"]
         lvl_cell = f"{LEVEL_EMOJI.get(lvl, '')} {lvl.capitalize()}" if lvl else "—"
         verdict_cell = VERDICT_EMOJI.get(r["verdict"], r["verdict"])
+        source_cell = "Sigma" if r.get("source") == "sigma" else "Native SPL"
         lines.append(
-            f"| `{r['detect_id']}` | {r['title']} | {lvl_cell} | {r['status']} | {verdict_cell} |"
+            f"| `{r['detect_id']}` | {r['title']} | {source_cell} | {lvl_cell} | {r['status']} | {verdict_cell} |"
         )
 
     lines += [
@@ -295,7 +346,7 @@ def main() -> int:
         json.dumps(stats, indent=2, ensure_ascii=False), encoding="utf-8"
     )
     print(
-        f"Stats: {stats['total_sigma_rules']} sigma rules — "
+        f"Stats: {stats['total_sigma_rules']} sigma + {stats['total_native_spl_rules']} native SPL rules — "
         f"{stats['verified_pass']} pass / {stats['verified_fail']} fail / "
         f"{stats['not_verified']} not verified — pass rate: {stats['pass_rate_pct']}%"
     )

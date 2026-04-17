@@ -251,7 +251,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git commit -m "chore(splunk): update sigma-converted SPL outputs"
+          git commit -m "chore(splunk): update sigma-converted SPL outputs [skip ci]"
 
           for i in 1 2 3; do
             git fetch origin main
@@ -474,7 +474,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git commit -m "chore(verify): update verification results and stats"
+          git commit -m "chore(verify): update verification results and stats [skip ci]"
 
           for i in 1 2 3; do
             git fetch origin main

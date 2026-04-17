@@ -12,13 +12,13 @@ A CI/CD-driven detection engineering pipeline: Sigma rules → Splunk SPL → de
 ```mermaid
 pie title Verification Status
     "Pass ✅" : 1
-    "Not Verified ⬜" : 2
+    "Not Verified ⬜" : 3
 ```
 
 ```mermaid
 pie title Rules by Severity
     "🟡 Medium" : 1
-    "🟢 Low" : 2
+    "🟢 Low" : 3
 ```
 
 ```mermaid
@@ -29,11 +29,12 @@ xychart-beta
     bar [3, 1]
 ```
 
-| ID | Title | Severity | Status | Verdict |
-|:---|:------|:--------:|:------:|:-------:|
-| `DETECT-2026-0001` | Scheduled Task Creation via schtasks.exe | 🟡 Medium | test | ⬜ N/A |
-| `DETECT-2026-0002` | Test Sigma Rule | 🟢 Low | test | ⬜ N/A |
-| `DETECT-2026-0004` | Test Sigma Rule | 🟢 Low | test | ✅ PASS |
+| ID | Title | Source | Severity | Status | Verdict |
+|:---|:------|:------:|:--------:|:------:|:-------:|
+| `DETECT-2026-0001` | Scheduled Task Creation via schtasks.exe | Sigma | 🟡 Medium | test | ⬜ N/A |
+| `DETECT-2026-0002` | Test Sigma Rule | Sigma | 🟢 Low | test | ⬜ N/A |
+| `DETECT-2026-0003` | Test3 | Native SPL | 🟢 Low | test | ⬜ N/A |
+| `DETECT-2026-0004` | Test Sigma Rule | Sigma | 🟢 Low | test | ✅ PASS |
 
-*Generated at 2026-04-17T13:04:33 UTC*
+*Generated at 2026-04-17T13:39:12 UTC*
 <!-- STATS_END -->
