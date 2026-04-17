@@ -4,7 +4,7 @@ generate_stats.py — Collect detection rule stats and update README.md.
 Reads:
   - rules/sigma/*.yml          — sigma rules (level, status, tags, detect_id)
   - rules/splunk/*.spl         — counts native (non-sigma) SPL rules
-  - outputs/verify/results/*/result.json — pass/fail verdicts
+  - outputs/results/*/result.json — pass/fail verdicts
 
 Writes:
   - outputs/reports/stats.json — consumed by shields.io dynamic badges
@@ -100,9 +100,9 @@ def load_native_spl_rules() -> list[dict]:
 
 
 def load_verdicts() -> dict[str, str]:
-    """Returns {detect_id: verdict} from outputs/verify/results/*/result.json."""
+    """Returns {detect_id: verdict} from outputs/results/*/result.json."""
     verdicts: dict[str, str] = {}
-    results_dir = REPO_ROOT / "outputs" / "verify" / "results"
+    results_dir = REPO_ROOT / "outputs" / "results"
     if not results_dir.exists():
         return verdicts
     for result_file in results_dir.glob("*/result.json"):

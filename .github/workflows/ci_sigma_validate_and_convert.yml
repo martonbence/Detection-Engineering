@@ -459,7 +459,7 @@ jobs:
           set +e
           python scripts/verify/pass_fail_eval.py \
             --matched-events-dir "${{ env.matched_events_dir }}" \
-            --results-dir "outputs/verify/results" \
+            --results-dir "outputs/results" \
             --min-pass 1 \
             --max-pass 10
           EVAL_EXIT=$?
@@ -490,7 +490,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add outputs/verify/results/ outputs/reports/stats.json README.md
+          git add outputs/results/ outputs/reports/stats.json README.md
 
           if git diff --cached --quiet; then
             echo "No changes to commit."

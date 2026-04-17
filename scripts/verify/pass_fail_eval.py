@@ -3,7 +3,7 @@ pass_fail_eval.py — Evaluate Pass/Fail for each rule based on Splunk matched e
 
 Usage:
     python pass_fail_eval.py [--matched-events-dir outputs/verify/matched_events]
-                             [--results-dir outputs/verify/results]
+                             [--results-dir outputs/results]
                              [--min-pass 1] [--max-pass 20]
 
 Pass criteria : MIN_PASS <= event_count <= MAX_PASS
@@ -79,7 +79,7 @@ def write_github_summary(path: str, report: dict) -> None:
         "",
         "---",
         f"Pass criteria: **{report['min_pass']} ≤ events ≤ {report['max_pass']}**  ",
-        "Results saved to `outputs/verify/`",
+        "Results saved to `outputs/results/`",
     ]
 
     Path(path).write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -94,7 +94,7 @@ def main(argv: list[str]) -> int:
         help="Directory produced by check_saved_search_hits.py",
     )
     parser.add_argument(
-        "--results-dir", default="outputs/verify/results",
+        "--results-dir", default="outputs/results",
         help="Directory to write per-rule verdict JSON files",
     )
     parser.add_argument(
