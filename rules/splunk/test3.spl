@@ -11,9 +11,9 @@ META_START
   "date": "2026-04-17",
   "modified": "2026-04-18",
 
-  "convert_time": "2026-04-17T15:01:43.669232+02:00",
-  "rule_version": "1.4",
-  "git_sha": "1725a5b",
+  "convert_time": "2026-04-17T15:54:28.130983+02:00",
+  "rule_version": "1.6",
+  "git_sha": "62f46a1",
   "ci_managed": "true",
   "origin": "spl-rule",
   "sigma_pipeline": "Since this detection was authored natively as an SPL rule, there is no associated Sigma pipeline.",
