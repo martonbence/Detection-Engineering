@@ -33,8 +33,8 @@ xychart-beta
 |:---|:------|:------:|:--------:|:------:|:-------:|
 | `DETECT-2026-0001` | Scheduled Task Creation via schtasks.exe | Sigma | 🟡 Medium | test | ⬜ N/A |
 | `DETECT-2026-0002` | Test Sigma Rule | Sigma | 🟢 Low | test | ⬜ N/A |
-| `DETECT-2026-0003` | Test3 | Native SPL | 🟢 Low | test | ⬜ N/A |
-| `DETECT-2026-0004` | Test Sigma Rule | Sigma | 🟢 Low | test | ✅ PASS |
+| `DETECT-2026-0003` | Test3 | Native SPL | 🟢 Low | test | ✅ PASS |
+| `DETECT-2026-0004` | Test Sigma Rule | Sigma | 🟢 Low | test | ⬜ N/A |
 
-*Generated at 2026-04-17T13:39:12 UTC*
+*Generated at 2026-04-17T13:57:08 UTC*
 <!-- STATS_END -->

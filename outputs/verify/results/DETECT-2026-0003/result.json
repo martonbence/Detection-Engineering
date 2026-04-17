@@ -1,0 +1,14 @@
+{
+  "detect_id": "DETECT-2026-0003",
+  "title": "Test3",
+  "verdict": "PASS",
+  "reason": "Event count 2 within expected range [1–10]",
+  "event_count": 2,
+  "min_pass": 1,
+  "max_pass": 10,
+  "earliest": "-5m",
+  "latest": "now",
+  "run_timestamp": "2026-04-17T13:57:08.187987+00:00",
+  "rule_version": "1.6",
+  "git_sha": "62f46a1"
+}
