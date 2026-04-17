@@ -1,7 +1,8 @@
 {
-  "generated_at": "2026-04-17T11:20:02.961797+00:00",
+  "generated_at": "2026-04-17T11:58:41.514654+00:00",
   "total_rules": 3,
   "total_sigma_rules": 2,
+  "total_splunk_rules": 3,
   "total_native_spl_rules": 1,
   "verified_pass": 2,
   "verified_fail": 0,
