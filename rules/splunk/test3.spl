@@ -1,0 +1,60 @@
+META_START
+{
+  "title": "Test3",
+  "detect_id": "DETECT-2026-0005",
+  "description": "Test Sigma rule for demonstration purposes.",
+  "sigma_file": "No Sigma source is associated with this detection; it was authored natively as an SPL rule.",
+  "level": "low",
+  "status": "experimental",
+  "author": "Bence Marton",
+  "date": "2026-04-17",
+  "modified": "2026-04-17",
+
+  "convert_time": "Since this detection was authored natively as an SPL rule, there is no associated Sigma source. Consequently, there is no convert time associated with this logic.",
+  "rule_version": "auto",
+  "git_sha": "auto",
+
+  "ci_managed": "true",
+  "origin": "spl-rule",
+  "sigma_pipeline": "Since this detection was authored natively as an SPL rule, there is no associated Sigma pipeline.",
+
+  "deploy_mode": "alert",
+  "index": "sysmon",
+  "cron": "*/5 * * * *",
+  "earliest": "-5m",
+  "latest": "now",
+  "severity": "low",
+
+  "testing enabled": true,
+  "runner": "windows-victim",
+  "tester": "atomic",
+  "atomic tests": [
+    {
+      "technique": "T1059.001",
+      "test_numbers": [17]
+    }
+  ],
+
+  "references": [
+    "https://example.com"
+  ],
+
+  "tags": [
+    "attack.execution",
+    "attack.t1059.001"
+  ],
+
+  "logsource": {
+    "product_category": "os",
+    "product": "windows",
+    "service": "security",
+    "event_type": "process_creation"
+  },
+
+  "falsepositives": [
+    "Legitimate administrative scripts using EncodedCommand"
+  ]
+}
+META_END
+---
+index=sysmon Image="*\\powershell.exe" CommandLine IN ("* -e *", "* -enc *", "* -encodedcommand *") | table _time,CommandLine,ParentImage,Image,User,ProcessId
