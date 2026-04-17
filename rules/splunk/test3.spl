@@ -2,7 +2,7 @@
 META_START
 {
   "title": "Test3",
-  "detect_id": "DETECT-2026-0005",
+  "detect_id": "DETECT-2026-0003",
   "description": "Test Sigma rule for demonstration purposes.",
   "sigma_file": "No Sigma source is associated with this detection; it was authored natively as an SPL rule.",
   "level": "low",
@@ -17,7 +17,7 @@ META_START
   "ci_managed": "true",
   "origin": "spl-rule",
   "sigma_pipeline": "Since this detection was authored natively as an SPL rule, there is no associated Sigma pipeline.",
-  "deploy_mode": "alert",
+  "deploy_mode": "report",
   "index": "sysmon",
   "cron": "*/5 * * * *",
   "earliest": "-5m",
