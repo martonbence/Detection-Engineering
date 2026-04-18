@@ -473,7 +473,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add outputs/results/ outputs/reports/stats.json README.md
+          git add outputs/results/ outputs/reports/stats.json README.md rules/RULE_SUMMARY.md
 
           if git diff --cached --quiet; then
             echo "No changes to commit."
@@ -490,7 +490,7 @@ jobs:
             else
               # stats.json / README.md conflict: keep our generated version, continue
               git checkout --theirs outputs/reports/stats.json README.md 2>/dev/null || true
-              git add outputs/reports/stats.json README.md 2>/dev/null || true
+              git add outputs/reports/stats.json README.md rules/RULE_SUMMARY.md 2>/dev/null || true
               git rebase --continue 2>/dev/null || {
                 git rebase --abort 2>/dev/null || true
                 echo "Rebase failed on attempt $i, retrying..."
@@ -501,7 +501,7 @@ jobs:
 
             # Re-generate stats after rebase so it includes all pipelines' results
             python scripts/docs/generate_stats.py
-            git add outputs/reports/stats.json README.md
+            git add outputs/reports/stats.json README.md rules/RULE_SUMMARY.md
             git diff --cached --quiet || git commit --amend --no-edit
 
             if git push origin HEAD:main; then
