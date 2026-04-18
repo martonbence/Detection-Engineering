@@ -64,6 +64,20 @@ LEVEL_EMOJI = {
     "informational": "⚪",
 }
 
+LEVEL_BADGE = {
+    "critical": "![](https://img.shields.io/badge/Critical-CC0000?style=flat-square)",
+    "high":     "![](https://img.shields.io/badge/High-FF6600?style=flat-square)",
+    "medium":   "![](https://img.shields.io/badge/Medium-FFAA00?style=flat-square)",
+    "low":      "![](https://img.shields.io/badge/Low-2EA44F?style=flat-square)",
+    "informational": "![](https://img.shields.io/badge/Info-6E7681?style=flat-square)",
+}
+
+VERDICT_BADGE = {
+    "PASS": "![](https://img.shields.io/badge/PASS-2EA44F?style=flat-square)",
+    "FAIL": "![](https://img.shields.io/badge/FAIL-CF222E?style=flat-square)",
+    "N/A":  "![](https://img.shields.io/badge/N%2FA-6E7681?style=flat-square)",
+}
+
 VERDICT_EMOJI = {
     "PASS": "✅ PASS",
     "FAIL": "❌ FAIL",
@@ -370,8 +384,8 @@ def render_rule_summary(stats: dict, repo: str) -> str:
             id_cell = f"`{detect_id}`"
 
         lvl = r["level"]
-        lvl_cell = f"{LEVEL_EMOJI.get(lvl, '')} {lvl.capitalize()}" if lvl else "—"
-        verdict_cell = VERDICT_EMOJI.get(r["verdict"], r["verdict"])
+        lvl_cell = LEVEL_BADGE.get(lvl, f"`{lvl}`") if lvl else "—"
+        verdict_cell = VERDICT_BADGE.get(r["verdict"], r["verdict"])
         source_cell = "Sigma" if r.get("source") == "sigma" else "Native SPL"
 
         tactics = r.get("tactics") or []
@@ -382,11 +396,11 @@ def render_rule_summary(stats: dict, repo: str) -> str:
                 tactic_links.append(f"[{t}](https://attack.mitre.org/tactics/{ta_id}/)")
             else:
                 tactic_links.append(t)
-        tactic_cell = ", ".join(tactic_links) if tactic_links else "—"
+        tactic_cell = "<br>".join(tactic_links) if tactic_links else "—"
 
         techniques = r.get("techniques") or []
         tech_links = [f"[{t}]({technique_url(t)})" for t in techniques]
-        tech_cell = ", ".join(tech_links) if tech_links else "—"
+        tech_cell = "<br>".join(tech_links) if tech_links else "—"
 
         lines.append(
             f"| {id_cell} | {r['title']} | {source_cell} | {tactic_cell} | {tech_cell} | {lvl_cell} | {r['status']} | {verdict_cell} |"
