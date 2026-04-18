@@ -13,7 +13,7 @@ A CI/CD-driven detection engineering pipeline: Sigma rules → Splunk SPL → de
 
 **Rules by Severity**
 
-![](https://img.shields.io/badge/Critical-1-7B0000?style=flat-square) ![](https://img.shields.io/badge/High-1-DC2626?style=flat-square) ![](https://img.shields.io/badge/Medium-1-FFAA00?style=flat-square) ![](https://img.shields.io/badge/Low-1-2EA44F?style=flat-square) ![](https://img.shields.io/badge/Informational-0-6E7681?style=flat-square)
+![Rules by Severity](https://quickchart.io/chart?c=%7B%22type%22%3A%22doughnut%22%2C%22data%22%3A%7B%22labels%22%3A%5B%22Critical%22%2C%22High%22%2C%22Medium%22%2C%22Low%22%2C%22Informational%22%5D%2C%22datasets%22%3A%5B%7B%22data%22%3A%5B1%2C1%2C1%2C1%2C0%5D%2C%22backgroundColor%22%3A%5B%22%237B0000%22%2C%22%23DC2626%22%2C%22%23FFAA00%22%2C%22%232EA44F%22%2C%22%236E7681%22%5D%7D%5D%7D%2C%22options%22%3A%7B%22plugins%22%3A%7B%22legend%22%3A%7B%22position%22%3A%22right%22%2C%22labels%22%3A%7B%22color%22%3A%22%2324292f%22%2C%22font%22%3A%7B%22size%22%3A13%7D%7D%7D%7D%7D%7D&width=420&height=200&backgroundColor=white)
 
 ```mermaid
 xychart-beta
@@ -25,5 +25,5 @@ xychart-beta
 
 📋 Full rule index → [rules/RULE_SUMMARY.md](https://github.com/martonbence/Detection-Engineering/blob/main/rules/RULE_SUMMARY.md)
 
-*Generated at 2026-04-18T09:26:51 UTC*
+*Generated at 2026-04-18T09:39:59 UTC*
 <!-- STATS_END -->
