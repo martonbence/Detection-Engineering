@@ -386,7 +386,7 @@ def render_readme_section(stats: dict, repo: str) -> str:
         },
     }
     chart_json = json.dumps(chart_cfg, separators=(",", ":"))
-    chart_url = "https://quickchart.io/chart?c=" + urllib.parse.quote(chart_json) + "&width=500&height=300&f=svg"
+    chart_url = "https://quickchart.io/chart?c=" + urllib.parse.quote(chart_json) + "&width=500&height=260&f=svg"
     lines += ["**Rules by Severity**", "", f"![Rules by Severity]({chart_url})", ""]
 
     # --- MITRE ATT&CK tactic bar chart ---
