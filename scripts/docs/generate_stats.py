@@ -65,8 +65,8 @@ LEVEL_EMOJI = {
 }
 
 LEVEL_BADGE = {
-    "critical": "![](https://img.shields.io/badge/Critical-CC0000?style=flat-square)",
-    "high":     "![](https://img.shields.io/badge/High-FF6600?style=flat-square)",
+    "critical": "![](https://img.shields.io/badge/Critical-7B0000?style=flat-square)",
+    "high":     "![](https://img.shields.io/badge/High-DC2626?style=flat-square)",
     "medium":   "![](https://img.shields.io/badge/Medium-FFAA00?style=flat-square)",
     "low":      "![](https://img.shields.io/badge/Low-2EA44F?style=flat-square)",
     "informational": "![](https://img.shields.io/badge/Info-6E7681?style=flat-square)",
@@ -377,16 +377,17 @@ def render_rule_summary(stats: dict, repo: str) -> str:
 
     for r in stats["rules"]:
         detect_id = r["detect_id"]
+        display_id = detect_id.replace("-", "\u2011")  # non-breaking hyphen
         file_path = r.get("file_path", "")
         if file_path:
-            id_cell = f"[`{detect_id}`](https://github.com/{repo}/blob/main/{file_path})"
+            id_cell = f"[`{display_id}`](https://github.com/{repo}/blob/main/{file_path})"
         else:
-            id_cell = f"`{detect_id}`"
+            id_cell = f"`{display_id}`"
 
         lvl = r["level"]
         lvl_cell = LEVEL_BADGE.get(lvl, f"`{lvl}`") if lvl else "—"
         verdict_cell = VERDICT_BADGE.get(r["verdict"], r["verdict"])
-        source_cell = "Sigma" if r.get("source") == "sigma" else "Native SPL"
+        source_cell = "Sigma" if r.get("source") == "sigma" else "Native&nbsp;SPL"
 
         tactics = r.get("tactics") or []
         tactic_links = []
