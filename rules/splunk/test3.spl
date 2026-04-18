@@ -22,7 +22,7 @@ META_START
   "cron": "*/5 * * * *",
   "earliest": "-5m",
   "latest": "now",
-  "severity": "low",
+  "severity": "critical",
   "testing enabled": true,
   "runner": "windows-victim",
   "tester": "atomic",
