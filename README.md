@@ -11,18 +11,9 @@ A CI/CD-driven detection engineering pipeline: Sigma rules → Splunk SPL → de
 
 ![Pass](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.verified_pass&label=Pass&color=brightgreen) ![Fail](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.verified_fail&label=Fail&color=red) ![Pass Rate](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.pass_rate_pct&label=Pass%20Rate%20%25&color=brightgreen) ![Not Verified](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.not_verified&label=Not%20Verified&color=lightgrey)
 
-```mermaid
-pie title Verification Status
-    "Pass ✅" : 4
-```
+**Rules by Severity**
 
-```mermaid
-pie title Rules by Severity
-    "🔴 Critical" : 1
-    "🟠 High" : 1
-    "🟡 Medium" : 1
-    "🟢 Low" : 1
-```
+![](https://img.shields.io/badge/Critical-1-7B0000?style=flat-square) ![](https://img.shields.io/badge/High-1-DC2626?style=flat-square) ![](https://img.shields.io/badge/Medium-1-FFAA00?style=flat-square) ![](https://img.shields.io/badge/Low-1-2EA44F?style=flat-square) ![](https://img.shields.io/badge/Informational-0-6E7681?style=flat-square)
 
 ```mermaid
 xychart-beta
@@ -34,5 +25,5 @@ xychart-beta
 
 📋 Full rule index → [rules/RULE_SUMMARY.md](https://github.com/martonbence/Detection-Engineering/blob/main/rules/RULE_SUMMARY.md)
 
-*Generated at 2026-04-18T08:38:48 UTC*
+*Generated at 2026-04-18T09:26:51 UTC*
 <!-- STATS_END -->

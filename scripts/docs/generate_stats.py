@@ -329,27 +329,22 @@ def render_readme_section(stats: dict, repo: str) -> str:
         lines.append(row)
     lines.append("")
 
-    # --- Verification status pie ---
-    if stats["total_sigma_rules"] > 0:
-        lines += ["```mermaid", "pie title Verification Status"]
-        if stats["verified_pass"]:
-            lines.append(f'    "Pass ✅" : {stats["verified_pass"]}')
-        if stats["verified_fail"]:
-            lines.append(f'    "Fail ❌" : {stats["verified_fail"]}')
-        if stats["not_verified"]:
-            lines.append(f'    "Not Verified ⬜" : {stats["not_verified"]}')
-        lines += ["```", ""]
-
-    # --- Severity distribution pie ---
+    # --- Severity distribution badges ---
     level_order = ["critical", "high", "medium", "low", "informational"]
-    levels_present = {k: v for k, v in stats["by_level"].items() if v > 0}
-    if levels_present:
-        lines += ["```mermaid", "pie title Rules by Severity"]
-        for lvl in level_order:
-            cnt = levels_present.get(lvl, 0)
-            if cnt:
-                lines.append(f'    "{LEVEL_EMOJI.get(lvl, "")} {lvl.capitalize()}" : {cnt}')
-        lines += ["```", ""]
+    level_colors = {
+        "critical": "7B0000",
+        "high":     "DC2626",
+        "medium":   "FFAA00",
+        "low":      "2EA44F",
+        "informational": "6E7681",
+    }
+    sev_badges = []
+    for lvl in level_order:
+        cnt = stats["by_level"].get(lvl, 0)
+        color = level_colors[lvl]
+        label = lvl.capitalize()
+        sev_badges.append(f"![](https://img.shields.io/badge/{label}-{cnt}-{color}?style=flat-square)")
+    lines += ["**Rules by Severity**", "", " ".join(sev_badges), ""]
 
     # --- MITRE ATT&CK tactic bar chart ---
     if stats["by_tactic"]:
