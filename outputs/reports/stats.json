@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-18T07:38:30.101707+00:00",
+  "generated_at": "2026-04-18T07:46:22.699835+00:00",
   "total_rules": 4,
   "total_sigma_rules": 3,
   "total_splunk_rules": 4,
@@ -28,6 +28,7 @@
       "status": "test",
       "source": "sigma",
       "verdict": "PASS",
+      "run_id": "",
       "tactics": [
         "Persistence",
         "Execution"
@@ -44,6 +45,7 @@
       "status": "test",
       "source": "sigma",
       "verdict": "PASS",
+      "run_id": "",
       "tactics": [
         "Execution"
       ],
@@ -59,6 +61,7 @@
       "status": "test",
       "source": "native_spl",
       "verdict": "PASS",
+      "run_id": "",
       "tactics": [
         "Execution"
       ],
@@ -74,6 +77,7 @@
       "status": "test",
       "source": "sigma",
       "verdict": "PASS",
+      "run_id": "",
       "tactics": [
         "Execution"
       ],

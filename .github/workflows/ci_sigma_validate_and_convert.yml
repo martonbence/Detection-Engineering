@@ -461,7 +461,8 @@ jobs:
             --matched-events-dir "${{ env.matched_events_dir }}" \
             --results-dir "outputs/results" \
             --min-pass 1 \
-            --max-pass 10
+            --max-pass 10 \
+            --run-id "${{ github.run_id }}"
           EVAL_EXIT=$?
           echo "exit_code=$EVAL_EXIT" >> "$GITHUB_OUTPUT"
 

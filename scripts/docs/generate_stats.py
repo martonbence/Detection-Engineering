@@ -133,9 +133,9 @@ def load_native_spl_rules() -> list[dict]:
     return rules
 
 
-def load_verdicts() -> dict[str, str]:
-    """Returns {detect_id: verdict} from outputs/results/*/result.json."""
-    verdicts: dict[str, str] = {}
+def load_verdicts() -> dict[str, dict]:
+    """Returns {detect_id: {verdict, run_id}} from outputs/results/*/result.json."""
+    verdicts: dict[str, dict] = {}
     results_dir = REPO_ROOT / "outputs" / "results"
     if not results_dir.exists():
         return verdicts
@@ -145,7 +145,10 @@ def load_verdicts() -> dict[str, str]:
             detect_id = data.get("detect_id", "")
             verdict = data.get("verdict", "")
             if detect_id and verdict:
-                verdicts[detect_id] = verdict
+                verdicts[detect_id] = {
+                    "verdict": verdict,
+                    "run_id": data.get("run_id", ""),
+                }
         except Exception:
             pass
     return verdicts
@@ -215,7 +218,9 @@ def generate_stats() -> dict:
         for tactic in tactics:
             by_tactic[tactic] = by_tactic.get(tactic, 0) + 1
 
-        verdict = verdicts.get(detect_id, "N/A")
+        v_data = verdicts.get(detect_id, {})
+        verdict = v_data.get("verdict", "N/A")
+        run_id = v_data.get("run_id", "")
         if verdict == "PASS":
             verified_pass += 1
         elif verdict == "FAIL":
@@ -230,6 +235,7 @@ def generate_stats() -> dict:
             "status": status,
             "source": "sigma",
             "verdict": verdict,
+            "run_id": run_id,
             "tactics": tactics,
             "techniques": techniques,
             "file_path": rule.get("_file_path", ""),
@@ -250,7 +256,9 @@ def generate_stats() -> dict:
         for tactic in tactics:
             by_tactic[tactic] = by_tactic.get(tactic, 0) + 1
 
-        verdict = verdicts.get(detect_id, "N/A")
+        v_data = verdicts.get(detect_id, {})
+        verdict = v_data.get("verdict", "N/A")
+        run_id = v_data.get("run_id", "")
         if verdict == "PASS":
             verified_pass += 1
         elif verdict == "FAIL":
@@ -265,6 +273,7 @@ def generate_stats() -> dict:
             "status": status,
             "source": "native_spl",
             "verdict": verdict,
+            "run_id": run_id,
             "tactics": tactics,
             "techniques": techniques,
             "file_path": rule.get("_file_path", ""),
@@ -372,7 +381,7 @@ def render_rule_summary(stats: dict, repo: str) -> str:
         f"*Generated at {stats['generated_at'][:19]} UTC — {stats['total_rules']} rules total*",
         "",
         "| ID | Title | Source | Tactic | Technique | Severity | Status | Verdict |",
-        "|:---|:------|:------:|:------:|:---------:|:--------:|:------:|:-------:|",
+        "|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|",
     ]
 
     for r in stats["rules"]:
@@ -386,7 +395,12 @@ def render_rule_summary(stats: dict, repo: str) -> str:
 
         lvl = r["level"]
         lvl_cell = LEVEL_BADGE.get(lvl, f"`{lvl}`") if lvl else "—"
-        verdict_cell = VERDICT_BADGE.get(r["verdict"], r["verdict"])
+        run_id = r.get("run_id", "")
+        badge_img = VERDICT_BADGE.get(r["verdict"], r["verdict"])
+        if run_id:
+            verdict_cell = f"[{badge_img}](https://github.com/{repo}/actions/runs/{run_id})"
+        else:
+            verdict_cell = badge_img
         source_cell = "Sigma" if r.get("source") == "sigma" else "Native&nbsp;SPL"
 
         tactics = r.get("tactics") or []
@@ -403,8 +417,9 @@ def render_rule_summary(stats: dict, repo: str) -> str:
         tech_links = [f"[{t}]({technique_url(t)})" for t in techniques]
         tech_cell = "<br>".join(tech_links) if tech_links else "—"
 
+        title_cell = f"<nobr>{r['title']}</nobr>"
         lines.append(
-            f"| {id_cell} | {r['title']} | {source_cell} | {tactic_cell} | {tech_cell} | {lvl_cell} | {r['status']} | {verdict_cell} |"
+            f"| {id_cell} | {title_cell} | {source_cell} | {tactic_cell} | {tech_cell} | {lvl_cell} | {r['status']} | {verdict_cell} |"
         )
 
     return "\n".join(lines) + "\n"

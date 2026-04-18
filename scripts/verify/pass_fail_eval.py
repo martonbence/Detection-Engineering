@@ -105,6 +105,10 @@ def main(argv: list[str]) -> int:
         "--max-pass", type=int, default=10,
         help="Maximum event count for PASS (default: 10)",
     )
+    parser.add_argument(
+        "--run-id", default="",
+        help="GitHub Actions run ID (${{ github.run_id }})",
+    )
     args = parser.parse_args(argv)
 
     matched_dir = Path(args.matched_events_dir)
@@ -152,6 +156,7 @@ def main(argv: list[str]) -> int:
             "run_timestamp": run_ts,
             "rule_version": summary.get("rule_version", ""),
             "git_sha": summary.get("git_sha", ""),
+            "run_id": args.run_id,
         }
 
         rule_results_dir = results_dir / detect_id
