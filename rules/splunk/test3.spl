@@ -5,7 +5,7 @@ META_START
   "detect_id": "DETECT-2026-0003",
   "description": "Test Sigma rule for demonstration purposes.",
   "sigma_file": "No Sigma source is associated with this detection; it was authored natively as an SPL rule.",
-  "level": "low",
+  "level": "critical",
   "status": "test",
   "author": "Bence Marton",
   "date": "2026-04-17",
