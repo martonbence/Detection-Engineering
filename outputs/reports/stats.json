@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-17T15:39:29.966928+00:00",
+  "generated_at": "2026-04-18T07:24:11.614757+00:00",
   "total_rules": 4,
   "total_sigma_rules": 3,
   "total_splunk_rules": 4,
@@ -17,7 +17,7 @@
     "test": 4
   },
   "by_tactic": {
-    "Execution": 3,
+    "Execution": 4,
     "Persistence": 1
   },
   "rules": [
@@ -27,7 +27,15 @@
       "level": "medium",
       "status": "test",
       "source": "sigma",
-      "verdict": "PASS"
+      "verdict": "PASS",
+      "tactics": [
+        "Persistence",
+        "Execution"
+      ],
+      "techniques": [
+        "T1053.005"
+      ],
+      "file_path": "rules/sigma/test1.sigma.yml"
     },
     {
       "detect_id": "DETECT-2026-0002",
@@ -35,7 +43,14 @@
       "level": "low",
       "status": "test",
       "source": "sigma",
-      "verdict": "PASS"
+      "verdict": "PASS",
+      "tactics": [
+        "Execution"
+      ],
+      "techniques": [
+        "T1059.001"
+      ],
+      "file_path": "rules/sigma/test2.sigma.yml"
     },
     {
       "detect_id": "DETECT-2026-0003",
@@ -43,7 +58,14 @@
       "level": "low",
       "status": "test",
       "source": "native_spl",
-      "verdict": "PASS"
+      "verdict": "PASS",
+      "tactics": [
+        "Execution"
+      ],
+      "techniques": [
+        "T1059.001"
+      ],
+      "file_path": "rules/splunk/test3.spl"
     },
     {
       "detect_id": "DETECT-2026-0004",
@@ -51,7 +73,14 @@
       "level": "low",
       "status": "test",
       "source": "sigma",
-      "verdict": "PASS"
+      "verdict": "PASS",
+      "tactics": [
+        "Execution"
+      ],
+      "techniques": [
+        "T1059.001"
+      ],
+      "file_path": "rules/sigma/test4.sigma.yml"
     }
   ]
 }

@@ -24,16 +24,11 @@ pie title Rules by Severity
 xychart-beta
     title "Rules by MITRE ATT&CK Tactic"
     x-axis ["Execution", "Persistence"]
-    y-axis "Rule Count" 0 --> 4
-    bar [3, 1]
+    y-axis "Rule Count" 0 --> 5
+    bar [4, 1]
 ```
 
-| ID | Title | Source | Severity | Status | Verdict |
-|:---|:------|:------:|:--------:|:------:|:-------:|
-| `DETECT-2026-0001` | Scheduled Task Creation via schtasks.exe | Sigma | 🟡 Medium | test | ✅ PASS |
-| `DETECT-2026-0002` | Test Sigma Rule | Sigma | 🟢 Low | test | ✅ PASS |
-| `DETECT-2026-0003` | Test3 | Native SPL | 🟢 Low | test | ✅ PASS |
-| `DETECT-2026-0004` | Test Sigma Rule | Sigma | 🟢 Low | test | ✅ PASS |
+📋 Full rule index → [rules/RULE_SUMMARY.md](https://github.com/martonbence/Detection-Engineering/blob/main/rules/RULE_SUMMARY.md)
 
-*Generated at 2026-04-17T15:39:29 UTC*
+*Generated at 2026-04-18T07:24:11 UTC*
 <!-- STATS_END -->
