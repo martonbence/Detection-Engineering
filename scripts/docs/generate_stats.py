@@ -363,7 +363,7 @@ def render_readme_section(stats: dict, repo: str) -> str:
         },
         "options": {
             "cutoutPercentage": 45,
-            "layout": {"padding": 10},
+            "layout": {"padding": 0},
             "plugins": {
                 "legend": False,
                 "outlabels": {
@@ -373,7 +373,7 @@ def render_readme_section(stats: dict, repo: str) -> str:
                     "lineColor": "rgba(85, 85, 85,1)",
                     "borderRadius": 13,
                     "padding": 6,
-                    "stretch": 30,
+                    "stretch": 25,
                     "font": {
                         "weight": "bold",
                         "resizable": True,
