@@ -17,6 +17,7 @@ import html as _html
 import json
 import re
 import sys
+import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -329,22 +330,36 @@ def render_readme_section(stats: dict, repo: str) -> str:
         lines.append(row)
     lines.append("")
 
-    # --- Severity distribution badges ---
+    # --- Severity doughnut chart via quickchart.io ---
     level_order = ["critical", "high", "medium", "low", "informational"]
-    level_colors = {
-        "critical": "7B0000",
-        "high":     "DC2626",
-        "medium":   "FFAA00",
-        "low":      "2EA44F",
-        "informational": "6E7681",
+    level_colors = ["#7B0000", "#DC2626", "#FFAA00", "#2EA44F", "#6E7681"]
+    chart_labels = [lvl.capitalize() for lvl in level_order]
+    chart_data = [stats["by_level"].get(lvl, 0) for lvl in level_order]
+    chart_cfg = {
+        "type": "doughnut",
+        "data": {
+            "labels": chart_labels,
+            "datasets": [{
+                "data": chart_data,
+                "backgroundColor": level_colors,
+            }],
+        },
+        "options": {
+            "plugins": {
+                "legend": {
+                    "position": "right",
+                    "labels": {"color": "#24292f", "font": {"size": 13}},
+                },
+            },
+        },
     }
-    sev_badges = []
-    for lvl in level_order:
-        cnt = stats["by_level"].get(lvl, 0)
-        color = level_colors[lvl]
-        label = lvl.capitalize()
-        sev_badges.append(f"![](https://img.shields.io/badge/{label}-{cnt}-{color}?style=flat-square)")
-    lines += ["**Rules by Severity**", "", " ".join(sev_badges), ""]
+    chart_json = json.dumps(chart_cfg, separators=(",", ":"))
+    chart_url = (
+        "https://quickchart.io/chart?c="
+        + urllib.parse.quote(chart_json)
+        + "&width=420&height=200&backgroundColor=white"
+    )
+    lines += ["**Rules by Severity**", "", f"![Rules by Severity]({chart_url})", ""]
 
     # --- MITRE ATT&CK tactic bar chart ---
     if stats["by_tactic"]:
