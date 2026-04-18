@@ -1,7 +1,7 @@
 title: Test Sigma Rule
 id: b835ac80-6e0e-4353-bbc3-1d96d6541d86
 detect_id: DETECT-2026-0004
-status: test
+status: stable
 description: Test Sigma rule for demonstration purposes.
 author: Bence Marton
 date: 2026-01-03
@@ -39,7 +39,7 @@ fields:
 falsepositives:
   - Legitimate administrative scripts using EncodedCommand
 
-level: low
+level: high
 
 custom:
   splunk:

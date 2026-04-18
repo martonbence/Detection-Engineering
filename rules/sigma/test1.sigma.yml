@@ -1,7 +1,7 @@
 title: Scheduled Task Creation via schtasks.exe
 id: a3f2c810-7b1d-4e92-a5f3-2c84e1b67d20
 detect_id: DETECT-2026-0001
-status: test
+status: experimental
 description: Detects the creation of a scheduled task via schtasks.exe, a common
   persistence and lateral movement technique.
 author: Bence Marton
