@@ -1,6 +1,6 @@
 # Rule Summary
 
-*Generated at 2026-04-18T09:39:59 UTC — 4 rules total*
+*Generated at 2026-04-18T10:33:30 UTC — 4 rules total*
 
 | ID | Title | Source | Tactic | Technique | Severity | Status | Verdict |
 |:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|

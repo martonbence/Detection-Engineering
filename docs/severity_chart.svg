@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="500" height="210" viewBox="0 0 500 210">
+  <rect width="500" height="210" fill="white" rx="10"/>
+  <text x="250" y="20" text-anchor="middle" font-size="14" font-weight="600" fill="#24292f" font-family="sans-serif">Rules by Severity</text>
+  <path d="M 112.00,20.00 A 88,88 0 0,1 200.00,108.00 L 160.00,108.00 A 48,48 0 0,0 112.00,60.00 Z" fill="#7B0000" stroke="white" stroke-width="2"/>
+  <path d="M 200.00,108.00 A 88,88 0 0,1 112.00,196.00 L 112.00,156.00 A 48,48 0 0,0 160.00,108.00 Z" fill="#DC2626" stroke="white" stroke-width="2"/>
+  <path d="M 112.00,196.00 A 88,88 0 0,1 24.00,108.00 L 64.00,108.00 A 48,48 0 0,0 112.00,156.00 Z" fill="#FFAA00" stroke="white" stroke-width="2"/>
+  <path d="M 24.00,108.00 A 88,88 0 0,1 112.00,20.00 L 112.00,60.00 A 48,48 0 0,0 64.00,108.00 Z" fill="#2EA44F" stroke="white" stroke-width="2"/>
+  <text text-anchor="middle" font-family="sans-serif"><tspan x="160.1" y="53.9" font-size="12" font-weight="700" fill="#ffffff">1</tspan><tspan x="160.1" y="67.9" font-size="10" fill="#ffffff">25%</tspan></text>
+  <text text-anchor="middle" font-family="sans-serif"><tspan x="160.1" y="150.1" font-size="12" font-weight="700" fill="#ffffff">1</tspan><tspan x="160.1" y="164.1" font-size="10" fill="#ffffff">25%</tspan></text>
+  <text text-anchor="middle" font-family="sans-serif"><tspan x="63.9" y="150.1" font-size="12" font-weight="700" fill="#111111">1</tspan><tspan x="63.9" y="164.1" font-size="10" fill="#111111">25%</tspan></text>
+  <text text-anchor="middle" font-family="sans-serif"><tspan x="63.9" y="53.9" font-size="12" font-weight="700" fill="#ffffff">1</tspan><tspan x="63.9" y="67.9" font-size="10" fill="#ffffff">25%</tspan></text>
+  <rect x="232" y="28" width="18" height="18" rx="4" fill="#7B0000"/><text x="258" y="41" font-size="13" fill="#24292f" font-family="sans-serif">Critical<tspan font-weight="700"> 1</tspan><tspan fill="#666666"> (25%)</tspan></text>
+  <rect x="232" y="60" width="18" height="18" rx="4" fill="#DC2626"/><text x="258" y="73" font-size="13" fill="#24292f" font-family="sans-serif">High<tspan font-weight="700"> 1</tspan><tspan fill="#666666"> (25%)</tspan></text>
+  <rect x="232" y="92" width="18" height="18" rx="4" fill="#FFAA00"/><text x="258" y="105" font-size="13" fill="#24292f" font-family="sans-serif">Medium<tspan font-weight="700"> 1</tspan><tspan fill="#666666"> (25%)</tspan></text>
+  <rect x="232" y="124" width="18" height="18" rx="4" fill="#2EA44F"/><text x="258" y="137" font-size="13" fill="#24292f" font-family="sans-serif">Low<tspan font-weight="700"> 1</tspan><tspan fill="#666666"> (25%)</tspan></text>
+  <rect x="232" y="156" width="18" height="18" rx="4" fill="#6E7681"/><text x="258" y="169" font-size="13" fill="#24292f" font-family="sans-serif">Informational<tspan font-weight="700"> 0</tspan><tspan fill="#666666"> (0%)</tspan></text>
+</svg>
