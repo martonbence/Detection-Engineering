@@ -356,7 +356,8 @@ def render_readme_section(stats: dict, repo: str) -> str:
             "datasets": [{
                 "backgroundColor": [level_colors_map[lvl] for lvl, _ in active],
                 "borderColor": "black",
-                "borderWidth": 1,
+                "borderWidth": 0.5,
+                "hoverOffset": 8,
                 "data": [cnt for _, cnt in active],
             }],
         },
@@ -368,8 +369,8 @@ def render_readme_section(stats: dict, repo: str) -> str:
                 "outlabels": {
                     "text": "%l: %v (%p)",
                     "color": "white",
-                    "backgroundColor": "rgba(0,0,0,1)",
-                    "lineColor": "black",
+                    "backgroundColor": "rgba(116, 115, 122,1)",
+                    "lineColor": "rgba(116, 115, 122,1)",
                     "borderRadius": 13,
                     "padding": 8,
                     "stretch": 30,
@@ -379,6 +380,7 @@ def render_readme_section(stats: dict, repo: str) -> str:
                         "minSize": 13,
                         "maxSize": 22,
                     },
+                    "formatter": "(value) => value > 0 ? value : null",
                 },
             },
         },
