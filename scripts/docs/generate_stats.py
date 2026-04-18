@@ -1,5 +1,5 @@
 """
-generate_stats.py — Collect detection rule stats and update README.md.
+generate_stats.py — Collect detection rule stats and update README.md + RULE_SUMMARY.md.
 
 Reads:
   - rules/sigma/*.yml          — sigma rules (level, status, tags, detect_id)
@@ -9,6 +9,7 @@ Reads:
 Writes:
   - outputs/reports/stats.json — consumed by shields.io dynamic badges
   - README.md                  — replaces content between <!-- STATS_START --> and <!-- STATS_END -->
+  - rules/RULE_SUMMARY.md      — full rule index with MITRE links
 """
 
 import json
@@ -38,6 +39,23 @@ TACTIC_MAP = {
     "impact": "Impact",
 }
 
+TACTIC_ID_MAP = {
+    "Reconnaissance": "TA0043",
+    "Resource Development": "TA0042",
+    "Initial Access": "TA0001",
+    "Execution": "TA0002",
+    "Persistence": "TA0003",
+    "Privilege Escalation": "TA0004",
+    "Defense Evasion": "TA0005",
+    "Credential Access": "TA0006",
+    "Discovery": "TA0007",
+    "Lateral Movement": "TA0008",
+    "Collection": "TA0009",
+    "Command & Control": "TA0011",
+    "Exfiltration": "TA0010",
+    "Impact": "TA0040",
+}
+
 LEVEL_EMOJI = {
     "critical": "🔴",
     "high": "🟠",
@@ -62,6 +80,7 @@ def load_sigma_rules() -> list[dict]:
         try:
             data = yaml.safe_load(p.read_text(encoding="utf-8"))
             if isinstance(data, dict):
+                data["_file_path"] = f"rules/sigma/{p.name}"
                 rules.append(data)
         except Exception:
             pass
@@ -93,6 +112,7 @@ def load_native_spl_rules() -> list[dict]:
             if m:
                 meta = json.loads(m.group(1))
                 if isinstance(meta, dict):
+                    meta["_file_path"] = f"rules/splunk/{p.name}"
                     rules.append(meta)
         except Exception:
             pass
@@ -127,6 +147,22 @@ def extract_tactics(tags: list) -> list[str]:
     return tactics
 
 
+def extract_techniques(tags: list) -> list[str]:
+    """Returns technique IDs like ['T1053.005', 'T1059'] from sigma tags."""
+    techniques = []
+    for tag in tags or []:
+        m = re.match(r"attack\.(t\d+(?:\.\d+)?)", str(tag).lower())
+        if m:
+            techniques.append(m.group(1).upper())
+    return techniques
+
+
+def technique_url(tech: str) -> str:
+    """T1053.005 → https://attack.mitre.org/techniques/T1053/005/"""
+    parts = tech.split(".")
+    return "https://attack.mitre.org/techniques/" + "/".join(parts) + "/"
+
+
 def pass_rate_color(pct: int) -> str:
     if pct >= 80:
         return "brightgreen"
@@ -156,11 +192,13 @@ def generate_stats() -> dict:
         level = str(rule.get("level") or "").lower()
         status = str(rule.get("status") or "").lower()
         tags = rule.get("tags") or []
+        tactics = extract_tactics(tags)
+        techniques = extract_techniques(tags)
 
         by_level[level] = by_level.get(level, 0) + 1
         by_status[status] = by_status.get(status, 0) + 1
 
-        for tactic in extract_tactics(tags):
+        for tactic in tactics:
             by_tactic[tactic] = by_tactic.get(tactic, 0) + 1
 
         verdict = verdicts.get(detect_id, "N/A")
@@ -178,6 +216,9 @@ def generate_stats() -> dict:
             "status": status,
             "source": "sigma",
             "verdict": verdict,
+            "tactics": tactics,
+            "techniques": techniques,
+            "file_path": rule.get("_file_path", ""),
         })
 
     for rule in native_spl_rules:
@@ -185,9 +226,15 @@ def generate_stats() -> dict:
         title = str(rule.get("title") or "")
         level = str(rule.get("level") or "").lower()
         status = str(rule.get("status") or "").lower()
+        tags = rule.get("tags") or []
+        tactics = extract_tactics(tags)
+        techniques = extract_techniques(tags)
 
         by_level[level] = by_level.get(level, 0) + 1
         by_status[status] = by_status.get(status, 0) + 1
+
+        for tactic in tactics:
+            by_tactic[tactic] = by_tactic.get(tactic, 0) + 1
 
         verdict = verdicts.get(detect_id, "N/A")
         if verdict == "PASS":
@@ -204,6 +251,9 @@ def generate_stats() -> dict:
             "status": status,
             "source": "native_spl",
             "verdict": verdict,
+            "tactics": tactics,
+            "techniques": techniques,
+            "file_path": rule.get("_file_path", ""),
         })
 
     total_sigma = len(sigma_rules)
@@ -292,26 +342,57 @@ def render_readme_section(stats: dict, repo: str) -> str:
             "",
         ]
 
-    # --- Rule table ---
     lines += [
-        "| ID | Title | Source | Severity | Status | Verdict |",
-        "|:---|:------|:------:|:--------:|:------:|:-------:|",
-    ]
-    for r in stats["rules"]:
-        lvl = r["level"]
-        lvl_cell = f"{LEVEL_EMOJI.get(lvl, '')} {lvl.capitalize()}" if lvl else "—"
-        verdict_cell = VERDICT_EMOJI.get(r["verdict"], r["verdict"])
-        source_cell = "Sigma" if r.get("source") == "sigma" else "Native SPL"
-        lines.append(
-            f"| `{r['detect_id']}` | {r['title']} | {source_cell} | {lvl_cell} | {r['status']} | {verdict_cell} |"
-        )
-
-    lines += [
+        f"📋 Full rule index → [rules/RULE_SUMMARY.md](https://github.com/{repo}/blob/main/rules/RULE_SUMMARY.md)",
         "",
         f"*Generated at {stats['generated_at'][:19]} UTC*",
     ]
 
     return "\n".join(lines)
+
+
+def render_rule_summary(stats: dict, repo: str) -> str:
+    lines: list[str] = [
+        "# Rule Summary",
+        "",
+        f"*Generated at {stats['generated_at'][:19]} UTC — {stats['total_rules']} rules total*",
+        "",
+        "| ID | Title | Source | Tactic | Technique | Severity | Status | Verdict |",
+        "|:---|:------|:------:|:------:|:---------:|:--------:|:------:|:-------:|",
+    ]
+
+    for r in stats["rules"]:
+        detect_id = r["detect_id"]
+        file_path = r.get("file_path", "")
+        if file_path:
+            id_cell = f"[`{detect_id}`](https://github.com/{repo}/blob/main/{file_path})"
+        else:
+            id_cell = f"`{detect_id}`"
+
+        lvl = r["level"]
+        lvl_cell = f"{LEVEL_EMOJI.get(lvl, '')} {lvl.capitalize()}" if lvl else "—"
+        verdict_cell = VERDICT_EMOJI.get(r["verdict"], r["verdict"])
+        source_cell = "Sigma" if r.get("source") == "sigma" else "Native SPL"
+
+        tactics = r.get("tactics") or []
+        tactic_links = []
+        for t in tactics:
+            ta_id = TACTIC_ID_MAP.get(t, "")
+            if ta_id:
+                tactic_links.append(f"[{t}](https://attack.mitre.org/tactics/{ta_id}/)")
+            else:
+                tactic_links.append(t)
+        tactic_cell = ", ".join(tactic_links) if tactic_links else "—"
+
+        techniques = r.get("techniques") or []
+        tech_links = [f"[{t}]({technique_url(t)})" for t in techniques]
+        tech_cell = ", ".join(tech_links) if tech_links else "—"
+
+        lines.append(
+            f"| {id_cell} | {r['title']} | {source_cell} | {tactic_cell} | {tech_cell} | {lvl_cell} | {r['status']} | {verdict_cell} |"
+        )
+
+    return "\n".join(lines) + "\n"
 
 
 def update_readme(section_content: str) -> None:
@@ -335,6 +416,11 @@ def update_readme(section_content: str) -> None:
     readme.write_text(text, encoding="utf-8")
 
 
+def update_rule_summary(content: str) -> None:
+    out_path = REPO_ROOT / "rules" / "RULE_SUMMARY.md"
+    out_path.write_text(content, encoding="utf-8")
+
+
 def main() -> int:
     repo = "martonbence/Detection-Engineering"
 
@@ -354,6 +440,11 @@ def main() -> int:
     section = render_readme_section(stats, repo)
     update_readme(section)
     print("README.md updated.")
+
+    summary = render_rule_summary(stats, repo)
+    update_rule_summary(summary)
+    print("rules/RULE_SUMMARY.md updated.")
+
     return 0
 
 
