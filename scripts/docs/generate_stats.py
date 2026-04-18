@@ -239,10 +239,10 @@ def render_readme_section(stats: dict, repo: str) -> str:
     encoded_url = raw_base.replace(":", "%3A").replace("/", "%2F")
     b = f"https://img.shields.io/badge/dynamic/json?style=flat-square&url={encoded_url}"
 
-    row1 = f"![Total Rules]({b}&query=%24.total_rules&label=Total%20Rules&color=informational)"
+    row1 = f"[![Total Rules]({b}&query=%24.total_rules&label=Total%20Rules&color=informational)](https://github.com/martonbence/Detection-Engineering/tree/main/rules)"
     row2 = " ".join([
-        f"![Sigma Rules]({b}&query=%24.total_sigma_rules&label=Sigma%20Rules&color=00ACD7)",
-        f"![Native SPL]({b}&query=%24.total_native_spl_rules&label=Native%20SPL&color=FF6600)",
+        f"[![Sigma Rules]({b}&query=%24.total_sigma_rules&label=Sigma%20Rules&color=00ACD7)](https://github.com/martonbence/Detection-Engineering/tree/main/rules/sigma)",
+        f"[![Native SPL]({b}&query=%24.total_native_spl_rules&label=Native%20SPL&color=FF6600)](https://github.com/martonbence/Detection-Engineering/tree/main/rules/splunk)",
     ])
     row3 = " ".join([
         f"![Pass]({b}&query=%24.verified_pass&label=Pass&color=brightgreen)",
