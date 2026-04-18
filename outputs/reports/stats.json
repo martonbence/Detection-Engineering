@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-18T07:46:22.699835+00:00",
+  "generated_at": "2026-04-18T08:07:08.050632+00:00",
   "total_rules": 4,
   "total_sigma_rules": 3,
   "total_splunk_rules": 4,
@@ -10,11 +10,15 @@
   "pass_rate_pct": 100,
   "pass_rate_color": "brightgreen",
   "by_level": {
-    "low": 3,
+    "critical": 1,
+    "high": 1,
+    "low": 1,
     "medium": 1
   },
   "by_status": {
-    "test": 4
+    "experimental": 1,
+    "stable": 1,
+    "test": 2
   },
   "by_tactic": {
     "Execution": 4,
@@ -25,7 +29,7 @@
       "detect_id": "DETECT-2026-0001",
       "title": "Scheduled Task Creation via schtasks.exe",
       "level": "medium",
-      "status": "test",
+      "status": "experimental",
       "source": "sigma",
       "verdict": "PASS",
       "run_id": "",
@@ -57,11 +61,11 @@
     {
       "detect_id": "DETECT-2026-0003",
       "title": "Test3",
-      "level": "low",
+      "level": "critical",
       "status": "test",
       "source": "native_spl",
       "verdict": "PASS",
-      "run_id": "",
+      "run_id": "24600422604",
       "tactics": [
         "Execution"
       ],
@@ -73,8 +77,8 @@
     {
       "detect_id": "DETECT-2026-0004",
       "title": "Test Sigma Rule",
-      "level": "low",
-      "status": "test",
+      "level": "high",
+      "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
       "run_id": "",

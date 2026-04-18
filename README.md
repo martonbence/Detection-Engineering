@@ -16,8 +16,10 @@ pie title Verification Status
 
 ```mermaid
 pie title Rules by Severity
+    "🔴 Critical" : 1
+    "🟠 High" : 1
     "🟡 Medium" : 1
-    "🟢 Low" : 3
+    "🟢 Low" : 1
 ```
 
 ```mermaid
@@ -30,5 +32,5 @@ xychart-beta
 
 📋 Full rule index → [rules/RULE_SUMMARY.md](https://github.com/martonbence/Detection-Engineering/blob/main/rules/RULE_SUMMARY.md)
 
-*Generated at 2026-04-18T07:46:22 UTC*
+*Generated at 2026-04-18T08:07:08 UTC*
 <!-- STATS_END -->
