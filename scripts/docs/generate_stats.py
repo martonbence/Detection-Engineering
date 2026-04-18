@@ -15,7 +15,6 @@ Writes:
 
 import html as _html
 import json
-import math
 import re
 import sys
 import urllib.parse
@@ -331,8 +330,62 @@ def render_readme_section(stats: dict, repo: str) -> str:
         lines.append(row)
     lines.append("")
 
-    # --- Severity doughnut chart (SVG) ---
-    lines += ["**Rules by Severity**", "", "![Rules by Severity](docs/severity_chart.svg)", ""]
+    # --- Severity outlabeledPie chart via quickchart.io ---
+    level_order = ["critical", "high", "medium", "low", "informational"]
+    level_colors_map = {
+        "critical":      "#7B0000",
+        "high":          "#DC2626",
+        "medium":        "#FFAA00",
+        "low":           "#2EA44F",
+        "informational": "#6E7681",
+    }
+    level_display = {
+        "critical": "Critical", "high": "High", "medium": "Medium",
+        "low": "Low", "informational": "Info",
+    }
+    active = [
+        (lvl, stats["by_level"].get(lvl, 0))
+        for lvl in level_order
+        if stats["by_level"].get(lvl, 0) > 0
+    ]
+    chart_cfg = {
+        "type": "outlabeledPie",
+        "backgroundColor": "transparent",
+        "data": {
+            "labels": [level_display[lvl] for lvl, _ in active],
+            "datasets": [{
+                "backgroundColor": [level_colors_map[lvl] for lvl, _ in active],
+                "borderColor": "black",
+                "borderWidth": 1,
+                "data": [cnt for _, cnt in active],
+            }],
+        },
+        "options": {
+            "cutoutPercentage": 45,
+            "layout": {"padding": 10},
+            "plugins": {
+                "legend": False,
+                "outlabels": {
+                    "text": "%l: %v (%p)",
+                    "color": "white",
+                    "backgroundColor": "rgba(0,0,0,1)",
+                    "lineColor": "black",
+                    "borderRadius": 13,
+                    "padding": 8,
+                    "stretch": 30,
+                    "font": {
+                        "weight": "bold",
+                        "resizable": True,
+                        "minSize": 13,
+                        "maxSize": 22,
+                    },
+                },
+            },
+        },
+    }
+    chart_json = json.dumps(chart_cfg, separators=(",", ":"))
+    chart_url = "https://quickchart.io/chart?c=" + urllib.parse.quote(chart_json) + "&width=500&height=300"
+    lines += ["**Rules by Severity**", "", f"![Rules by Severity]({chart_url})", ""]
 
     # --- MITRE ATT&CK tactic bar chart ---
     if stats["by_tactic"]:
@@ -408,125 +461,6 @@ def render_rule_summary(stats: dict, repo: str) -> str:
         )
 
     return "\n".join(lines) + "\n"
-
-
-def render_severity_svg(stats: dict) -> str:
-    level_order = ["critical", "high", "medium", "low", "informational"]
-    level_colors = {
-        "critical":      "#7B0000",
-        "high":          "#DC2626",
-        "medium":        "#FFAA00",
-        "low":           "#2EA44F",
-        "informational": "#6E7681",
-    }
-    label_fg = {
-        "critical":      "#ffffff",
-        "high":          "#ffffff",
-        "medium":        "#111111",
-        "low":           "#ffffff",
-        "informational": "#ffffff",
-    }
-
-    counts = {lvl: stats["by_level"].get(lvl, 0) for lvl in level_order}
-    total = sum(counts.values())
-
-    W, H = 500, 210
-    cx, cy = 112, 108
-    R, r = 88, 48
-
-    slices_svg: list[str] = []
-    labels_svg: list[str] = []
-
-    nonzero = [lvl for lvl in level_order if counts[lvl] > 0]
-
-    if len(nonzero) == 1:
-        lvl = nonzero[0]
-        color = level_colors[lvl]
-        fg = label_fg[lvl]
-        slices_svg.append(f'<circle cx="{cx}" cy="{cy}" r="{R}" fill="{color}"/>')
-        slices_svg.append(f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="white"/>')
-        mid_r = (R + r) / 2
-        labels_svg.append(
-            f'<text text-anchor="middle" font-family="sans-serif">'
-            f'<tspan x="{cx}" y="{cy - 6}" font-size="13" font-weight="700" fill="{fg}">{counts[lvl]}</tspan>'
-            f'<tspan x="{cx}" y="{cy + 10}" font-size="11" fill="{fg}">100%</tspan>'
-            f'</text>'
-        )
-    elif total > 0:
-        angle = -math.pi / 2
-        for lvl in level_order:
-            count = counts[lvl]
-            if count == 0:
-                continue
-            fraction = count / total
-            sweep = 2 * math.pi * fraction
-            end_angle = angle + sweep
-            large = 1 if sweep > math.pi else 0
-
-            x1 = cx + R * math.cos(angle)
-            y1 = cy + R * math.sin(angle)
-            x2 = cx + R * math.cos(end_angle)
-            y2 = cy + R * math.sin(end_angle)
-            x3 = cx + r * math.cos(end_angle)
-            y3 = cy + r * math.sin(end_angle)
-            x4 = cx + r * math.cos(angle)
-            y4 = cy + r * math.sin(angle)
-
-            slices_svg.append(
-                f'<path d="M {x1:.2f},{y1:.2f} A {R},{R} 0 {large},1 {x2:.2f},{y2:.2f} '
-                f'L {x3:.2f},{y3:.2f} A {r},{r} 0 {large},0 {x4:.2f},{y4:.2f} Z" '
-                f'fill="{level_colors[lvl]}" stroke="white" stroke-width="2"/>'
-            )
-
-            if fraction >= 0.10:
-                mid = angle + sweep / 2
-                mid_r = (R + r) / 2
-                lx = cx + mid_r * math.cos(mid)
-                ly = cy + mid_r * math.sin(mid)
-                pct = round(fraction * 100)
-                fg = label_fg[lvl]
-                labels_svg.append(
-                    f'<text text-anchor="middle" font-family="sans-serif">'
-                    f'<tspan x="{lx:.1f}" y="{ly - 6:.1f}" font-size="12" font-weight="700" fill="{fg}">{count}</tspan>'
-                    f'<tspan x="{lx:.1f}" y="{ly + 8:.1f}" font-size="10" fill="{fg}">{pct}%</tspan>'
-                    f'</text>'
-                )
-
-            angle = end_angle
-
-    # Legend
-    lx0 = 232
-    legend_svg: list[str] = []
-    for i, lvl in enumerate(level_order):
-        count = counts[lvl]
-        pct = round(count / total * 100) if total > 0 else 0
-        color = level_colors[lvl]
-        ry = 28 + i * 32
-        legend_svg.append(
-            f'<rect x="{lx0}" y="{ry}" width="18" height="18" rx="4" fill="{color}"/>'
-            f'<text x="{lx0 + 26}" y="{ry + 13}" font-size="13" fill="#24292f" font-family="sans-serif">'
-            f'{lvl.capitalize()}'
-            f'<tspan font-weight="700"> {count}</tspan>'
-            f'<tspan fill="#666666"> ({pct}%)</tspan>'
-            f'</text>'
-        )
-
-    return (
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">\n'
-        f'  <rect width="{W}" height="{H}" fill="white" rx="10"/>\n'
-        f'  <text x="{W // 2}" y="20" text-anchor="middle" font-size="14" font-weight="600" '
-        f'fill="#24292f" font-family="sans-serif">Rules by Severity</text>\n'
-        + "".join(f"  {s}\n" for s in slices_svg)
-        + "".join(f"  {s}\n" for s in labels_svg)
-        + "".join(f"  {s}\n" for s in legend_svg)
-        + "</svg>\n"
-    )
-
-
-def update_severity_svg(content: str) -> None:
-    out_path = REPO_ROOT / "docs" / "severity_chart.svg"
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(content, encoding="utf-8")
 
 
 def update_readme(section_content: str) -> None:
@@ -814,10 +748,6 @@ def main() -> int:
         f"{stats['verified_pass']} pass / {stats['verified_fail']} fail / "
         f"{stats['not_verified']} not verified — pass rate: {stats['pass_rate_pct']}%"
     )
-
-    svg = render_severity_svg(stats)
-    update_severity_svg(svg)
-    print("docs/severity_chart.svg updated.")
 
     section = render_readme_section(stats, repo)
     update_readme(section)
