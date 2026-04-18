@@ -30,5 +30,5 @@ xychart-beta
 
 📋 Full rule index → [rules/RULE_SUMMARY.md](https://github.com/martonbence/Detection-Engineering/blob/main/rules/RULE_SUMMARY.md)
 
-*Generated at 2026-04-18T07:24:11 UTC*
+*Generated at 2026-04-18T07:31:16 UTC*
 <!-- STATS_END -->
