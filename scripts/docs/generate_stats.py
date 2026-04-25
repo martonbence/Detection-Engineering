@@ -272,31 +272,26 @@ def tactic_chart_url(by_tactic: dict) -> str:
         "options": {
             "scales": {
                 "xAxes": [{
+                    "display": False,
                     "gridLines": {
-                        "display": True,
+                        "display": False,
                         "drawOnChartArea": False,
-                        "tickMarkLength": 8,
-                        "zeroLineWidth": 1,
-                        "zeroLineColor": "black",
-                        "color": "black",
+                        "drawBorder": False,
                     },
                     "ticks": {
-                        "fontColor": "#57606a",
+                        "display": False,
                         "beginAtZero": True,
-                        "stepSize": 1,
-                        "precision": 0,
                     },
                 }],
                 "yAxes": [{
                     "display": True,
                     "position": "left",
                     "gridLines": {
-                        "display": True,
+                        "display": False,
                         "drawOnChartArea": False,
-                        "tickMarkLength": 8,
-                        "color": "black",
+                        "drawBorder": False,
                     },
-                    "ticks": {"fontColor": "#57606a"},
+                    "ticks": {"fontColor": "#FFAA00"},
                 }],
             },
             "legend": {"display": False},
