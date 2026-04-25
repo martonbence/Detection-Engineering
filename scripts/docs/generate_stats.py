@@ -249,6 +249,14 @@ def mitre_coverage_color(pct: float) -> str:
     return "#2EA44F"
 
 
+_LABEL_STYLE = {
+    "color": "white",
+    "backgroundColor": "rgba(85,85,85,1)",
+    "borderRadius": 13,
+    "padding": 6,
+}
+
+
 def mitre_coverage_chart_url(covered: int, total: int, pct: float) -> str:
     color = mitre_coverage_color(pct)
     cfg = {
@@ -257,6 +265,8 @@ def mitre_coverage_chart_url(covered: int, total: int, pct: float) -> str:
             "datasets": [{
                 "data": [covered, total - covered],
                 "backgroundColor": [color, "rgba(128,128,128,0.15)"],
+                "borderColor": "black",
+                "borderWidth": 0.5,
                 "borderRadius": 10,
                 "spacing": 1,
             }],
@@ -271,9 +281,9 @@ def mitre_coverage_chart_url(covered: int, total: int, pct: float) -> str:
                 "datalabels": {"display": False},
                 "doughnutlabel": {
                     "labels": [
-                        {"text": "MITRE ATT&CK Coverage", "font": {"size": 18}},
-                        {"text": f"{pct:.1f}%", "font": {"size": 36, "weight": "bold"}},
-                        {"text": f"{covered} / {total}", "font": {"size": 14}},
+                        {**_LABEL_STYLE, "text": "MITRE ATT&CK Coverage", "font": {"size": 18}},
+                        {**_LABEL_STYLE, "text": f"{pct:.1f}%", "font": {"size": 36, "weight": "bold"}},
+                        {**_LABEL_STYLE, "text": f"{covered} / {total}", "font": {"size": 14}},
                     ],
                 },
             },
