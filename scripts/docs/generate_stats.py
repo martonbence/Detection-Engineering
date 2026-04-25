@@ -250,61 +250,70 @@ def mitre_coverage_color(pct: float) -> str:
 
 
 def tactic_chart_url(by_tactic: dict) -> str:
-    """Polar Area chart: rules per MITRE ATT&CK tactic, sorted by count desc."""
+    """Horizontal bar chart: rules per MITRE ATT&CK tactic, sorted by count desc."""
     if not by_tactic:
         return ""
     tactics = sorted(by_tactic.items(), key=lambda x: -x[1])
     labels = [t for t, _ in tactics]
     values = [c for _, c in tactics]
-
-    # Colour palette: burgundy → red → orange → yellow-green → green, cycling if >5
-    palette = ["#7B0000", "#DC2626", "#FFAA00", "#2EA44F", "#0969DA",
-               "#9A3412", "#B45309", "#15803D", "#1D4ED8", "#7C3AED",
-               "#BE185D", "#0E7490", "#6B21A8", "#C2410C"]
-    colors = [palette[i % len(palette)] for i in range(len(tactics))]
-
+    height = max(160, len(tactics) * 36 + 70)
     cfg = {
-        "type": "polarArea",
+        "type": "horizontalBar",
         "data": {
             "labels": labels,
             "datasets": [{
+                "label": "Rules",
                 "data": values,
-                "backgroundColor": [c + "CC" for c in colors],  # ~80% opacity
-                "borderColor": colors,
-                "borderWidth": 1,
+                "backgroundColor": "#FFAA00",
+                "borderColor": "black",
+                "borderWidth": 0.5,
             }],
         },
         "options": {
-            "title": {
-                "display": True,
-                "text": "Rules per MITRE ATT&CK Tactic",
-                "fontColor": "#57606a",
-                "fontSize": 14,
+            "scales": {
+                "xAxes": [{
+                    "gridLines": {
+                        "display": True,
+                        "drawOnChartArea": False,
+                        "tickMarkLength": 8,
+                        "zeroLineWidth": 1,
+                        "zeroLineColor": "black",
+                        "color": "black",
+                    },
+                    "ticks": {
+                        "fontColor": "black",
+                        "beginAtZero": True,
+                        "stepSize": 1,
+                        "precision": 0,
+                    },
+                }],
+                "yAxes": [{
+                    "display": True,
+                    "position": "left",
+                    "gridLines": {
+                        "display": True,
+                        "drawOnChartArea": False,
+                        "tickMarkLength": 8,
+                        "color": "black",
+                    },
+                    "ticks": {"fontColor": "black"},
+                }],
             },
-            "legend": {
-                "display": True,
-                "position": "right",
-                "labels": {"fontColor": "#57606a", "fontSize": 11, "boxWidth": 12},
-            },
-            "scale": {
-                "ticks": {
-                    "beginAtZero": True,
-                    "stepSize": 1,
-                    "fontColor": "#57606a",
-                    "showLabelBackdrop": False,
-                },
-                "gridLines": {"color": "rgba(128,128,128,0.2)"},
-                "angleLines": {"color": "rgba(128,128,128,0.2)"},
-            },
+            "legend": {"display": False},
             "plugins": {
-                "datalabels": {"display": False},
+                "datalabels": {
+                    "anchor": "end",
+                    "align": "end",
+                    "color": "black",
+                    "font": {"size": 12, "weight": "bold"},
+                },
             },
         },
     }
     chart_json = json.dumps(cfg, separators=(",", ":"))
     return (
         "https://quickchart.io/chart?c=" + urllib.parse.quote(chart_json)
-        + "&width=560&height=300&f=svg"
+        + f"&width=500&height={height}&f=svg"
     )
 
 
