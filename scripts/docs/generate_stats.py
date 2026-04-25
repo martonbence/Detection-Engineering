@@ -320,13 +320,12 @@ def mitre_coverage_chart_url(covered: int, total: int, pct: float) -> str:
     per-label pill backgrounds are not achievable. The doughnutlabel plugin
     renders text with white color directly on the chart background.
     """
-    color = mitre_coverage_color(pct)
     cfg = {
         "type": "doughnut",
         "data": {
             "datasets": [{
                 "data": [covered, total - covered],
-                "backgroundColor": [color, "rgba(128,128,128,0.15)"],
+                "backgroundColor": ["#FFAA00", "rgba(128,128,128,0.15)"],
                 "borderColor": "black",
                 "borderWidth": 0.5,
             }],
@@ -341,9 +340,9 @@ def mitre_coverage_chart_url(covered: int, total: int, pct: float) -> str:
                 "datalabels": {"display": False},
                 "doughnutlabel": {
                     "labels": [
-                        {"text": "MITRE ATT&CK Coverage", "color": "#57606a", "font": {"size": 16}},
-                        {"text": f"{pct:.1f}%", "color": mitre_coverage_color(pct), "font": {"size": 34, "weight": "bold"}},
-                        {"text": f"{covered} / {total}", "color": "#57606a", "font": {"size": 13}},
+                        {"text": "MITRE ATT&CK Coverage", "color": "#FFAA00", "font": {"size": 18, "weight": "bold"}},
+                        {"text": f"{pct:.1f}%", "color": "#FFAA00", "font": {"size": 34, "weight": "bold"}},
+                        {"text": f"{covered} / {total}", "color": "#FFAA00", "font": {"size": 13}},
                     ],
                 },
             },
