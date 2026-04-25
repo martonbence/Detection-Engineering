@@ -278,9 +278,9 @@ def mitre_coverage_chart_url(covered: int, total: int, pct: float) -> str:
                 "datalabels": {"display": False},
                 "doughnutlabel": {
                     "labels": [
-                        {"text": "MITRE ATT&CK Coverage", "color": "white", "font": {"size": 16}},
-                        {"text": f"{pct:.1f}%", "color": "white", "font": {"size": 34, "weight": "bold"}},
-                        {"text": f"{covered} / {total}", "color": "white", "font": {"size": 13}},
+                        {"text": "MITRE ATT&CK Coverage", "color": "#24292f", "font": {"size": 16}},
+                        {"text": f"{pct:.1f}%", "color": mitre_coverage_color(pct), "font": {"size": 34, "weight": "bold"}},
+                        {"text": f"{covered} / {total}", "color": "#57606a", "font": {"size": 13}},
                     ],
                 },
             },
