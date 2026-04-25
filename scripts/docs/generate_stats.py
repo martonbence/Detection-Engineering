@@ -252,69 +252,42 @@ def mitre_coverage_color(pct: float) -> str:
 def mitre_coverage_chart_url(covered: int, total: int, pct: float) -> str:
     """Build a QuickChart URL for a half-doughnut MITRE coverage gauge.
 
-    Uses an inline afterDraw plugin to draw pill-shaped label backgrounds via
-    Canvas API — the doughnutlabel plugin does not support backgroundColor per label.
-    The config is passed as a JS literal (not JSON) so function bodies are valid.
+    QuickChart's server-side SVG renderer does not expose the Canvas 2D API
+    (beginPath, save, measureText, etc.) to custom afterDraw hooks, so
+    per-label pill backgrounds are not achievable. The doughnutlabel plugin
+    renders text with white color directly on the chart background.
     """
     color = mitre_coverage_color(pct)
-    pct_str = f"{pct:.1f}%"
-    ratio_str = f"{covered} / {total}"
-
-    # Three label rows: text, font-size, bold, vertical-offset from chart center.
-    # dy values are calculated so the three pills are evenly spaced and centered
-    # within the inner hole of the bottom-arc half-doughnut (cy ≈ canvas_height/2).
-    labels_js = (
-        "["
-        "{t:'MITRE ATT\\u0026CK Coverage',s:16,b:false,dy:-52},"
-        "{t:'" + pct_str + "',s:34,b:true,dy:2},"
-        "{t:'" + ratio_str + "',s:13,b:false,dy:53}"
-        "]"
-    )
-
-    # Rounded-rect helper drawn with quadraticCurveTo (no roundRect needed).
-    draw_pill = (
-        "ctx.beginPath();"
-        "ctx.moveTo(rx+r,ry);ctx.lineTo(rx+rw-r,ry);"
-        "ctx.quadraticCurveTo(rx+rw,ry,rx+rw,ry+r);"
-        "ctx.lineTo(rx+rw,ry+rh-r);"
-        "ctx.quadraticCurveTo(rx+rw,ry+rh,rx+rw-r,ry+rh);"
-        "ctx.lineTo(rx+r,ry+rh);"
-        "ctx.quadraticCurveTo(rx,ry+rh,rx,ry+rh-r);"
-        "ctx.lineTo(rx,ry+r);"
-        "ctx.quadraticCurveTo(rx,ry,rx+r,ry);"
-        "ctx.closePath();ctx.fill();"
-    )
-
-    js = (
-        "{type:'doughnut',"
-        "data:{datasets:[{"
-        "data:[" + str(covered) + "," + str(total - covered) + "],"
-        "backgroundColor:['" + color + "','rgba(128,128,128,0.15)'],"
-        "borderColor:'black',borderWidth:0.5,borderRadius:10,spacing:1"
-        "}]},"
-        "options:{"
-        "rotation:Math.PI,circumference:Math.PI,cutoutPercentage:80,"
-        "plugins:{legend:{display:false},tooltip:{enabled:false},datalabels:{display:false}}"
-        "},"
-        "plugins:[{afterDraw:function(c){"
-        "var ctx=c.ctx,"
-        "cx=(c.chartArea.left+c.chartArea.right)/2,"
-        "cy=(c.chartArea.top+c.chartArea.bottom)/2;"
-        "var labels=" + labels_js + ";"
-        "labels.forEach(function(l){"
-        "ctx.save();"
-        "ctx.font=(l.b?'bold ':'')+l.s+'px sans-serif';"
-        "var tw=ctx.measureText(l.t).width,p=8,r=13,"
-        "rx=cx-tw/2-p,ry=cy+l.dy-l.s*0.65-p,"
-        "rw=tw+p*2,rh=l.s*1.3+p*2;"
-        "ctx.fillStyle='rgba(85,85,85,1)';"
-        + draw_pill +
-        "ctx.fillStyle='white';ctx.textAlign='center';ctx.textBaseline='middle';"
-        "ctx.fillText(l.t,cx,cy+l.dy);"
-        "ctx.restore();"
-        "});}}]}"
-    )
-    return "https://quickchart.io/chart?c=" + urllib.parse.quote(js) + "&width=500&height=300&f=svg"
+    cfg = {
+        "type": "doughnut",
+        "data": {
+            "datasets": [{
+                "data": [covered, total - covered],
+                "backgroundColor": [color, "rgba(128,128,128,0.15)"],
+                "borderColor": "black",
+                "borderWidth": 0.5,
+            }],
+        },
+        "options": {
+            "rotation": math.pi,
+            "circumference": math.pi,
+            "cutoutPercentage": 80,
+            "plugins": {
+                "legend": {"display": False},
+                "tooltip": {"enabled": False},
+                "datalabels": {"display": False},
+                "doughnutlabel": {
+                    "labels": [
+                        {"text": "MITRE ATT&CK Coverage", "color": "white", "font": {"size": 16}},
+                        {"text": f"{pct:.1f}%", "color": "white", "font": {"size": 34, "weight": "bold"}},
+                        {"text": f"{covered} / {total}", "color": "white", "font": {"size": 13}},
+                    ],
+                },
+            },
+        },
+    }
+    chart_json = json.dumps(cfg, separators=(",", ":"))
+    return "https://quickchart.io/chart?c=" + urllib.parse.quote(chart_json) + "&width=500&height=300&f=svg"
 
 
 def generate_stats() -> dict:
