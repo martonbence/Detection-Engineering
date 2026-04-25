@@ -281,7 +281,7 @@ def tactic_chart_url(by_tactic: dict) -> str:
                         "color": "black",
                     },
                     "ticks": {
-                        "fontColor": "black",
+                        "fontColor": "#57606a",
                         "beginAtZero": True,
                         "stepSize": 1,
                         "precision": 0,
@@ -296,14 +296,14 @@ def tactic_chart_url(by_tactic: dict) -> str:
                         "tickMarkLength": 8,
                         "color": "black",
                     },
-                    "ticks": {"fontColor": "black"},
+                    "ticks": {"fontColor": "#57606a"},
                 }],
             },
             "legend": {"display": False},
             "plugins": {
                 "datalabels": {
                     "anchor": "end",
-                    "align": "end",
+                    "align": "start",
                     "color": "black",
                     "font": {"size": 12, "weight": "bold"},
                 },
