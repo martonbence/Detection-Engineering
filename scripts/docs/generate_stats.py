@@ -249,6 +249,65 @@ def mitre_coverage_color(pct: float) -> str:
     return "#2EA44F"
 
 
+def tactic_bar_chart_url(by_tactic: dict) -> str:
+    """Horizontal bar chart: rules per MITRE ATT&CK tactic, sorted by count desc."""
+    if not by_tactic:
+        return ""
+    tactics = sorted(by_tactic.items(), key=lambda x: -x[1])
+    labels = [t for t, _ in tactics]
+    values = [c for _, c in tactics]
+    height = max(150, len(tactics) * 36 + 70)
+    cfg = {
+        "type": "horizontalBar",
+        "data": {
+            "labels": labels,
+            "datasets": [{
+                "data": values,
+                "backgroundColor": "#7B0000",
+                "borderColor": "black",
+                "borderWidth": 0.5,
+            }],
+        },
+        "options": {
+            "title": {
+                "display": True,
+                "text": "Rules per MITRE ATT&CK Tactic",
+                "fontColor": "#57606a",
+                "fontSize": 14,
+            },
+            "legend": {"display": False},
+            "scales": {
+                "xAxes": [{
+                    "ticks": {
+                        "beginAtZero": True,
+                        "stepSize": 1,
+                        "fontColor": "#57606a",
+                        "precision": 0,
+                    },
+                    "gridLines": {"color": "rgba(128,128,128,0.15)"},
+                }],
+                "yAxes": [{
+                    "ticks": {"fontColor": "#24292f"},
+                    "gridLines": {"display": False},
+                }],
+            },
+            "plugins": {
+                "datalabels": {
+                    "color": "#57606a",
+                    "anchor": "end",
+                    "align": "right",
+                    "font": {"weight": "bold", "size": 12},
+                },
+            },
+        },
+    }
+    chart_json = json.dumps(cfg, separators=(",", ":"))
+    return (
+        "https://quickchart.io/chart?c=" + urllib.parse.quote(chart_json)
+        + f"&width=500&height={height}&f=svg"
+    )
+
+
 def mitre_coverage_chart_url(covered: int, total: int, pct: float) -> str:
     """Build a QuickChart URL for a half-doughnut MITRE coverage gauge.
 
@@ -525,19 +584,8 @@ def render_readme_section(stats: dict, repo: str) -> str:
 
     # --- MITRE ATT&CK tactic bar chart ---
     if stats["by_tactic"]:
-        tactics = list(stats["by_tactic"].items())[:10]
-        x_labels = "[" + ", ".join(f'"{t}"' for t, _ in tactics) + "]"
-        y_values = "[" + ", ".join(str(c) for _, c in tactics) + "]"
-        lines += [
-            "```mermaid",
-            "xychart-beta",
-            '    title "Rules by MITRE ATT&CK Tactic"',
-            f"    x-axis {x_labels}",
-            '    y-axis "Rule Count" 0 --> ' + str(max(c for _, c in tactics) + 1),
-            f"    bar {y_values}",
-            "```",
-            "",
-        ]
+        tactic_url = tactic_bar_chart_url(stats["by_tactic"])
+        lines += ["**Rules per MITRE ATT&CK Tactic**", f"![Rules per MITRE ATT&CK Tactic]({tactic_url})", ""]
 
     lines += [
         f"📋 Full rule index → [rules/RULE_SUMMARY.md](https://github.com/{repo}/blob/main/rules/RULE_SUMMARY.md)",
