@@ -15,10 +15,12 @@ Writes:
 
 import html as _html
 import json
+import math
 import re
 import sys
 import urllib.parse
-from datetime import datetime, timezone
+import urllib.request
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import yaml
@@ -183,12 +185,102 @@ def technique_url(tech: str) -> str:
     return "https://attack.mitre.org/techniques/" + "/".join(parts) + "/"
 
 
+MITRE_STIX_URL = (
+    "https://raw.githubusercontent.com/mitre-attack/attack-stix-data"
+    "/master/enterprise-attack/enterprise-attack.json"
+)
+MITRE_CACHE_DAYS = 7
+
+
 def pass_rate_color(pct: int) -> str:
     if pct >= 80:
         return "brightgreen"
     if pct >= 50:
         return "yellow"
     return "red"
+
+
+def fetch_mitre_total_techniques(
+    cached_count: int | None = None, cached_at: str | None = None
+) -> tuple[int, bool]:
+    """Returns (total_main_technique_count, was_freshly_fetched).
+
+    Uses cached_count if it is less than MITRE_CACHE_DAYS old.
+    Falls back to cached_count (or 201) on any fetch/parse error.
+    """
+    if cached_count and cached_at:
+        try:
+            age = datetime.now(timezone.utc) - datetime.fromisoformat(cached_at)
+            if age < timedelta(days=MITRE_CACHE_DAYS):
+                return cached_count, False
+        except Exception:
+            pass
+
+    try:
+        with urllib.request.urlopen(MITRE_STIX_URL, timeout=30) as resp:
+            data = json.loads(resp.read())
+
+        count = 0
+        for obj in data.get("objects", []):
+            if obj.get("type") != "attack-pattern":
+                continue
+            if obj.get("revoked") or obj.get("x_mitre_deprecated"):
+                continue
+            if "enterprise-attack" not in obj.get("x_mitre_domains", []):
+                continue
+            for ref in obj.get("external_references", []):
+                if ref.get("source_name") == "mitre-attack":
+                    if re.match(r"^T\d{4}$", ref.get("external_id", "")):
+                        count += 1
+                    break
+
+        return (count if count > 0 else cached_count or 201), True
+    except Exception:
+        return cached_count or 201, False
+
+
+def mitre_coverage_color(pct: float) -> str:
+    if pct <= 25:
+        return "#7B0000"
+    if pct <= 50:
+        return "#DC2626"
+    if pct <= 75:
+        return "#FFAA00"
+    return "#2EA44F"
+
+
+def mitre_coverage_chart_url(covered: int, total: int, pct: float) -> str:
+    color = mitre_coverage_color(pct)
+    cfg = {
+        "type": "doughnut",
+        "data": {
+            "datasets": [{
+                "data": [covered, total - covered],
+                "backgroundColor": [color, "rgba(128,128,128,0.15)"],
+                "borderRadius": 10,
+                "spacing": 1,
+            }],
+        },
+        "options": {
+            "rotation": math.pi,
+            "circumference": math.pi,
+            "cutoutPercentage": 80,
+            "plugins": {
+                "legend": {"display": False},
+                "tooltip": {"enabled": False},
+                "datalabels": {"display": False},
+                "doughnutlabel": {
+                    "labels": [
+                        {"text": "MITRE ATT&CK Coverage", "font": {"size": 18}},
+                        {"text": f"{pct:.1f}%", "font": {"size": 36, "weight": "bold"}},
+                        {"text": f"{covered} / {total}", "font": {"size": 14}},
+                    ],
+                },
+            },
+        },
+    }
+    chart_json = json.dumps(cfg, separators=(",", ":"))
+    return "https://quickchart.io/chart?c=" + urllib.parse.quote(chart_json) + "&width=500&height=300&f=svg"
 
 
 def generate_stats() -> dict:
@@ -287,8 +379,32 @@ def generate_stats() -> dict:
     total_verifiable = total_sigma + native_spl_count
     pass_rate = round(verified_pass / total_verifiable * 100) if total_verifiable > 0 else 0
 
+    # Unique parent techniques covered (T1053.005 → T1053)
+    covered_techniques = {
+        t.split(".")[0].upper()
+        for r in rules_detail
+        for t in (r.get("techniques") or [])
+    }
+    covered_count = len(covered_techniques)
+
+    # Load cached MITRE total to avoid re-fetching on every run
+    stats_path = REPO_ROOT / "outputs" / "reports" / "stats.json"
+    cached_total: int | None = None
+    cached_at: str | None = None
+    if stats_path.exists():
+        try:
+            old = json.loads(stats_path.read_text(encoding="utf-8"))
+            cached_total = old.get("mitre_total_techniques")
+            cached_at = old.get("mitre_total_fetched_at")
+        except Exception:
+            pass
+
+    mitre_total, was_fetched = fetch_mitre_total_techniques(cached_total, cached_at)
+    mitre_pct = round(covered_count / mitre_total * 100, 1) if mitre_total > 0 else 0.0
+    now_iso = datetime.now(timezone.utc).isoformat()
+
     return {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": now_iso,
         "total_rules": total_rules,
         "total_sigma_rules": total_sigma,
         "total_splunk_rules": total_spl_count,
@@ -298,6 +414,10 @@ def generate_stats() -> dict:
         "not_verified": not_verified,
         "pass_rate_pct": pass_rate,
         "pass_rate_color": pass_rate_color(pass_rate),
+        "mitre_covered_techniques": covered_count,
+        "mitre_total_techniques": mitre_total,
+        "mitre_total_fetched_at": now_iso if was_fetched else (cached_at or now_iso),
+        "mitre_coverage_pct": mitre_pct,
         "by_level": dict(sorted(by_level.items())),
         "by_status": dict(sorted(by_status.items())),
         "by_tactic": dict(sorted(by_tactic.items(), key=lambda x: -x[1])),
@@ -329,6 +449,13 @@ def render_readme_section(stats: dict, repo: str) -> str:
     for row in [row1, "", row2, "", row3]:
         lines.append(row)
     lines.append("")
+
+    # --- MITRE ATT&CK Coverage doughnut gauge ---
+    covered = stats.get("mitre_covered_techniques", 0)
+    total_mitre = stats.get("mitre_total_techniques", 201)
+    mitre_pct = stats.get("mitre_coverage_pct", 0.0)
+    coverage_url = mitre_coverage_chart_url(covered, total_mitre, mitre_pct)
+    lines += ["**MITRE ATT&CK Coverage**", f"![MITRE ATT&CK Coverage]({coverage_url})", ""]
 
     # --- Severity outlabeledPie chart via quickchart.io ---
     level_order = ["critical", "high", "medium", "low", "informational"]
