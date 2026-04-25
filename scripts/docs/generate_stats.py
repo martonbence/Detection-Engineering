@@ -249,23 +249,29 @@ def mitre_coverage_color(pct: float) -> str:
     return "#2EA44F"
 
 
-def tactic_bar_chart_url(by_tactic: dict) -> str:
-    """Horizontal bar chart: rules per MITRE ATT&CK tactic, sorted by count desc."""
+def tactic_chart_url(by_tactic: dict) -> str:
+    """Polar Area chart: rules per MITRE ATT&CK tactic, sorted by count desc."""
     if not by_tactic:
         return ""
     tactics = sorted(by_tactic.items(), key=lambda x: -x[1])
     labels = [t for t, _ in tactics]
     values = [c for _, c in tactics]
-    height = max(150, len(tactics) * 36 + 70)
+
+    # Colour palette: burgundy → red → orange → yellow-green → green, cycling if >5
+    palette = ["#7B0000", "#DC2626", "#FFAA00", "#2EA44F", "#0969DA",
+               "#9A3412", "#B45309", "#15803D", "#1D4ED8", "#7C3AED",
+               "#BE185D", "#0E7490", "#6B21A8", "#C2410C"]
+    colors = [palette[i % len(palette)] for i in range(len(tactics))]
+
     cfg = {
-        "type": "horizontalBar",
+        "type": "polarArea",
         "data": {
             "labels": labels,
             "datasets": [{
                 "data": values,
-                "backgroundColor": "#7B0000",
-                "borderColor": "black",
-                "borderWidth": 0.5,
+                "backgroundColor": [c + "CC" for c in colors],  # ~80% opacity
+                "borderColor": colors,
+                "borderWidth": 1,
             }],
         },
         "options": {
@@ -275,36 +281,30 @@ def tactic_bar_chart_url(by_tactic: dict) -> str:
                 "fontColor": "#57606a",
                 "fontSize": 14,
             },
-            "legend": {"display": False},
-            "scales": {
-                "xAxes": [{
-                    "ticks": {
-                        "beginAtZero": True,
-                        "stepSize": 1,
-                        "fontColor": "#57606a",
-                        "precision": 0,
-                    },
-                    "gridLines": {"color": "rgba(128,128,128,0.15)"},
-                }],
-                "yAxes": [{
-                    "ticks": {"fontColor": "#24292f"},
-                    "gridLines": {"display": False},
-                }],
+            "legend": {
+                "display": True,
+                "position": "right",
+                "labels": {"fontColor": "#57606a", "fontSize": 11, "boxWidth": 12},
+            },
+            "scale": {
+                "ticks": {
+                    "beginAtZero": True,
+                    "stepSize": 1,
+                    "fontColor": "#57606a",
+                    "showLabelBackdrop": False,
+                },
+                "gridLines": {"color": "rgba(128,128,128,0.2)"},
+                "angleLines": {"color": "rgba(128,128,128,0.2)"},
             },
             "plugins": {
-                "datalabels": {
-                    "color": "#57606a",
-                    "anchor": "end",
-                    "align": "right",
-                    "font": {"weight": "bold", "size": 12},
-                },
+                "datalabels": {"display": False},
             },
         },
     }
     chart_json = json.dumps(cfg, separators=(",", ":"))
     return (
         "https://quickchart.io/chart?c=" + urllib.parse.quote(chart_json)
-        + f"&width=500&height={height}&f=svg"
+        + "&width=560&height=300&f=svg"
     )
 
 
@@ -584,7 +584,7 @@ def render_readme_section(stats: dict, repo: str) -> str:
 
     # --- MITRE ATT&CK tactic bar chart ---
     if stats["by_tactic"]:
-        tactic_url = tactic_bar_chart_url(stats["by_tactic"])
+        tactic_url = tactic_chart_url(stats["by_tactic"])
         lines += ["**Rules per MITRE ATT&CK Tactic**", f"![Rules per MITRE ATT&CK Tactic]({tactic_url})", ""]
 
     lines += [
