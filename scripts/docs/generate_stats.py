@@ -806,7 +806,10 @@ def render_readme_section(stats: dict, repo: str) -> str:
         tactic_url = tactic_chart_url(stats["by_tactic"])
         lines += ["**Rules per MITRE ATT&CK Tactic**", f"![Rules per MITRE ATT&CK Tactic]({tactic_url})", ""]
 
+    gh_pages = f"https://{repo.split('/')[0]}.github.io/{repo.split('/')[1]}/"
     lines += [
+        f"🗺️ Interactive MITRE Navigator → [GitHub Pages]({gh_pages})",
+        "",
         f"📋 Full rule index → [rules/RULE_SUMMARY.md](https://github.com/{repo}/blob/main/rules/RULE_SUMMARY.md)",
         "",
         f"*Generated at {stats['generated_at'][:19]} UTC*",
