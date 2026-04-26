@@ -61,6 +61,33 @@ TACTIC_ID_MAP = {
     "Impact": "TA0040",
 }
 
+STIX_TACTIC_MAP = {
+    "reconnaissance": "Reconnaissance",
+    "resource-development": "Resource Development",
+    "initial-access": "Initial Access",
+    "execution": "Execution",
+    "persistence": "Persistence",
+    "privilege-escalation": "Privilege Escalation",
+    "defense-evasion": "Defense Evasion",
+    "credential-access": "Credential Access",
+    "discovery": "Discovery",
+    "lateral-movement": "Lateral Movement",
+    "collection": "Collection",
+    "command-and-control": "Command & Control",
+    "exfiltration": "Exfiltration",
+    "impact": "Impact",
+}
+
+TACTIC_ORDER = [
+    "Reconnaissance", "Resource Development", "Initial Access",
+    "Execution", "Persistence", "Privilege Escalation",
+    "Defense Evasion", "Credential Access", "Discovery",
+    "Lateral Movement", "Collection", "Command & Control",
+    "Exfiltration", "Impact",
+]
+
+MITRE_MAP_CACHE_PATH = REPO_ROOT / "outputs" / "reports" / "mitre_technique_map.json"
+
 LEVEL_EMOJI = {
     "critical": "🔴",
     "high": "🟠",
@@ -200,19 +227,32 @@ def pass_rate_color(pct: int) -> str:
     return "red"
 
 
-def fetch_mitre_total_techniques(
+def fetch_mitre_techniques(
     cached_count: int | None = None, cached_at: str | None = None
-) -> tuple[int, bool]:
-    """Returns (total_main_technique_count, was_freshly_fetched).
+) -> tuple[int, list, bool]:
+    """Returns (total_main_count, technique_map, was_freshly_fetched).
 
-    Uses cached_count if it is less than MITRE_CACHE_DAYS old.
-    Falls back to cached_count (or 201) on any fetch/parse error.
+    technique_map: [{id, name, tactics, subs:[{id, name, tactics}]}]
+    Caches the full map in MITRE_MAP_CACHE_PATH (7-day TTL).
+    Falls back to cached values on any error.
     """
-    if cached_count and cached_at:
+    cached_map: list = []
+    disk_at: str | None = None
+    if MITRE_MAP_CACHE_PATH.exists():
         try:
-            age = datetime.now(timezone.utc) - datetime.fromisoformat(cached_at)
+            disk = json.loads(MITRE_MAP_CACHE_PATH.read_text(encoding="utf-8"))
+            cached_map = disk.get("techniques", [])
+            disk_at = disk.get("fetched_at")
+        except Exception:
+            pass
+
+    # Only skip fetch if both the count AND the technique map are cached and fresh
+    ref_at = disk_at  # only trust disk cache timestamp, not the count-only stats.json timestamp
+    if cached_count and cached_map and ref_at:
+        try:
+            age = datetime.now(timezone.utc) - datetime.fromisoformat(ref_at)
             if age < timedelta(days=MITRE_CACHE_DAYS):
-                return cached_count, False
+                return cached_count, cached_map, False
         except Exception:
             pass
 
@@ -220,7 +260,9 @@ def fetch_mitre_total_techniques(
         with urllib.request.urlopen(MITRE_STIX_URL, timeout=30) as resp:
             data = json.loads(resp.read())
 
-        count = 0
+        main_techs: dict = {}
+        sub_techs: dict = {}
+
         for obj in data.get("objects", []):
             if obj.get("type") != "attack-pattern":
                 continue
@@ -228,15 +270,49 @@ def fetch_mitre_total_techniques(
                 continue
             if "enterprise-attack" not in obj.get("x_mitre_domains", []):
                 continue
+            tech_id = None
             for ref in obj.get("external_references", []):
                 if ref.get("source_name") == "mitre-attack":
-                    if re.match(r"^T\d{4}$", ref.get("external_id", "")):
-                        count += 1
+                    eid = ref.get("external_id", "")
+                    if re.match(r"^T\d{4}(\.\d{3})?$", eid):
+                        tech_id = eid
                     break
+            if not tech_id:
+                continue
+            tactics = []
+            for phase in obj.get("kill_chain_phases", []):
+                if phase.get("kill_chain_name") == "mitre-attack":
+                    tname = STIX_TACTIC_MAP.get(phase.get("phase_name", ""), "")
+                    if tname:
+                        tactics.append(tname)
+            entry = {"id": tech_id, "name": obj.get("name", ""), "tactics": tactics}
+            if "." in tech_id:
+                sub_techs[tech_id] = entry
+            else:
+                main_techs[tech_id] = entry
 
-        return (count if count > 0 else cached_count or 201), True
+        for tid, entry in main_techs.items():
+            entry["subs"] = sorted(
+                [s for sid, s in sub_techs.items() if sid.startswith(tid + ".")],
+                key=lambda x: x["id"],
+            )
+
+        technique_map = sorted(main_techs.values(), key=lambda x: x["id"])
+        count = len(main_techs)
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        try:
+            MITRE_MAP_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+            MITRE_MAP_CACHE_PATH.write_text(
+                json.dumps({"fetched_at": now_iso, "techniques": technique_map}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+        except Exception:
+            pass
+
+        return (count if count > 0 else cached_count or 201), technique_map, True
     except Exception:
-        return cached_count or 201, False
+        return cached_count or 201, cached_map, False
 
 
 def mitre_coverage_color(pct: float) -> str:
@@ -352,6 +428,144 @@ def mitre_coverage_chart_url(covered: int, total: int, pct: float) -> str:
     return "https://quickchart.io/chart?c=" + urllib.parse.quote(chart_json) + "&width=500&height=300&f=svg"
 
 
+def build_technique_coverage(rules_detail: list, repo: str) -> dict:
+    """Build {tech_id: {best_verdict, rules:[{id,title,verdict,url}]}} from rules."""
+    cov: dict = {}
+    for rule in rules_detail:
+        for tech in rule.get("techniques") or []:
+            if tech not in cov:
+                cov[tech] = {"best_verdict": "N/A", "rules": []}
+            file_path = rule.get("file_path", "")
+            url = f"https://github.com/{repo}/blob/main/{file_path}" if file_path else ""
+            cov[tech]["rules"].append({
+                "id": rule["detect_id"],
+                "title": rule["title"],
+                "verdict": rule["verdict"],
+                "url": url,
+            })
+            v = rule["verdict"]
+            cur = cov[tech]["best_verdict"]
+            if v == "PASS":
+                cov[tech]["best_verdict"] = "PASS"
+            elif v == "FAIL" and cur not in ("PASS",):
+                cov[tech]["best_verdict"] = "FAIL"
+    return cov
+
+
+def render_navigator_layer(technique_coverage: dict, stats: dict) -> str:
+    techniques_out = []
+    for tech_id, cov in technique_coverage.items():
+        verdict = cov["best_verdict"]
+        color = {"PASS": "#2EA44F", "FAIL": "#CF222E"}.get(verdict, "#6E7681")
+        score = {"PASS": 100, "FAIL": 50}.get(verdict, 25)
+        comment = "\n".join(
+            f"{r['id']}: {r['title']} ({r['verdict']})" for r in cov["rules"]
+        )
+        techniques_out.append({
+            "techniqueID": tech_id,
+            "color": color,
+            "comment": comment,
+            "enabled": True,
+            "score": score,
+            "showSubtechniques": True,
+        })
+    layer = {
+        "name": "Detection Engineering Coverage",
+        "versions": {"attack": "14", "navigator": "4.9.1", "layer": "4.5"},
+        "domain": "enterprise-attack",
+        "description": f"Auto-generated detection coverage. {stats['generated_at'][:19]} UTC.",
+        "filters": {"platforms": [
+            "Windows", "Linux", "macOS", "Network", "PRE", "Containers",
+            "Office 365", "SaaS", "Google Workspace", "IaaS", "Azure AD",
+        ]},
+        "sorting": 0,
+        "layout": {
+            "layout": "side",
+            "aggregateFunction": "average",
+            "showID": True,
+            "showName": True,
+            "showAggregateScores": False,
+            "countUnscored": False,
+            "expandedSubtechniques": "annotated",
+        },
+        "hideDisabled": False,
+        "techniques": techniques_out,
+        "gradient": {"colors": ["#ffffff00", "#2EA44F"], "minValue": 0, "maxValue": 100},
+        "legendItems": [
+            {"label": "PASS", "color": "#2EA44F"},
+            {"label": "FAIL", "color": "#CF222E"},
+            {"label": "Not Verified", "color": "#6E7681"},
+        ],
+        "metadata": [],
+        "links": [],
+        "showTacticRowBackground": True,
+        "tacticRowBackground": "#205b8f",
+        "selectTechniquesAcrossTactics": True,
+        "selectSubtechniquesWithParent": False,
+        "selectVisibleTechniques": False,
+    }
+    return json.dumps(layer, indent=2, ensure_ascii=False)
+
+
+def write_navigator_layer(content: str) -> None:
+    out_path = REPO_ROOT / "outputs" / "reports" / "navigator_layer.json"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(content, encoding="utf-8")
+
+
+def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
+    tactic_techs: dict[str, list] = {t: [] for t in TACTIC_ORDER}
+    for tech in technique_map:
+        for tactic in tech.get("tactics", []):
+            if tactic in tactic_techs:
+                tactic_techs[tactic].append(tech)
+    for tactic in TACTIC_ORDER:
+        tactic_techs[tactic].sort(key=lambda x: x["id"])
+
+    def vcls(tid: str) -> str:
+        c = technique_coverage.get(tid)
+        if not c:
+            return "uncov"
+        return {"PASS": "pass", "FAIL": "fail"}.get(c["best_verdict"], "nv")
+
+    def rattr(tid: str) -> str:
+        c = technique_coverage.get(tid)
+        if not c:
+            return ""
+        return ' data-rules="' + _html.escape(json.dumps(c["rules"])) + '"'
+
+    cols = []
+    for tactic in TACTIC_ORDER:
+        techs = tactic_techs.get(tactic, [])
+        tac_id = TACTIC_ID_MAP.get(tactic, "")
+        tac_url = f"https://attack.mitre.org/tactics/{tac_id}/" if tac_id else "#"
+        cells = []
+        for tech in techs:
+            tid = tech["id"]
+            tname = _html.escape(tech["name"])
+            cells.append(
+                f'<div class="tc {vcls(tid)}" data-id="{tid}"{rattr(tid)}>'
+                f'<a class="ti" href="https://attack.mitre.org/techniques/{tid}/" target="_blank">{tid}</a>'
+                f'<span class="tn">{tname}</span></div>'
+            )
+            for sub in tech.get("subs", []):
+                sid = sub["id"]
+                suffix = sid.split(".")[1]
+                surl = f"https://attack.mitre.org/techniques/{tid}/{suffix}/"
+                cells.append(
+                    f'<div class="tc sub {vcls(sid)}" data-id="{sid}"{rattr(sid)}>'
+                    f'<a class="ti" href="{surl}" target="_blank">.{suffix}</a>'
+                    f'<span class="tn">{_html.escape(sub["name"])}</span></div>'
+                )
+        cols.append(
+            f'<div class="tc-col">'
+            f'<div class="tc-hdr"><a href="{tac_url}" target="_blank">{_html.escape(tactic)}</a></div>'
+            + "".join(cells)
+            + '</div>'
+        )
+    return '<div class="att-matrix">' + "".join(cols) + '</div>'
+
+
 def generate_stats() -> dict:
     sigma_rules = load_sigma_rules()
     native_spl_rules = load_native_spl_rules()
@@ -456,7 +670,6 @@ def generate_stats() -> dict:
     }
     covered_count = len(covered_techniques)
 
-    # Load cached MITRE total to avoid re-fetching on every run
     stats_path = REPO_ROOT / "outputs" / "reports" / "stats.json"
     cached_total: int | None = None
     cached_at: str | None = None
@@ -468,7 +681,7 @@ def generate_stats() -> dict:
         except Exception:
             pass
 
-    mitre_total, was_fetched = fetch_mitre_total_techniques(cached_total, cached_at)
+    mitre_total, technique_map, was_fetched = fetch_mitre_techniques(cached_total, cached_at)
     mitre_pct = round(covered_count / mitre_total * 100, 1) if mitre_total > 0 else 0.0
     now_iso = datetime.now(timezone.utc).isoformat()
 
@@ -491,6 +704,9 @@ def generate_stats() -> dict:
         "by_status": dict(sorted(by_status.items())),
         "by_tactic": dict(sorted(by_tactic.items(), key=lambda x: -x[1])),
         "rules": sorted(rules_detail, key=lambda r: r["detect_id"]),
+        # Not written to stats.json — used only by render functions
+        "_technique_map": technique_map,
+        "_rules_detail": rules_detail,
     }
 
 
@@ -781,6 +997,12 @@ def render_html_summary(stats: dict, repo: str) -> str:
     not_ver = stats["not_verified"]
     pass_rate = stats["pass_rate_pct"]
 
+    technique_map = stats.get("_technique_map", [])
+    rules_detail_inner = stats.get("_rules_detail", stats.get("rules", []))
+    technique_coverage = build_technique_coverage(rules_detail_inner, repo)
+    matrix_html = _build_matrix_html(technique_map, technique_coverage)
+    layer_url = f"https://github.com/{repo}/blob/main/outputs/reports/navigator_layer.json"
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -846,6 +1068,48 @@ def render_html_summary(stats: dict, repo: str) -> str:
     .dataTables_wrapper .dataTables_paginate .paginate_button.disabled,
     .dataTables_wrapper .dataTables_paginate .paginate_button.disabled:hover {{ color:var(--muted) !important; }}
     footer {{ margin-top:20px; color:var(--muted); font-size:12px; text-align:center; }}
+    /* Tabs */
+    .tab-bar {{ display:flex; gap:4px; margin-bottom:0; border-bottom:1px solid var(--border); }}
+    .tab-btn {{ background:none; border:1px solid transparent; border-bottom:none; color:var(--muted); padding:8px 20px; border-radius:6px 6px 0 0; cursor:pointer; font-size:13px; font-weight:600; transition:color .15s,background .15s; margin-bottom:-1px; }}
+    .tab-btn:hover {{ color:var(--text); background:var(--surface); }}
+    .tab-btn.active {{ background:var(--surface); border-color:var(--border); color:var(--text); }}
+    .tab-pane {{ display:none; padding-top:16px; }}
+    .tab-pane.active {{ display:block; }}
+    /* MITRE Navigator */
+    .nav-wrap {{ background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:16px; }}
+    .nav-legend {{ display:flex; gap:16px; margin-bottom:12px; font-size:12px; align-items:center; flex-wrap:wrap; }}
+    .nav-legend-item {{ display:flex; align-items:center; gap:5px; }}
+    .nav-legend-dot {{ width:12px; height:12px; border-radius:2px; flex-shrink:0; }}
+    .nav-import {{ margin-left:auto; font-size:12px; }}
+    .att-matrix {{ display:flex; gap:2px; overflow-x:auto; padding-bottom:8px; }}
+    .tc-col {{ flex:0 0 112px; display:flex; flex-direction:column; gap:1px; }}
+    .tc-hdr {{ background:#205b8f; color:#fff; font-size:9px; font-weight:700; padding:5px 4px; text-align:center; border-radius:3px 3px 0 0; min-height:38px; display:flex; align-items:center; justify-content:center; }}
+    .tc-hdr a {{ color:#fff; text-decoration:none; }}
+    .tc-hdr a:hover {{ text-decoration:underline; }}
+    .tc {{ font-size:8px; padding:3px 4px; border-radius:2px; cursor:default; display:flex; flex-direction:column; min-height:30px; gap:1px; }}
+    .tc.uncov {{ background:#1c2128; color:#484f58; }}
+    .tc.pass  {{ background:#1a4731; color:#aff3c5; }}
+    .tc.fail  {{ background:#67060c; color:#ffc1c1; }}
+    .tc.nv    {{ background:#3d444d; color:#cdd5df; }}
+    .tc.sub   {{ min-height:22px; padding-left:8px; }}
+    .tc[data-rules] {{ cursor:pointer; }}
+    .tc[data-rules]:hover {{ filter:brightness(1.3); }}
+    .ti {{ font-weight:700; font-size:8px; color:inherit; text-decoration:none; }}
+    .ti:hover {{ text-decoration:underline; }}
+    .tn {{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }}
+    #att-tip {{
+      display:none; position:fixed; z-index:9999; pointer-events:none;
+      background:#161b22; border:1px solid #30363d; border-radius:8px;
+      padding:10px 14px; max-width:340px; font-size:12px; color:#e6edf3;
+      box-shadow:0 8px 24px rgba(0,0,0,.5);
+    }}
+    .tip-head {{ font-weight:700; font-size:13px; margin-bottom:6px; }}
+    .tip-rule {{ display:flex; align-items:center; gap:6px; margin:3px 0; text-decoration:none; color:#58a6ff; font-size:11px; }}
+    .tip-rule:hover {{ text-decoration:underline; }}
+    .tip-vbadge {{ display:inline-block; padding:1px 7px; border-radius:8px; font-size:10px; font-weight:600; flex-shrink:0; }}
+    .tip-vbadge.PASS {{ background:#2EA44F; color:#fff; }}
+    .tip-vbadge.FAIL {{ background:#CF222E; color:#fff; }}
+    .tip-vbadge.NA   {{ background:#6E7681; color:#fff; }}
   </style>
 </head>
 <body>
@@ -857,21 +1121,40 @@ def render_html_summary(stats: dict, repo: str) -> str:
     <div class="stat-card"><div class="stat-value">{not_ver}</div><div class="stat-label">Not Verified</div></div>
     <div class="stat-card"><div class="stat-value" style="color:#2EA44F">{pass_rate}%</div><div class="stat-label">Pass Rate</div></div>
   </div>
-  <div class="table-wrap">
-    <table id="rules-table" class="display" style="width:100%">
-      <thead>
-        <tr>
-          <th>ID</th><th>Title</th><th>Source</th>
-          <th>Tactic</th><th>Technique</th>
-          <th>Severity</th><th>Status</th><th>Verdict</th>
-        </tr>
-        {filter_row}
-      </thead>
-      <tbody>
-{rows_html}
-      </tbody>
-    </table>
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="rules">Rules Table</button>
+    <button class="tab-btn" data-tab="navigator">MITRE Navigator</button>
   </div>
+  <div id="tab-rules" class="tab-pane active">
+    <div class="table-wrap">
+      <table id="rules-table" class="display" style="width:100%">
+        <thead>
+          <tr>
+            <th>ID</th><th>Title</th><th>Source</th>
+            <th>Tactic</th><th>Technique</th>
+            <th>Severity</th><th>Status</th><th>Verdict</th>
+          </tr>
+          {filter_row}
+        </thead>
+        <tbody>
+{rows_html}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div id="tab-navigator" class="tab-pane">
+    <div class="nav-wrap">
+      <div class="nav-legend">
+        <div class="nav-legend-item"><div class="nav-legend-dot" style="background:#1a4731;border:1px solid #2EA44F"></div> PASS</div>
+        <div class="nav-legend-item"><div class="nav-legend-dot" style="background:#3d444d"></div> Not Verified</div>
+        <div class="nav-legend-item"><div class="nav-legend-dot" style="background:#67060c;border:1px solid #CF222E"></div> FAIL</div>
+        <div class="nav-legend-item"><div class="nav-legend-dot" style="background:#1c2128;border:1px solid #30363d"></div> Not covered</div>
+        <div class="nav-import"><a href="{layer_url}" target="_blank">&#8659; Download Navigator layer (.json)</a></div>
+      </div>
+      {matrix_html}
+    </div>
+  </div>
+  <div id="att-tip"></div>
   <footer>
     Generated at {ts} UTC &nbsp;·&nbsp;
     <a href="https://github.com/{repo}/blob/main/rules/RULE_SUMMARY.md" target="_blank">Markdown version</a>
@@ -879,6 +1162,39 @@ def render_html_summary(stats: dict, repo: str) -> str:
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
   <script>
+  document.querySelectorAll('.tab-btn').forEach(function(btn) {{
+    btn.addEventListener('click', function() {{
+      document.querySelectorAll('.tab-btn').forEach(function(b) {{ b.classList.remove('active'); }});
+      document.querySelectorAll('.tab-pane').forEach(function(p) {{ p.classList.remove('active'); }});
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    }});
+  }});
+  var tip = document.getElementById('att-tip');
+  document.querySelectorAll('.tc[data-rules]').forEach(function(el) {{
+    el.addEventListener('mouseenter', function() {{
+      var rules = JSON.parse(el.dataset.rules);
+      var html = '<div class="tip-head">' + el.dataset.id + '</div>';
+      rules.forEach(function(r) {{
+        var vc = r.verdict === 'N/A' ? 'NA' : r.verdict;
+        var badge = '<span class="tip-vbadge ' + vc + '">' + r.verdict + '</span>';
+        if (r.url) {{
+          html += '<a class="tip-rule" href="' + r.url + '" target="_blank">' + badge + ' ' + r.id + ': ' + r.title + '</a>';
+        }} else {{
+          html += '<div class="tip-rule">' + badge + ' ' + r.id + ': ' + r.title + '</div>';
+        }}
+      }});
+      tip.innerHTML = html;
+      tip.style.display = 'block';
+    }});
+    el.addEventListener('mousemove', function(e) {{
+      var x = e.clientX + 14, y = e.clientY + 14;
+      if (x + 350 > window.innerWidth) x = e.clientX - 354;
+      tip.style.left = x + 'px';
+      tip.style.top  = y + 'px';
+    }});
+    el.addEventListener('mouseleave', function() {{ tip.style.display = 'none'; }});
+  }});
   $(function() {{
     var table = $('#rules-table').DataTable({{
       orderCellsTop: true,
@@ -888,15 +1204,11 @@ def render_html_summary(stats: dict, repo: str) -> str:
       language: {{
         search: 'Search:', lengthMenu: 'Show _MENU_ rules',
         zeroRecords: 'No rules match the current filter.',
-        info: 'Showing _START_\u2013_END_ of _TOTAL_ rules',
+        info: 'Showing _START_–_END_ of _TOTAL_ rules',
         infoFiltered: '(filtered from _MAX_ total)'
       }}
     }});
-
-    // exactCols: exact-match select (Source=2, Severity=5, Status=6, Verdict=7)
-    // containsCols: contains-match (ID=0, Title=1, Tactic=3, Technique=4)
     var exactCols = [2, 5, 6, 7];
-
     $('#rules-table thead tr.frow').find('input.col-txt, select.col-sel').each(function(i) {{
       var isExact = exactCols.indexOf(i) !== -1;
       $(this)
@@ -927,8 +1239,9 @@ def main() -> int:
 
     out_dir = REPO_ROOT / "outputs" / "reports"
     out_dir.mkdir(parents=True, exist_ok=True)
+    stats_for_json = {k: v for k, v in stats.items() if not k.startswith("_")}
     (out_dir / "stats.json").write_text(
-        json.dumps(stats, indent=2, ensure_ascii=False), encoding="utf-8"
+        json.dumps(stats_for_json, indent=2, ensure_ascii=False), encoding="utf-8"
     )
     print(
         f"Stats: {stats['total_sigma_rules']} sigma + {stats['total_native_spl_rules']} native SPL rules — "
@@ -943,6 +1256,10 @@ def main() -> int:
     summary = render_rule_summary(stats, repo)
     update_rule_summary(summary)
     print("rules/RULE_SUMMARY.md updated.")
+
+    nav_layer = render_navigator_layer(build_technique_coverage(stats.get("_rules_detail", stats.get("rules", [])), repo), stats)
+    write_navigator_layer(nav_layer)
+    print("outputs/reports/navigator_layer.json updated.")
 
     html_page = render_html_summary(stats, repo)
     update_html_summary(html_page)
