@@ -532,38 +532,80 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
         c = technique_coverage.get(tid)
         if not c:
             return ""
-        return ' data-rules="' + _html.escape(json.dumps(c["rules"])) + '"'
+        return " data-rules=\"" + _html.escape(json.dumps(c["rules"])) + "\""
+
+    def detail_btn_html(tid: str, tname: str) -> str:
+        c = technique_coverage.get(tid)
+        if not c:
+            return ""
+        rj = _html.escape(json.dumps(c["rules"]))
+        return (
+            "<button class=\"tc-detail\""
+            " data-id=\"" + tid + "\""
+            " data-name=\"" + tname + "\""
+            " data-rules=\"" + rj + "\""
+            " title=\"Show rules\">&#9639;</button>"
+        )
 
     cols = []
     for tactic in TACTIC_ORDER:
         techs = tactic_techs.get(tactic, [])
         tac_id = TACTIC_ID_MAP.get(tactic, "")
-        tac_url = f"https://attack.mitre.org/tactics/{tac_id}/" if tac_id else "#"
+        tac_url = "https://attack.mitre.org/tactics/" + tac_id + "/" if tac_id else "#"
         cells = []
         for tech in techs:
             tid = tech["id"]
             tname = _html.escape(tech["name"])
+            subs = tech.get("subs", [])
+            sub_total = len(subs)
+            sub_covered = sum(1 for s in subs if s["id"] in technique_coverage)
+
+            badge = ""
+            expand = ""
+            if sub_total > 0:
+                bc = "sub-badge-cov" if sub_covered > 0 else "sub-badge"
+                badge = "<span class=\"" + bc + "\">" + str(sub_covered) + "/" + str(sub_total) + "</span>"
+                expand = (
+                    "<button class=\"tc-expand\""
+                    " data-target=\"subs-" + tid + "\""
+                    " title=\"Toggle sub-techniques\">&#9654;</button>"
+                )
+
+            tech_url = "https://attack.mitre.org/techniques/" + tid + "/"
             cells.append(
-                f'<div class="tc {vcls(tid)}" data-id="{tid}"{rattr(tid)}>'
-                f'<a class="ti" href="https://attack.mitre.org/techniques/{tid}/" target="_blank">{tid}</a>'
-                f'<span class="tn">{tname}</span></div>'
+                "<div class=\"tc " + vcls(tid) + "\" data-id=\"" + tid + "\"" + rattr(tid) + ">"
+                "<div class=\"tc-row1\">"
+                "<a class=\"ti\" href=\"" + tech_url + "\" target=\"_blank\">" + tid + "</a>"
+                + expand +
+                "</div>"
+                "<span class=\"tn\">" + tname + "</span>"
+                "<div class=\"tc-foot\">" + badge + detail_btn_html(tid, tname) + "</div>"
+                "</div>"
             )
-            for sub in tech.get("subs", []):
+            for sub in subs:
                 sid = sub["id"]
                 suffix = sid.split(".")[1]
-                surl = f"https://attack.mitre.org/techniques/{tid}/{suffix}/"
+                sname = _html.escape(sub["name"])
+                surl = "https://attack.mitre.org/techniques/" + tid + "/" + suffix + "/"
                 cells.append(
-                    f'<div class="tc sub {vcls(sid)}" data-id="{sid}"{rattr(sid)}>'
-                    f'<a class="ti" href="{surl}" target="_blank">.{suffix}</a>'
-                    f'<span class="tn">{_html.escape(sub["name"])}</span></div>'
+                    "<div class=\"tc sub " + vcls(sid) + " subs-" + tid + "\""
+                    " style=\"display:none\" data-id=\"" + sid + "\"" + rattr(sid) + ">"
+                    "<div class=\"tc-row1\">"
+                    "<a class=\"ti\" href=\"" + surl + "\" target=\"_blank\">." + suffix + "</a>"
+                    "</div>"
+                    "<span class=\"tn\">" + sname + "</span>"
+                    "<div class=\"tc-foot\">" + detail_btn_html(sid, sname) + "</div>"
+                    "</div>"
                 )
         cols.append(
-            f'<div class="tc-col">'
-            f'<div class="tc-hdr"><a href="{tac_url}" target="_blank">{_html.escape(tactic)}</a></div>'
+            "<div class=\"tc-col\">"
+            "<div class=\"tc-hdr\"><a href=\"" + tac_url + "\" target=\"_blank\">"
+            + _html.escape(tactic) + "</a></div>"
             + "".join(cells)
-            + '</div>'
+            + "</div>"
         )
-    return '<div class="att-matrix">' + "".join(cols) + '</div>'
+    return "<div class=\"att-matrix\">" + "".join(cols) + "</div>"
+
 
 
 def generate_stats() -> dict:
@@ -1086,8 +1128,8 @@ def render_html_summary(stats: dict, repo: str) -> str:
     .nav-import {{ margin-left:auto; font-size:12px; }}
     .att-matrix {{ display:flex; gap:2px; overflow-x:auto; padding-bottom:8px; }}
     .tc-col {{ flex:0 0 112px; display:flex; flex-direction:column; gap:1px; }}
-    .tc-hdr {{ background:#205b8f; color:#fff; font-size:9px; font-weight:700; padding:5px 4px; text-align:center; border-radius:3px 3px 0 0; min-height:38px; display:flex; align-items:center; justify-content:center; }}
-    .tc-hdr a {{ color:#fff; text-decoration:none; }}
+    .tc-hdr {{ background:#FFAA00; color:#111; font-size:9px; font-weight:700; padding:5px 4px; text-align:center; border-radius:3px 3px 0 0; min-height:38px; display:flex; align-items:center; justify-content:center; }}
+    .tc-hdr a {{ color:#111; text-decoration:none; }}
     .tc-hdr a:hover {{ text-decoration:underline; }}
     .tc {{ font-size:8px; padding:3px 4px; border-radius:2px; cursor:default; display:flex; flex-direction:column; min-height:30px; gap:1px; }}
     .tc.uncov {{ background:#1c2128; color:#484f58; }}
@@ -1099,7 +1141,32 @@ def render_html_summary(stats: dict, repo: str) -> str:
     .tc[data-rules]:hover {{ filter:brightness(1.3); }}
     .ti {{ font-weight:700; font-size:8px; color:inherit; text-decoration:none; }}
     .ti:hover {{ text-decoration:underline; }}
-    .tn {{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }}
+    .tn {{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }}
+    .tc-row1 {{ display:flex; justify-content:space-between; align-items:center; gap:2px; }}
+    .tc-foot {{ display:flex; justify-content:space-between; align-items:center; margin-top:2px; min-height:10px; }}
+    .tc-expand {{ background:none; border:none; color:inherit; cursor:pointer; font-size:7px; padding:0 1px; opacity:.6; line-height:1; flex-shrink:0; }}
+    .tc-expand:hover {{ opacity:1; }}
+    .tc-expand.open {{ transform:rotate(90deg); display:inline-block; }}
+    .tc-detail {{ background:none; border:none; color:inherit; cursor:pointer; font-size:10px; padding:0; opacity:.75; line-height:1; flex-shrink:0; }}
+    .tc-detail:hover {{ opacity:1; color:#FFAA00; }}
+    .sub-badge {{ font-size:7px; opacity:.55; }}
+    .sub-badge-cov {{ font-size:7px; color:#FFAA00; font-weight:700; }}
+    /* Detail panel */
+    #detail-panel {{ position:fixed; right:0; top:0; bottom:0; width:300px; background:#161b22; border-left:1px solid #30363d; z-index:10000; display:none; flex-direction:column; box-shadow:-4px 0 24px rgba(0,0,0,.6); }}
+    #detail-panel.open {{ display:flex; }}
+    #detail-header {{ display:flex; justify-content:space-between; align-items:flex-start; padding:14px 16px 10px; border-bottom:1px solid #30363d; flex-shrink:0; }}
+    #detail-title {{ font-weight:700; font-size:13px; color:#e6edf3; }}
+    #detail-tid {{ color:#8b949e; font-size:10px; margin-top:2px; }}
+    #detail-close {{ background:none; border:none; color:#8b949e; font-size:20px; cursor:pointer; padding:0; line-height:1; }}
+    #detail-close:hover {{ color:#e6edf3; }}
+    #detail-body {{ padding:12px 16px; overflow-y:auto; flex:1; }}
+    .detail-rule {{ display:flex; align-items:center; gap:6px; margin:6px 0; text-decoration:none; color:#58a6ff; font-size:12px; line-height:1.4; }}
+    .detail-rule:hover {{ text-decoration:underline; }}
+    .detail-noverd {{ display:flex; align-items:center; gap:6px; margin:6px 0; font-size:12px; color:#8b949e; }}
+    .detail-vbadge {{ display:inline-block; padding:1px 7px; border-radius:8px; font-size:10px; font-weight:600; flex-shrink:0; }}
+    .detail-vbadge.PASS {{ background:#2EA44F; color:#fff; }}
+    .detail-vbadge.FAIL {{ background:#CF222E; color:#fff; }}
+    .detail-vbadge.NA {{ background:#6E7681; color:#fff; }}
     #att-tip {{
       display:none; position:fixed; z-index:9999; pointer-events:none;
       background:#161b22; border:1px solid #30363d; border-radius:8px;
@@ -1157,6 +1224,13 @@ def render_html_summary(stats: dict, repo: str) -> str:
       {matrix_html}
     </div>
   </div>
+  <div id="detail-panel">
+    <div id="detail-header">
+      <div><div id="detail-title"></div><div id="detail-tid"></div></div>
+      <button id="detail-close">&#215;</button>
+    </div>
+    <div id="detail-body"></div>
+  </div>
   <div id="att-tip"></div>
   <footer>
     Generated at {ts} UTC &nbsp;·&nbsp;
@@ -1205,6 +1279,46 @@ def render_html_summary(stats: dict, repo: str) -> str:
       tip.style.top  = y + 'px';
     }});
     el.addEventListener('mouseleave', function() {{ tip.style.display = 'none'; }});
+  }});
+  // Expand/collapse sub-techniques
+  document.querySelectorAll('.tc-expand').forEach(function(btn) {{
+    btn.addEventListener('click', function(e) {{
+      e.stopPropagation();
+      var target = btn.dataset.target;
+      var subs = document.querySelectorAll('.' + target);
+      var open = btn.classList.toggle('open');
+      btn.innerHTML = open ? '&#9660;' : '&#9654;';
+      subs.forEach(function(s) {{ s.style.display = open ? 'flex' : 'none'; }});
+    }});
+  }});
+  // Detail panel
+  var panel = document.getElementById('detail-panel');
+  var panelTitle = document.getElementById('detail-title');
+  var panelTid = document.getElementById('detail-tid');
+  var panelBody = document.getElementById('detail-body');
+  document.getElementById('detail-close').addEventListener('click', function() {{
+    panel.classList.remove('open');
+  }});
+  document.querySelectorAll('.tc-detail').forEach(function(btn) {{
+    btn.addEventListener('click', function(e) {{
+      e.stopPropagation();
+      var rules = JSON.parse(btn.dataset.rules);
+      panelTitle.textContent = btn.dataset.name;
+      panelTid.textContent = btn.dataset.id;
+      var html = '';
+      rules.forEach(function(r) {{
+        var vc = r.verdict === 'N/A' ? 'NA' : r.verdict;
+        var badge = '<span class="detail-vbadge ' + vc + '">' + r.verdict + '</span>';
+        var label = r.id + ': ' + r.title;
+        if (r.url) {{
+          html += '<a class="detail-rule" href="' + r.url + '" target="_blank">' + badge + label + '</a>';
+        }} else {{
+          html += '<div class="detail-noverd">' + badge + label + '</div>';
+        }}
+      }});
+      panelBody.innerHTML = html;
+      panel.classList.add('open');
+    }});
   }});
   $(function() {{
     var table = $('#rules-table').DataTable({{
