@@ -1130,32 +1130,36 @@ def render_html_summary(stats: dict, repo: str) -> str:
     .nav-legend-item {{ display:flex; align-items:center; gap:5px; }}
     .nav-legend-dot {{ width:12px; height:12px; border-radius:2px; flex-shrink:0; }}
     .nav-import {{ margin-left:auto; font-size:12px; }}
-    .att-matrix {{ display:flex; gap:2px; overflow-x:auto; padding-bottom:8px; }}
-    .tc-col {{ flex:0 0 132px; display:flex; flex-direction:column; gap:1px; }}
-    .tc-hdr {{ background:#FFAA00; color:#111; font-size:10px; font-weight:700; padding:5px 4px; text-align:center; border-radius:3px 3px 0 0; min-height:40px; display:flex; align-items:center; justify-content:center; }}
+    .att-matrix {{ display:flex; gap:2px; overflow-x:auto; padding-bottom:4px; scrollbar-width:none; }}
+    .att-matrix::-webkit-scrollbar {{ display:none; }}
+    .tc-col {{ flex:0 0 152px; display:flex; flex-direction:column; gap:1px; }}
+    .tc-hdr {{ background:#FFAA00; color:#111; font-size:12px; font-weight:700; padding:6px 5px; text-align:center; border-radius:3px 3px 0 0; min-height:44px; display:flex; align-items:center; justify-content:center; }}
     .tc-hdr a {{ color:#111; text-decoration:none; }}
     .tc-hdr a:hover {{ text-decoration:underline; }}
-    .tc {{ font-size:10px; padding:4px 5px; border-radius:2px; cursor:default; display:flex; flex-direction:column; min-height:34px; gap:1px; position:relative; }}
+    .tc {{ font-size:12px; padding:5px 6px; border-radius:2px; cursor:default; display:flex; flex-direction:column; min-height:40px; gap:1px; position:relative; }}
     .tc.uncov {{ background:#1c2128; color:#484f58; }}
     .tc.uncov.has-cov {{ background:#222935; color:#545f6e; }}
     .tc.pass  {{ background:#1a4731; color:#aff3c5; }}
     .tc.fail  {{ background:#67060c; color:#ffc1c1; }}
     .tc.nv    {{ background:#2d333b; color:#adbac7; border-left:2px solid rgba(255,170,0,.35); }}
-    .tc.sub   {{ min-height:24px; padding-left:10px; }}
+    .tc.sub   {{ min-height:28px; padding-left:12px; }}
     .tc[data-rules] {{ cursor:pointer; }}
     .tc[data-rules]:hover {{ filter:brightness(1.3); }}
-    .ti {{ font-weight:700; font-size:10px; color:inherit; text-decoration:none; }}
+    .tc.highlighted {{ box-shadow:inset 0 0 0 2px #FFAA00; filter:brightness(1.15); }}
+    .tc.expanded {{ box-shadow:inset 0 0 0 1.5px rgba(255,170,0,.55); }}
+    .tc.expanded.highlighted {{ box-shadow:inset 0 0 0 2px #FFAA00; }}
+    .ti {{ font-weight:700; font-size:12px; color:inherit; text-decoration:none; }}
     .ti:hover {{ text-decoration:underline; }}
     .tn {{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }}
     .tc-row1 {{ display:flex; justify-content:space-between; align-items:center; gap:2px; }}
     .tc-foot {{ display:flex; justify-content:space-between; align-items:center; margin-top:2px; min-height:10px; }}
-    .tc-expand {{ background:none; border:none; color:inherit; cursor:pointer; font-size:11px; padding:1px 2px; opacity:.65; line-height:1; flex-shrink:0; }}
+    .tc-expand {{ background:none; border:none; color:inherit; cursor:pointer; font-size:14px; padding:2px 3px; opacity:.65; line-height:1; flex-shrink:0; }}
     .tc-expand:hover {{ opacity:1; }}
-    .tc-detail {{ position:absolute; right:4px; top:50%; transform:translateY(-50%); background:none; border:none; color:inherit; cursor:pointer; font-size:13px; padding:2px 3px; opacity:0; line-height:1; z-index:1; }}
+    .tc-detail {{ position:absolute; right:4px; top:50%; transform:translateY(-50%); background:none; border:none; color:inherit; cursor:pointer; font-size:14px; padding:2px 4px; opacity:0; line-height:1; z-index:1; }}
     .tc[data-rules]:hover .tc-detail {{ opacity:.85; }}
     .tc-detail:hover {{ opacity:1 !important; color:#FFAA00; }}
-    .sub-badge {{ font-size:8px; opacity:.55; }}
-    .sub-badge-cov {{ font-size:8px; color:#FFAA00; font-weight:700; }}
+    .sub-badge {{ font-size:9px; opacity:.55; }}
+    .sub-badge-cov {{ font-size:9px; color:#FFAA00; font-weight:700; }}
     .sub-group {{ border:1.5px solid rgba(255,170,0,.5); border-radius:3px; display:flex; flex-direction:column; gap:1px; padding:1px; margin-top:1px; }}
     .tc.tc-hidden {{ display:none !important; }}
     .nav-legend-item[data-filter] {{ cursor:pointer; border-radius:4px; padding:2px 6px; transition:background .15s; }}
@@ -1163,6 +1167,8 @@ def render_html_summary(stats: dict, repo: str) -> str:
     .nav-legend-item.filter-active {{ background:rgba(255,170,0,.18); outline:1px solid rgba(255,170,0,.55); }}
     .nav-legend-item[data-filter] .nav-legend-dot {{ position:relative; }}
     .nav-legend-item.filter-active .nav-legend-dot::after {{ content:'✓'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; font-size:9px; font-weight:900; }}
+    #expand-all-btn {{ background:none; border:1px solid var(--border); color:var(--muted); border-radius:5px; padding:3px 10px; font-size:12px; cursor:pointer; white-space:nowrap; }}
+    #expand-all-btn:hover {{ color:var(--text); border-color:#FFAA00; }}
     /* Detail panel */
     #detail-panel {{ position:fixed; right:0; top:0; bottom:0; width:300px; background:#161b22; border-left:1px solid #30363d; z-index:10000; display:none; flex-direction:column; box-shadow:-4px 0 24px rgba(0,0,0,.6); }}
     #detail-panel.open {{ display:flex; }}
@@ -1228,9 +1234,10 @@ def render_html_summary(stats: dict, repo: str) -> str:
     <div class="nav-wrap">
       <div class="nav-legend">
         <div class="nav-legend-item" data-filter="pass"><div class="nav-legend-dot" style="background:#1a4731;border:1px solid #2EA44F"></div> PASS</div>
-        <div class="nav-legend-item" data-filter="nv"><div class="nav-legend-dot" style="background:#2d333b;border-left:2px solid rgba(255,170,0,.35)"></div> Not Verified</div>
+        <div class="nav-legend-item" data-filter="nv"><div class="nav-legend-dot" style="background:#9f9f9f"></div> Not Verified</div>
         <div class="nav-legend-item" data-filter="fail"><div class="nav-legend-dot" style="background:#67060c;border:1px solid #CF222E"></div> FAIL</div>
         <div class="nav-legend-item" data-filter="uncov"><div class="nav-legend-dot" style="background:#1c2128;border:1px solid #30363d"></div> Not covered</div>
+        <button id="expand-all-btn">&#9660; Expand All</button>
         <div class="nav-import"><a href="{layer_url}" target="_blank">&#8659; Download Navigator layer (.json)</a></div>
       </div>
       {matrix_html}
@@ -1292,30 +1299,36 @@ def render_html_summary(stats: dict, repo: str) -> str:
     }});
     el.addEventListener('mouseleave', function() {{ tip.style.display = 'none'; }});
   }});
+  // Shared expand/collapse helper
+  function doExpand(btn, open) {{
+    var target = btn.dataset.target;
+    var col = btn.closest('.tc-col');
+    var subs = Array.from(col.querySelectorAll('.' + target));
+    btn.classList.toggle('open', open);
+    btn.innerHTML = open ? '&#9660;' : '&#9654;';
+    var parentTc = btn.closest('.tc');
+    if (open) {{
+      parentTc.classList.add('expanded');
+      var grp = document.createElement('div');
+      grp.className = 'sub-group';
+      btn._subGrp = grp;
+      parentTc.after(grp);
+      subs.forEach(function(s) {{ s.style.display = 'flex'; grp.appendChild(s); }});
+    }} else {{
+      parentTc.classList.remove('expanded');
+      var grp = btn._subGrp;
+      if (grp) {{
+        subs.forEach(function(s) {{ s.style.display = 'none'; grp.before(s); }});
+        grp.remove();
+        btn._subGrp = null;
+      }}
+    }}
+  }}
   // Expand/collapse sub-techniques — scoped to column, grp stored on button
   document.querySelectorAll('.tc-expand').forEach(function(btn) {{
     btn.addEventListener('click', function(e) {{
       e.stopPropagation();
-      var target = btn.dataset.target;
-      var col = btn.closest('.tc-col');
-      var subs = Array.from(col.querySelectorAll('.' + target));
-      var open = !btn.classList.contains('open');
-      btn.classList.toggle('open', open);
-      btn.innerHTML = open ? '&#9660;' : '&#9654;';
-      if (open) {{
-        var grp = document.createElement('div');
-        grp.className = 'sub-group';
-        btn._subGrp = grp;
-        btn.closest('.tc').after(grp);
-        subs.forEach(function(s) {{ s.style.display = 'flex'; grp.appendChild(s); }});
-      }} else {{
-        var grp = btn._subGrp;
-        if (grp) {{
-          subs.forEach(function(s) {{ s.style.display = 'none'; grp.before(s); }});
-          grp.remove();
-          btn._subGrp = null;
-        }}
-      }}
+      doExpand(btn, !btn.classList.contains('open'));
     }});
   }});
   // Sticky mirror scrollbar
@@ -1378,6 +1391,40 @@ def render_html_summary(stats: dict, repo: str) -> str:
         item.classList.add('filter-active');
       }}
       applyFilters();
+    }});
+  }});
+  // Expand All / Collapse All button
+  (function() {{
+    var btn = document.getElementById('expand-all-btn');
+    if (!btn) return;
+    var expanded = false;
+    btn.addEventListener('click', function() {{
+      expanded = !expanded;
+      btn.innerHTML = expanded ? '&#9650; Collapse All' : '&#9660; Expand All';
+      document.querySelectorAll('.tc-expand').forEach(function(exBtn) {{
+        var parentTc = exBtn.closest('.tc');
+        if (activeFilters.size > 0 && parentTc.classList.contains('tc-hidden')) return;
+        var isOpen = exBtn.classList.contains('open');
+        if (expanded && !isOpen) doExpand(exBtn, true);
+        else if (!expanded && isOpen) doExpand(exBtn, false);
+      }});
+    }});
+  }})();
+  // Cross-highlight: click on cell body highlights all cells with same data-id
+  var highlightedId = null;
+  document.querySelectorAll('.tc').forEach(function(tc) {{
+    tc.addEventListener('click', function(e) {{
+      if (e.target.closest('.ti') || e.target.closest('.tc-expand') || e.target.closest('.tc-detail')) return;
+      var tid = tc.dataset.id;
+      if (!tid) return;
+      if (highlightedId === tid) {{
+        highlightedId = null;
+        document.querySelectorAll('.tc.highlighted').forEach(function(el) {{ el.classList.remove('highlighted'); }});
+      }} else {{
+        highlightedId = tid;
+        document.querySelectorAll('.tc.highlighted').forEach(function(el) {{ el.classList.remove('highlighted'); }});
+        document.querySelectorAll('.tc[data-id="' + tid + '"]').forEach(function(el) {{ el.classList.add('highlighted'); }});
+      }}
     }});
   }});
   // Detail panel — toggle on same button, switch on different
