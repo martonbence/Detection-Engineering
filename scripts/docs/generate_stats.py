@@ -808,7 +808,7 @@ def render_readme_section(stats: dict, repo: str) -> str:
 
     gh_pages = f"https://{repo.split('/')[0]}.github.io/{repo.split('/')[1]}/"
     lines += [
-        f"🗺️ Interactive MITRE Navigator → [GitHub Pages]({gh_pages})",
+        f"🗺️ Interactive MITRE Navigator → [GitHub Pages]({gh_pages}#navigator)",
         "",
         f"📋 Full rule index → [rules/RULE_SUMMARY.md](https://github.com/{repo}/blob/main/rules/RULE_SUMMARY.md)",
         "",
@@ -1165,14 +1165,22 @@ def render_html_summary(stats: dict, repo: str) -> str:
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
   <script>
+  function switchTab(name) {{
+    document.querySelectorAll('.tab-btn').forEach(function(b) {{ b.classList.remove('active'); }});
+    document.querySelectorAll('.tab-pane').forEach(function(p) {{ p.classList.remove('active'); }});
+    var btn = document.querySelector('.tab-btn[data-tab="' + name + '"]');
+    if (btn) {{ btn.classList.add('active'); }}
+    var pane = document.getElementById('tab-' + name);
+    if (pane) {{ pane.classList.add('active'); }}
+    history.replaceState(null, '', '#' + name);
+  }}
   document.querySelectorAll('.tab-btn').forEach(function(btn) {{
-    btn.addEventListener('click', function() {{
-      document.querySelectorAll('.tab-btn').forEach(function(b) {{ b.classList.remove('active'); }});
-      document.querySelectorAll('.tab-pane').forEach(function(p) {{ p.classList.remove('active'); }});
-      btn.classList.add('active');
-      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-    }});
+    btn.addEventListener('click', function() {{ switchTab(btn.dataset.tab); }});
   }});
+  (function() {{
+    var hash = window.location.hash.replace('#', '');
+    if (hash) {{ switchTab(hash); }}
+  }})();
   var tip = document.getElementById('att-tip');
   document.querySelectorAll('.tc[data-rules]').forEach(function(el) {{
     el.addEventListener('mouseenter', function() {{

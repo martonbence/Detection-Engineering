@@ -20,9 +20,9 @@ A CI/CD-driven detection engineering pipeline: Sigma rules → Splunk SPL → de
 **Rules per MITRE ATT&CK Tactic**
 ![Rules per MITRE ATT&CK Tactic](https://quickchart.io/chart?c=%7B%22type%22%3A%22horizontalBar%22%2C%22data%22%3A%7B%22labels%22%3A%5B%22Execution%22%2C%22Persistence%22%5D%2C%22datasets%22%3A%5B%7B%22label%22%3A%22Rules%22%2C%22data%22%3A%5B4%2C1%5D%2C%22backgroundColor%22%3A%22%23FFAA00%22%2C%22borderColor%22%3A%22black%22%2C%22borderWidth%22%3A0.5%7D%5D%7D%2C%22options%22%3A%7B%22scales%22%3A%7B%22xAxes%22%3A%5B%7B%22display%22%3Afalse%2C%22gridLines%22%3A%7B%22display%22%3Afalse%2C%22drawOnChartArea%22%3Afalse%2C%22drawBorder%22%3Afalse%7D%2C%22ticks%22%3A%7B%22display%22%3Afalse%2C%22beginAtZero%22%3Atrue%7D%7D%5D%2C%22yAxes%22%3A%5B%7B%22display%22%3Atrue%2C%22position%22%3A%22left%22%2C%22gridLines%22%3A%7B%22display%22%3Afalse%2C%22drawOnChartArea%22%3Afalse%2C%22drawBorder%22%3Afalse%7D%2C%22ticks%22%3A%7B%22fontColor%22%3A%22%23FFAA00%22%7D%7D%5D%7D%2C%22legend%22%3A%7B%22display%22%3Afalse%7D%2C%22plugins%22%3A%7B%22datalabels%22%3A%7B%22anchor%22%3A%22end%22%2C%22align%22%3A%22start%22%2C%22color%22%3A%22black%22%2C%22font%22%3A%7B%22size%22%3A12%2C%22weight%22%3A%22bold%22%7D%7D%7D%7D%7D&width=500&height=160&f=svg)
 
-🗺️ Interactive MITRE Navigator → [GitHub Pages](https://martonbence.github.io/Detection-Engineering/)
+🗺️ Interactive MITRE Navigator → [GitHub Pages](https://martonbence.github.io/Detection-Engineering/#navigator)
 
 📋 Full rule index → [rules/RULE_SUMMARY.md](https://github.com/martonbence/Detection-Engineering/blob/main/rules/RULE_SUMMARY.md)
 
-*Generated at 2026-04-26T14:45:30 UTC*
+*Generated at 2026-04-26T14:48:35 UTC*
 <!-- STATS_END -->
