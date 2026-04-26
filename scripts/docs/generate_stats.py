@@ -544,7 +544,7 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
             " data-id=\"" + tid + "\""
             " data-name=\"" + tname + "\""
             " data-rules=\"" + rj + "\""
-            " title=\"Show rules\">&#9639;</button>"
+            " title=\"Show details\">&#8505;</button>"
         )
 
     cols = []
@@ -572,6 +572,7 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
                 )
 
             tech_url = "https://attack.mitre.org/techniques/" + tid + "/"
+            badge_div = ("<div class=\"tc-foot\">" + badge + "</div>") if badge else ""
             cells.append(
                 "<div class=\"tc " + vcls(tid) + "\" data-id=\"" + tid + "\"" + rattr(tid) + ">"
                 "<div class=\"tc-row1\">"
@@ -579,8 +580,9 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
                 + expand +
                 "</div>"
                 "<span class=\"tn\">" + tname + "</span>"
-                "<div class=\"tc-foot\">" + badge + detail_btn_html(tid, tname) + "</div>"
-                "</div>"
+                + badge_div
+                + detail_btn_html(tid, tname)
+                + "</div>"
             )
             for sub in subs:
                 sid = sub["id"]
@@ -594,8 +596,8 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
                     "<a class=\"ti\" href=\"" + surl + "\" target=\"_blank\">." + suffix + "</a>"
                     "</div>"
                     "<span class=\"tn\">" + sname + "</span>"
-                    "<div class=\"tc-foot\">" + detail_btn_html(sid, sname) + "</div>"
-                    "</div>"
+                    + detail_btn_html(sid, sname)
+                    + "</div>"
                 )
         cols.append(
             "<div class=\"tc-col\">"
@@ -1131,11 +1133,11 @@ def render_html_summary(stats: dict, repo: str) -> str:
     .tc-hdr {{ background:#FFAA00; color:#111; font-size:9px; font-weight:700; padding:5px 4px; text-align:center; border-radius:3px 3px 0 0; min-height:38px; display:flex; align-items:center; justify-content:center; }}
     .tc-hdr a {{ color:#111; text-decoration:none; }}
     .tc-hdr a:hover {{ text-decoration:underline; }}
-    .tc {{ font-size:8px; padding:3px 4px; border-radius:2px; cursor:default; display:flex; flex-direction:column; min-height:30px; gap:1px; }}
+    .tc {{ font-size:8px; padding:3px 4px; border-radius:2px; cursor:default; display:flex; flex-direction:column; min-height:30px; gap:1px; position:relative; }}
     .tc.uncov {{ background:#1c2128; color:#484f58; }}
     .tc.pass  {{ background:#1a4731; color:#aff3c5; }}
     .tc.fail  {{ background:#67060c; color:#ffc1c1; }}
-    .tc.nv    {{ background:#3d444d; color:#cdd5df; }}
+    .tc.nv    {{ background:#2d333b; color:#adbac7; border-left:2px solid rgba(255,170,0,.35); }}
     .tc.sub   {{ min-height:22px; padding-left:8px; }}
     .tc[data-rules] {{ cursor:pointer; }}
     .tc[data-rules]:hover {{ filter:brightness(1.3); }}
@@ -1146,11 +1148,16 @@ def render_html_summary(stats: dict, repo: str) -> str:
     .tc-foot {{ display:flex; justify-content:space-between; align-items:center; margin-top:2px; min-height:10px; }}
     .tc-expand {{ background:none; border:none; color:inherit; cursor:pointer; font-size:7px; padding:0 1px; opacity:.6; line-height:1; flex-shrink:0; }}
     .tc-expand:hover {{ opacity:1; }}
-    .tc-expand.open {{ transform:rotate(90deg); display:inline-block; }}
-    .tc-detail {{ background:none; border:none; color:inherit; cursor:pointer; font-size:10px; padding:0; opacity:.75; line-height:1; flex-shrink:0; }}
-    .tc-detail:hover {{ opacity:1; color:#FFAA00; }}
+    .tc-detail {{ position:absolute; right:3px; top:50%; transform:translateY(-50%); background:none; border:none; color:inherit; cursor:pointer; font-size:12px; padding:2px 3px; opacity:0; line-height:1; z-index:1; }}
+    .tc[data-rules]:hover .tc-detail {{ opacity:.85; }}
+    .tc-detail:hover {{ opacity:1 !important; color:#FFAA00; }}
     .sub-badge {{ font-size:7px; opacity:.55; }}
     .sub-badge-cov {{ font-size:7px; color:#FFAA00; font-weight:700; }}
+    .sub-group {{ border:1.5px solid rgba(255,170,0,.5); border-radius:3px; display:flex; flex-direction:column; gap:1px; padding:1px; margin-top:1px; }}
+    .tc.tc-hidden {{ display:none !important; }}
+    .nav-legend-item[data-filter] {{ cursor:pointer; border-radius:4px; padding:2px 5px; transition:background .15s; }}
+    .nav-legend-item[data-filter]:hover {{ background:rgba(255,170,0,.08); }}
+    .nav-legend-item.filter-active {{ background:rgba(255,170,0,.18); outline:1px solid rgba(255,170,0,.55); }}
     /* Detail panel */
     #detail-panel {{ position:fixed; right:0; top:0; bottom:0; width:300px; background:#161b22; border-left:1px solid #30363d; z-index:10000; display:none; flex-direction:column; box-shadow:-4px 0 24px rgba(0,0,0,.6); }}
     #detail-panel.open {{ display:flex; }}
@@ -1215,10 +1222,10 @@ def render_html_summary(stats: dict, repo: str) -> str:
   <div id="tab-navigator" class="tab-pane">
     <div class="nav-wrap">
       <div class="nav-legend">
-        <div class="nav-legend-item"><div class="nav-legend-dot" style="background:#1a4731;border:1px solid #2EA44F"></div> PASS</div>
-        <div class="nav-legend-item"><div class="nav-legend-dot" style="background:#3d444d"></div> Not Verified</div>
-        <div class="nav-legend-item"><div class="nav-legend-dot" style="background:#67060c;border:1px solid #CF222E"></div> FAIL</div>
-        <div class="nav-legend-item"><div class="nav-legend-dot" style="background:#1c2128;border:1px solid #30363d"></div> Not covered</div>
+        <div class="nav-legend-item" data-filter="pass"><div class="nav-legend-dot" style="background:#1a4731;border:1px solid #2EA44F"></div> PASS</div>
+        <div class="nav-legend-item" data-filter="nv"><div class="nav-legend-dot" style="background:#2d333b;border-left:2px solid rgba(255,170,0,.35)"></div> Not Verified</div>
+        <div class="nav-legend-item" data-filter="fail"><div class="nav-legend-dot" style="background:#67060c;border:1px solid #CF222E"></div> FAIL</div>
+        <div class="nav-legend-item" data-filter="uncov"><div class="nav-legend-dot" style="background:#1c2128;border:1px solid #30363d"></div> Not covered</div>
         <div class="nav-import"><a href="{layer_url}" target="_blank">&#8659; Download Navigator layer (.json)</a></div>
       </div>
       {matrix_html}
@@ -1280,15 +1287,75 @@ def render_html_summary(stats: dict, repo: str) -> str:
     }});
     el.addEventListener('mouseleave', function() {{ tip.style.display = 'none'; }});
   }});
-  // Expand/collapse sub-techniques
+  // Expand/collapse sub-techniques with orange group border
   document.querySelectorAll('.tc-expand').forEach(function(btn) {{
     btn.addEventListener('click', function(e) {{
       e.stopPropagation();
       var target = btn.dataset.target;
-      var subs = document.querySelectorAll('.' + target);
-      var open = btn.classList.toggle('open');
+      var subs = Array.from(document.querySelectorAll('.' + target));
+      var open = !btn.classList.contains('open');
+      btn.classList.toggle('open', open);
       btn.innerHTML = open ? '&#9660;' : '&#9654;';
-      subs.forEach(function(s) {{ s.style.display = open ? 'flex' : 'none'; }});
+      if (open) {{
+        var grp = document.createElement('div');
+        grp.className = 'sub-group';
+        grp.id = 'grp-' + target;
+        var parentTc = btn.closest('.tc');
+        parentTc.after(grp);
+        subs.forEach(function(s) {{
+          s.style.display = 'flex';
+          grp.appendChild(s);
+        }});
+      }} else {{
+        var grp = document.getElementById('grp-' + target);
+        if (grp) {{
+          subs.forEach(function(s) {{
+            s.style.display = 'none';
+            grp.before(s);
+          }});
+          grp.remove();
+        }}
+      }}
+    }});
+  }});
+  // Sticky mirror scrollbar
+  (function() {{
+    var matrix = document.querySelector('.att-matrix');
+    if (!matrix) return;
+    var mirror = document.createElement('div');
+    mirror.style.cssText = 'overflow-x:auto;position:sticky;bottom:0;height:14px;background:#0d1117;z-index:100;';
+    var inner = document.createElement('div');
+    inner.style.height = '1px';
+    mirror.appendChild(inner);
+    matrix.parentNode.insertBefore(mirror, matrix.nextSibling);
+    function syncWidth() {{ inner.style.width = matrix.scrollWidth + 'px'; }}
+    syncWidth();
+    var syncing = false;
+    matrix.addEventListener('scroll', function() {{
+      if (syncing) return; syncing = true; mirror.scrollLeft = matrix.scrollLeft; syncing = false;
+    }});
+    mirror.addEventListener('scroll', function() {{
+      if (syncing) return; syncing = true; matrix.scrollLeft = mirror.scrollLeft; syncing = false;
+    }});
+    if (window.ResizeObserver) {{ new ResizeObserver(syncWidth).observe(matrix); }}
+  }})();
+  // Legend click-to-filter
+  var activeFilter = null;
+  document.querySelectorAll('.nav-legend-item[data-filter]').forEach(function(item) {{
+    item.addEventListener('click', function() {{
+      var f = item.dataset.filter;
+      if (activeFilter === f) {{
+        activeFilter = null;
+        document.querySelectorAll('.nav-legend-item[data-filter]').forEach(function(i) {{ i.classList.remove('filter-active'); }});
+        document.querySelectorAll('.tc').forEach(function(tc) {{ tc.classList.remove('tc-hidden'); }});
+      }} else {{
+        activeFilter = f;
+        document.querySelectorAll('.nav-legend-item[data-filter]').forEach(function(i) {{ i.classList.remove('filter-active'); }});
+        item.classList.add('filter-active');
+        document.querySelectorAll('.tc').forEach(function(tc) {{
+          tc.classList.toggle('tc-hidden', !tc.classList.contains(f));
+        }});
+      }}
     }});
   }});
   // Detail panel
