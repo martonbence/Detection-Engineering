@@ -544,7 +544,7 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
             " data-id=\"" + tid + "\""
             " data-name=\"" + tname + "\""
             " data-rules=\"" + rj + "\""
-            " title=\"Show details\">&#8505;</button>"
+            " title=\"Show details\">&#9776;</button>"
         )
 
     cols = []
@@ -573,8 +573,10 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
 
             tech_url = "https://attack.mitre.org/techniques/" + tid + "/"
             badge_div = ("<div class=\"tc-foot\">" + badge + "</div>") if badge else ""
+            cls = vcls(tid)
+            has_cov = " has-cov" if (cls == "uncov" and sub_covered > 0) else ""
             cells.append(
-                "<div class=\"tc " + vcls(tid) + "\" data-id=\"" + tid + "\"" + rattr(tid) + ">"
+                "<div class=\"tc " + cls + has_cov + "\" data-id=\"" + tid + "\"" + rattr(tid) + ">"
                 "<div class=\"tc-row1\">"
                 "<a class=\"ti\" href=\"" + tech_url + "\" target=\"_blank\">" + tid + "</a>"
                 + expand +
@@ -1129,35 +1131,38 @@ def render_html_summary(stats: dict, repo: str) -> str:
     .nav-legend-dot {{ width:12px; height:12px; border-radius:2px; flex-shrink:0; }}
     .nav-import {{ margin-left:auto; font-size:12px; }}
     .att-matrix {{ display:flex; gap:2px; overflow-x:auto; padding-bottom:8px; }}
-    .tc-col {{ flex:0 0 112px; display:flex; flex-direction:column; gap:1px; }}
-    .tc-hdr {{ background:#FFAA00; color:#111; font-size:9px; font-weight:700; padding:5px 4px; text-align:center; border-radius:3px 3px 0 0; min-height:38px; display:flex; align-items:center; justify-content:center; }}
+    .tc-col {{ flex:0 0 132px; display:flex; flex-direction:column; gap:1px; }}
+    .tc-hdr {{ background:#FFAA00; color:#111; font-size:10px; font-weight:700; padding:5px 4px; text-align:center; border-radius:3px 3px 0 0; min-height:40px; display:flex; align-items:center; justify-content:center; }}
     .tc-hdr a {{ color:#111; text-decoration:none; }}
     .tc-hdr a:hover {{ text-decoration:underline; }}
-    .tc {{ font-size:8px; padding:3px 4px; border-radius:2px; cursor:default; display:flex; flex-direction:column; min-height:30px; gap:1px; position:relative; }}
+    .tc {{ font-size:10px; padding:4px 5px; border-radius:2px; cursor:default; display:flex; flex-direction:column; min-height:34px; gap:1px; position:relative; }}
     .tc.uncov {{ background:#1c2128; color:#484f58; }}
+    .tc.uncov.has-cov {{ background:#222935; color:#545f6e; }}
     .tc.pass  {{ background:#1a4731; color:#aff3c5; }}
     .tc.fail  {{ background:#67060c; color:#ffc1c1; }}
     .tc.nv    {{ background:#2d333b; color:#adbac7; border-left:2px solid rgba(255,170,0,.35); }}
-    .tc.sub   {{ min-height:22px; padding-left:8px; }}
+    .tc.sub   {{ min-height:24px; padding-left:10px; }}
     .tc[data-rules] {{ cursor:pointer; }}
     .tc[data-rules]:hover {{ filter:brightness(1.3); }}
-    .ti {{ font-weight:700; font-size:8px; color:inherit; text-decoration:none; }}
+    .ti {{ font-weight:700; font-size:10px; color:inherit; text-decoration:none; }}
     .ti:hover {{ text-decoration:underline; }}
     .tn {{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }}
     .tc-row1 {{ display:flex; justify-content:space-between; align-items:center; gap:2px; }}
     .tc-foot {{ display:flex; justify-content:space-between; align-items:center; margin-top:2px; min-height:10px; }}
-    .tc-expand {{ background:none; border:none; color:inherit; cursor:pointer; font-size:7px; padding:0 1px; opacity:.6; line-height:1; flex-shrink:0; }}
+    .tc-expand {{ background:none; border:none; color:inherit; cursor:pointer; font-size:11px; padding:1px 2px; opacity:.65; line-height:1; flex-shrink:0; }}
     .tc-expand:hover {{ opacity:1; }}
-    .tc-detail {{ position:absolute; right:3px; top:50%; transform:translateY(-50%); background:none; border:none; color:inherit; cursor:pointer; font-size:12px; padding:2px 3px; opacity:0; line-height:1; z-index:1; }}
+    .tc-detail {{ position:absolute; right:4px; top:50%; transform:translateY(-50%); background:none; border:none; color:inherit; cursor:pointer; font-size:13px; padding:2px 3px; opacity:0; line-height:1; z-index:1; }}
     .tc[data-rules]:hover .tc-detail {{ opacity:.85; }}
     .tc-detail:hover {{ opacity:1 !important; color:#FFAA00; }}
-    .sub-badge {{ font-size:7px; opacity:.55; }}
-    .sub-badge-cov {{ font-size:7px; color:#FFAA00; font-weight:700; }}
+    .sub-badge {{ font-size:8px; opacity:.55; }}
+    .sub-badge-cov {{ font-size:8px; color:#FFAA00; font-weight:700; }}
     .sub-group {{ border:1.5px solid rgba(255,170,0,.5); border-radius:3px; display:flex; flex-direction:column; gap:1px; padding:1px; margin-top:1px; }}
     .tc.tc-hidden {{ display:none !important; }}
-    .nav-legend-item[data-filter] {{ cursor:pointer; border-radius:4px; padding:2px 5px; transition:background .15s; }}
+    .nav-legend-item[data-filter] {{ cursor:pointer; border-radius:4px; padding:2px 6px; transition:background .15s; }}
     .nav-legend-item[data-filter]:hover {{ background:rgba(255,170,0,.08); }}
     .nav-legend-item.filter-active {{ background:rgba(255,170,0,.18); outline:1px solid rgba(255,170,0,.55); }}
+    .nav-legend-item[data-filter] .nav-legend-dot {{ position:relative; }}
+    .nav-legend-item.filter-active .nav-legend-dot::after {{ content:'✓'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; font-size:9px; font-weight:900; }}
     /* Detail panel */
     #detail-panel {{ position:fixed; right:0; top:0; bottom:0; width:300px; background:#161b22; border-left:1px solid #30363d; z-index:10000; display:none; flex-direction:column; box-shadow:-4px 0 24px rgba(0,0,0,.6); }}
     #detail-panel.open {{ display:flex; }}
@@ -1287,33 +1292,28 @@ def render_html_summary(stats: dict, repo: str) -> str:
     }});
     el.addEventListener('mouseleave', function() {{ tip.style.display = 'none'; }});
   }});
-  // Expand/collapse sub-techniques with orange group border
+  // Expand/collapse sub-techniques — scoped to column, grp stored on button
   document.querySelectorAll('.tc-expand').forEach(function(btn) {{
     btn.addEventListener('click', function(e) {{
       e.stopPropagation();
       var target = btn.dataset.target;
-      var subs = Array.from(document.querySelectorAll('.' + target));
+      var col = btn.closest('.tc-col');
+      var subs = Array.from(col.querySelectorAll('.' + target));
       var open = !btn.classList.contains('open');
       btn.classList.toggle('open', open);
       btn.innerHTML = open ? '&#9660;' : '&#9654;';
       if (open) {{
         var grp = document.createElement('div');
         grp.className = 'sub-group';
-        grp.id = 'grp-' + target;
-        var parentTc = btn.closest('.tc');
-        parentTc.after(grp);
-        subs.forEach(function(s) {{
-          s.style.display = 'flex';
-          grp.appendChild(s);
-        }});
+        btn._subGrp = grp;
+        btn.closest('.tc').after(grp);
+        subs.forEach(function(s) {{ s.style.display = 'flex'; grp.appendChild(s); }});
       }} else {{
-        var grp = document.getElementById('grp-' + target);
+        var grp = btn._subGrp;
         if (grp) {{
-          subs.forEach(function(s) {{
-            s.style.display = 'none';
-            grp.before(s);
-          }});
+          subs.forEach(function(s) {{ s.style.display = 'none'; grp.before(s); }});
           grp.remove();
+          btn._subGrp = null;
         }}
       }}
     }});
@@ -1339,39 +1339,70 @@ def render_html_summary(stats: dict, repo: str) -> str:
     }});
     if (window.ResizeObserver) {{ new ResizeObserver(syncWidth).observe(matrix); }}
   }})();
-  // Legend click-to-filter
-  var activeFilter = null;
+  // Legend multi-filter with parent+sub logic
+  var activeFilters = new Set();
+  function tcVerdict(tc) {{
+    if (tc.classList.contains('pass')) return 'pass';
+    if (tc.classList.contains('fail')) return 'fail';
+    if (tc.classList.contains('nv'))   return 'nv';
+    return 'uncov';
+  }}
+  function applyFilters() {{
+    document.querySelectorAll('.tc-col').forEach(function(col) {{
+      col.querySelectorAll('.tc:not(.sub)').forEach(function(parentTc) {{
+        var tid = parentTc.dataset.id;
+        if (!tid) return;
+        var subs = Array.from(col.querySelectorAll('.tc.sub[data-id^="' + tid + '."]'));
+        if (activeFilters.size === 0) {{
+          parentTc.classList.remove('tc-hidden');
+          subs.forEach(function(s) {{ s.classList.remove('tc-hidden'); }});
+          return;
+        }}
+        var parentMatch = activeFilters.has(tcVerdict(parentTc));
+        var subMatch = subs.some(function(s) {{ return activeFilters.has(tcVerdict(s)); }});
+        parentTc.classList.toggle('tc-hidden', !parentMatch && !subMatch);
+        subs.forEach(function(s) {{
+          s.classList.toggle('tc-hidden', !activeFilters.has(tcVerdict(s)));
+        }});
+      }});
+    }});
+  }}
   document.querySelectorAll('.nav-legend-item[data-filter]').forEach(function(item) {{
     item.addEventListener('click', function() {{
       var f = item.dataset.filter;
-      if (activeFilter === f) {{
-        activeFilter = null;
-        document.querySelectorAll('.nav-legend-item[data-filter]').forEach(function(i) {{ i.classList.remove('filter-active'); }});
-        document.querySelectorAll('.tc').forEach(function(tc) {{ tc.classList.remove('tc-hidden'); }});
+      if (activeFilters.has(f)) {{
+        activeFilters.delete(f);
+        item.classList.remove('filter-active');
       }} else {{
-        activeFilter = f;
-        document.querySelectorAll('.nav-legend-item[data-filter]').forEach(function(i) {{ i.classList.remove('filter-active'); }});
+        activeFilters.add(f);
         item.classList.add('filter-active');
-        document.querySelectorAll('.tc').forEach(function(tc) {{
-          tc.classList.toggle('tc-hidden', !tc.classList.contains(f));
-        }});
       }}
+      applyFilters();
     }});
   }});
-  // Detail panel
+  // Detail panel — toggle on same button, switch on different
   var panel = document.getElementById('detail-panel');
   var panelTitle = document.getElementById('detail-title');
   var panelTid = document.getElementById('detail-tid');
   var panelBody = document.getElementById('detail-body');
+  var openDetailId = null;
   document.getElementById('detail-close').addEventListener('click', function() {{
     panel.classList.remove('open');
+    openDetailId = null;
   }});
   document.querySelectorAll('.tc-detail').forEach(function(btn) {{
     btn.addEventListener('click', function(e) {{
       e.stopPropagation();
+      var bid = btn.dataset.id;
+      if (panel.classList.contains('open') && openDetailId === bid) {{
+        panel.classList.remove('open');
+        openDetailId = null;
+        return;
+      }}
+      openDetailId = bid;
       var rules = JSON.parse(btn.dataset.rules);
       panelTitle.textContent = btn.dataset.name;
-      panelTid.textContent = btn.dataset.id;
+      panelTid.textContent = bid;
       var html = '';
       rules.forEach(function(r) {{
         var vc = r.verdict === 'N/A' ? 'NA' : r.verdict;
