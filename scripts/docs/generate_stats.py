@@ -34,7 +34,8 @@ TACTIC_MAP = {
     "execution": "Execution",
     "persistence": "Persistence",
     "privilege_escalation": "Privilege Escalation",
-    "defense_evasion": "Defense Evasion",
+    "stealth": "Stealth",
+    "defense_impairment": "Defense Impairment",
     "credential_access": "Credential Access",
     "discovery": "Discovery",
     "lateral_movement": "Lateral Movement",
@@ -51,7 +52,8 @@ TACTIC_ID_MAP = {
     "Execution": "TA0002",
     "Persistence": "TA0003",
     "Privilege Escalation": "TA0004",
-    "Defense Evasion": "TA0005",
+    "Stealth": "TA0005",
+    "Defense Impairment": "TA0112",
     "Credential Access": "TA0006",
     "Discovery": "TA0007",
     "Lateral Movement": "TA0008",
@@ -68,7 +70,8 @@ STIX_TACTIC_MAP = {
     "execution": "Execution",
     "persistence": "Persistence",
     "privilege-escalation": "Privilege Escalation",
-    "defense-evasion": "Defense Evasion",
+    "stealth": "Stealth",
+    "defense-impairment": "Defense Impairment",
     "credential-access": "Credential Access",
     "discovery": "Discovery",
     "lateral-movement": "Lateral Movement",
@@ -81,7 +84,7 @@ STIX_TACTIC_MAP = {
 TACTIC_ORDER = [
     "Reconnaissance", "Resource Development", "Initial Access",
     "Execution", "Persistence", "Privilege Escalation",
-    "Defense Evasion", "Credential Access", "Discovery",
+    "Stealth", "Defense Impairment", "Credential Access", "Discovery",
     "Lateral Movement", "Collection", "Command & Control",
     "Exfiltration", "Impact",
 ]
@@ -471,7 +474,7 @@ def render_navigator_layer(technique_coverage: dict, stats: dict) -> str:
         })
     layer = {
         "name": "Detection Engineering Coverage",
-        "versions": {"attack": "14", "navigator": "4.9.1", "layer": "4.5"},
+        "versions": {"attack": "19", "navigator": "4.9.1", "layer": "4.5"},
         "domain": "enterprise-attack",
         "description": f"Auto-generated detection coverage. {stats['generated_at'][:19]} UTC.",
         "filters": {"platforms": [
@@ -604,7 +607,9 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
         cols.append(
             "<div class=\"tc-col\">"
             "<div class=\"tc-hdr\"><a href=\"" + tac_url + "\" target=\"_blank\">"
-            + _html.escape(tactic) + "</a></div>"
+            + _html.escape(tactic) + "</a>"
+            + "<span class=\"tc-count\">" + str(len(techs)) + " techniques</span>"
+            + "</div>"
             + "".join(cells)
             + "</div>"
         )
@@ -1133,7 +1138,8 @@ def render_html_summary(stats: dict, repo: str) -> str:
     .att-matrix {{ display:flex; gap:2px; overflow-x:auto; padding-bottom:4px; scrollbar-width:none; }}
     .att-matrix::-webkit-scrollbar {{ display:none; }}
     .tc-col {{ flex:0 0 152px; display:flex; flex-direction:column; gap:1px; }}
-    .tc-hdr {{ background:#FFAA00; color:#111; font-size:12px; font-weight:700; padding:6px 5px; text-align:center; border-radius:3px 3px 0 0; min-height:44px; display:flex; align-items:center; justify-content:center; }}
+    .tc-hdr {{ background:#FFAA00; color:#111; font-size:12px; font-weight:700; padding:6px 5px; text-align:center; border-radius:3px 3px 0 0; min-height:44px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; }}
+    .tc-count {{ font-size:10px; font-weight:400; opacity:.75; }}
     .tc-hdr a {{ color:#111; text-decoration:none; }}
     .tc-hdr a:hover {{ text-decoration:underline; }}
     .tc {{ font-size:12px; padding:5px 6px; border-radius:2px; cursor:default; display:flex; flex-direction:column; min-height:40px; gap:1px; position:relative; }}
