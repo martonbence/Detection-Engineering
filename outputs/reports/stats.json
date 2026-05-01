@@ -1,32 +1,33 @@
 {
-  "generated_at": "2026-04-26T17:58:47.188442+00:00",
-  "total_rules": 4,
-  "total_sigma_rules": 3,
+  "generated_at": "2026-05-01T18:52:29.399742+00:00",
+  "total_rules": 5,
+  "total_sigma_rules": 4,
   "total_splunk_rules": 4,
   "total_native_spl_rules": 1,
   "verified_pass": 4,
   "verified_fail": 0,
-  "not_verified": 0,
-  "pass_rate_pct": 100,
+  "not_verified": 1,
+  "pass_rate_pct": 80,
   "pass_rate_color": "brightgreen",
-  "mitre_covered_techniques": 2,
-  "mitre_total_techniques": 216,
-  "mitre_total_fetched_at": "2026-04-26T14:42:06.011930+00:00",
-  "mitre_coverage_pct": 0.9,
+  "mitre_covered_techniques": 3,
+  "mitre_total_techniques": 222,
+  "mitre_total_fetched_at": "2026-05-01T18:52:29.399742+00:00",
+  "mitre_coverage_pct": 1.4,
   "by_level": {
     "critical": 1,
-    "high": 1,
+    "high": 2,
     "low": 1,
     "medium": 1
   },
   "by_status": {
     "experimental": 1,
     "stable": 1,
-    "test": 2
+    "test": 3
   },
   "by_tactic": {
-    "Execution": 4,
-    "Persistence": 1
+    "Execution": 5,
+    "Persistence": 2,
+    "Stealth": 1
   },
   "rules": [
     {
@@ -93,6 +94,24 @@
         "T1059.001"
       ],
       "file_path": "rules/sigma/test4.sigma.yml"
+    },
+    {
+      "detect_id": "DETECT-2026-0005",
+      "title": "BITS Job abuse via BITSAdmin or PowerShell",
+      "level": "high",
+      "status": "test",
+      "source": "sigma",
+      "verdict": "N/A",
+      "run_id": "",
+      "tactics": [
+        "Execution",
+        "Persistence",
+        "Stealth"
+      ],
+      "techniques": [
+        "T1197"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0005_BITS-Job-abuse-via-BITSAdmin-or-PowerShell.sigma.yml"
     }
   ]
 }
