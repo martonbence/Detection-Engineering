@@ -1,0 +1,65 @@
+META_START
+{
+  "title": "BITS Persistence via SetNotifyCmdLine",
+  "detect_id": "DETECT-2026-0006",
+  "description": "Detects use of bitsadmin.exe /setnotifycmdline, which registers an arbitrary command to execute automatically when a BITS job completes. Attackers abuse this to chain payload delivery with execution — the BITS job downloads the file, and /setnotifycmdline triggers it without further user interaction. This flag has no known legitimate production use case and is a strong indicator of persistence establishment (T1197).",
+  "sigma_file": "rules/sigma/DETECT-2026-0006_BITS-Persistence-via-SetNotifyCmdLine.sigma.yml",
+  "level": "critical",
+  "status": "test",
+  "author": "Bence Marton",
+  "date": "2026-05-01",
+  "modified": "2026-05-01",
+
+  "convert_time": "2026-05-01T21:21:44+02:00",
+  "rule_version": "1.0",
+  "git_sha": "6662b87560ec9715b590449577c780726823346f",
+  "ci_managed": true,
+  "origin": "sigma_to_spl.py",
+  "sigma_pipeline": "splunk_sysmon_acceleration",
+
+  "deploy_mode": "alert",
+  "index": "sysmon",
+  "cron": "*/5 * * * *",
+  "earliest": "-5m",
+  "latest": "now",
+  "severity": "critical",
+
+  "testing enabled": true,
+  "runner": "windows-victim",
+  "tester": "atomic",
+  "atomic tests": [
+    {
+      "technique": "T1197",
+      "test_numbers": [
+        3
+      ]
+    }
+  ],
+
+  "references": [
+    "https://attack.mitre.org/techniques/T1197/",
+    "https://lolbas-project.github.io/lolbas/Binaries/Bitsadmin/",
+    "https://pentestlab.blog/2019/10/30/persistence-bits-jobs/"
+  ],
+
+  "tags": [
+    "attack.execution",
+    "attack.persistence",
+    "attack.stealth",
+    "attack.t1197"
+  ],
+
+  "logsource": {
+    "product_category": "os",
+    "product": "windows",
+    "service": "sysmon",
+    "event_type": "process_creation"
+  },
+
+  "falsepositives": [
+    "None known; /setnotifycmdline has no legitimate production use case"
+  ]
+}
+META_END
+---
+index=sysmon Image="*\\bitsadmin.exe" CommandLine="*/setnotifycmdline*" NOT (User IN ("*SYSTEM*", "*NETWORK SERVICE*", "*LOCAL SERVICE*") OR ParentImage="*\\svchost.exe") | table Image,CommandLine,ParentImage,User,ProcessId,ParentProcessId
