@@ -1,12 +1,12 @@
 {
   "name": "Detection Engineering Coverage",
   "versions": {
-    "attack": "14",
+    "attack": "19",
     "navigator": "4.9.1",
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-04-26T17:58:47 UTC.",
+  "description": "Auto-generated detection coverage. 2026-05-01T18:52:29 UTC.",
   "filters": {
     "platforms": [
       "Windows",
@@ -34,6 +34,14 @@
   },
   "hideDisabled": false,
   "techniques": [
+    {
+      "techniqueID": "T1197",
+      "color": "#6E7681",
+      "comment": "DETECT-2026-0005: BITS Job abuse via BITSAdmin or PowerShell (N/A)",
+      "enabled": true,
+      "score": 25,
+      "showSubtechniques": true
+    },
     {
       "techniqueID": "T1053.005",
       "color": "#2EA44F",
