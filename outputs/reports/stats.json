@@ -1,14 +1,14 @@
 {
-  "generated_at": "2026-05-03T19:27:46.343741+00:00",
+  "generated_at": "2026-05-03T20:21:43.710052+00:00",
   "total_rules": 7,
   "total_sigma_rules": 6,
   "total_splunk_rules": 7,
   "total_native_spl_rules": 1,
-  "verified_pass": 5,
-  "verified_fail": 2,
+  "verified_pass": 7,
+  "verified_fail": 0,
   "not_verified": 0,
-  "pass_rate_pct": 71,
-  "pass_rate_color": "yellow",
+  "pass_rate_pct": 100,
+  "pass_rate_color": "brightgreen",
   "mitre_covered_techniques": 4,
   "mitre_total_techniques": 222,
   "mitre_total_fetched_at": "2026-05-01T18:52:29.399742+00:00",
@@ -101,8 +101,8 @@
       "level": "high",
       "status": "stable",
       "source": "sigma",
-      "verdict": "FAIL",
-      "run_id": "25288489908",
+      "verdict": "PASS",
+      "run_id": "25289764033",
       "tactics": [
         "Execution",
         "Persistence",
@@ -119,8 +119,8 @@
       "level": "critical",
       "status": "stable",
       "source": "sigma",
-      "verdict": "FAIL",
-      "run_id": "25288489908",
+      "verdict": "PASS",
+      "run_id": "25289764033",
       "tactics": [
         "Execution",
         "Persistence",
@@ -138,14 +138,14 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "25288489908",
+      "run_id": "25289764033",
       "tactics": [
         "Execution",
         "Stealth"
       ],
       "techniques": [
         "T1059.001",
-        "T1027"
+        "T1027.010"
       ],
       "file_path": "rules/sigma/DETECT-2026-0007_PowerShell-Encoded-Command-Execution.sigma.yml"
     }
