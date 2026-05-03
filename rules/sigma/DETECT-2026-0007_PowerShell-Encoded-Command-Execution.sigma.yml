@@ -1,0 +1,79 @@
+title: PowerShell Encoded Command Execution
+detect_id: DETECT-2026-0007
+status: experimental
+description: Detects execution of PowerShell with encoded command flags, a
+  common obfuscation technique used to hide malicious payloads. Covers all -ec
+  and -en[codedcommand] prefix variants (selection_cmdline_enc), and the -e
+  standalone flag when followed by a minimum 80-character Base64 payload
+  (selection_cmdline_e_standalone).
+references:
+  - https://attack.mitre.org/techniques/T1059/001/
+  - https://attack.mitre.org/techniques/T1027/
+author: Bence Marton
+date: 2026-05-03
+modified: 2026-05-03
+tags:
+  - attack.execution
+  - attack.t1059.001
+  - attack.stealth
+  - attack.t1027
+
+logsource:
+  product_category: os
+  product: windows
+  service: sysmon
+  event_type: process_creation
+
+detection:
+  selection_image:
+    Image|endswith:
+      - "\\powershell.exe"
+      - "\\pwsh.exe"
+
+  selection_cmdline_enc:
+    CommandLine|re: "(?i)(?:^|[\\s\\t\"])-e(?:c|n(?:c(?:o(?:d(?:e(?:d(?:c(?:o(?:m(?\
+      :m(?:a(?:n(?:d)?)?)?)?)?)?)?)?)?)?)?))(?:[\\s\\t\"=]|$)"
+
+  selection_cmdline_e_standalone:
+    CommandLine|re: "(?i)(?:^|[\\s\\t\"])-e[\\s\\t]+(?:[A-Za-z0-9+/]{80,}={0,2})(?:[\
+      \\s\\t\"]|$)"
+
+  condition: selection_image and (selection_cmdline_enc or selection_cmdline_e_standalone)
+
+fields:
+  - _time
+  - ParentImage
+  - Image
+  - User
+  - ParentCommandLine
+  - CommandLine
+  - ProcessId
+  - ParentProcessId
+
+falsepositives:
+  - Administrative and deployment scripts using encoded commands for special
+    character handling
+  - Software installers and build tools (Visual Studio, JetBrains, MSBuild, etc.)
+  - CI/CD pipelines invoking PowerShell with encoded commands (GitHub Actions,
+    Azure DevOps, Jenkins)
+  - Task Scheduler entries created by legitimate software
+  - Remote management and configuration tools (SCCM, Ansible, DSC)
+
+level: high
+
+custom:
+  splunk:
+    index: sysmon
+    mode: alert
+    cron: "*/5 * * * *"
+    earliest: "-5m"
+    latest: "now"
+    severity: high
+
+  testing:
+    enabled: true
+    runner: windows-victim
+    type: atomic
+    atomics:
+      - technique: T1059.001
+        test_numbers: [ 17 ]
