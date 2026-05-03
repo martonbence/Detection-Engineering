@@ -1,6 +1,6 @@
 title: BITS Persistence via SetNotifyCmdLine
 detect_id: DETECT-2026-0006
-status: test
+status: stable
 description: Detects use of bitsadmin.exe /setnotifycmdline, which registers an
   arbitrary command to execute automatically when a BITS job completes.
   Attackers abuse this to chain payload delivery with execution — the BITS job
