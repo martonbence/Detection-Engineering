@@ -1,6 +1,6 @@
 title: BITS Job abuse via BITSAdmin or PowerShell
 detect_id: DETECT-2026-0005
-status: test
+status: stable
 description: Detects suspicious use of the Background Intelligent Transfer
   Service (BITS) via bitsadmin.exe flags (/transfer, /create, /addfile) or
   PowerShell BITS cmdlets (Start-BitsTransfer, Complete-BitsTransfer,

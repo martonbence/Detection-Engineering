@@ -1,6 +1,6 @@
 title: PowerShell Encoded Command Execution
 detect_id: DETECT-2026-0007
-status: experimental
+status: stable
 description: Detects execution of PowerShell with encoded command flags, a
   common obfuscation technique used to hide malicious payloads. Covers all -ec
   and -en[codedcommand] prefix variants (selection_cmdline_enc), and the -e
