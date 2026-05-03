@@ -9,7 +9,7 @@ description: Detects use of bitsadmin.exe /setnotifycmdline, which registers an
   strong indicator of persistence establishment (T1197).
 author: Bence Marton
 date: 2026-05-01
-modified: 2026-05-01
+modified: 2026-05-03
 references:
   - https://attack.mitre.org/techniques/T1197/
   - https://lolbas-project.github.io/lolbas/Binaries/Bitsadmin/
