@@ -110,7 +110,6 @@ detection:
     User|contains:
       - "SYSTEM"
       - "NETWORK SERVICE"
-      - "LOCAL SERVICE"
 
   filter_legit_parent:
     ParentImage|endswith:
@@ -119,13 +118,16 @@ detection:
 
   condition: ( ( selection_bitsadmin_image and selection_bitsadmin_flags ) or (
     selection_ps_image and selection_ps_cmdlets ) ) and not ( filter_legit_user
-    or filter_legit_parent )
+    and filter_legit_parent )
 
 fields:
+  - _time
+  - ComputerName
+  - User
   - Image
   - CommandLine
   - ParentImage
-  - User
+  - ParentCommandLine
   - ProcessId
   - ParentProcessId
 
