@@ -1,4 +1,4 @@
-name: CI - Native SPL Pipeline
+name: CI - Native SPL Workflow
 
 on:
   push:
@@ -11,14 +11,14 @@ on:
       - "scripts/deploy/deploy_spl_to_splunk.py"
       - "scripts/atomic/run_atomic.ps1"
       - "scripts/verify/**"
-      - ".github/workflows/ci_update_native_spl_meta.yml"
+      - ".github/workflows/ci_native_spl_workflow.yml"
   pull_request:
     paths:
       - "rules/splunk/**/*.spl"
       - "docs/schemas/spl_schema.json"
       - "scripts/validate/validate_spl.py"
       - "scripts/docs/update_spl_meta.py"
-      - ".github/workflows/ci_update_native_spl_meta.yml"
+      - ".github/workflows/ci_native_spl_workflow.yml"
 
 concurrency:
   group: detection-pipeline-${{ github.ref }}
@@ -473,7 +473,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add outputs/results/ outputs/reports/stats.json README.md rules/RULE_SUMMARY.md docs/index.html
+          git add outputs/results/ outputs/reports/ README.md rules/RULE_SUMMARY.md docs/index.html
 
           if git diff --cached --quiet; then
             echo "No changes to commit."
@@ -489,8 +489,8 @@ jobs:
               : # clean rebase, no conflict
             else
               # stats.json / README.md conflict: keep our generated version, continue
-              git checkout --theirs outputs/reports/stats.json README.md 2>/dev/null || true
-              git add outputs/reports/stats.json README.md rules/RULE_SUMMARY.md docs/index.html 2>/dev/null || true
+              git checkout --theirs outputs/reports/stats.json outputs/reports/mitre_technique_map.json outputs/reports/navigator_layer.json README.md 2>/dev/null || true
+              git add outputs/reports/ README.md rules/RULE_SUMMARY.md docs/index.html 2>/dev/null || true
               git rebase --continue 2>/dev/null || {
                 git rebase --abort 2>/dev/null || true
                 echo "Rebase failed on attempt $i, retrying..."
@@ -501,7 +501,7 @@ jobs:
 
             # Re-generate stats after rebase so it includes all pipelines' results
             python scripts/docs/generate_stats.py
-            git add outputs/reports/stats.json README.md rules/RULE_SUMMARY.md docs/index.html
+            git add outputs/reports/ README.md rules/RULE_SUMMARY.md docs/index.html
             git diff --cached --quiet || git commit --amend --no-edit
 
             if git push origin HEAD:main; then
@@ -519,3 +519,31 @@ jobs:
       - name: Report verification verdict
         shell: bash
         run: exit ${{ steps.eval.outputs.exit_code || '0' }}
+
+  deploy_pages:
+    name: Deploy GitHub Pages
+    needs: [splunk_verify]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
