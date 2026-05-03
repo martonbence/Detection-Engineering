@@ -42,13 +42,14 @@ detection:
 
 fields:
   - _time
+  - CommandLine
+  - ComputerName
+  - ParentUser
   - ParentImage
   - Image
-  - User
   - ParentCommandLine
-  - CommandLine
   - ProcessId
-  - ParentProcessId
+  - CommandLineMatch
 
 falsepositives:
   - Administrative and deployment scripts using encoded commands for special
