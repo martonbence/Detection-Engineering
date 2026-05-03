@@ -1,0 +1,15 @@
+{
+  "detect_id": "DETECT-2026-0006",
+  "title": "BITS Persistence via SetNotifyCmdLine",
+  "verdict": "FAIL",
+  "reason": "Too few events: 0 (min expected: 1)",
+  "event_count": 0,
+  "min_pass": 1,
+  "max_pass": 10,
+  "earliest": "-5m",
+  "latest": "now",
+  "run_timestamp": "2026-05-03T19:27:41.794799+00:00",
+  "rule_version": "1.3",
+  "git_sha": "ec44455eb045236122eb00c30a657facc0735e6e",
+  "run_id": "25288489908"
+}
