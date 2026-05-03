@@ -1,0 +1,72 @@
+META_START
+{
+  "title": "PowerShell Encoded Command Execution",
+  "detect_id": "DETECT-2026-0007",
+  "description": "Detects execution of PowerShell with encoded command flags, a common obfuscation technique used to hide malicious payloads. Covers all -ec and -en[codedcommand] prefix variants (selection_cmdline_enc), and the -e standalone flag when followed by a minimum 80-character Base64 payload (selection_cmdline_e_standalone).",
+  "sigma_file": "rules/sigma/DETECT-2026-0007_PowerShell-Encoded-Command-Execution.sigma.yml",
+  "level": "high",
+  "status": "experimental",
+  "author": "Bence Marton",
+  "date": "2026-05-03",
+  "modified": "2026-05-03",
+
+  "convert_time": "2026-05-03T19:00:37+02:00",
+  "rule_version": "1.0",
+  "git_sha": "0641f05177b1687bfc95645e6ba0716cc2a67f8b",
+  "ci_managed": true,
+  "origin": "sigma_to_spl.py",
+  "sigma_pipeline": "splunk_sysmon_acceleration",
+
+  "deploy_mode": "alert",
+  "index": "sysmon",
+  "cron": "*/5 * * * *",
+  "earliest": "-5m",
+  "latest": "now",
+  "severity": "high",
+
+  "testing enabled": true,
+  "runner": "windows-victim",
+  "tester": "atomic",
+  "atomic tests": [
+    {
+      "technique": "T1059.001",
+      "test_numbers": [
+        17
+      ]
+    }
+  ],
+
+  "references": [
+    "https://attack.mitre.org/techniques/T1059/001/",
+    "https://attack.mitre.org/techniques/T1027/"
+  ],
+
+  "tags": [
+    "attack.execution",
+    "attack.t1059.001",
+    "attack.stealth",
+    "attack.t1027"
+  ],
+
+  "logsource": {
+    "product_category": "os",
+    "product": "windows",
+    "service": "sysmon",
+    "event_type": "process_creation"
+  },
+
+  "falsepositives": [
+    "Administrative and deployment scripts using encoded commands for special character handling",
+    "Software installers and build tools (Visual Studio, JetBrains, MSBuild, etc.)",
+    "CI/CD pipelines invoking PowerShell with encoded commands (GitHub Actions, Azure DevOps, Jenkins)",
+    "Task Scheduler entries created by legitimate software",
+    "Remote management and configuration tools (SCCM, Ansible, DSC)"
+  ]
+}
+META_END
+---
+index=sysmon | rex field=CommandLine "(?<CommandLineMatch>(?i)(?:^|[\\s\\t\"])-e(?:c|n(?:c(?:o(?:d(?:e(?:d(?:c(?:o(?:m(?:m(?:a(?:n(?:d)?)?)?)?)?)?)?)?)?)?)?))(?:[\\s\\t\"=]|$))"
+| eval CommandLineCondition=if(isnotnull(CommandLineMatch), "true", "false")
+| rex field=CommandLine "(?<CommandLineMatch2>(?i)(?:^|[\\s\\t\"])-e[\\s\\t]+(?:[A-Za-z0-9+/]{80,}={0,2})(?:[\\s\\t\"]|$))"
+| eval CommandLineCondition2=if(isnotnull(CommandLineMatch2), "true", "false")
+| search Image IN ("*\\powershell.exe", "*\\pwsh.exe") CommandLineCondition="true" OR CommandLineCondition2="true" | table _time,ParentImage,Image,User,ParentCommandLine,CommandLine,ProcessId,ParentProcessId
