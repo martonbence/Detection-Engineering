@@ -1,4 +1,4 @@
-name: CI - Sigma to Splunk Pipeline
+name: CI - Sigma to Splunk Workflow
 
 on:
   push:
@@ -12,7 +12,7 @@ on:
       - "scripts/deploy/deploy_spl_to_splunk.py"
       - "scripts/atomic/run_atomic.ps1"
       - "scripts/verify/**"
-      - ".github/workflows/ci_sigma_validate_and_convert.yml"
+      - ".github/workflows/ci_sigma_to_splunk_workflow.yml"
   pull_request:
     paths:
       - "rules/sigma/**/*.yml"
@@ -23,7 +23,7 @@ on:
       - "scripts/deploy/deploy_spl_to_splunk.py"
       - "scripts/atomic/run_atomic.ps1"
       - "scripts/verify/**"
-      - ".github/workflows/ci_sigma_validate_and_convert.yml"
+      - ".github/workflows/ci_sigma_to_splunk_workflow.yml"
 
 concurrency:
   group: detection-pipeline-${{ github.ref }}
@@ -537,3 +537,31 @@ jobs:
       - name: Report verification verdict
         shell: bash
         run: exit ${{ steps.eval.outputs.exit_code || '0' }}
+
+  deploy_pages:
+    name: Deploy GitHub Pages
+    needs: [splunk_verify]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
