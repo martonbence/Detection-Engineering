@@ -16,7 +16,7 @@ tags:
   - attack.execution
   - attack.t1059.001
   - attack.stealth
-  - attack.t1027
+  - attack.t1027.010
 
 logsource:
   product_category: os
@@ -42,14 +42,14 @@ detection:
 
 fields:
   - _time
-  - CommandLine
   - ComputerName
-  - ParentUser
-  - ParentImage
+  - User
   - Image
+  - CommandLine
+  - ParentImage
   - ParentCommandLine
   - ProcessId
-  - CommandLineMatch
+  - ParentProcessId
 
 falsepositives:
   - Administrative and deployment scripts using encoded commands for special

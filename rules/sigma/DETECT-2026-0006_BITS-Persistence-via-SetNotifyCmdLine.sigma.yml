@@ -35,20 +35,22 @@ detection:
     User|contains:
       - "SYSTEM"
       - "NETWORK SERVICE"
-      - "LOCAL SERVICE"
 
   filter_legit_parent:
     ParentImage|endswith:
       - "\\svchost.exe"
 
-  condition: selection_image_commandline and not (filter_legit_user or
+  condition: selection_image_commandline and not (filter_legit_user and
     filter_legit_parent)
 
 fields:
+  - _time
+  - ComputerName
+  - User
   - Image
   - CommandLine
   - ParentImage
-  - User
+  - ParentCommandLine
   - ProcessId
   - ParentProcessId
 
