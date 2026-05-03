@@ -5,14 +5,14 @@ META_START
   "description": "Detects execution of PowerShell with encoded command flags, a common obfuscation technique used to hide malicious payloads. Covers all -ec and -en[codedcommand] prefix variants (selection_cmdline_enc), and the -e standalone flag when followed by a minimum 80-character Base64 payload (selection_cmdline_e_standalone).",
   "sigma_file": "rules/sigma/DETECT-2026-0007_PowerShell-Encoded-Command-Execution.sigma.yml",
   "level": "high",
-  "status": "experimental",
+  "status": "stable",
   "author": "Bence Marton",
   "date": "2026-05-03",
   "modified": "2026-05-03",
 
-  "convert_time": "2026-05-03T19:00:37+02:00",
-  "rule_version": "1.0",
-  "git_sha": "0641f05177b1687bfc95645e6ba0716cc2a67f8b",
+  "convert_time": "2026-05-03T21:25:36+02:00",
+  "rule_version": "1.2",
+  "git_sha": "ec44455eb045236122eb00c30a657facc0735e6e",
   "ci_managed": true,
   "origin": "sigma_to_spl.py",
   "sigma_pipeline": "splunk_sysmon_acceleration",
@@ -69,4 +69,4 @@ index=sysmon | rex field=CommandLine "(?<CommandLineMatch>(?i)(?:^|[\\s\\t\"])-e
 | eval CommandLineCondition=if(isnotnull(CommandLineMatch), "true", "false")
 | rex field=CommandLine "(?<CommandLineMatch2>(?i)(?:^|[\\s\\t\"])-e[\\s\\t]+(?:[A-Za-z0-9+/]{80,}={0,2})(?:[\\s\\t\"]|$))"
 | eval CommandLineCondition2=if(isnotnull(CommandLineMatch2), "true", "false")
-| search Image IN ("*\\powershell.exe", "*\\pwsh.exe") CommandLineCondition="true" OR CommandLineCondition2="true" | table _time,ParentImage,Image,User,ParentCommandLine,CommandLine,ProcessId,ParentProcessId
+| search Image IN ("*\\powershell.exe", "*\\pwsh.exe") CommandLineCondition="true" OR CommandLineCondition2="true" | table _time,CommandLine,ComputerName,ParentUser,ParentImage,Image,ParentCommandLine,ProcessId,CommandLineMatch
