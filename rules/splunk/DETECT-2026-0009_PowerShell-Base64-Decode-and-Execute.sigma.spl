@@ -1,0 +1,72 @@
+META_START
+{
+  "title": "PowerShell Inline Base64 Decode and Execute",
+  "detect_id": "DETECT-2026-0009",
+  "description": "Detects PowerShell payloads that decode a Base64 string at runtime and immediately execute the result via IEX or equivalent. Unlike encoded command flags (-EncodedCommand, covered by DETECT-2026-0007), this technique embeds the Base64 payload inline in the script body using [System.Convert]::FromBase64String, making it resistant to simple flag-based detection while still leaving a characteristic decode-then-execute signature in the CommandLine.",
+  "sigma_file": "rules/sigma/DETECT-2026-0009_PowerShell-Base64-Decode-and-Execute.sigma.yml",
+  "level": "high",
+  "status": "stable",
+  "author": "Bence Marton",
+  "date": "2026-05-04",
+  "modified": "2026-05-04",
+
+  "convert_time": "2026-05-04T21:37:35+02:00",
+  "rule_version": "1.0",
+  "git_sha": "cf46d6b22af887b0d20ad29de1ca99fa48f13357",
+  "ci_managed": true,
+  "origin": "sigma_to_spl.py",
+  "sigma_pipeline": "splunk_sysmon_acceleration",
+
+  "deploy_mode": "alert",
+  "index": "sysmon",
+  "cron": "*/5 * * * *",
+  "earliest": "-5m",
+  "latest": "now",
+  "severity": "high",
+
+  "testing enabled": true,
+  "runner": "windows-victim",
+  "tester": "atomic",
+  "atomic tests": [
+    {
+      "technique": "T1027",
+      "test_numbers": [
+        3
+      ]
+    },
+    {
+      "technique": "T1059.001",
+      "test_numbers": [
+        10
+      ]
+    }
+  ],
+
+  "references": [
+    "https://attack.mitre.org/techniques/T1059/001/",
+    "https://attack.mitre.org/techniques/T1027/010/"
+  ],
+
+  "tags": [
+    "attack.execution",
+    "attack.t1059.001",
+    "attack.defense_evasion",
+    "attack.t1027.010"
+  ],
+
+  "logsource": {
+    "product_category": "os",
+    "product": "windows",
+    "service": "sysmon",
+    "event_type": "process_creation"
+  },
+
+  "falsepositives": [
+    "Legitimate scripts that decode Base64-encoded configuration or binary data and process it without execution",
+    "PowerShell DSC resources that decode and apply configuration payloads",
+    "Custom module loaders using Base64 for binary serialization"
+  ]
+}
+META_END
+---
+index=sysmon Image IN ("*\\powershell.exe", "*\\pwsh.exe") CommandLine="*::FromBase64String(*" CommandLine IN ("*;iex $*", "*| IEX*", "*|IEX *", "*I`E`X*", "*I`EX*", "*IE`X*", "*iex *", "*IEX (*", "*IEX(*", "*Invoke-Expression*", "*[scriptblock]::create(*", "*|iex;*", "*| iex}*") | table _time,ComputerName,User,Image,CommandLine,ParentImage,ParentCommandLine,ProcessId,ParentProcessId
