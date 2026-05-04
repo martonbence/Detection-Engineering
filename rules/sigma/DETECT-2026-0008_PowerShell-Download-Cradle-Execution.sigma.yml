@@ -1,0 +1,104 @@
+title: PowerShell Download Cradle Execution
+detect_id: DETECT-2026-0008
+status: stable
+description: Detects PowerShell download cradle patterns used to fetch and
+  execute remote code in-memory. Covers WebClient download methods
+  (DownloadString, DownloadFile, DownloadData, OpenRead), Invoke-WebRequest
+  (iwr), and Invoke-RestMethod (irm) combined with any IEX/Invoke-Expression
+  variant including backtick-obfuscated forms (I`E`X, I`EX, IE`X) — the primary
+  fileless malware delivery mechanism.
+references:
+  - https://attack.mitre.org/techniques/T1059/001/
+  - https://attack.mitre.org/techniques/T1105/
+  - https://github.com/VirtualAlllocEx/Payload-Download-Cradles/blob/88e8eca34464a547c90d9140d70e9866dcbc6a12/Download-Cradles.cmd
+author: Bence Marton
+date: 2026-05-04
+modified: 2026-05-04
+tags:
+  - attack.execution
+  - attack.t1059.001
+  - attack.command_and_control
+  - attack.t1105
+
+logsource:
+  product_category: os
+  product: windows
+  service: sysmon
+  event_type: process_creation
+
+detection:
+  selection_image:
+    Image|endswith:
+      - "\\powershell.exe"
+      - "\\pwsh.exe"
+
+  selection_download:
+    CommandLine|contains:
+      - ".DownloadString("
+      - ".DownloadFile("
+      - ".DownloadData("
+      - ".OpenRead("
+      - "Invoke-WebRequest "
+      - "iwr "
+      - "Invoke-RestMethod "
+      - "irm "
+      - "[System.Net.Http.HttpClient]"
+      - "[System.Net.WebRequest]::Create("
+
+  selection_iex:
+    CommandLine|contains:
+      - ";iex $"
+      - "| IEX"
+      - "|IEX "
+      - "I`E`X"
+      - "I`EX"
+      - "IE`X"
+      - "iex "
+      - "IEX ("
+      - "IEX("
+      - "Invoke-Expression"
+      - "[scriptblock]::create("
+      - "|iex;"
+      - "| iex}"
+
+  condition: all of selection_*
+
+fields:
+  - _time
+  - ComputerName
+  - User
+  - Image
+  - CommandLine
+  - ParentImage
+  - ParentCommandLine
+  - ProcessId
+  - ParentProcessId
+
+falsepositives:
+  - PowerShell module installation from PSGallery or NuGet (Install-Module,
+    Save-Module)
+  - Cloud management scripts (Azure, AWS, GCP) that download and apply
+    configuration
+  - Legitimate software update mechanisms using WebClient internally
+  - Infrastructure-as-code tools (Terraform provisioners, Ansible win_shell)
+    invoking remote scripts
+  - IT admin bootstrap scripts (e.g. Chocolatey install one-liner)
+
+level: high
+
+custom:
+  splunk:
+    index: sysmon
+    mode: alert
+    cron: "*/5 * * * *"
+    earliest: "-5m"
+    latest: "now"
+    severity: high
+
+  testing:
+    enabled: true
+    runner: windows-victim
+    type: atomic
+    atomics:
+      - technique: T1059.001
+        test_numbers: [ 1, 3 ]
