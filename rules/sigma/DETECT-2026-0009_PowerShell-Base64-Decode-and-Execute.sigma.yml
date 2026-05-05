@@ -36,6 +36,8 @@ detection:
     CommandLine|contains:
       - "::FromBase64String("
       - "FromBase64String"
+      - "FromBase64CharArray("
+      
 
   selection_iex:
     CommandLine|contains:
@@ -52,6 +54,8 @@ detection:
       - "[scriptblock]::create("
       - "|iex;"
       - "| iex}"
+      - "$ExecutionContext.InvokeCommand"
+      - "&([scriptblock]"
 
   condition: all of selection_*
 
