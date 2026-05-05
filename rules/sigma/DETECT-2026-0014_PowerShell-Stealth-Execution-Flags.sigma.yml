@@ -1,0 +1,90 @@
+title: PowerShell Stealth Execution Flags Combination
+detect_id: DETECT-2026-0014
+status: test
+description: Detects PowerShell launched with a combination of stealth flags
+  designed to suppress user visibility and logging. Requires at least two of
+  three flag groups — hidden window, no profile, and non-interactive — to fire,
+  reducing false positives while catching the typical attacker pattern of
+  combining multiple suppression flags in a single invocation.
+references:
+  - https://attack.mitre.org/techniques/T1059/001/
+  - https://attack.mitre.org/techniques/T1564/003/
+author: Bence Marton
+date: 2026-05-05
+modified: 2026-05-05
+tags:
+  - attack.execution
+  - attack.t1059.001
+  - attack.defense_evasion
+  - attack.t1564.003
+
+logsource:
+  product_category: os
+  product: windows
+  service: sysmon
+  event_type: process_creation
+
+detection:
+  selection_image:
+    Image|endswith:
+      - "\\powershell.exe"
+      - "\\pwsh.exe"
+
+  selection_flags_hidden:
+    CommandLine|contains:
+      - "-WindowStyle Hidden"
+      - "-WindowStyle hidden"
+      - "-W Hidden"
+      - "-W hidden"
+      - "-W h"
+
+  selection_flags_noprofile:
+    CommandLine|contains:
+      - "-NoProfile"
+      - "-NoP"
+      - "-nop"
+      - "-noprofile"
+
+  selection_flags_noninteractive:
+    CommandLine|contains:
+      - "-NonInteractive"
+      - "-NonI"
+      - "-noni"
+      - "-noninteractive"
+
+  condition: selection_image and (2 of selection_flags_*)
+
+fields:
+  - _time
+  - ComputerName
+  - User
+  - Image
+  - CommandLine
+  - ParentImage
+  - ParentCommandLine
+  - ProcessId
+  - ParentProcessId
+
+falsepositives:
+  - Legitimate background automation scripts using hidden windows
+  - Software deployment tools running PS silently (SCCM, PDQ, Intune)
+  - CI/CD pipeline agents invoking PS non-interactively without a profile
+
+level: medium
+
+custom:
+  splunk:
+    index: sysmon
+    mode: alert
+    cron: "*/5 * * * *"
+    earliest: "-5m"
+    latest: "now"
+    severity: medium
+
+  testing:
+    enabled: true
+    runner: windows-victim
+    type: atomic
+    atomics:
+      - technique: T1059.001
+        test_numbers: [ 1 ]

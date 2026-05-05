@@ -5,15 +5,15 @@ description: Detects PowerShell payloads that decode a Base64 string at runtime
   and immediately execute the result via IEX or equivalent. Unlike encoded
   command flags (-EncodedCommand, covered by DETECT-2026-0007), this technique
   embeds the Base64 payload inline in the script body using
-  [System.Convert]::FromBase64String, making it resistant to simple flag-based
-  detection while still leaving a characteristic decode-then-execute signature
-  in the CommandLine.
+  [System.Convert]::FromBase64String or FromBase64CharArray, making it resistant
+  to simple flag-based detection while still leaving a characteristic
+  decode-then-execute signature in the CommandLine.
 references:
   - https://attack.mitre.org/techniques/T1059/001/
   - https://attack.mitre.org/techniques/T1027/010/
 author: Bence Marton
 date: 2026-05-04
-modified: 2026-05-04
+modified: 2026-05-05
 tags:
   - attack.execution
   - attack.t1059.001
@@ -34,14 +34,11 @@ detection:
 
   selection_decode:
     CommandLine|contains:
-      - "::FromBase64String("
       - "FromBase64String"
       - "FromBase64CharArray("
-      
 
   selection_iex:
     CommandLine|contains:
-      - ";iex $"
       - "| IEX"
       - "|IEX "
       - "I`E`X"
@@ -50,6 +47,7 @@ detection:
       - "iex "
       - "IEX ("
       - "IEX("
+      - "iex("
       - "Invoke-Expression"
       - "[scriptblock]::create("
       - "|iex;"
@@ -76,7 +74,7 @@ falsepositives:
   - PowerShell DSC resources that decode and apply configuration payloads
   - Custom module loaders using Base64 for binary serialization
 
-level: high
+level: critical
 
 custom:
   splunk:
@@ -85,7 +83,7 @@ custom:
     cron: "*/5 * * * *"
     earliest: "-5m"
     latest: "now"
-    severity: high
+    severity: critical
 
   testing:
     enabled: true

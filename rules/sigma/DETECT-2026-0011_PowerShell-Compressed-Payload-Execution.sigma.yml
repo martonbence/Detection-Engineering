@@ -1,0 +1,92 @@
+title: PowerShell Compressed Payload Decompression and Execute
+detect_id: DETECT-2026-0011
+status: test
+description: Detects PowerShell payloads that decompress a GZip- or
+  Deflate-compressed blob at runtime and immediately execute the result via IEX
+  or equivalent. This is the primary stager pattern used by Empire and
+  PowerSploit: a Base64-encoded, compressed payload is decoded and decompressed
+  in-memory using IO.Compression streams, then executed — evading static
+  analysis and simple string-based detection.
+references:
+  - https://attack.mitre.org/techniques/T1059/001/
+  - https://attack.mitre.org/techniques/T1027/
+author: Bence Marton
+date: 2026-05-05
+modified: 2026-05-05
+tags:
+  - attack.execution
+  - attack.t1059.001
+  - attack.defense_evasion
+  - attack.t1027
+
+logsource:
+  product_category: os
+  product: windows
+  service: sysmon
+  event_type: process_creation
+
+detection:
+  selection_image:
+    Image|endswith:
+      - "\\powershell.exe"
+      - "\\pwsh.exe"
+
+  selection_decompress:
+    CommandLine|contains:
+      - "DeflateStream"
+      - "GZipStream"
+      - "IO.Compression"
+
+  selection_iex:
+    CommandLine|contains:
+      - "| IEX"
+      - "|IEX "
+      - "I`E`X"
+      - "I`EX"
+      - "IE`X"
+      - "iex "
+      - "IEX ("
+      - "IEX("
+      - "iex("
+      - "Invoke-Expression"
+      - "[scriptblock]::create("
+      - "|iex;"
+      - "| iex}"
+      - "$ExecutionContext.InvokeCommand"
+      - "&([scriptblock]"
+
+  condition: all of selection_*
+
+fields:
+  - _time
+  - ComputerName
+  - User
+  - Image
+  - CommandLine
+  - ParentImage
+  - ParentCommandLine
+  - ProcessId
+  - ParentProcessId
+
+falsepositives:
+  - Custom module loaders that decompress binary resources without executing them
+  - PowerShell-based archive utilities using IO.Compression internally
+
+level: high
+
+custom:
+  splunk:
+    index: sysmon
+    mode: alert
+    cron: "*/5 * * * *"
+    earliest: "-5m"
+    latest: "now"
+    severity: high
+
+  testing:
+    enabled: true
+    runner: windows-victim
+    type: atomic
+    atomics:
+      - technique: T1027
+        test_numbers: [ 1 ]
