@@ -44,6 +44,10 @@ detection:
       - "irm "
       - "[System.Net.Http.HttpClient]"
       - "[System.Net.WebRequest]::Create("
+      - "Net.WebRequest"
+      - "New-Object Net.WebClient"
+      - "New-Object System.Net.WebClient"
+      - "HttpWebRequest"
 
   selection_iex:
     CommandLine|contains:
@@ -60,6 +64,9 @@ detection:
       - "[scriptblock]::create("
       - "|iex;"
       - "| iex}"
+      - "$ExecutionContext.InvokeCommand"
+      - "&([scriptblock]"
+      
 
   condition: all of selection_*
 
