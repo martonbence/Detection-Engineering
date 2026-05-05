@@ -4,7 +4,7 @@ status: test
 description: Detects PowerShell payloads that decompress a GZip- or
   Deflate-compressed blob at runtime and immediately execute the result via IEX
   or equivalent. This is the primary stager pattern used by Empire and
-  PowerSploit: a Base64-encoded, compressed payload is decoded and decompressed
+  PowerSploit — a Base64-encoded, compressed payload is decoded and decompressed
   in-memory using IO.Compression streams, then executed — evading static
   analysis and simple string-based detection.
 references:
