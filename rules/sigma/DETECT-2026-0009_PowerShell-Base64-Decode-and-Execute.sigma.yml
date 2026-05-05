@@ -35,6 +35,7 @@ detection:
   selection_decode:
     CommandLine|contains:
       - "::FromBase64String("
+      - "FromBase64String"
 
   selection_iex:
     CommandLine|contains:
