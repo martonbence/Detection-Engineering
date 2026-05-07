@@ -216,6 +216,7 @@ function Enable-DefenderRealtimeIfNeeded {
 
 $normalizedRunner = $Runner.Trim().ToLowerInvariant()
 $collected = [ordered]@{}
+$collectedCustom = [System.Collections.Generic.List[pscustomobject]]::new()
 $matchedFiles = 0
 
 foreach ($splFile in $SplFiles) {
@@ -226,15 +227,36 @@ foreach ($splFile in $SplFiles) {
         continue
     }
 
-    $tester = [string]$meta.tester
-    if ($tester.Trim().ToLowerInvariant() -ne "atomic") {
-        Write-Host "Skipping $splFile : tester is not atomic"
-        continue
-    }
-
     $metaRunner = [string]$meta.runner
     if (-not [string]::IsNullOrWhiteSpace($normalizedRunner) -and $metaRunner.Trim().ToLowerInvariant() -ne $normalizedRunner) {
         Write-Host "Skipping $splFile : runner mismatch ($metaRunner)"
+        continue
+    }
+
+    $tester = [string]$meta.tester
+
+    if ($tester.Trim().ToLowerInvariant() -eq "emulation") {
+        if ($null -eq $meta.'custom tests' -or $meta.'custom tests'.Count -eq 0) {
+            throw "No custom tests found in $splFile"
+        }
+
+        $matchedFiles++
+        Write-Host "Collected custom emulation tests from $splFile"
+
+        foreach ($test in $meta.'custom tests') {
+            $collectedCustom.Add([pscustomobject]@{
+                Name          = [string]$test.name
+                Executor      = [string]$test.executor
+                Command       = [string]$test.command
+                Cleanup       = [string]$test.cleanup
+                Prerequisites = $test.prerequisites
+            })
+        }
+        continue
+    }
+
+    if ($tester.Trim().ToLowerInvariant() -ne "atomic") {
+        Write-Host "Skipping $splFile : tester is not atomic or emulation"
         continue
     }
 
@@ -262,14 +284,16 @@ foreach ($splFile in $SplFiles) {
 }
 
 if ($matchedFiles -eq 0) {
-    Write-Host "No matching atomic tests found for the selected runner."
+    Write-Host "No matching tests found for the selected runner."
     exit 0
 }
 
-Test-AtomicPrerequisites -ModulePath $DefaultModulePath -AtomicsFolder $AtomicsPath
+if ($collected.Count -gt 0) {
+    Test-AtomicPrerequisites -ModulePath $DefaultModulePath -AtomicsFolder $AtomicsPath
+}
 
 if ($PreflightOnly.IsPresent) {
-    Write-Host "Atomic preflight completed successfully."
+    Write-Host "Preflight completed successfully."
     exit 0
 }
 
@@ -298,6 +322,44 @@ try {
             Write-Error "Atomic execution failed for $technique : $($_.Exception.Message)"
         }
     }
+
+    foreach ($test in $collectedCustom) {
+        Write-Host "Running custom emulation test: $($test.Name)"
+
+        if ($test.Prerequisites) {
+            Write-Host "Prerequisites: $($test.Prerequisites -join ', ')"
+        }
+
+        try {
+            if ($DryRun.IsPresent) {
+                Write-Host "DryRun: Would execute ($($test.Executor)): $($test.Command)"
+            }
+            else {
+                switch ($test.Executor.Trim().ToLowerInvariant()) {
+                    "cmd" { cmd.exe /c $test.Command }
+                    default { Invoke-Expression $test.Command }
+                }
+            }
+        }
+        catch {
+            $failures++
+            Write-Error "Custom test failed '$($test.Name)': $($_.Exception.Message)"
+        }
+        finally {
+            $cleanupCmd = $test.Cleanup
+            if (-not [string]::IsNullOrWhiteSpace($cleanupCmd) -and $cleanupCmd -ne "~") {
+                Write-Host "Running cleanup for: $($test.Name)"
+                try {
+                    if (-not $DryRun.IsPresent) {
+                        Invoke-Expression $cleanupCmd
+                    }
+                }
+                catch {
+                    Write-Warning "Cleanup failed for '$($test.Name)': $($_.Exception.Message)"
+                }
+            }
+        }
+    }
 }
 finally {
     Enable-DefenderRealtimeIfNeeded -WasDisabledByScript $defenderDisabledByScript
@@ -307,4 +369,4 @@ if ($failures -gt 0) {
     exit 2
 }
 
-Write-Host "Atomic execution completed successfully."
+Write-Host "All tests completed successfully."

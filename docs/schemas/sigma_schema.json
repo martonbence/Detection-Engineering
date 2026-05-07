@@ -313,8 +313,7 @@
                     "additionalProperties": false,
                     "required": [
                         "enabled",
-                        "type",
-                        "atomics"
+                        "type"
                     ],
                     "properties": {
                         "enabled": {
@@ -355,6 +354,51 @@
                                         "items": {
                                             "type": "integer",
                                             "minimum": 1
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "custom": {
+                            "type": "array",
+                            "minItems": 1,
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                    "name",
+                                    "executor",
+                                    "command"
+                                ],
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "description": {
+                                        "type": "string"
+                                    },
+                                    "executor": {
+                                        "type": "string",
+                                        "enum": [
+                                            "powershell",
+                                            "cmd"
+                                        ]
+                                    },
+                                    "command": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "cleanup": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
+                                    },
+                                    "prerequisites": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
                                         }
                                     }
                                 }
