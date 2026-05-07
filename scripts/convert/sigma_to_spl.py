@@ -137,6 +137,21 @@ def _flatten_testing_meta(rule: dict) -> dict:
         if atomic_tests:
             testing_meta["atomic tests"] = atomic_tests
 
+    custom_tests = testing_custom.get("custom")
+    if isinstance(custom_tests, list):
+        custom_test_entries = []
+        for test in custom_tests:
+            if not isinstance(test, dict):
+                continue
+            entry = {}
+            for key in ("name", "description", "executor", "command", "cleanup", "prerequisites"):
+                if key in test:
+                    entry[key] = test[key]
+            if entry:
+                custom_test_entries.append(entry)
+        if custom_test_entries:
+            testing_meta["custom tests"] = custom_test_entries
+
     return testing_meta
 
 
