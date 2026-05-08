@@ -10,6 +10,8 @@ param(
 
     [string]$DisableDefender = $(if ($env:ATOMIC_DISABLE_REALTIME_MONITORING) { $env:ATOMIC_DISABLE_REALTIME_MONITORING } else { "false" }),
 
+    [string]$TesterType = $(if ($env:ATOMIC_TESTER_TYPE) { $env:ATOMIC_TESTER_TYPE } else { "" }),
+
     [switch]$PreflightOnly,
 
     [switch]$ShowDetails,
@@ -235,6 +237,11 @@ foreach ($splFile in $SplFiles) {
 
     $tester = [string]$meta.tester
 
+    if (-not [string]::IsNullOrWhiteSpace($TesterType) -and $tester.Trim().ToLowerInvariant() -ne $TesterType.Trim().ToLowerInvariant()) {
+        Write-Host "Skipping $splFile : tester type filter (expected $TesterType, got $tester)"
+        continue
+    }
+
     if ($tester.Trim().ToLowerInvariant() -eq "emulation") {
         if ($null -eq $meta.'custom tests' -or $meta.'custom tests'.Count -eq 0) {
             throw "No custom tests found in $splFile"
@@ -305,21 +312,22 @@ try {
 
     foreach ($technique in $collected.Keys) {
         $testNumbers = @($collected[$technique] | Sort-Object)
-        $printableTests = $testNumbers -join ", "
 
-        Write-Host "Invoking Atomic Red Team: $technique tests [$printableTests]"
+        foreach ($testNum in $testNumbers) {
+            Write-Host "Invoking Atomic Red Team: $technique test [$testNum]"
 
-        try {
-            Invoke-AtomicTestCompat `
-                -Technique $technique `
-                -TestNumbers $testNumbers `
-                -AtomicsFolder $AtomicsPath `
-                -ShowDetails:$ShowDetails.IsPresent `
-                -DryRun:$DryRun.IsPresent
-        }
-        catch {
-            $failures++
-            Write-Error "Atomic execution failed for $technique : $($_.Exception.Message)"
+            try {
+                Invoke-AtomicTestCompat `
+                    -Technique $technique `
+                    -TestNumbers @($testNum) `
+                    -AtomicsFolder $AtomicsPath `
+                    -ShowDetails:$ShowDetails.IsPresent `
+                    -DryRun:$DryRun.IsPresent
+            }
+            catch {
+                $failures++
+                Write-Warning "Atomic execution failed for $technique test $testNum : $($_.Exception.Message)"
+            }
         }
     }
 
@@ -343,7 +351,7 @@ try {
         }
         catch {
             $failures++
-            Write-Error "Custom test failed '$($test.Name)': $($_.Exception.Message)"
+            Write-Warning "Custom test failed '$($test.Name)': $($_.Exception.Message)"
         }
         finally {
             $cleanupCmd = $test.Cleanup
