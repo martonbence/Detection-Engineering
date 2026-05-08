@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-05-08T12:21:56.419868+00:00",
+  "generated_at": "2026-05-08T12:43:26.035098+00:00",
   "total_rules": 16,
   "total_sigma_rules": 15,
-  "total_splunk_rules": 10,
+  "total_splunk_rules": 11,
   "total_native_spl_rules": 1,
-  "verified_pass": 8,
+  "verified_pass": 9,
   "verified_fail": 0,
-  "not_verified": 8,
-  "pass_rate_pct": 50,
+  "not_verified": 7,
+  "pass_rate_pct": 56,
   "pass_rate_color": "yellow",
   "mitre_covered_techniques": 9,
   "mitre_total_techniques": 222,
@@ -21,8 +21,8 @@
   },
   "by_status": {
     "experimental": 1,
-    "stable": 7,
-    "test": 8
+    "stable": 8,
+    "test": 7
   },
   "by_tactic": {
     "Execution": 16,
@@ -244,10 +244,10 @@
       "detect_id": "DETECT-2026-0013",
       "title": "PowerShell Spawned from Suspicious Parent Process",
       "level": "high",
-      "status": "test",
+      "status": "stable",
       "source": "sigma",
-      "verdict": "N/A",
-      "run_id": "",
+      "verdict": "PASS",
+      "run_id": "25556100045",
       "tactics": [
         "Execution",
         "Initial Access"
