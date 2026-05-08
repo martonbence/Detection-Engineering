@@ -1,33 +1,36 @@
 {
-  "generated_at": "2026-05-03T20:21:43.710052+00:00",
-  "total_rules": 7,
-  "total_sigma_rules": 6,
-  "total_splunk_rules": 7,
+  "generated_at": "2026-05-08T12:21:56.419868+00:00",
+  "total_rules": 16,
+  "total_sigma_rules": 15,
+  "total_splunk_rules": 10,
   "total_native_spl_rules": 1,
-  "verified_pass": 7,
+  "verified_pass": 8,
   "verified_fail": 0,
-  "not_verified": 0,
-  "pass_rate_pct": 100,
-  "pass_rate_color": "brightgreen",
-  "mitre_covered_techniques": 4,
+  "not_verified": 8,
+  "pass_rate_pct": 50,
+  "pass_rate_color": "yellow",
+  "mitre_covered_techniques": 9,
   "mitre_total_techniques": 222,
   "mitre_total_fetched_at": "2026-05-01T18:52:29.399742+00:00",
-  "mitre_coverage_pct": 1.8,
+  "mitre_coverage_pct": 4.1,
   "by_level": {
-    "critical": 2,
-    "high": 3,
+    "critical": 5,
+    "high": 6,
     "low": 1,
-    "medium": 1
+    "medium": 4
   },
   "by_status": {
     "experimental": 1,
-    "stable": 4,
-    "test": 2
+    "stable": 7,
+    "test": 8
   },
   "by_tactic": {
-    "Execution": 7,
+    "Execution": 16,
+    "Defense Evasion": 5,
+    "Stealth": 4,
     "Persistence": 3,
-    "Stealth": 3
+    "Command & Control": 1,
+    "Initial Access": 1
   },
   "rules": [
     {
@@ -134,7 +137,7 @@
     {
       "detect_id": "DETECT-2026-0007",
       "title": "PowerShell Encoded Command Execution",
-      "level": "high",
+      "level": "medium",
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
@@ -148,6 +151,166 @@
         "T1027.010"
       ],
       "file_path": "rules/sigma/DETECT-2026-0007_PowerShell-Encoded-Command-Execution.sigma.yml"
+    },
+    {
+      "detect_id": "DETECT-2026-0008",
+      "title": "PowerShell Download Cradle Execution",
+      "level": "high",
+      "status": "stable",
+      "source": "sigma",
+      "verdict": "N/A",
+      "run_id": "",
+      "tactics": [
+        "Execution",
+        "Command & Control"
+      ],
+      "techniques": [
+        "T1059.001",
+        "T1105"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0008_PowerShell-Download-Cradle-Execution.sigma.yml"
+    },
+    {
+      "detect_id": "DETECT-2026-0009",
+      "title": "PowerShell Inline Base64 Decode and Execute",
+      "level": "critical",
+      "status": "stable",
+      "source": "sigma",
+      "verdict": "N/A",
+      "run_id": "",
+      "tactics": [
+        "Execution",
+        "Stealth"
+      ],
+      "techniques": [
+        "T1059.001",
+        "T1027.010"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0009_PowerShell-Base64-Decode-and-Execute.sigma.yml"
+    },
+    {
+      "detect_id": "DETECT-2026-0010",
+      "title": "PowerShell Execution Policy Bypass",
+      "level": "medium",
+      "status": "stable",
+      "source": "sigma",
+      "verdict": "PASS",
+      "run_id": "25555176634",
+      "tactics": [
+        "Execution"
+      ],
+      "techniques": [
+        "T1059.001"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0010_PowerShell-Execution-Policy-Bypass.sigma.yml"
+    },
+    {
+      "detect_id": "DETECT-2026-0011",
+      "title": "PowerShell Compressed Payload Decompression and Execute",
+      "level": "high",
+      "status": "test",
+      "source": "sigma",
+      "verdict": "N/A",
+      "run_id": "",
+      "tactics": [
+        "Execution",
+        "Defense Evasion"
+      ],
+      "techniques": [
+        "T1059.001",
+        "T1027"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0011_PowerShell-Compressed-Payload-Execution.sigma.yml"
+    },
+    {
+      "detect_id": "DETECT-2026-0012",
+      "title": "PowerShell AMSI Bypass",
+      "level": "critical",
+      "status": "test",
+      "source": "sigma",
+      "verdict": "N/A",
+      "run_id": "",
+      "tactics": [
+        "Execution",
+        "Defense Evasion"
+      ],
+      "techniques": [
+        "T1059.001",
+        "T1562.001"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0012_PowerShell-AMSI-Bypass.sigma.yml"
+    },
+    {
+      "detect_id": "DETECT-2026-0013",
+      "title": "PowerShell Spawned from Suspicious Parent Process",
+      "level": "high",
+      "status": "test",
+      "source": "sigma",
+      "verdict": "N/A",
+      "run_id": "",
+      "tactics": [
+        "Execution",
+        "Initial Access"
+      ],
+      "techniques": [
+        "T1059.001",
+        "T1566.001"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0013_PowerShell-Suspicious-Parent-Process.sigma.yml"
+    },
+    {
+      "detect_id": "DETECT-2026-0014",
+      "title": "PowerShell Stealth Execution Flags Combination",
+      "level": "medium",
+      "status": "test",
+      "source": "sigma",
+      "verdict": "N/A",
+      "run_id": "",
+      "tactics": [
+        "Execution",
+        "Defense Evasion"
+      ],
+      "techniques": [
+        "T1059.001",
+        "T1564.003"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0014_PowerShell-Stealth-Execution-Flags.sigma.yml"
+    },
+    {
+      "detect_id": "DETECT-2026-0015",
+      "title": "PowerShell Reflection-Based Assembly Load",
+      "level": "high",
+      "status": "test",
+      "source": "sigma",
+      "verdict": "N/A",
+      "run_id": "",
+      "tactics": [
+        "Execution",
+        "Defense Evasion"
+      ],
+      "techniques": [
+        "T1059.001",
+        "T1620"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0015_PowerShell-Reflection-Assembly-Load.sigma.yml"
+    },
+    {
+      "detect_id": "DETECT-2026-0016",
+      "title": "PowerShell Script Block or Module Logging Disable",
+      "level": "critical",
+      "status": "test",
+      "source": "sigma",
+      "verdict": "N/A",
+      "run_id": "",
+      "tactics": [
+        "Execution",
+        "Defense Evasion"
+      ],
+      "techniques": [
+        "T1059.001",
+        "T1562.002"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0016_PowerShell-Logging-Disable.sigma.yml"
     }
   ]
 }
