@@ -1,0 +1,65 @@
+META_START
+{
+  "title": "PowerShell Execution Policy Bypass",
+  "detect_id": "DETECT-2026-0010",
+  "description": "Detects PowerShell invocations that bypass the execution policy — a common initial step for running unsigned or untrusted scripts. Covers parameter-based bypasses (-ExecutionPolicy/-ep/-exec/-ex Bypass|Unrestricted), scope-targeted Set-ExecutionPolicy calls, and direct policy changes via the Set-ExecutionPolicy cmdlet.",
+  "sigma_file": "rules/sigma/DETECT-2026-0010_PowerShell-Execution-Policy-Bypass.sigma.yml",
+  "level": "medium",
+  "status": "stable",
+  "author": "Bence Marton",
+  "date": "2026-05-05",
+  "modified": "2026-05-07",
+
+  "convert_time": "2026-05-08T13:27:23+02:00",
+  "rule_version": "1.1",
+  "git_sha": "35f218ff657d4662c4baee792c4da29db354dae6",
+  "ci_managed": true,
+  "origin": "sigma_to_spl.py",
+  "sigma_pipeline": "splunk_sysmon_acceleration",
+
+  "deploy_mode": "alert",
+  "index": "sysmon",
+  "cron": "*/5 * * * *",
+  "earliest": "-5m",
+  "latest": "now",
+  "severity": "medium",
+
+  "testing enabled": true,
+  "runner": "windows-victim",
+  "tester": "atomic",
+  "atomic tests": [
+    {
+      "technique": "T1059.001",
+      "test_numbers": [
+        6,
+        7
+      ]
+    }
+  ],
+
+  "references": [
+    "https://attack.mitre.org/techniques/T1059/001/"
+  ],
+
+  "tags": [
+    "attack.execution",
+    "attack.t1059.001"
+  ],
+
+  "logsource": {
+    "product_category": "os",
+    "product": "windows",
+    "service": "sysmon",
+    "event_type": "process_creation"
+  },
+
+  "falsepositives": [
+    "Software installers and package managers (Chocolatey, NuGet, Scoop)",
+    "CI/CD pipelines and build agents requiring unsigned script execution",
+    "IT admin bootstrap and provisioning scripts",
+    "Remote management tools (SCCM, Ansible, DSC)"
+  ]
+}
+META_END
+---
+index=sysmon Image IN ("*\\powershell.exe", "*\\pwsh.exe") CommandLine IN ("*-executionpolicy *", "* -ep *", "* -exec *", "* -ex *") CommandLine IN ("*Bypass*", "*Unrestricted*", "*-Scope*") | table _time,ComputerName,User,Image,CommandLine,CurrentDirectory,IntegrityLevel,ParentImage,ParentCommandLine,ProcessId,ParentProcessId
