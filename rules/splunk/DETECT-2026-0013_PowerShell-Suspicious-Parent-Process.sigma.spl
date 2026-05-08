@@ -1,0 +1,70 @@
+META_START
+{
+  "title": "PowerShell Spawned from Suspicious Parent Process",
+  "detect_id": "DETECT-2026-0013",
+  "description": "Detects PowerShell spawned by processes that rarely have a legitimate reason to launch it — including Office applications, browsers, script interpreters, COM/WMI hosts, system utilities, and communication clients. This pattern is characteristic of phishing macro execution, malicious document droppers, exploit chains (e.g. Follina), and living-off-the-land lateral movement.",
+  "sigma_file": "rules/sigma/DETECT-2026-0013_PowerShell-Suspicious-Parent-Process.sigma.yml",
+  "level": "high",
+  "status": "stable",
+  "author": "Bence Marton",
+  "date": "2026-05-05",
+  "modified": "2026-05-07",
+
+  "convert_time": "2026-05-08T14:37:14+02:00",
+  "rule_version": "1.1",
+  "git_sha": "f493fd656a9a0b934463fb631b76b7c7f8e6393b",
+  "ci_managed": true,
+  "origin": "sigma_to_spl.py",
+  "sigma_pipeline": "splunk_sysmon_acceleration",
+
+  "deploy_mode": "alert",
+  "index": "sysmon",
+  "cron": "*/5 * * * *",
+  "earliest": "-5m",
+  "latest": "now",
+  "severity": "high",
+
+  "testing enabled": true,
+  "runner": "windows-victim",
+  "tester": "emulation",
+  "custom tests": [
+    {
+      "name": "mshta.exe Spawns PowerShell via JScript",
+      "description": "Uses mshta.exe to execute inline JScript that spawns powershell.exe via WScript.Shell — simulating a script interpreter parent-child chain where mshta.exe becomes the parent of powershell.exe.\n",
+      "executor": "powershell",
+      "command": "Start-Process \"mshta.exe\" -ArgumentList 'javascript:new ActiveXObject(\"WScript.Shell\").Run(\"powershell.exe -Command whoami\");close()'\n",
+      "cleanup": null,
+      "prerequisites": [
+        "mshta.exe must be present (available by default on Windows)"
+      ]
+    }
+  ],
+
+  "references": [
+    "https://attack.mitre.org/techniques/T1059/001/",
+    "https://attack.mitre.org/techniques/T1566/001/"
+  ],
+
+  "tags": [
+    "attack.execution",
+    "attack.t1059.001",
+    "attack.initial_access",
+    "attack.t1566.001"
+  ],
+
+  "logsource": {
+    "product_category": "os",
+    "product": "windows",
+    "service": "sysmon",
+    "event_type": "process_creation"
+  },
+
+  "falsepositives": [
+    "WMI-based management tools invoking PS for legitimate automation (wmiprvse)",
+    "Browser extension helper processes in enterprise environments",
+    "SCCM and Intune deployments using msiexec to install software that internally invokes PS"
+  ]
+}
+META_END
+---
+index=sysmon Image IN ("*\\powershell.exe", "*\\pwsh.exe") ParentImage IN ("*\\winword.exe", "*\\excel.exe", "*\\outlook.exe", "*\\powerpnt.exe", "*\\mspub.exe", "*\\msaccess.exe", "*\\visio.exe", "*\\onenote.exe", "*\\mshta.exe", "*\\wscript.exe", "*\\cscript.exe", "*\\rundll32.exe", "*\\regsvr32.exe", "*\\iexplore.exe", "*\\firefox.exe", "*\\chrome.exe", "*\\msedge.exe", "*\\acrord32.exe", "*\\acrobat.exe", "*\\wmiprvse.exe", "*\\pcalua.exe", "*\\searchprotocolhost.exe", "*\\msdt.exe", "*\\msiexec.exe", "*\\wordpad.exe", "*\\teams.exe", "*\\msedgewebview2.exe") | table _time,ComputerName,User,Image,CommandLine,CurrentDirectory,IntegrityLevel,ParentImage,ParentCommandLine,ProcessId,ParentProcessId
