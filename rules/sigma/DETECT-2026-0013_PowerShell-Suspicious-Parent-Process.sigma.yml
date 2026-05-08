@@ -1,17 +1,18 @@
 title: PowerShell Spawned from Suspicious Parent Process
 detect_id: DETECT-2026-0013
-status: test
-description: Detects PowerShell spawned by processes that have no legitimate
-  reason to launch it — including Office applications, browsers, script
-  interpreters, and COM/WMI hosts. This pattern is characteristic of phishing
-  macro execution, malicious document droppers, and living-off-the-land lateral
-  movement chains.
+status: stable
+description: Detects PowerShell spawned by processes that rarely have a
+  legitimate reason to launch it — including Office applications, browsers,
+  script interpreters, COM/WMI hosts, system utilities, and communication
+  clients. This pattern is characteristic of phishing macro execution, malicious
+  document droppers, exploit chains (e.g. Follina), and living-off-the-land
+  lateral movement.
 references:
   - https://attack.mitre.org/techniques/T1059/001/
   - https://attack.mitre.org/techniques/T1566/001/
 author: Bence Marton
 date: 2026-05-05
-modified: 2026-05-05
+modified: 2026-05-07
 tags:
   - attack.execution
   - attack.t1059.001
@@ -54,7 +55,11 @@ detection:
       - "\\wmiprvse.exe"
       - "\\pcalua.exe"
       - "\\searchprotocolhost.exe"
-      - "\\svchost.exe"
+      - "\\msdt.exe"
+      - "\\msiexec.exe"
+      - "\\wordpad.exe"
+      - "\\teams.exe"
+      - "\\msedgewebview2.exe"
 
   condition: all of selection_*
 
@@ -64,6 +69,8 @@ fields:
   - User
   - Image
   - CommandLine
+  - CurrentDirectory
+  - IntegrityLevel
   - ParentImage
   - ParentCommandLine
   - ProcessId
@@ -71,8 +78,9 @@ fields:
 
 falsepositives:
   - WMI-based management tools invoking PS for legitimate automation (wmiprvse)
-  - svchost-hosted scheduled tasks running PS scripts
   - Browser extension helper processes in enterprise environments
+  - SCCM and Intune deployments using msiexec to install software that
+    internally invokes PS
 
 level: high
 
@@ -88,7 +96,16 @@ custom:
   testing:
     enabled: true
     runner: windows-victim
-    type: atomic
-    atomics:
-      - technique: T1059.001
-        test_numbers: [ 1 ]
+    type: emulation
+    custom:
+      - name: "mshta.exe Spawns PowerShell via JScript"
+        description: >
+          Uses mshta.exe to execute inline JScript that spawns powershell.exe
+          via WScript.Shell — simulating a script interpreter parent-child chain
+          where mshta.exe becomes the parent of powershell.exe.
+        executor: powershell
+        command: |
+          Start-Process "mshta.exe" -ArgumentList 'javascript:new ActiveXObject("WScript.Shell").Run("powershell.exe -Command whoami");close()'
+        cleanup: ~
+        prerequisites:
+          - mshta.exe must be present (available by default on Windows)
