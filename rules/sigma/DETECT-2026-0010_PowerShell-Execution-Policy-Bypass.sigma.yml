@@ -10,7 +10,7 @@ references:
   - https://attack.mitre.org/techniques/T1059/001/
 author: Bence Marton
 date: 2026-05-05
-modified: 2026-05-07
+modified: 2026-05-08
 tags:
   - attack.execution
   - attack.t1059.001
