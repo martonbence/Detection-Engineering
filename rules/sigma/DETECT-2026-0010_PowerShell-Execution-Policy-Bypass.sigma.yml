@@ -1,15 +1,16 @@
 title: PowerShell Execution Policy Bypass
 detect_id: DETECT-2026-0010
-status: test
-description: Detects PowerShell invocations that bypass or disable the execution
-  policy — a common first step used by attackers to run unsigned or restricted
-  scripts. Covers command-line flag forms (-ExecutionPolicy/-ep with Bypass or
-  Unrestricted) and runtime Set-ExecutionPolicy calls.
+status: stable
+description: Detects PowerShell invocations that bypass the execution policy — a
+  common initial step for running unsigned or untrusted scripts. Covers
+  parameter-based bypasses (-ExecutionPolicy/-ep/-exec/-ex Bypass|Unrestricted),
+  scope-targeted Set-ExecutionPolicy calls, and direct policy changes via the
+  Set-ExecutionPolicy cmdlet.
 references:
   - https://attack.mitre.org/techniques/T1059/001/
 author: Bence Marton
 date: 2026-05-05
-modified: 2026-05-05
+modified: 2026-05-07
 tags:
   - attack.execution
   - attack.t1059.001
@@ -26,20 +27,20 @@ detection:
       - "\\powershell.exe"
       - "\\pwsh.exe"
 
-  selection_bypass:
+  selection_option:
     CommandLine|contains:
-      - "-ExecutionPolicy Bypass"
-      - "-ExecutionPolicy bypass"
-      - "-ExecutionPolicy Unrestricted"
-      - "-ExecutionPolicy unrestricted"
-      - "-ep bypass"
-      - "-ep Bypass"
-      - "-ep Unrestricted"
-      - "-ep unrestricted"
-      - "Set-ExecutionPolicy Bypass"
-      - "Set-ExecutionPolicy Unrestricted"
+      - "-executionpolicy "
+      - " -ep "
+      - " -exec "
+      - " -ex "
 
-  condition: selection_image and selection_bypass
+  selection_level:
+    CommandLine|contains:
+      - "Bypass"
+      - "Unrestricted"
+      - "-Scope"
+
+  condition: selection_image and selection_option and selection_level
 
 fields:
   - _time
@@ -47,6 +48,8 @@ fields:
   - User
   - Image
   - CommandLine
+  - CurrentDirectory
+  - IntegrityLevel
   - ParentImage
   - ParentCommandLine
   - ProcessId
@@ -75,4 +78,4 @@ custom:
     type: atomic
     atomics:
       - technique: T1059.001
-        test_numbers: [ 1 ]
+        test_numbers: [ 6, 7 ]
