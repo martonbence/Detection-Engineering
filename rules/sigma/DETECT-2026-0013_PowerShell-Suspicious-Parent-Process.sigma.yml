@@ -98,14 +98,18 @@ custom:
     runner: windows-victim
     type: emulation
     custom:
-      - name: "mshta.exe Spawns PowerShell via JScript"
+      - name: "wscript.exe Spawns PowerShell via VBScript"
         description: >
-          Uses mshta.exe to execute inline JScript that spawns powershell.exe
-          via WScript.Shell — simulating a script interpreter parent-child chain
-          where mshta.exe becomes the parent of powershell.exe.
+          Writes a temporary VBScript that launches powershell.exe via
+          WScript.Shell.Run, then executes it with wscript.exe — simulating
+          a script interpreter parent-child chain where wscript.exe becomes
+          the parent of powershell.exe.
         executor: powershell
-        command: |
-          Start-Process "mshta.exe" -ArgumentList 'javascript:new ActiveXObject("WScript.Shell").Run("powershell.exe -Command whoami");close()'
-        cleanup: ~
+        command: >-
+          $t = Join-Path $env:TEMP 'ep_test.vbs';
+          Set-Content -Path $t -Value 'CreateObject("WScript.Shell").Run "powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -Command exit 0", 0, True';
+          Start-Process wscript.exe -ArgumentList $t -Wait
+        cleanup: >-
+          Remove-Item (Join-Path $env:TEMP 'ep_test.vbs') -Force -ErrorAction SilentlyContinue
         prerequisites:
-          - mshta.exe must be present (available by default on Windows)
+          - wscript.exe must be present (available by default on Windows)
