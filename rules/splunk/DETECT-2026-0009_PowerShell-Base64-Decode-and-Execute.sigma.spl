@@ -2,17 +2,17 @@ META_START
 {
   "title": "PowerShell Inline Base64 Decode and Execute",
   "detect_id": "DETECT-2026-0009",
-  "description": "Detects PowerShell payloads that decode a Base64 string at runtime and immediately execute the result via IEX or equivalent. Unlike encoded command flags (-EncodedCommand, covered by DETECT-2026-0007), this technique embeds the Base64 payload inline in the script body using [System.Convert]::FromBase64String, making it resistant to simple flag-based detection while still leaving a characteristic decode-then-execute signature in the CommandLine.",
+  "description": "Detects PowerShell payloads that decode a Base64 string at runtime and immediately execute the result via IEX or equivalent. Unlike encoded command flags (-EncodedCommand, covered by DETECT-2026-0007), this technique embeds the Base64 payload inline in the script body using [System.Convert]::FromBase64String or FromBase64CharArray, making it resistant to simple flag-based detection while still leaving a characteristic decode-then-execute signature in the CommandLine.",
   "sigma_file": "rules/sigma/DETECT-2026-0009_PowerShell-Base64-Decode-and-Execute.sigma.yml",
-  "level": "high",
+  "level": "critical",
   "status": "stable",
   "author": "Bence Marton",
   "date": "2026-05-04",
-  "modified": "2026-05-04",
+  "modified": "2026-05-11",
 
-  "convert_time": "2026-05-05T13:29:48+02:00",
-  "rule_version": "1.1",
-  "git_sha": "ba854dc66b61a8f67aced625a80206b75a886183",
+  "convert_time": "2026-05-11T17:42:08+02:00",
+  "rule_version": "1.5",
+  "git_sha": "46804470ad20be8c35030be7d03d820f0b6ebd2e",
   "ci_managed": true,
   "origin": "sigma_to_spl.py",
   "sigma_pipeline": "splunk_sysmon_acceleration",
@@ -22,7 +22,7 @@ META_START
   "cron": "*/5 * * * *",
   "earliest": "-5m",
   "latest": "now",
-  "severity": "high",
+  "severity": "critical",
 
   "testing enabled": true,
   "runner": "windows-victim",
@@ -50,7 +50,7 @@ META_START
   "tags": [
     "attack.execution",
     "attack.t1059.001",
-    "attack.defense_evasion",
+    "attack.stealth",
     "attack.t1027.010"
   ],
 
@@ -69,4 +69,4 @@ META_START
 }
 META_END
 ---
-index=sysmon Image IN ("*\\powershell.exe", "*\\pwsh.exe") CommandLine IN ("*::FromBase64String(*", "*FromBase64String*") CommandLine IN ("*;iex $*", "*| IEX*", "*|IEX *", "*I`E`X*", "*I`EX*", "*IE`X*", "*iex *", "*IEX (*", "*IEX(*", "*Invoke-Expression*", "*[scriptblock]::create(*", "*|iex;*", "*| iex}*") | table _time,ComputerName,User,Image,CommandLine,ParentImage,ParentCommandLine,ProcessId,ParentProcessId
+index=sysmon Image IN ("*\\powershell.exe", "*\\pwsh.exe") CommandLine IN ("*FromBase64String*", "*FromBase64CharArray(*") CommandLine IN ("*| IEX*", "*|IEX *", "*I`E`X*", "*I`EX*", "*IE`X*", "*iex *", "*IEX (*", "*IEX(*", "*iex(*", "*Invoke-Expression*", "*[scriptblock]::create(*", "*|iex;*", "*| iex}*", "*$ExecutionContext.InvokeCommand*", "*&([scriptblock]*") | table _time,ComputerName,User,Image,CommandLine,ParentImage,ParentCommandLine,ProcessId,ParentProcessId

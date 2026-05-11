@@ -2,17 +2,17 @@ META_START
 {
   "title": "PowerShell Download Cradle Execution",
   "detect_id": "DETECT-2026-0008",
-  "description": "Detects PowerShell download cradle patterns used to fetch and execute remote code in-memory. Covers WebClient download methods (DownloadString, DownloadFile, DownloadData, OpenRead), Invoke-WebRequest (iwr), and Invoke-RestMethod (irm) combined with any IEX/Invoke-Expression variant including backtick-obfuscated forms (I`E`X, I`EX, IE`X) — the primary fileless malware delivery mechanism.",
+  "description": "Detects PowerShell download cradle patterns used to fetch and execute remote code in-memory. Covers WebClient and WebRequest download methods (DownloadString, DownloadFile, DownloadData, OpenRead), Net.WebClient and Net.WebRequest type forms, Invoke-WebRequest (iwr), Invoke-RestMethod (irm), HttpWebRequest, and HttpClient combined with any IEX/Invoke-Expression variant including backtick-obfuscated forms (I`E`X, I`EX, IE`X) and scriptblock-based execution — the primary fileless malware delivery mechanism.",
   "sigma_file": "rules/sigma/DETECT-2026-0008_PowerShell-Download-Cradle-Execution.sigma.yml",
   "level": "high",
   "status": "stable",
   "author": "Bence Marton",
   "date": "2026-05-04",
-  "modified": "2026-05-04",
+  "modified": "2026-05-11",
 
-  "convert_time": "2026-05-04T21:37:34+02:00",
-  "rule_version": "1.0",
-  "git_sha": "cf46d6b22af887b0d20ad29de1ca99fa48f13357",
+  "convert_time": "2026-05-11T17:42:08+02:00",
+  "rule_version": "1.3",
+  "git_sha": "46804470ad20be8c35030be7d03d820f0b6ebd2e",
   "ci_managed": true,
   "origin": "sigma_to_spl.py",
   "sigma_pipeline": "splunk_sysmon_acceleration",
@@ -32,7 +32,8 @@ META_START
       "technique": "T1059.001",
       "test_numbers": [
         1,
-        3
+        3,
+        5
       ]
     }
   ],
@@ -67,4 +68,4 @@ META_START
 }
 META_END
 ---
-index=sysmon Image IN ("*\\powershell.exe", "*\\pwsh.exe") CommandLine IN ("*.DownloadString(*", "*.DownloadFile(*", "*.DownloadData(*", "*.OpenRead(*", "*Invoke-WebRequest *", "*iwr *", "*Invoke-RestMethod *", "*irm *", "*[System.Net.Http.HttpClient]*", "*[System.Net.WebRequest]::Create(*") CommandLine IN ("*;iex $*", "*| IEX*", "*|IEX *", "*I`E`X*", "*I`EX*", "*IE`X*", "*iex *", "*IEX (*", "*IEX(*", "*Invoke-Expression*", "*[scriptblock]::create(*", "*|iex;*", "*| iex}*") | table _time,ComputerName,User,Image,CommandLine,ParentImage,ParentCommandLine,ProcessId,ParentProcessId
+index=sysmon Image IN ("*\\powershell.exe", "*\\pwsh.exe") CommandLine IN ("*.DownloadString(*", "*.DownloadFile(*", "*.DownloadData(*", "*.OpenRead(*", "*Invoke-WebRequest*", "*iwr *", "*Invoke-RestMethod*", "*irm *", "*[System.Net.Http.HttpClient]*", "*Net.WebRequest*", "*Net.WebClient*", "*HttpWebRequest*") CommandLine IN ("*| IEX*", "*|IEX *", "*I`E`X*", "*I`EX*", "*IE`X*", "*iex *", "*IEX (*", "*IEX(*", "*iex(*", "*Invoke-Expression*", "*[scriptblock]::create(*", "*|iex;*", "*| iex}*", "*$ExecutionContext.InvokeCommand*", "*&([scriptblock]*") | table _time,ComputerName,User,Image,CommandLine,ParentImage,ParentCommandLine,ProcessId,ParentProcessId
