@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-05-11T15:45:32.709857+00:00",
+  "generated_at": "2026-05-11T17:36:22.363226+00:00",
   "total_rules": 16,
   "total_sigma_rules": 15,
-  "total_splunk_rules": 11,
+  "total_splunk_rules": 12,
   "total_native_spl_rules": 1,
-  "verified_pass": 11,
+  "verified_pass": 12,
   "verified_fail": 0,
-  "not_verified": 5,
-  "pass_rate_pct": 69,
+  "not_verified": 4,
+  "pass_rate_pct": 75,
   "pass_rate_color": "yellow",
   "mitre_covered_techniques": 9,
   "mitre_total_techniques": 222,
@@ -21,13 +21,13 @@
   },
   "by_status": {
     "experimental": 1,
-    "stable": 8,
-    "test": 7
+    "stable": 9,
+    "test": 6
   },
   "by_tactic": {
     "Execution": 16,
-    "Defense Evasion": 5,
-    "Stealth": 4,
+    "Stealth": 5,
+    "Defense Evasion": 4,
     "Persistence": 3,
     "Command & Control": 1,
     "Initial Access": 1
@@ -208,13 +208,13 @@
       "detect_id": "DETECT-2026-0011",
       "title": "PowerShell Compressed Payload Decompression and Execute",
       "level": "high",
-      "status": "test",
+      "status": "stable",
       "source": "sigma",
-      "verdict": "N/A",
-      "run_id": "",
+      "verdict": "PASS",
+      "run_id": "25686499303",
       "tactics": [
         "Execution",
-        "Defense Evasion"
+        "Stealth"
       ],
       "techniques": [
         "T1059.001",
