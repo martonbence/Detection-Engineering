@@ -1,0 +1,15 @@
+{
+  "detect_id": "DETECT-2026-0008",
+  "title": "PowerShell Download Cradle Execution",
+  "verdict": "PASS",
+  "reason": "Event count 2 within expected range [1–10]",
+  "event_count": 2,
+  "min_pass": 1,
+  "max_pass": 10,
+  "earliest": "-5m",
+  "latest": "now",
+  "run_timestamp": "2026-05-11T15:45:29.042855+00:00",
+  "rule_version": "1.3",
+  "git_sha": "46804470ad20be8c35030be7d03d820f0b6ebd2e",
+  "run_id": "25680517513"
+}
