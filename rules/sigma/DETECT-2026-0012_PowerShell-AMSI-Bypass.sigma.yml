@@ -79,17 +79,20 @@ custom:
     runner: windows-victim
     type: emulation
     custom:
-      - name: "AMSI Keyword Presence in Child PowerShell CommandLine"
+      - name: "AMSI Keyword Presence via wscript.exe-Spawned PowerShell"
         description: >
-          Spawns a child powershell.exe whose CommandLine contains four AMSI
-          internal identifiers (AmsiUtils, amsiInitFailed, amsiContext,
-          amsiSession) as Write-Host arguments — matching four detection
-          keywords simultaneously without executing any bypass logic, so AV
-          and AMSI do not block process creation.
+          Writes a temporary VBScript that launches powershell.exe via
+          WScript.Shell.Run with four AMSI internal identifiers (AmsiUtils,
+          amsiInitFailed, amsiContext, amsiSession) in the CommandLine as
+          Write-Host arguments — matching four detection keywords simultaneously
+          without executing any bypass logic. Uses wscript.exe as the process
+          launcher to avoid direct PowerShell-to-PowerShell spawn restrictions.
         executor: powershell
         command: >-
-          $a = 'AmsiUtils'; $b = 'amsiInitFailed'; $c = 'amsiContext'; $d = 'amsiSession';
-          $innerCmd = "Write-Host $a; Write-Host $b; Write-Host $c; Write-Host $d; Write-Host DETECT-2026-0012-OK";
-          Start-Process powershell.exe -ArgumentList '-NoProfile','-NonInteractive','-WindowStyle','Hidden','-Command',$innerCmd -Wait
+          $t = Join-Path $env:TEMP 'amsi_test.vbs';
+          Set-Content -Path $t -Value 'CreateObject("WScript.Shell").Run "powershell.exe -Command ""Write-Host AmsiUtils; Write-Host amsiInitFailed; Write-Host amsiContext; Write-Host amsiSession; Write-Host DETECT-2026-0012-OK""", 0, True';
+          Start-Process wscript.exe -ArgumentList $t -Wait
+        cleanup: >-
+          Remove-Item (Join-Path $env:TEMP 'amsi_test.vbs') -Force -ErrorAction SilentlyContinue
         prerequisites:
-          - PowerShell must be available (present by default on Windows)
+          - wscript.exe must be present (available by default on Windows)
