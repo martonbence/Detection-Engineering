@@ -1,0 +1,15 @@
+{
+  "detect_id": "DETECT-2026-0014",
+  "title": "PowerShell Stealth Execution Flags Combination",
+  "verdict": "PASS",
+  "reason": "Event count 3 within expected range [1–10]",
+  "event_count": 3,
+  "min_pass": 1,
+  "max_pass": 10,
+  "earliest": "-5m",
+  "latest": "now",
+  "run_timestamp": "2026-05-11T19:02:50.333472+00:00",
+  "rule_version": "1.2",
+  "git_sha": "d8d7cb01ac5e48fc273acf47708e3bc53a2bbdbe",
+  "run_id": "25690986585"
+}
