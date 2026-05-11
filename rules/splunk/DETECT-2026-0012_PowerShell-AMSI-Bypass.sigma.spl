@@ -10,9 +10,9 @@ META_START
   "date": "2026-05-05",
   "modified": "2026-05-11",
 
-  "convert_time": "2026-05-11T20:35:48+02:00",
-  "rule_version": "1.5",
-  "git_sha": "3c35307e7065c9c4ec834344e034c00150f9bc2f",
+  "convert_time": "2026-05-11T20:42:06+02:00",
+  "rule_version": "1.6",
+  "git_sha": "205213703fa091e3707fa15fd0e22acc690c0681",
   "ci_managed": true,
   "origin": "sigma_to_spl.py",
   "sigma_pipeline": "splunk_sysmon_acceleration",
@@ -30,9 +30,9 @@ META_START
   "custom tests": [
     {
       "name": "AMSI Keyword Presence via wscript.exe-Spawned PowerShell",
-      "description": "Writes a temporary VBScript that launches powershell.exe via WScript.Shell.Run with four AMSI internal identifiers (AmsiUtils, amsiInitFailed, amsiContext, amsiSession) in the CommandLine as Write-Host arguments — matching four detection keywords simultaneously without executing any bypass logic. Uses wscript.exe as the process launcher to avoid direct PowerShell-to-PowerShell spawn restrictions.\n",
+      "description": "Writes a temporary VBScript that launches powershell.exe via WScript.Shell.Run. The spawned process CommandLine contains four AMSI internal identifiers (AmsiUtils, amsiInitFailed, amsiContext, amsiSession) as a PowerShell comment after exit 0 — Sysmon records the full CommandLine for detection, but the keywords are never evaluated so AV does not block process creation.\n",
       "executor": "powershell",
-      "command": "$t = Join-Path $env:TEMP 'amsi_test.vbs'; Set-Content -Path $t -Value 'CreateObject(\"WScript.Shell\").Run \"powershell.exe -Command \"\"$a=''AmsiUtils'';$b=''amsiInitFailed'';$c=''amsiContext'';$d=''amsiSession'';exit 0\"\"\", 0, True'; Start-Process wscript.exe -ArgumentList $t -Wait",
+      "command": "$t = Join-Path $env:TEMP 'amsi_test.vbs'; Set-Content -Path $t -Value 'CreateObject(\"WScript.Shell\").Run \"powershell.exe -Command exit 0 #AmsiUtils amsiInitFailed amsiContext amsiSession\", 0, True'; Start-Process wscript.exe -ArgumentList $t -Wait",
       "cleanup": "Remove-Item (Join-Path $env:TEMP 'amsi_test.vbs') -Force -ErrorAction SilentlyContinue",
       "prerequisites": [
         "wscript.exe must be present (available by default on Windows)"
