@@ -13,7 +13,7 @@ references:
   - https://attack.mitre.org/techniques/T1027/010/
 author: Bence Marton
 date: 2026-05-04
-modified: 2026-05-05
+modified: 2026-05-11
 tags:
   - attack.execution
   - attack.t1059.001
@@ -91,6 +91,6 @@ custom:
     type: atomic
     atomics:
       - technique: T1027
-        test_numbers: [ 3 ]
+        test_numbers: [3]
       - technique: T1059.001
-        test_numbers: [ 10 ]
+        test_numbers: [10]
