@@ -79,16 +79,17 @@ custom:
     runner: windows-victim
     type: emulation
     custom:
-      - name: "AmsiUtils Multi-Field Reflection Read via Child PowerShell"
+      - name: "AMSI Keyword Presence in Child PowerShell CommandLine"
         description: >
-          Spawns a child powershell.exe whose CommandLine enumerates four AMSI
-          internal fields (amsiInitFailed, amsiContext, amsiSession) via
-          reflection on System.Management.Automation.AmsiUtils — matching four
-          detection keywords simultaneously. All calls are read-only (GetValue,
-          no SetValue), so AMSI is never actually disabled.
+          Spawns a child powershell.exe whose CommandLine contains four AMSI
+          internal identifiers (AmsiUtils, amsiInitFailed, amsiContext,
+          amsiSession) as Write-Host arguments — matching four detection
+          keywords simultaneously without executing any bypass logic, so AV
+          and AMSI do not block process creation.
         executor: powershell
         command: >-
-          $innerCmd = 'try{$t=[Ref].Assembly.GetType(''System.Management.Automation.AmsiUtils'');$t.GetField(''amsiInitFailed'',''NonPublic,Static'').GetValue($null);$t.GetField(''amsiContext'',''NonPublic,Static'').GetValue($null);$t.GetField(''amsiSession'',''NonPublic,Static'').GetValue($null)}catch{};Write-Host DETECT-2026-0012-OK';
+          $a = 'AmsiUtils'; $b = 'amsiInitFailed'; $c = 'amsiContext'; $d = 'amsiSession';
+          $innerCmd = "Write-Host $a; Write-Host $b; Write-Host $c; Write-Host $d; Write-Host DETECT-2026-0012-OK";
           Start-Process powershell.exe -ArgumentList '-NoProfile','-NonInteractive','-WindowStyle','Hidden','-Command',$innerCmd -Wait
         prerequisites:
           - PowerShell must be available (present by default on Windows)
