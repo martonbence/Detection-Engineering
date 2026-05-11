@@ -1,6 +1,6 @@
 title: PowerShell Compressed Payload Decompression and Execute
 detect_id: DETECT-2026-0011
-status: test
+status: stable
 description: Detects PowerShell payloads that decompress a GZip- or
   Deflate-compressed blob at runtime and immediately execute the result via IEX
   or equivalent. This is the primary stager pattern used by Empire and
@@ -12,11 +12,11 @@ references:
   - https://attack.mitre.org/techniques/T1027/
 author: Bence Marton
 date: 2026-05-05
-modified: 2026-05-05
+modified: 2026-05-11
 tags:
   - attack.execution
   - attack.t1059.001
-  - attack.defense_evasion
+  - attack.stealth
   - attack.t1027
 
 logsource:
@@ -54,6 +54,8 @@ detection:
       - "| iex}"
       - "$ExecutionContext.InvokeCommand"
       - "&([scriptblock]"
+      - ".Invoke("
+      - "InvokeCommand.InvokeScript"
 
   condition: all of selection_*
 
@@ -63,6 +65,8 @@ fields:
   - User
   - Image
   - CommandLine
+  - CurrentDirectory
+  - IntegrityLevel
   - ParentImage
   - ParentCommandLine
   - ProcessId
@@ -86,7 +90,17 @@ custom:
   testing:
     enabled: true
     runner: windows-victim
-    type: atomic
-    atomics:
-      - technique: T1027
-        test_numbers: [ 1 ]
+    type: emulation
+    custom:
+      - name: "GZip In-Memory Payload Decompression and IEX Execution"
+        description: >
+          Spawns a child powershell.exe process whose CommandLine compresses a
+          benign string with GZipStream in-memory, then immediately decompresses
+          and executes it via IEX — replicating the Empire/PowerSploit stager
+          pattern (T1027 + T1059.001) that this rule detects.
+        executor: powershell
+        command: >-
+          $innerCmd = '$b=[System.Text.Encoding]::ASCII.GetBytes(''Write-Host DETECT-2026-0011-OK'');$ms=New-Object System.IO.MemoryStream;$gz=New-Object System.IO.Compression.GZipStream($ms,[System.IO.Compression.CompressionMode]::Compress);$gz.Write($b,0,$b.Length);$gz.Close();$ms2=New-Object System.IO.MemoryStream(,$ms.ToArray());$gz2=New-Object System.IO.Compression.GZipStream($ms2,[System.IO.Compression.CompressionMode]::Decompress);$sr=New-Object System.IO.StreamReader($gz2);IEX $sr.ReadToEnd()';
+          Start-Process powershell.exe -ArgumentList '-NoProfile','-NonInteractive','-WindowStyle','Hidden','-Command',$innerCmd -Wait
+        prerequisites:
+          - PowerShell must be available (present by default on Windows)
