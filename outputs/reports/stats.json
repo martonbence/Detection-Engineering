@@ -1,28 +1,28 @@
 {
-  "generated_at": "2026-05-11T17:36:22.363226+00:00",
+  "generated_at": "2026-05-11T19:02:53.020949+00:00",
   "total_rules": 16,
   "total_sigma_rules": 15,
-  "total_splunk_rules": 12,
+  "total_splunk_rules": 14,
   "total_native_spl_rules": 1,
-  "verified_pass": 12,
+  "verified_pass": 13,
   "verified_fail": 0,
-  "not_verified": 4,
-  "pass_rate_pct": 75,
-  "pass_rate_color": "yellow",
+  "not_verified": 3,
+  "pass_rate_pct": 81,
+  "pass_rate_color": "brightgreen",
   "mitre_covered_techniques": 9,
   "mitre_total_techniques": 222,
   "mitre_total_fetched_at": "2026-05-11T15:45:31.975380+00:00",
   "mitre_coverage_pct": 4.1,
   "by_level": {
-    "critical": 5,
-    "high": 6,
+    "critical": 4,
+    "high": 7,
     "low": 1,
     "medium": 4
   },
   "by_status": {
     "experimental": 1,
-    "stable": 9,
-    "test": 6
+    "stable": 11,
+    "test": 4
   },
   "by_tactic": {
     "Execution": 16,
@@ -225,8 +225,8 @@
     {
       "detect_id": "DETECT-2026-0012",
       "title": "PowerShell AMSI Bypass",
-      "level": "critical",
-      "status": "test",
+      "level": "high",
+      "status": "stable",
       "source": "sigma",
       "verdict": "N/A",
       "run_id": "",
@@ -262,10 +262,10 @@
       "detect_id": "DETECT-2026-0014",
       "title": "PowerShell Stealth Execution Flags Combination",
       "level": "medium",
-      "status": "test",
+      "status": "stable",
       "source": "sigma",
-      "verdict": "N/A",
-      "run_id": "",
+      "verdict": "PASS",
+      "run_id": "25690986585",
       "tactics": [
         "Execution",
         "Defense Evasion"
