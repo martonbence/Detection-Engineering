@@ -1,17 +1,17 @@
 title: PowerShell Stealth Execution Flags Combination
 detect_id: DETECT-2026-0014
-status: test
+status: stable
 description: Detects PowerShell launched with a combination of stealth flags
   designed to suppress user visibility and logging. Requires at least two of
-  three flag groups — hidden window, no profile, and non-interactive — to fire,
-  reducing false positives while catching the typical attacker pattern of
-  combining multiple suppression flags in a single invocation.
+  four flag groups — hidden window, no profile, non-interactive, and no logo —
+  to fire, reducing false positives while catching the typical attacker pattern
+  of combining multiple suppression flags in a single invocation.
 references:
   - https://attack.mitre.org/techniques/T1059/001/
   - https://attack.mitre.org/techniques/T1564/003/
 author: Bence Marton
 date: 2026-05-05
-modified: 2026-05-05
+modified: 2026-05-11
 tags:
   - attack.execution
   - attack.t1059.001
@@ -52,6 +52,13 @@ detection:
       - "-noni"
       - "-noninteractive"
 
+  selection_flags_nologo:
+    CommandLine|contains:
+      - "-NoLogo"
+      - "-NoL"
+      - "-nol"
+      - "-nologo"
+
   condition: selection_image and (2 of selection_flags_*)
 
 fields:
@@ -60,6 +67,8 @@ fields:
   - User
   - Image
   - CommandLine
+  - CurrentDirectory
+  - IntegrityLevel
   - ParentImage
   - ParentCommandLine
   - ProcessId
@@ -84,7 +93,34 @@ custom:
   testing:
     enabled: true
     runner: windows-victim
-    type: atomic
-    atomics:
-      - technique: T1059.001
-        test_numbers: [ 1 ]
+    type: emulation
+    custom:
+      - name: "Hidden Window + NoProfile via wscript.exe"
+        description: >
+          Spawns powershell.exe via wscript.exe with -W h and -nop flags —
+          the most common attacker stealth combination, triggering
+          selection_flags_hidden and selection_flags_noprofile simultaneously.
+        executor: powershell
+        command: >-
+          $t = Join-Path $env:TEMP 'stealth_test1.vbs';
+          Set-Content -Path $t -Value 'CreateObject("WScript.Shell").Run "powershell.exe -W h -nop -Command exit 0", 0, True';
+          Start-Process wscript.exe -ArgumentList $t -Wait
+        cleanup: >-
+          Remove-Item (Join-Path $env:TEMP 'stealth_test1.vbs') -Force -ErrorAction SilentlyContinue
+        prerequisites:
+          - wscript.exe must be present (available by default on Windows)
+
+      - name: "NonInteractive + NoLogo via wscript.exe"
+        description: >
+          Spawns powershell.exe via wscript.exe with -noni and -nol flags —
+          an alternate combination that exercises the NonInteractive and NoLogo
+          detection groups, verifying that the fourth flag group is covered.
+        executor: powershell
+        command: >-
+          $t = Join-Path $env:TEMP 'stealth_test2.vbs';
+          Set-Content -Path $t -Value 'CreateObject("WScript.Shell").Run "powershell.exe -noni -nol -Command exit 0", 0, True';
+          Start-Process wscript.exe -ArgumentList $t -Wait
+        cleanup: >-
+          Remove-Item (Join-Path $env:TEMP 'stealth_test2.vbs') -Force -ErrorAction SilentlyContinue
+        prerequisites:
+          - wscript.exe must be present (available by default on Windows)
