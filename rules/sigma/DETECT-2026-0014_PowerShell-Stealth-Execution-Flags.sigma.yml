@@ -59,7 +59,7 @@ detection:
       - "-nol"
       - "-nologo"
 
-  condition: selection_image and (2 of selection_flags_*)
+  condition: selection_image and ((selection_flags_hidden and selection_flags_noprofile) or (selection_flags_hidden and selection_flags_noninteractive) or (selection_flags_hidden and selection_flags_nologo) or (selection_flags_noprofile and selection_flags_noninteractive) or (selection_flags_noprofile and selection_flags_nologo) or (selection_flags_noninteractive and selection_flags_nologo))
 
 fields:
   - _time
