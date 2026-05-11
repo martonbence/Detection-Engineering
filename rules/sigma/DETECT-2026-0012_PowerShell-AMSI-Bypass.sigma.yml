@@ -63,7 +63,7 @@ falsepositives:
   - AV/EDR vendor scripts performing AMSI integration testing
   - Security research and educational scripts
 
-level: critical
+level: high
 
 custom:
   splunk:
@@ -72,7 +72,7 @@ custom:
     cron: "*/5 * * * *"
     earliest: "-5m"
     latest: "now"
-    severity: critical
+    severity: high
 
   testing:
     enabled: true
