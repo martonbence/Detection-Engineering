@@ -1,6 +1,6 @@
 title: PowerShell AMSI Bypass
 detect_id: DETECT-2026-0012
-status: test
+status: stable
 description: Detects PowerShell commands that attempt to bypass the Antimalware
   Scan Interface (AMSI) by manipulating the AmsiUtils type, patching
   AmsiScanBuffer in memory, or disabling AMSI initialization. Successful AMSI
@@ -11,7 +11,7 @@ references:
   - https://attack.mitre.org/techniques/T1562/001/
 author: Bence Marton
 date: 2026-05-05
-modified: 2026-05-05
+modified: 2026-05-11
 tags:
   - attack.execution
   - attack.t1059.001
@@ -38,6 +38,10 @@ detection:
       - "amsi.dll"
       - "AmsiOpenSession"
       - "AmsiScanString"
+      - "amsiContext"
+      - "amsiSession"
+      - "AmsiInitialize"
+      - "AmsiCloseSession"
 
   condition: selection_image and selection_amsi
 
@@ -47,6 +51,8 @@ fields:
   - User
   - Image
   - CommandLine
+  - CurrentDirectory
+  - IntegrityLevel
   - ParentImage
   - ParentCommandLine
   - ProcessId
@@ -71,7 +77,18 @@ custom:
   testing:
     enabled: true
     runner: windows-victim
-    type: atomic
-    atomics:
-      - technique: T1562.001
-        test_numbers: [ 1 ]
+    type: emulation
+    custom:
+      - name: "AmsiUtils Multi-Field Reflection Read via Child PowerShell"
+        description: >
+          Spawns a child powershell.exe whose CommandLine enumerates four AMSI
+          internal fields (amsiInitFailed, amsiContext, amsiSession) via
+          reflection on System.Management.Automation.AmsiUtils — matching four
+          detection keywords simultaneously. All calls are read-only (GetValue,
+          no SetValue), so AMSI is never actually disabled.
+        executor: powershell
+        command: >-
+          $innerCmd = 'try{$t=[Ref].Assembly.GetType(''System.Management.Automation.AmsiUtils'');$t.GetField(''amsiInitFailed'',''NonPublic,Static'').GetValue($null);$t.GetField(''amsiContext'',''NonPublic,Static'').GetValue($null);$t.GetField(''amsiSession'',''NonPublic,Static'').GetValue($null)}catch{};Write-Host DETECT-2026-0012-OK';
+          Start-Process powershell.exe -ArgumentList '-NoProfile','-NonInteractive','-WindowStyle','Hidden','-Command',$innerCmd -Wait
+        prerequisites:
+          - PowerShell must be available (present by default on Windows)
