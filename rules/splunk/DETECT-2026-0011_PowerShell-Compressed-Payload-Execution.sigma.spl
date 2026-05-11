@@ -1,0 +1,68 @@
+META_START
+{
+  "title": "PowerShell Compressed Payload Decompression and Execute",
+  "detect_id": "DETECT-2026-0011",
+  "description": "Detects PowerShell payloads that decompress a GZip- or Deflate-compressed blob at runtime and immediately execute the result via IEX or equivalent. This is the primary stager pattern used by Empire and PowerSploit — a Base64-encoded, compressed payload is decoded and decompressed in-memory using IO.Compression streams, then executed — evading static analysis and simple string-based detection.",
+  "sigma_file": "rules/sigma/DETECT-2026-0011_PowerShell-Compressed-Payload-Execution.sigma.yml",
+  "level": "high",
+  "status": "stable",
+  "author": "Bence Marton",
+  "date": "2026-05-05",
+  "modified": "2026-05-11",
+
+  "convert_time": "2026-05-11T19:34:29+02:00",
+  "rule_version": "1.2",
+  "git_sha": "4f26627b2b0245924a3cb86907fd173cc905afcb",
+  "ci_managed": true,
+  "origin": "sigma_to_spl.py",
+  "sigma_pipeline": "splunk_sysmon_acceleration",
+
+  "deploy_mode": "alert",
+  "index": "sysmon",
+  "cron": "*/5 * * * *",
+  "earliest": "-5m",
+  "latest": "now",
+  "severity": "high",
+
+  "testing enabled": true,
+  "runner": "windows-victim",
+  "tester": "emulation",
+  "custom tests": [
+    {
+      "name": "GZip In-Memory Payload Decompression and IEX Execution",
+      "description": "Spawns a child powershell.exe process whose CommandLine compresses a benign string with GZipStream in-memory, then immediately decompresses and executes it via IEX — replicating the Empire/PowerSploit stager pattern (T1027 + T1059.001) that this rule detects.\n",
+      "executor": "powershell",
+      "command": "$innerCmd = '$b=[System.Text.Encoding]::ASCII.GetBytes(''Write-Host DETECT-2026-0011-OK'');$ms=New-Object System.IO.MemoryStream;$gz=New-Object System.IO.Compression.GZipStream($ms,[System.IO.Compression.CompressionMode]::Compress);$gz.Write($b,0,$b.Length);$gz.Close();$ms2=New-Object System.IO.MemoryStream(,$ms.ToArray());$gz2=New-Object System.IO.Compression.GZipStream($ms2,[System.IO.Compression.CompressionMode]::Decompress);$sr=New-Object System.IO.StreamReader($gz2);IEX $sr.ReadToEnd()'; Start-Process powershell.exe -ArgumentList '-NoProfile','-NonInteractive','-WindowStyle','Hidden','-Command',$innerCmd -Wait",
+      "prerequisites": [
+        "PowerShell must be available (present by default on Windows)"
+      ]
+    }
+  ],
+
+  "references": [
+    "https://attack.mitre.org/techniques/T1059/001/",
+    "https://attack.mitre.org/techniques/T1027/"
+  ],
+
+  "tags": [
+    "attack.execution",
+    "attack.t1059.001",
+    "attack.stealth",
+    "attack.t1027"
+  ],
+
+  "logsource": {
+    "product_category": "os",
+    "product": "windows",
+    "service": "sysmon",
+    "event_type": "process_creation"
+  },
+
+  "falsepositives": [
+    "Custom module loaders that decompress binary resources without executing them",
+    "PowerShell-based archive utilities using IO.Compression internally"
+  ]
+}
+META_END
+---
+index=sysmon Image IN ("*\\powershell.exe", "*\\pwsh.exe") CommandLine IN ("*DeflateStream*", "*GZipStream*", "*IO.Compression*") CommandLine IN ("*| IEX*", "*|IEX *", "*I`E`X*", "*I`EX*", "*IE`X*", "*iex *", "*IEX (*", "*IEX(*", "*iex(*", "*Invoke-Expression*", "*[scriptblock]::create(*", "*|iex;*", "*| iex}*", "*$ExecutionContext.InvokeCommand*", "*&([scriptblock]*", "*.Invoke(*", "*InvokeCommand.InvokeScript*") | table _time,ComputerName,User,Image,CommandLine,CurrentDirectory,IntegrityLevel,ParentImage,ParentCommandLine,ProcessId,ParentProcessId
