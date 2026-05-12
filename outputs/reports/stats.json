@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-05-12T19:48:50.820714+00:00",
+  "generated_at": "2026-05-12T20:31:26.673975+00:00",
   "total_rules": 17,
   "total_sigma_rules": 16,
   "total_splunk_rules": 17,
   "total_native_spl_rules": 1,
   "verified_pass": 15,
-  "verified_fail": 1,
-  "not_verified": 1,
+  "verified_fail": 2,
+  "not_verified": 0,
   "pass_rate_pct": 88,
   "pass_rate_color": "brightgreen",
   "mitre_covered_techniques": 9,
@@ -228,8 +228,8 @@
       "level": "high",
       "status": "stable",
       "source": "sigma",
-      "verdict": "N/A",
-      "run_id": "",
+      "verdict": "FAIL",
+      "run_id": "25760334207",
       "tactics": [
         "Execution",
         "Defense Impairment"
@@ -320,7 +320,7 @@
       "status": "test",
       "source": "sigma",
       "verdict": "FAIL",
-      "run_id": "25758179836",
+      "run_id": "25760334207",
       "tactics": [
         "Execution"
       ],
