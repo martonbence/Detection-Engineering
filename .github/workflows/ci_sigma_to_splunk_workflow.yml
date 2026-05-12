@@ -452,8 +452,11 @@ jobs:
       always() &&
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
       needs.prepare_validate_convert.outputs.has_spl == 'true' &&
-      (needs.atomic_verify.result == 'success' || needs.atomic_verify.result == 'skipped') &&
-      (needs.emulation_verify.result == 'success' || needs.emulation_verify.result == 'skipped')
+      needs.prepare_validate_convert.result == 'success' &&
+      (
+        needs.atomic_verify.result == 'success' || needs.atomic_verify.result == 'skipped' ||
+        needs.emulation_verify.result == 'success' || needs.emulation_verify.result == 'skipped'
+      )
     runs-on: [ self-hosted, linux, de-lab ]
 
     steps:
@@ -612,8 +615,13 @@ jobs:
 
   deploy_pages:
     name: Deploy GitHub Pages
-    needs: [splunk_verify]
-    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [splunk_verify, atomic_verify, emulation_verify]
+    if: |
+      always() &&
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      (needs.atomic_verify.result == 'success' || needs.atomic_verify.result == 'skipped') &&
+      (needs.emulation_verify.result == 'success' || needs.emulation_verify.result == 'skipped') &&
+      (needs.splunk_verify.result == 'success' || needs.splunk_verify.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
       pages: write
