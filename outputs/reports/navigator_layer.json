@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-05-12T18:08:43 UTC.",
+  "description": "Auto-generated detection coverage. 2026-05-12T19:30:50 UTC.",
   "filters": {
     "platforms": [
       "Windows",
@@ -75,9 +75,9 @@
       "showSubtechniques": true
     },
     {
-      "techniqueID": "T1562.001",
+      "techniqueID": "T1685.001",
       "color": "#6E7681",
-      "comment": "DETECT-2026-0012: PowerShell AMSI Bypass (N/A)",
+      "comment": "DETECT-2026-0012: PowerShell AMSI Bypass (N/A)\nDETECT-2026-0016: PowerShell Script Block or Module Logging Disable (N/A)",
       "enabled": true,
       "score": 25,
       "showSubtechniques": true
@@ -107,7 +107,7 @@
       "showSubtechniques": true
     },
     {
-      "techniqueID": "T1562.002",
+      "techniqueID": "T1685.005",
       "color": "#6E7681",
       "comment": "DETECT-2026-0016: PowerShell Script Block or Module Logging Disable (N/A)",
       "enabled": true,

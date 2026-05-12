@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-05-12T18:08:43.549364+00:00",
+  "generated_at": "2026-05-12T19:30:50.424295+00:00",
   "total_rules": 16,
   "total_sigma_rules": 15,
-  "total_splunk_rules": 15,
+  "total_splunk_rules": 16,
   "total_native_spl_rules": 1,
   "verified_pass": 14,
   "verified_fail": 0,
@@ -14,8 +14,8 @@
   "mitre_total_fetched_at": "2026-05-11T15:45:31.975380+00:00",
   "mitre_coverage_pct": 4.1,
   "by_level": {
-    "critical": 4,
-    "high": 7,
+    "critical": 3,
+    "high": 8,
     "low": 1,
     "medium": 4
   },
@@ -26,9 +26,9 @@
   },
   "by_tactic": {
     "Execution": 16,
-    "Stealth": 6,
+    "Stealth": 7,
     "Persistence": 3,
-    "Defense Evasion": 3,
+    "Defense Impairment": 2,
     "Command & Control": 1,
     "Initial Access": 1
   },
@@ -141,7 +141,7 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "25289764033",
+      "run_id": "25757237398",
       "tactics": [
         "Execution",
         "Stealth"
@@ -232,11 +232,11 @@
       "run_id": "",
       "tactics": [
         "Execution",
-        "Defense Evasion"
+        "Defense Impairment"
       ],
       "techniques": [
         "T1059.001",
-        "T1562.001"
+        "T1685.001"
       ],
       "file_path": "rules/sigma/DETECT-2026-0012_PowerShell-AMSI-Bypass.sigma.yml"
     },
@@ -265,10 +265,10 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "25690986585",
+      "run_id": "25757237398",
       "tactics": [
         "Execution",
-        "Defense Evasion"
+        "Stealth"
       ],
       "techniques": [
         "T1059.001",
@@ -297,18 +297,19 @@
     {
       "detect_id": "DETECT-2026-0016",
       "title": "PowerShell Script Block or Module Logging Disable",
-      "level": "critical",
+      "level": "high",
       "status": "test",
       "source": "sigma",
       "verdict": "N/A",
       "run_id": "",
       "tactics": [
         "Execution",
-        "Defense Evasion"
+        "Defense Impairment"
       ],
       "techniques": [
         "T1059.001",
-        "T1562.002"
+        "T1685.001",
+        "T1685.005"
       ],
       "file_path": "rules/sigma/DETECT-2026-0016_PowerShell-Logging-Disable.sigma.yml"
     }
