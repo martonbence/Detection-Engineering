@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-05-11T19:02:53.020949+00:00",
+  "generated_at": "2026-05-12T15:45:53.239405+00:00",
   "total_rules": 16,
   "total_sigma_rules": 15,
-  "total_splunk_rules": 14,
+  "total_splunk_rules": 15,
   "total_native_spl_rules": 1,
   "verified_pass": 13,
-  "verified_fail": 0,
-  "not_verified": 3,
+  "verified_fail": 1,
+  "not_verified": 2,
   "pass_rate_pct": 81,
   "pass_rate_color": "brightgreen",
   "mitre_covered_techniques": 9,
@@ -21,14 +21,14 @@
   },
   "by_status": {
     "experimental": 1,
-    "stable": 11,
-    "test": 4
+    "stable": 12,
+    "test": 3
   },
   "by_tactic": {
     "Execution": 16,
-    "Stealth": 5,
-    "Defense Evasion": 4,
+    "Stealth": 6,
     "Persistence": 3,
+    "Defense Evasion": 3,
     "Command & Control": 1,
     "Initial Access": 1
   },
@@ -280,13 +280,13 @@
       "detect_id": "DETECT-2026-0015",
       "title": "PowerShell Reflection-Based Assembly Load",
       "level": "high",
-      "status": "test",
+      "status": "stable",
       "source": "sigma",
-      "verdict": "N/A",
-      "run_id": "",
+      "verdict": "FAIL",
+      "run_id": "25745327615",
       "tactics": [
         "Execution",
-        "Defense Evasion"
+        "Stealth"
       ],
       "techniques": [
         "T1059.001",
