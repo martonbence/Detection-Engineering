@@ -88,7 +88,10 @@ custom:
           AV does not block process creation.
         executor: powershell
         command: >-
-          & powershell.exe -NonInteractive -Command 'exit 0 #AmsiUtils amsiInitFailed amsiContext amsiSession'
+          $psi = [System.Diagnostics.ProcessStartInfo]::new("powershell.exe", '-NonInteractive -Command "exit 0 #AmsiUtils amsiInitFailed amsiContext amsiSession"');
+          $psi.UseShellExecute = $false;
+          $p = [System.Diagnostics.Process]::Start($psi);
+          $p.WaitForExit()
         cleanup: ""
         prerequisites:
           - powershell.exe must be available (present by default on Windows)

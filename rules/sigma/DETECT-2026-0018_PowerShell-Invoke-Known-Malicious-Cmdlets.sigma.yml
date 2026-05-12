@@ -13,7 +13,7 @@ references:
   - https://github.com/samratashok/nishang
 author: Bence Marton
 date: 2026-05-12
-modified: 2026-05-13
+modified: 2026-05-12
 tags:
   - attack.execution
   - attack.t1059.001
@@ -116,7 +116,20 @@ custom:
   testing:
     enabled: true
     runner: windows-victim
-    type: atomic
-    atomics:
-      - technique: T1059.001
-        test_numbers: [3]
+    type: emulation
+    custom:
+      - name: "Invoke-BloodHound Cmdlet Name Explicit in CommandLine"
+        description: >
+          Spawns a child powershell.exe process with Invoke-BloodHound explicitly
+          in the CommandLine. The function is a harmless stub that opens calc.exe —
+          the detection triggers on the cmdlet name in the CommandLine, not on the
+          function body. Note: this rule does NOT detect IEX-based script loading
+          where the cmdlet is invoked inside a downloaded script; that pattern
+          requires Script Block Logging (Event ID 4104).
+        executor: powershell
+        command: >-
+          & powershell.exe -NonInteractive -Command 'function Invoke-BloodHound { Start-Process calc.exe }; Invoke-BloodHound -OutputDirectory $env:Temp'
+        cleanup: >-
+          Stop-Process -Name calculator -Force -ErrorAction SilentlyContinue
+        prerequisites:
+          - powershell.exe must be available (present by default on Windows)
