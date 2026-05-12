@@ -10,9 +10,9 @@ META_START
   "date": "2026-05-05",
   "modified": "2026-05-11",
 
-  "convert_time": "2026-05-12T21:32:15+02:00",
-  "rule_version": "1.8",
-  "git_sha": "2dfbb2887e43009b0614b5e91f15a4a0488d444b",
+  "convert_time": "2026-05-12T21:56:25+02:00",
+  "rule_version": "1.9",
+  "git_sha": "9cb8d407a9744944797293d04d376638d9582f67",
   "ci_managed": true,
   "origin": "sigma_to_spl.py",
   "sigma_pipeline": "splunk_sysmon_acceleration",
@@ -32,7 +32,7 @@ META_START
       "name": "AMSI Keyword Presence in Child PowerShell CommandLine",
       "description": "Spawns a child powershell.exe process whose CommandLine contains four AMSI internal identifiers (AmsiUtils, amsiInitFailed, amsiContext, amsiSession) as a comment after exit 0 — Sysmon records the full CommandLine for detection, but the keywords are never evaluated so AV does not block process creation.\n",
       "executor": "powershell",
-      "command": "Start-Process powershell.exe -Wait -ArgumentList '-NonInteractive', '-Command', 'exit 0 #AmsiUtils amsiInitFailed amsiContext amsiSession'",
+      "command": "& powershell.exe -NonInteractive -Command 'exit 0 #AmsiUtils amsiInitFailed amsiContext amsiSession'",
       "cleanup": "",
       "prerequisites": [
         "powershell.exe must be available (present by default on Windows)"
