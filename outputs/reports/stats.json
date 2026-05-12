@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-12T20:39:46.785650+00:00",
+  "generated_at": "2026-05-12T21:00:59.365847+00:00",
   "total_rules": 17,
   "total_sigma_rules": 16,
   "total_splunk_rules": 17,
@@ -229,7 +229,7 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "FAIL",
-      "run_id": "25760778956",
+      "run_id": "25761815213",
       "tactics": [
         "Execution",
         "Defense Impairment"
@@ -320,7 +320,7 @@
       "status": "test",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "25760778956",
+      "run_id": "25761815213",
       "tactics": [
         "Execution"
       ],
