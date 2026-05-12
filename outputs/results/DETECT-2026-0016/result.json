@@ -1,0 +1,15 @@
+{
+  "detect_id": "DETECT-2026-0016",
+  "title": "PowerShell Script Block or Module Logging Disable",
+  "verdict": "PASS",
+  "reason": "Event count 1 within expected range [1–10]",
+  "event_count": 1,
+  "min_pass": 1,
+  "max_pass": 10,
+  "earliest": "-5m",
+  "latest": "now",
+  "run_timestamp": "2026-05-12T19:44:33.909551+00:00",
+  "rule_version": "1.2",
+  "git_sha": "db12ed223f2f887c0264616cb4f07c97e0fef2cf",
+  "run_id": "25757983142"
+}
