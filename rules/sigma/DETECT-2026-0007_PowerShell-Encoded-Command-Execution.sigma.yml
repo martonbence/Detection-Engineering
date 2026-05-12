@@ -31,11 +31,13 @@ detection:
       - "\\pwsh.exe"
 
   selection_cmdline_enc:
-    CommandLine|re: "(?i)(?:^|[\\s\\t\"])-e(?:c|n(?:c(?:o(?:d(?:e(?:d(?:c(?:o(?:m(?\
+    CommandLine|re:
+      "(?i)(?:^|[\\s\\t\"])-e(?:c|n(?:c(?:o(?:d(?:e(?:d(?:c(?:o(?:m(?\
       :m(?:a(?:n(?:d)?)?)?)?)?)?)?)?)?)?)?))(?:[\\s\\t\"=]|$)"
 
   selection_cmdline_e_standalone:
-    CommandLine|re: "(?i)(?:^|[\\s\\t\"])-e[\\s\\t]+(?:[A-Za-z0-9+/]{80,}={0,2})(?:[\
+    CommandLine|re:
+      "(?i)(?:^|[\\s\\t\"])-e[\\s\\t]+(?:[A-Za-z0-9+/]{80,}={0,2})(?:[\
       \\s\\t\"]|$)"
 
   condition: selection_image and (selection_cmdline_enc or selection_cmdline_e_standalone)
@@ -77,4 +79,4 @@ custom:
     type: atomic
     atomics:
       - technique: T1059.001
-        test_numbers: [ 17 ]
+        test_numbers: [15, 16, 17]
