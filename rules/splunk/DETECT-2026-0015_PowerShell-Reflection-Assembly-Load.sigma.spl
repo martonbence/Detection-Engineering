@@ -10,9 +10,9 @@ META_START
   "date": "2026-05-05",
   "modified": "2026-05-12",
 
-  "convert_time": "2026-05-12T17:42:34+02:00",
-  "rule_version": "1.1",
-  "git_sha": "f0cb5860863da9f1afc3611c3523c90567d92d3a",
+  "convert_time": "2026-05-12T18:01:06+02:00",
+  "rule_version": "1.2",
+  "git_sha": "e4a941a58adeb46ebdaa6d8cce3da112c3403b70",
   "ci_managed": true,
   "origin": "sigma_to_spl.py",
   "sigma_pipeline": "splunk_sysmon_acceleration",
@@ -26,12 +26,16 @@ META_START
 
   "testing enabled": true,
   "runner": "windows-victim",
-  "tester": "atomic",
-  "atomic tests": [
+  "tester": "emulation",
+  "custom tests": [
     {
-      "technique": "T1620",
-      "test_numbers": [
-        1
+      "name": "Reflection Assembly Load - Compiled In-Memory Payload Launching calc.exe",
+      "description": "Spawns a child powershell.exe process that compiles a minimal C# class (Process.Start calc.exe) into a temporary DLL via Add-Type, reads it back as a byte array, then loads it into memory with [Reflection.Assembly]::Load() and invokes the Run method. Sysmon records the full CommandLine of the child process — which contains the Reflection.Assembly]::Load( pattern — triggering the detection. calc.exe opening confirms end-to-end execution.\n",
+      "executor": "powershell",
+      "command": "Start-Process powershell.exe -Wait -ArgumentList '-NonInteractive', '-Command', '$tmp=\"$env:TEMP\\calc_test.dll\";$c=\"using System.Diagnostics;public class T{public static void Run(){Process.Start(\"+[char]34+\"calc.exe\"+[char]34+\");}}\";Add-Type -TypeDefinition $c -OutputAssembly $tmp;$b=[IO.File]::ReadAllBytes($tmp);$a=[Reflection.Assembly]::Load($b);$a.GetType(\"T\").GetMethod(\"Run\").Invoke($null,$null)'",
+      "cleanup": "Stop-Process -Name calculator -Force -ErrorAction SilentlyContinue; Remove-Item \"$env:TEMP\\calc_test.dll\" -Force -ErrorAction SilentlyContinue",
+      "prerequisites": [
+        "powershell.exe must be available (present by default on Windows)"
       ]
     }
   ],
