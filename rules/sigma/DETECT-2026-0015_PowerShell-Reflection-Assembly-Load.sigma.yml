@@ -80,7 +80,23 @@ custom:
   testing:
     enabled: true
     runner: windows-victim
-    type: atomic
-    atomics:
-      - technique: T1620
-        test_numbers: [1]
+    type: emulation
+    custom:
+      - name: "Reflection Assembly Load - Compiled In-Memory Payload Launching calc.exe"
+        description: >
+          Spawns a child powershell.exe process that compiles a minimal C# class
+          (Process.Start calc.exe) into a temporary DLL via Add-Type, reads it
+          back as a byte array, then loads it into memory with
+          [Reflection.Assembly]::Load() and invokes the Run method. Sysmon
+          records the full CommandLine of the child process — which contains
+          the Reflection.Assembly]::Load( pattern — triggering the detection.
+          calc.exe opening confirms end-to-end execution.
+        executor: powershell
+        command: >-
+          Start-Process powershell.exe -Wait -ArgumentList '-NonInteractive', '-Command',
+          '$tmp="$env:TEMP\calc_test.dll";$c="using System.Diagnostics;public class T{public static void Run(){Process.Start("+[char]34+"calc.exe"+[char]34+");}}";Add-Type -TypeDefinition $c -OutputAssembly $tmp;$b=[IO.File]::ReadAllBytes($tmp);$a=[Reflection.Assembly]::Load($b);$a.GetType("T").GetMethod("Run").Invoke($null,$null)'
+        cleanup: >-
+          Stop-Process -Name calculator -Force -ErrorAction SilentlyContinue;
+          Remove-Item "$env:TEMP\calc_test.dll" -Force -ErrorAction SilentlyContinue
+        prerequisites:
+          - powershell.exe must be available (present by default on Windows)
