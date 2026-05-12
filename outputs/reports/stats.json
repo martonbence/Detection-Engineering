@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-12T16:04:02.065186+00:00",
+  "generated_at": "2026-05-12T18:08:43.549364+00:00",
   "total_rules": 16,
   "total_sigma_rules": 15,
   "total_splunk_rules": 15,
@@ -283,7 +283,7 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "25746381334",
+      "run_id": "25752891371",
       "tactics": [
         "Execution",
         "Stealth"
