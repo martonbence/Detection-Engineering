@@ -123,9 +123,7 @@ custom:
           Spawns a child powershell.exe process with Invoke-BloodHound explicitly
           in the CommandLine. The function is a harmless stub that opens calc.exe —
           the detection triggers on the cmdlet name in the CommandLine, not on the
-          function body. Note: this rule does NOT detect IEX-based script loading
-          where the cmdlet is invoked inside a downloaded script; that pattern
-          requires Script Block Logging (Event ID 4104).
+          function body.
         executor: powershell
         command: >-
           & powershell.exe -NonInteractive -Command 'function Invoke-BloodHound { Start-Process calc.exe }; Invoke-BloodHound -OutputDirectory $env:Temp'
