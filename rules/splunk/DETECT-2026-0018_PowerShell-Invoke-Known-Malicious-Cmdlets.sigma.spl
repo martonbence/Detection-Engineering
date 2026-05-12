@@ -10,9 +10,9 @@ META_START
   "date": "2026-05-12",
   "modified": "2026-05-12",
 
-  "convert_time": "2026-05-12T22:37:54+02:00",
-  "rule_version": "1.3",
-  "git_sha": "7dec8f7e2249e4e0134e5dfef82abffd1ebc4931",
+  "convert_time": "2026-05-12T22:58:28+02:00",
+  "rule_version": "1.4",
+  "git_sha": "4dfa03389fa8837b20dcc3bde2e352ad06b41533",
   "ci_managed": true,
   "origin": "sigma_to_spl.py",
   "sigma_pipeline": "splunk_sysmon_acceleration",
@@ -30,7 +30,7 @@ META_START
   "custom tests": [
     {
       "name": "Invoke-BloodHound Cmdlet Name Explicit in CommandLine",
-      "description": "Spawns a child powershell.exe process with Invoke-BloodHound explicitly in the CommandLine. The function is a harmless stub that opens calc.exe — the detection triggers on the cmdlet name in the CommandLine, not on the function body. Note: this rule does NOT detect IEX-based script loading where the cmdlet is invoked inside a downloaded script; that pattern requires Script Block Logging (Event ID 4104).\n",
+      "description": "Spawns a child powershell.exe process with Invoke-BloodHound explicitly in the CommandLine. The function is a harmless stub that opens calc.exe — the detection triggers on the cmdlet name in the CommandLine, not on the function body.\n",
       "executor": "powershell",
       "command": "& powershell.exe -NonInteractive -Command 'function Invoke-BloodHound { Start-Process calc.exe }; Invoke-BloodHound -OutputDirectory $env:Temp'",
       "cleanup": "Stop-Process -Name calculator -Force -ErrorAction SilentlyContinue",
