@@ -88,7 +88,7 @@ custom:
           AV does not block process creation.
         executor: powershell
         command: >-
-          Start-Process powershell.exe -Wait -ArgumentList '-NonInteractive', '-Command', 'exit 0 #AmsiUtils amsiInitFailed amsiContext amsiSession'
+          & powershell.exe -NonInteractive -Command 'exit 0 #AmsiUtils amsiInitFailed amsiContext amsiSession'
         cleanup: ""
         prerequisites:
           - powershell.exe must be available (present by default on Windows)
