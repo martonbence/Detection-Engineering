@@ -621,7 +621,7 @@ jobs:
     if: |
       always() &&
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-      needs.splunk_verify.result == 'success'
+      (needs.splunk_verify.result == 'success' || needs.splunk_verify.result == 'failure')
     runs-on: ubuntu-latest
     permissions:
       pages: write
