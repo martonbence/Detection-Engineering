@@ -8,8 +8,8 @@
   "max_pass": 10,
   "earliest": "-5m",
   "latest": "now",
-  "run_timestamp": "2026-05-12T20:39:44.224451+00:00",
-  "rule_version": "1.3",
-  "git_sha": "7dec8f7e2249e4e0134e5dfef82abffd1ebc4931",
-  "run_id": "25760778956"
+  "run_timestamp": "2026-05-12T21:00:56.785111+00:00",
+  "rule_version": "1.4",
+  "git_sha": "4dfa03389fa8837b20dcc3bde2e352ad06b41533",
+  "run_id": "25761815213"
 }
