@@ -11,12 +11,13 @@ references:
   - https://attack.mitre.org/techniques/T1562/002/
 author: Bence Marton
 date: 2026-05-05
-modified: 2026-05-05
+modified: 2026-05-12
 tags:
   - attack.execution
   - attack.t1059.001
-  - attack.defense_evasion
-  - attack.t1562.002
+  - attack.defense_impairment
+  - attack.t1685.001
+  - attack.t1685.005
 
 logsource:
   product_category: os
@@ -34,12 +35,19 @@ detection:
     CommandLine|contains:
       - "ScriptBlockLogging"
       - "EnableScriptBlockLogging"
+      - "EnableScriptBlockInvocationLogging"
       - "ModuleLogging"
       - "EnableModuleLogging"
+      - "ProtectedEventLogging"
       - "cachedGroupPolicySettings"
       - "SOFTWARE\\Policies\\Microsoft\\Windows\\PowerShell"
 
-  condition: selection_image and selection_logging
+  selection_delete:
+    CommandLine|contains|all:
+      - "Remove-Item"
+      - "Policies\\Microsoft\\Windows\\PowerShell"
+
+  condition: selection_image and (selection_logging or selection_delete)
 
 fields:
   - _time
@@ -58,7 +66,7 @@ falsepositives:
   - Security hardening scripts enabling logging (same strings, opposite intent)
   - SIEM/EDR deployment scripts configuring PS logging policy
 
-level: critical
+level: high
 
 custom:
   splunk:
@@ -67,12 +75,26 @@ custom:
     cron: "*/5 * * * *"
     earliest: "-5m"
     latest: "now"
-    severity: critical
+    severity: high
 
   testing:
     enabled: true
     runner: windows-victim
-    type: atomic
-    atomics:
-      - technique: T1562.002
-        test_numbers: [ 1 ]
+    type: emulation
+    custom:
+      - name: "Disable PowerShell ScriptBlock Logging via Registry"
+        description: >
+          Spawns a child powershell.exe process that creates the ScriptBlockLogging
+          registry key under SOFTWARE\Policies\Microsoft\Windows\PowerShell and sets
+          EnableScriptBlockLogging to 0. The child process CommandLine contains both
+          EnableScriptBlockLogging and the PS policy registry path, triggering the
+          detection. calc.exe opens as visual confirmation. Cleanup removes the key.
+        executor: powershell
+        command: >-
+          Start-Process powershell.exe -Wait -ArgumentList '-NonInteractive', '-Command',
+          '$p="HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging"; if(-not(Test-Path $p)){New-Item -Path $p -Force|Out-Null}; Set-ItemProperty -Path $p -Name "EnableScriptBlockLogging" -Value 0 -Type DWord -Force; Start-Process calc.exe'
+        cleanup: >-
+          Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging" -Name "EnableScriptBlockLogging" -ErrorAction SilentlyContinue;
+          Stop-Process -Name calculator -Force -ErrorAction SilentlyContinue
+        prerequisites:
+          - Requires administrator privileges to modify HKLM registry keys
