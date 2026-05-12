@@ -1,0 +1,15 @@
+{
+  "detect_id": "DETECT-2026-0015",
+  "title": "PowerShell Reflection-Based Assembly Load",
+  "verdict": "FAIL",
+  "reason": "Too few events: 0 (min expected: 1)",
+  "event_count": 0,
+  "min_pass": 1,
+  "max_pass": 10,
+  "earliest": "-5m",
+  "latest": "now",
+  "run_timestamp": "2026-05-12T15:45:50.707942+00:00",
+  "rule_version": "1.1",
+  "git_sha": "f0cb5860863da9f1afc3611c3523c90567d92d3a",
+  "run_id": "25745327615"
+}
