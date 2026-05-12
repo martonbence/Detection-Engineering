@@ -13,7 +13,7 @@ references:
   - https://github.com/samratashok/nishang
 author: Bence Marton
 date: 2026-05-12
-modified: 2026-05-12
+modified: 2026-05-13
 tags:
   - attack.execution
   - attack.t1059.001
