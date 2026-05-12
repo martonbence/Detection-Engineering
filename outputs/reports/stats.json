@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-05-12T15:45:53.239405+00:00",
+  "generated_at": "2026-05-12T16:04:02.065186+00:00",
   "total_rules": 16,
   "total_sigma_rules": 15,
   "total_splunk_rules": 15,
   "total_native_spl_rules": 1,
-  "verified_pass": 13,
-  "verified_fail": 1,
+  "verified_pass": 14,
+  "verified_fail": 0,
   "not_verified": 2,
-  "pass_rate_pct": 81,
+  "pass_rate_pct": 88,
   "pass_rate_color": "brightgreen",
   "mitre_covered_techniques": 9,
   "mitre_total_techniques": 222,
@@ -282,8 +282,8 @@
       "level": "high",
       "status": "stable",
       "source": "sigma",
-      "verdict": "FAIL",
-      "run_id": "25745327615",
+      "verdict": "PASS",
+      "run_id": "25746381334",
       "tactics": [
         "Execution",
         "Stealth"
