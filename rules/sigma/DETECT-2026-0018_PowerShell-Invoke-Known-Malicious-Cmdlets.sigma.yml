@@ -119,4 +119,4 @@ custom:
     type: atomic
     atomics:
       - technique: T1059.001
-        test_numbers: [2]
+        test_numbers: [3]
