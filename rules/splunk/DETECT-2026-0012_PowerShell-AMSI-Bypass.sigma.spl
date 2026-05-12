@@ -10,9 +10,9 @@ META_START
   "date": "2026-05-05",
   "modified": "2026-05-11",
 
-  "convert_time": "2026-05-11T20:42:06+02:00",
-  "rule_version": "1.6",
-  "git_sha": "205213703fa091e3707fa15fd0e22acc690c0681",
+  "convert_time": "2026-05-12T21:01:59+02:00",
+  "rule_version": "1.7",
+  "git_sha": "940c861d90d323ab05f4c4d7a6a8d2facf30aa95",
   "ci_managed": true,
   "origin": "sigma_to_spl.py",
   "sigma_pipeline": "splunk_sysmon_acceleration",
@@ -42,14 +42,14 @@ META_START
 
   "references": [
     "https://attack.mitre.org/techniques/T1059/001/",
-    "https://attack.mitre.org/techniques/T1562/001/"
+    "https://attack.mitre.org/techniques/T1685/001/"
   ],
 
   "tags": [
     "attack.execution",
     "attack.t1059.001",
-    "attack.defense_evasion",
-    "attack.t1562.001"
+    "attack.defense_impairment",
+    "attack.t1685.001"
   ],
 
   "logsource": {

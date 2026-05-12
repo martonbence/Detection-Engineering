@@ -1,0 +1,71 @@
+META_START
+{
+  "title": "PowerShell Script Block or Module Logging Disable",
+  "detect_id": "DETECT-2026-0016",
+  "description": "Detects PowerShell commands that disable or tamper with ScriptBlock or Module logging — either via registry manipulation (Set-ItemProperty on the PowerShell policy path) or via in-memory reflection patching of the cachedGroupPolicySettings field. Disabling these logs is a common anti-forensics step before executing malicious payloads.",
+  "sigma_file": "rules/sigma/DETECT-2026-0016_PowerShell-Logging-Disable.sigma.yml",
+  "level": "high",
+  "status": "test",
+  "author": "Bence Marton",
+  "date": "2026-05-05",
+  "modified": "2026-05-12",
+
+  "convert_time": "2026-05-12T21:02:00+02:00",
+  "rule_version": "1.1",
+  "git_sha": "940c861d90d323ab05f4c4d7a6a8d2facf30aa95",
+  "ci_managed": true,
+  "origin": "sigma_to_spl.py",
+  "sigma_pipeline": "splunk_sysmon_acceleration",
+
+  "deploy_mode": "alert",
+  "index": "sysmon",
+  "cron": "*/5 * * * *",
+  "earliest": "-5m",
+  "latest": "now",
+  "severity": "high",
+
+  "testing enabled": true,
+  "runner": "windows-victim",
+  "tester": "emulation",
+  "custom tests": [
+    {
+      "name": "Disable PowerShell ScriptBlock Logging via Registry",
+      "description": "Spawns a child powershell.exe process that creates the ScriptBlockLogging registry key under SOFTWARE\\Policies\\Microsoft\\Windows\\PowerShell and sets EnableScriptBlockLogging to 0. The child process CommandLine contains both EnableScriptBlockLogging and the PS policy registry path, triggering the detection. calc.exe opens as visual confirmation. Cleanup removes the key.\n",
+      "executor": "powershell",
+      "command": "Start-Process powershell.exe -Wait -ArgumentList '-NonInteractive', '-Command', '$p=\"HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\PowerShell\\ScriptBlockLogging\"; if(-not(Test-Path $p)){New-Item -Path $p -Force|Out-Null}; Set-ItemProperty -Path $p -Name \"EnableScriptBlockLogging\" -Value 0 -Type DWord -Force; Start-Process calc.exe'",
+      "cleanup": "Remove-ItemProperty -Path \"HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\PowerShell\\ScriptBlockLogging\" -Name \"EnableScriptBlockLogging\" -ErrorAction SilentlyContinue; Stop-Process -Name calculator -Force -ErrorAction SilentlyContinue",
+      "prerequisites": [
+        "Requires administrator privileges to modify HKLM registry keys"
+      ]
+    }
+  ],
+
+  "references": [
+    "https://attack.mitre.org/techniques/T1059/001/",
+    "https://attack.mitre.org/techniques/T1562/002/"
+  ],
+
+  "tags": [
+    "attack.execution",
+    "attack.t1059.001",
+    "attack.defense_impairment",
+    "attack.t1685.001",
+    "attack.t1685.005"
+  ],
+
+  "logsource": {
+    "product_category": "os",
+    "product": "windows",
+    "service": "sysmon",
+    "event_type": "process_creation"
+  },
+
+  "falsepositives": [
+    "Group Policy management scripts auditing or enforcing PowerShell logging settings",
+    "Security hardening scripts enabling logging (same strings, opposite intent)",
+    "SIEM/EDR deployment scripts configuring PS logging policy"
+  ]
+}
+META_END
+---
+index=sysmon Image IN ("*\\powershell.exe", "*\\pwsh.exe") CommandLine IN ("*ScriptBlockLogging*", "*EnableScriptBlockLogging*", "*EnableScriptBlockInvocationLogging*", "*ModuleLogging*", "*EnableModuleLogging*", "*ProtectedEventLogging*", "*cachedGroupPolicySettings*", "*SOFTWARE\\Policies\\Microsoft\\Windows\\PowerShell*") OR (CommandLine="*Remove-Item*" CommandLine="*Policies\\Microsoft\\Windows\\PowerShell*") | table _time,ComputerName,User,Image,CommandLine,ParentImage,ParentCommandLine,ProcessId,ParentProcessId
