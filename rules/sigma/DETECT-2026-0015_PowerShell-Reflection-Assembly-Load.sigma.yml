@@ -1,21 +1,22 @@
 title: PowerShell Reflection-Based Assembly Load
 detect_id: DETECT-2026-0015
-status: test
+status: stable
 description: Detects PowerShell commands that load a .NET assembly directly into
-  memory via reflection, bypassing the filesystem and standard AppDomain
-  loading. This technique is used by offensive frameworks (Cobalt Strike,
-  Metasploit, PowerSploit) to execute shellcode loaders, credential stealers,
-  and post-exploitation modules without writing an executable to disk.
+  memory via reflection, bypassing filesystem-based execution. Also covers
+  native memory operations via InteropServices.Marshal that indicate shellcode
+  staging. This technique is used by offensive frameworks (Cobalt Strike,
+  Metasploit, PowerSploit) to execute credential stealers and
+  post-exploitation modules without writing an executable to disk.
 references:
   - https://attack.mitre.org/techniques/T1059/001/
   - https://attack.mitre.org/techniques/T1620/
 author: Bence Marton
 date: 2026-05-05
-modified: 2026-05-05
+modified: 2026-05-12
 tags:
   - attack.execution
   - attack.t1059.001
-  - attack.defense_evasion
+  - attack.stealth
   - attack.t1620
 
 logsource:
@@ -34,12 +35,20 @@ detection:
     CommandLine|contains:
       - "Reflection.Assembly]::Load("
       - "Reflection.Assembly]::LoadFile("
+      - "Reflection.Assembly]::LoadFrom("
       - "Reflection.Assembly]::LoadWithPartialName("
-      - "Add-Type -TypeDefinition"
+      - "Reflection.Assembly]::UnsafeLoadFrom("
       - "[Runtime.InteropServices.Marshal]::Copy("
       - "[Runtime.InteropServices.Marshal]::AllocHGlobal("
+      - "[AppDomain]::CurrentDomain.Load("
+      - "::Load([Convert]::FromBase64String("
 
-  condition: selection_image and selection_reflect
+  filter_legitimate:
+    ParentImage|endswith:
+      - "\\devenv.exe"
+      - "\\msbuild.exe"
+
+  condition: selection_image and selection_reflect and not filter_legitimate
 
 fields:
   - _time
@@ -74,4 +83,4 @@ custom:
     type: atomic
     atomics:
       - technique: T1620
-        test_numbers: [ 1 ]
+        test_numbers: [1]
