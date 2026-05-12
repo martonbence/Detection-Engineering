@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-05-12T19:44:36.497610+00:00",
-  "total_rules": 16,
-  "total_sigma_rules": 15,
-  "total_splunk_rules": 16,
+  "generated_at": "2026-05-12T19:48:50.820714+00:00",
+  "total_rules": 17,
+  "total_sigma_rules": 16,
+  "total_splunk_rules": 17,
   "total_native_spl_rules": 1,
   "verified_pass": 15,
-  "verified_fail": 0,
+  "verified_fail": 1,
   "not_verified": 1,
-  "pass_rate_pct": 94,
+  "pass_rate_pct": 88,
   "pass_rate_color": "brightgreen",
   "mitre_covered_techniques": 9,
   "mitre_total_techniques": 222,
@@ -15,17 +15,17 @@
   "mitre_coverage_pct": 4.1,
   "by_level": {
     "critical": 3,
-    "high": 8,
+    "high": 9,
     "low": 1,
     "medium": 4
   },
   "by_status": {
     "experimental": 1,
     "stable": 12,
-    "test": 3
+    "test": 4
   },
   "by_tactic": {
-    "Execution": 16,
+    "Execution": 17,
     "Stealth": 7,
     "Persistence": 3,
     "Defense Impairment": 2,
@@ -312,6 +312,22 @@
         "T1685.005"
       ],
       "file_path": "rules/sigma/DETECT-2026-0016_PowerShell-Logging-Disable.sigma.yml"
+    },
+    {
+      "detect_id": "DETECT-2026-0018",
+      "title": "PowerShell Known Malicious Cmdlet Invocation",
+      "level": "high",
+      "status": "test",
+      "source": "sigma",
+      "verdict": "FAIL",
+      "run_id": "25758179836",
+      "tactics": [
+        "Execution"
+      ],
+      "techniques": [
+        "T1059.001"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0018_PowerShell-Invoke-Known-Malicious-Cmdlets.sigma.yml"
     }
   ]
 }
