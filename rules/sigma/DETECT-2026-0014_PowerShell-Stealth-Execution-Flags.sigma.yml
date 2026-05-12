@@ -11,7 +11,7 @@ references:
   - https://attack.mitre.org/techniques/T1564/003/
 author: Bence Marton
 date: 2026-05-05
-modified: 2026-05-11
+modified: 2026-05-12
 tags:
   - attack.execution
   - attack.t1059.001
