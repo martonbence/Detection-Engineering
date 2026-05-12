@@ -8,15 +8,15 @@ description: Detects PowerShell commands that attempt to bypass the Antimalware
   inspection — making this a critical precursor to many PS-based attacks.
 references:
   - https://attack.mitre.org/techniques/T1059/001/
-  - https://attack.mitre.org/techniques/T1562/001/
+  - https://attack.mitre.org/techniques/T1685/001/
 author: Bence Marton
 date: 2026-05-05
 modified: 2026-05-11
 tags:
   - attack.execution
   - attack.t1059.001
-  - attack.defense_evasion
-  - attack.t1562.001
+  - attack.defense_impairment
+  - attack.t1685.001
 
 logsource:
   product_category: os
