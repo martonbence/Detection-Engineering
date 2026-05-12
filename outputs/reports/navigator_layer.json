@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-05-12T19:48:50 UTC.",
+  "description": "Auto-generated detection coverage. 2026-05-12T20:31:26 UTC.",
   "filters": {
     "platforms": [
       "Windows",
@@ -45,7 +45,7 @@
     {
       "techniqueID": "T1059.001",
       "color": "#2EA44F",
-      "comment": "DETECT-2026-0007: PowerShell Encoded Command Execution (PASS)\nDETECT-2026-0008: PowerShell Download Cradle Execution (PASS)\nDETECT-2026-0009: PowerShell Inline Base64 Decode and Execute (PASS)\nDETECT-2026-0010: PowerShell Execution Policy Bypass (PASS)\nDETECT-2026-0011: PowerShell Compressed Payload Decompression and Execute (PASS)\nDETECT-2026-0012: PowerShell AMSI Bypass (N/A)\nDETECT-2026-0013: PowerShell Spawned from Suspicious Parent Process (PASS)\nDETECT-2026-0014: PowerShell Stealth Execution Flags Combination (PASS)\nDETECT-2026-0015: PowerShell Reflection-Based Assembly Load (PASS)\nDETECT-2026-0016: PowerShell Script Block or Module Logging Disable (PASS)\nDETECT-2026-0018: PowerShell Known Malicious Cmdlet Invocation (FAIL)\nDETECT-2026-0002: Test Sigma Rule (PASS)\nDETECT-2026-0004: Test Sigma Rule (PASS)\nDETECT-2026-0003: Test3 (PASS)",
+      "comment": "DETECT-2026-0007: PowerShell Encoded Command Execution (PASS)\nDETECT-2026-0008: PowerShell Download Cradle Execution (PASS)\nDETECT-2026-0009: PowerShell Inline Base64 Decode and Execute (PASS)\nDETECT-2026-0010: PowerShell Execution Policy Bypass (PASS)\nDETECT-2026-0011: PowerShell Compressed Payload Decompression and Execute (PASS)\nDETECT-2026-0012: PowerShell AMSI Bypass (FAIL)\nDETECT-2026-0013: PowerShell Spawned from Suspicious Parent Process (PASS)\nDETECT-2026-0014: PowerShell Stealth Execution Flags Combination (PASS)\nDETECT-2026-0015: PowerShell Reflection-Based Assembly Load (PASS)\nDETECT-2026-0016: PowerShell Script Block or Module Logging Disable (PASS)\nDETECT-2026-0018: PowerShell Known Malicious Cmdlet Invocation (FAIL)\nDETECT-2026-0002: Test Sigma Rule (PASS)\nDETECT-2026-0004: Test Sigma Rule (PASS)\nDETECT-2026-0003: Test3 (PASS)",
       "enabled": true,
       "score": 100,
       "showSubtechniques": true
@@ -77,7 +77,7 @@
     {
       "techniqueID": "T1685.001",
       "color": "#2EA44F",
-      "comment": "DETECT-2026-0012: PowerShell AMSI Bypass (N/A)\nDETECT-2026-0016: PowerShell Script Block or Module Logging Disable (PASS)",
+      "comment": "DETECT-2026-0012: PowerShell AMSI Bypass (FAIL)\nDETECT-2026-0016: PowerShell Script Block or Module Logging Disable (PASS)",
       "enabled": true,
       "score": 100,
       "showSubtechniques": true

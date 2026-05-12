@@ -1,6 +1,6 @@
 {
-  "detect_id": "DETECT-2026-0018",
-  "title": "PowerShell Known Malicious Cmdlet Invocation",
+  "detect_id": "DETECT-2026-0012",
+  "title": "PowerShell AMSI Bypass",
   "verdict": "FAIL",
   "reason": "Too few events: 0 (min expected: 1)",
   "event_count": 0,
@@ -9,7 +9,7 @@
   "earliest": "-5m",
   "latest": "now",
   "run_timestamp": "2026-05-12T20:31:23.915334+00:00",
-  "rule_version": "1.2",
+  "rule_version": "1.10",
   "git_sha": "cf01d4159caa7b4eb78c966887d2a9bda8d99bdf",
   "run_id": "25760334207"
 }
