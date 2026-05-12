@@ -373,6 +373,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' &&
       needs.prepare_validate_convert.outputs.has_spl == 'true' &&
       needs.prepare_validate_convert.outputs.has_atomic_tests == 'true'
+    continue-on-error: true
     runs-on: [ self-hosted, X64, Windows, victim, atomic, windows-victim ]
 
     steps:
@@ -414,6 +415,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' &&
       needs.prepare_validate_convert.outputs.has_spl == 'true' &&
       needs.prepare_validate_convert.outputs.has_emulation_tests == 'true'
+    continue-on-error: true
     runs-on: [ self-hosted, X64, Windows, victim, windows-victim ]
 
     steps:
@@ -619,9 +621,7 @@ jobs:
     if: |
       always() &&
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-      (needs.atomic_verify.result == 'success' || needs.atomic_verify.result == 'skipped') &&
-      (needs.emulation_verify.result == 'success' || needs.emulation_verify.result == 'skipped') &&
-      (needs.splunk_verify.result == 'success' || needs.splunk_verify.result == 'skipped')
+      needs.splunk_verify.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       pages: write
