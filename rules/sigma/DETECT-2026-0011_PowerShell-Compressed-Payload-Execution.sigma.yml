@@ -17,7 +17,7 @@ tags:
   - attack.execution
   - attack.t1059.001
   - attack.stealth
-  - attack.t1027
+  - attack.t1027.010
 
 logsource:
   product_category: os
