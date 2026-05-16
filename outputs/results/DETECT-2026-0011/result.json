@@ -1,15 +1,15 @@
 {
   "detect_id": "DETECT-2026-0011",
   "title": "PowerShell Compressed Payload Decompression and Execute",
-  "verdict": "PASS",
-  "reason": "Event count 1 within expected range [1–10]",
-  "event_count": 1,
+  "verdict": "FAIL",
+  "reason": "Splunk query error: Network error dispatching saved search: HTTPSConnectionPool(host='192.168.254.129', port=8089): Max retries exceeded with url: /servicesNS/nobody/detection_engineering/saved/searches/DETECT-2026-0011_PowerShell-Compressed-Payload-Execution.sigma/dispatch?output_mode=json (Caused by NewConnectionError(\"HTTPSConnection(host='192.168.254.129', port=8089): Failed to establish a new connection: [Errno 113] No route to host\"))",
+  "event_count": 0,
   "min_pass": 1,
   "max_pass": 10,
   "earliest": "-5m",
   "latest": "now",
-  "run_timestamp": "2026-05-11T17:36:19.511997+00:00",
-  "rule_version": "1.2",
-  "git_sha": "4f26627b2b0245924a3cb86907fd173cc905afcb",
-  "run_id": "25686499303"
+  "run_timestamp": "2026-05-16T12:08:56.146397+00:00",
+  "rule_version": "1.3",
+  "git_sha": "ed0421892cfa2df19636d8fdefda2072b76489b7",
+  "run_id": "25961512011"
 }
