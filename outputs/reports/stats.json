@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-05-12T21:07:45.627620+00:00",
-  "total_rules": 17,
-  "total_sigma_rules": 16,
-  "total_splunk_rules": 17,
+  "generated_at": "2026-05-16T12:08:58.740694+00:00",
+  "total_rules": 15,
+  "total_sigma_rules": 14,
+  "total_splunk_rules": 15,
   "total_native_spl_rules": 1,
-  "verified_pass": 16,
-  "verified_fail": 1,
+  "verified_pass": 13,
+  "verified_fail": 2,
   "not_verified": 0,
-  "pass_rate_pct": 94,
+  "pass_rate_pct": 87,
   "pass_rate_color": "brightgreen",
   "mitre_covered_techniques": 9,
   "mitre_total_techniques": 222,
@@ -15,17 +15,16 @@
   "mitre_coverage_pct": 4.1,
   "by_level": {
     "critical": 3,
-    "high": 9,
-    "low": 1,
+    "high": 8,
     "medium": 4
   },
   "by_status": {
     "experimental": 1,
-    "stable": 12,
-    "test": 4
+    "stable": 11,
+    "test": 3
   },
   "by_tactic": {
-    "Execution": 17,
+    "Execution": 15,
     "Stealth": 7,
     "Persistence": 3,
     "Defense Impairment": 2,
@@ -51,22 +50,6 @@
       "file_path": "rules/sigma/test1.sigma.yml"
     },
     {
-      "detect_id": "DETECT-2026-0002",
-      "title": "Test Sigma Rule",
-      "level": "low",
-      "status": "test",
-      "source": "sigma",
-      "verdict": "PASS",
-      "run_id": "24600422610",
-      "tactics": [
-        "Execution"
-      ],
-      "techniques": [
-        "T1059.001"
-      ],
-      "file_path": "rules/sigma/test2.sigma.yml"
-    },
-    {
       "detect_id": "DETECT-2026-0003",
       "title": "Test3",
       "level": "critical",
@@ -81,22 +64,6 @@
         "T1059.001"
       ],
       "file_path": "rules/splunk/test3.spl"
-    },
-    {
-      "detect_id": "DETECT-2026-0004",
-      "title": "Test Sigma Rule",
-      "level": "high",
-      "status": "stable",
-      "source": "sigma",
-      "verdict": "PASS",
-      "run_id": "",
-      "tactics": [
-        "Execution"
-      ],
-      "techniques": [
-        "T1059.001"
-      ],
-      "file_path": "rules/sigma/test4.sigma.yml"
     },
     {
       "detect_id": "DETECT-2026-0005",
@@ -210,15 +177,15 @@
       "level": "high",
       "status": "stable",
       "source": "sigma",
-      "verdict": "PASS",
-      "run_id": "25686499303",
+      "verdict": "FAIL",
+      "run_id": "25961512011",
       "tactics": [
         "Execution",
         "Stealth"
       ],
       "techniques": [
         "T1059.001",
-        "T1027"
+        "T1027.010"
       ],
       "file_path": "rules/sigma/DETECT-2026-0011_PowerShell-Compressed-Payload-Execution.sigma.yml"
     },
