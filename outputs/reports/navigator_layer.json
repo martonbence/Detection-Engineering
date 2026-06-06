@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-06-06T08:11:00 UTC.",
+  "description": "Auto-generated detection coverage. 2026-06-06T09:16:35 UTC.",
   "filters": {
     "platforms": [
       "Windows",
@@ -108,10 +108,10 @@
     },
     {
       "techniqueID": "T1003.001",
-      "color": "#CF222E",
-      "comment": "DETECT-2026-0021: ProcDump Targeting LSASS Process (FAIL)",
+      "color": "#2EA44F",
+      "comment": "DETECT-2026-0021: ProcDump Targeting LSASS Process (PASS)",
       "enabled": true,
-      "score": 50,
+      "score": 100,
       "showSubtechniques": true
     },
     {
