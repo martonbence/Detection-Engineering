@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-06-06T09:16:35 UTC.",
+  "description": "Auto-generated detection coverage. 2026-06-06T09:57:44 UTC.",
   "filters": {
     "platforms": [
       "Windows",
@@ -109,7 +109,15 @@
     {
       "techniqueID": "T1003.001",
       "color": "#2EA44F",
-      "comment": "DETECT-2026-0021: ProcDump Targeting LSASS Process (PASS)",
+      "comment": "DETECT-2026-0020: LSASS Credential Dump via comsvcs.dll MiniDump (PASS)\nDETECT-2026-0021: LSASS Dump via ProcDump (PASS)",
+      "enabled": true,
+      "score": 100,
+      "showSubtechniques": true
+    },
+    {
+      "techniqueID": "T1218.011",
+      "color": "#2EA44F",
+      "comment": "DETECT-2026-0020: LSASS Credential Dump via comsvcs.dll MiniDump (PASS)",
       "enabled": true,
       "score": 100,
       "showSubtechniques": true
