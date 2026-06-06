@@ -1,6 +1,6 @@
 {
-  "detect_id": "DETECT-2026-0021",
-  "title": "LSASS Dump via ProcDump",
+  "detect_id": "DETECT-2026-0020",
+  "title": "LSASS Credential Dump via comsvcs.dll MiniDump",
   "verdict": "PASS",
   "reason": "Event count 1 within expected range [1–10]",
   "event_count": 1,
@@ -9,7 +9,7 @@
   "earliest": "-5m",
   "latest": "now",
   "run_timestamp": "2026-06-06T09:57:41.976279+00:00",
-  "rule_version": "1.2",
+  "rule_version": "1.0",
   "git_sha": "53b74dd7c3e2a869df388240bea1576896ada531",
   "run_id": "27059194762"
 }

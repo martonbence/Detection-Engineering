@@ -1,36 +1,36 @@
 {
-  "generated_at": "2026-06-06T09:16:35.692297+00:00",
-  "total_rules": 16,
-  "total_sigma_rules": 15,
-  "total_splunk_rules": 16,
+  "generated_at": "2026-06-06T09:57:44.448556+00:00",
+  "total_rules": 17,
+  "total_sigma_rules": 16,
+  "total_splunk_rules": 17,
   "total_native_spl_rules": 1,
-  "verified_pass": 14,
+  "verified_pass": 15,
   "verified_fail": 2,
   "not_verified": 0,
   "pass_rate_pct": 88,
   "pass_rate_color": "brightgreen",
-  "mitre_covered_techniques": 10,
+  "mitre_covered_techniques": 11,
   "mitre_total_techniques": 222,
   "mitre_total_fetched_at": "2026-06-06T08:11:00.316247+00:00",
-  "mitre_coverage_pct": 4.5,
+  "mitre_coverage_pct": 5.0,
   "by_level": {
-    "critical": 4,
+    "critical": 5,
     "high": 8,
     "medium": 4
   },
   "by_status": {
-    "experimental": 2,
+    "experimental": 3,
     "stable": 11,
     "test": 3
   },
   "by_tactic": {
     "Execution": 15,
-    "Stealth": 7,
+    "Stealth": 8,
     "Persistence": 3,
     "Defense Impairment": 2,
+    "Credential Access": 2,
     "Command & Control": 1,
-    "Initial Access": 1,
-    "Credential Access": 1
+    "Initial Access": 1
   },
   "rules": [
     {
@@ -298,13 +298,31 @@
       "file_path": "rules/sigma/DETECT-2026-0018_PowerShell-Invoke-Known-Malicious-Cmdlets.sigma.yml"
     },
     {
-      "detect_id": "DETECT-2026-0021",
-      "title": "ProcDump Targeting LSASS Process",
+      "detect_id": "DETECT-2026-0020",
+      "title": "LSASS Credential Dump via comsvcs.dll MiniDump",
       "level": "critical",
       "status": "experimental",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "27058393033",
+      "run_id": "27059194762",
+      "tactics": [
+        "Credential Access",
+        "Stealth"
+      ],
+      "techniques": [
+        "T1003.001",
+        "T1218.011"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0020_LSASS-Dump-via-comsvcs-MiniDump.sigma.yml"
+    },
+    {
+      "detect_id": "DETECT-2026-0021",
+      "title": "LSASS Dump via ProcDump",
+      "level": "critical",
+      "status": "experimental",
+      "source": "sigma",
+      "verdict": "PASS",
+      "run_id": "27059194762",
       "tactics": [
         "Credential Access"
       ],
