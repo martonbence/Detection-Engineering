@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-05-16T12:08:58 UTC.",
+  "description": "Auto-generated detection coverage. 2026-06-06T08:11:00 UTC.",
   "filters": {
     "platforms": [
       "Windows",
@@ -104,6 +104,14 @@
       "comment": "DETECT-2026-0016: PowerShell Script Block or Module Logging Disable (PASS)",
       "enabled": true,
       "score": 100,
+      "showSubtechniques": true
+    },
+    {
+      "techniqueID": "T1003.001",
+      "color": "#CF222E",
+      "comment": "DETECT-2026-0021: ProcDump Targeting LSASS Process (FAIL)",
+      "enabled": true,
+      "score": 50,
       "showSubtechniques": true
     },
     {

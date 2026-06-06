@@ -1,25 +1,25 @@
 {
-  "generated_at": "2026-05-16T12:08:58.740694+00:00",
-  "total_rules": 15,
-  "total_sigma_rules": 14,
-  "total_splunk_rules": 15,
+  "generated_at": "2026-06-06T08:11:00.993940+00:00",
+  "total_rules": 16,
+  "total_sigma_rules": 15,
+  "total_splunk_rules": 16,
   "total_native_spl_rules": 1,
   "verified_pass": 13,
-  "verified_fail": 2,
+  "verified_fail": 3,
   "not_verified": 0,
-  "pass_rate_pct": 87,
+  "pass_rate_pct": 81,
   "pass_rate_color": "brightgreen",
-  "mitre_covered_techniques": 9,
+  "mitre_covered_techniques": 10,
   "mitre_total_techniques": 222,
-  "mitre_total_fetched_at": "2026-05-11T15:45:31.975380+00:00",
-  "mitre_coverage_pct": 4.1,
+  "mitre_total_fetched_at": "2026-06-06T08:11:00.316247+00:00",
+  "mitre_coverage_pct": 4.5,
   "by_level": {
-    "critical": 3,
+    "critical": 4,
     "high": 8,
     "medium": 4
   },
   "by_status": {
-    "experimental": 1,
+    "experimental": 2,
     "stable": 11,
     "test": 3
   },
@@ -29,7 +29,8 @@
     "Persistence": 3,
     "Defense Impairment": 2,
     "Command & Control": 1,
-    "Initial Access": 1
+    "Initial Access": 1,
+    "Credential Access": 1
   },
   "rules": [
     {
@@ -295,6 +296,22 @@
         "T1059.001"
       ],
       "file_path": "rules/sigma/DETECT-2026-0018_PowerShell-Invoke-Known-Malicious-Cmdlets.sigma.yml"
+    },
+    {
+      "detect_id": "DETECT-2026-0021",
+      "title": "ProcDump Targeting LSASS Process",
+      "level": "critical",
+      "status": "experimental",
+      "source": "sigma",
+      "verdict": "FAIL",
+      "run_id": "27057052635",
+      "tactics": [
+        "Credential Access"
+      ],
+      "techniques": [
+        "T1003.001"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0021_LSASS-Dump-via-ProcDump.sigma.yml"
     }
   ]
 }
