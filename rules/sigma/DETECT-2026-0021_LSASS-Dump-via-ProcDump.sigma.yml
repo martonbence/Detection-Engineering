@@ -15,8 +15,11 @@ description: >
     procdump.exe -r -ma lsass.exe lsass.dmp   (clone before dump — EDR evasion)
     procdump.exe -ma -accepteula lsass lsass.dmp
 
-  Matching on "procdump" in the image name and "lsass" anywhere in the command
-  line covers all variants including obfuscated output paths.
+  Detection matches on "procdump" in either the Image path or the PE
+  OriginalFileName (to catch renamed binaries), combined with "lsass" in the
+  command line and at least one dump-mode flag (-ma/-mm/-mp) or related switch.
+  PID-based targeting (e.g. procdump -ma 624) is a known gap: the LSASS process
+  name does not appear in the command line in that case.
 references:
   - https://attack.mitre.org/techniques/T1003/001/
   - https://learn.microsoft.com/en-us/sysinternals/downloads/procdump
@@ -62,6 +65,7 @@ fields:
   - ComputerName
   - User
   - Image
+  - OriginalFileName
   - CommandLine
   - CurrentDirectory
   - IntegrityLevel
