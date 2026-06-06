@@ -1,0 +1,65 @@
+META_START
+{
+  "title": "LSASS Credential Dump via comsvcs.dll MiniDump",
+  "detect_id": "DETECT-2026-0020",
+  "description": "Detects LSASS memory dump creation using the MiniDump export of the native Windows DLL comsvcs.dll, invoked via rundll32.exe. This is a well-known living-off-the-land (LOLBAS) technique that avoids dropping third-party dumping tools to disk: the attacker passes the LSASS PID, an output file path, and the literal string \"full\" to the MiniDump function, which creates a complete minidump of LSASS that can be later parsed offline with Mimikatz or pypykatz to extract credentials. Because the target is identified by PID rather than process name, \"lsass\" does not appear in the command line.\nCanonical command form:\n  rundll32.exe C:\\Windows\\System32\\comsvcs.dll, MiniDump <lsass_pid> <output> full\n\nDetection matches on rundll32.exe via Image path or PE OriginalFileName (to catch renamed binaries), combined with \"comsvcs\", \"MiniDump\", and \"full\" all present in the command line. This combination has a near-zero false positive rate outside of authorized security testing.\nKnown gap: ordinal-based invocation (e.g. comsvcs.dll,#24 instead of MiniDump by name) bypasses this rule, as the export name does not appear in the command line.\n",
+  "sigma_file": "rules/sigma/DETECT-2026-0020_LSASS-Dump-via-comsvcs-MiniDump.sigma.yml",
+  "level": "critical",
+  "status": "experimental",
+  "author": "Bence Marton",
+  "date": "2026-06-06",
+  "modified": "2026-06-06",
+
+  "convert_time": "2026-06-06T11:55:50+02:00",
+  "rule_version": "1.0",
+  "git_sha": "53b74dd7c3e2a869df388240bea1576896ada531",
+  "ci_managed": true,
+  "origin": "sigma_to_spl.py",
+  "sigma_pipeline": "splunk_sysmon_acceleration",
+
+  "deploy_mode": "alert",
+  "index": "sysmon",
+  "cron": "*/5 * * * *",
+  "earliest": "-5m",
+  "latest": "now",
+  "severity": "critical",
+
+  "testing enabled": true,
+  "runner": "windows-victim",
+  "tester": "atomic",
+  "atomic tests": [
+    {
+      "technique": "T1003.001",
+      "test_numbers": [
+        2
+      ]
+    }
+  ],
+
+  "references": [
+    "https://attack.mitre.org/techniques/T1003/001/",
+    "https://lolbas-project.github.io/lolbas/Libraries/comsvcs/"
+  ],
+
+  "tags": [
+    "attack.credential_access",
+    "attack.t1003.001",
+    "attack.stealth",
+    "attack.t1218.011"
+  ],
+
+  "logsource": {
+    "product_category": "os",
+    "product": "windows",
+    "service": "sysmon",
+    "event_type": "process_creation"
+  },
+
+  "falsepositives": [
+    "No known legitimate use of comsvcs.dll MiniDump outside of security testing",
+    "Authorized red team or incident response activities under change control"
+  ]
+}
+META_END
+---
+index=sysmon Image="*\\rundll32.exe" OR OriginalFileName="RUNDLL32.EXE" CommandLine="*comsvcs*" CommandLine="*MiniDump*" CommandLine="*full*" | table _time,ComputerName,User,Image,OriginalFileName,CommandLine,CurrentDirectory,IntegrityLevel,ParentImage,ParentCommandLine,ProcessId,ParentProcessId
