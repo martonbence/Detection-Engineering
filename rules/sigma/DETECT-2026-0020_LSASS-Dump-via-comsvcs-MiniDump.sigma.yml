@@ -16,7 +16,7 @@ description: >
 
   Detection matches on rundll32.exe via Image path or PE OriginalFileName (to
   catch renamed binaries), combined with "comsvcs", "MiniDump", and "full" all
-  present in the command line. This combination has a near-zero false-positive
+  present in the command line. This combination has a near-zero false positive
   rate outside of authorized security testing.
 
   Known gap: ordinal-based invocation (e.g. comsvcs.dll,#24 instead of
