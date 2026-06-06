@@ -584,8 +584,8 @@ jobs:
               : # clean rebase, no conflict
             else
               # stats.json / README.md conflict: keep our generated version, continue
-              git checkout --theirs outputs/reports/stats.json outputs/reports/mitre_technique_map.json outputs/reports/navigator_layer.json README.md 2>/dev/null || true
-              git add outputs/reports/ README.md rules/RULE_SUMMARY.md docs/index.html 2>/dev/null || true
+              git checkout --theirs outputs/reports/stats.json outputs/reports/mitre_technique_map.json outputs/reports/navigator_layer.json outputs/results/ README.md docs/index.html rules/RULE_SUMMARY.md 2>/dev/null || true
+              git add outputs/reports/ outputs/results/ README.md rules/RULE_SUMMARY.md docs/index.html 2>/dev/null || true
               git rebase --continue 2>/dev/null || {
                 git rebase --abort 2>/dev/null || true
                 echo "Rebase failed on attempt $i, retrying..."
