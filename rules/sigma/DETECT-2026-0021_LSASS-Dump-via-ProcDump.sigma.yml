@@ -1,4 +1,4 @@
-title: ProcDump Targeting LSASS Process
+title: LSASS Dump via ProcDump
 detect_id: DETECT-2026-0021
 status: experimental
 description: >
