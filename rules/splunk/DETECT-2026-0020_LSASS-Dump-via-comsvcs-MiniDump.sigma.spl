@@ -2,7 +2,7 @@ META_START
 {
   "title": "LSASS Credential Dump via comsvcs.dll MiniDump",
   "detect_id": "DETECT-2026-0020",
-  "description": "Detects LSASS memory dump creation using the MiniDump export of the native Windows DLL comsvcs.dll, invoked via rundll32.exe. This is a well-known living-off-the-land (LOLBAS) technique that avoids dropping third-party dumping tools to disk: the attacker passes the LSASS PID, an output file path, and the literal string \"full\" to the MiniDump function, which creates a complete minidump of LSASS that can be later parsed offline with Mimikatz or pypykatz to extract credentials. Because the target is identified by PID rather than process name, \"lsass\" does not appear in the command line.\nCanonical command form:\n  rundll32.exe C:\\Windows\\System32\\comsvcs.dll, MiniDump <lsass_pid> <output> full\n\nDetection matches on rundll32.exe via Image path or PE OriginalFileName (to catch renamed binaries), combined with \"comsvcs\", \"MiniDump\", and \"full\" all present in the command line. This combination has a near-zero false positive rate outside of authorized security testing.\nKnown gap: ordinal-based invocation (e.g. comsvcs.dll,#24 instead of MiniDump by name) bypasses this rule, as the export name does not appear in the command line.\n",
+  "description": "Detects LSASS memory dump creation using the MiniDump export of the native Windows DLL comsvcs.dll, invoked via rundll32.exe. This is a well-known living-off-the-land (LOLBAS) technique that avoids dropping third-party dumping tools to disk: the attacker passes the LSASS PID, an output file path, and the literal string \"full\" to the MiniDump function, which creates a complete minidump of LSASS that can be later parsed offline with Mimikatz or pypykatz to extract credentials. Because the target is identified by PID rather than process name, \"lsass\" does not appear in the command line.\nCanonical command form:\n  rundll32.exe C:\\Windows\\System32\\comsvcs.dll, MiniDump <lsass_pid> <output> full\n\nDetection matches on rundll32.exe via Image path or PE OriginalFileName (to catch renamed binaries), combined with \"comsvcs\", \"MiniDump\", and \"full\" all present in the command line. This combination has a near-zero false-positive rate outside of authorized security testing.\nKnown gap: ordinal-based invocation (e.g. comsvcs.dll,#24 instead of MiniDump by name) bypasses this rule, as the export name does not appear in the command line.\n",
   "sigma_file": "rules/sigma/DETECT-2026-0020_LSASS-Dump-via-comsvcs-MiniDump.sigma.yml",
   "level": "critical",
   "status": "experimental",
@@ -10,9 +10,9 @@ META_START
   "date": "2026-06-06",
   "modified": "2026-06-06",
 
-  "convert_time": "2026-06-06T11:55:50+02:00",
-  "rule_version": "1.0",
-  "git_sha": "53b74dd7c3e2a869df388240bea1576896ada531",
+  "convert_time": "2026-06-06T12:34:51+02:00",
+  "rule_version": "1.1",
+  "git_sha": "ebec86dc1cb3a52c0ba3a0e295ecd68985d6a7e3",
   "ci_managed": true,
   "origin": "sigma_to_spl.py",
   "sigma_pipeline": "splunk_sysmon_acceleration",
