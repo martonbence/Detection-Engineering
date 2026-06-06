@@ -1,0 +1,63 @@
+META_START
+{
+  "title": "ProcDump Targeting LSASS Process",
+  "detect_id": "DETECT-2026-0021",
+  "description": "Detects the use of Sysinternals ProcDump (procdump.exe / procdump64.exe) to create a memory dump of the LSASS process. ProcDump is a legitimate diagnostic tool, but targeting lsass.exe specifically is a classic credential harvesting step: the resulting .dmp file can be copied off-system and parsed with Mimikatz (sekurlsa::minidump) or pypykatz to recover plaintext credentials, NTLM hashes, and Kerberos tickets without ever running an offensive tool on the victim host.\nCommon attacker invocations:\n  procdump.exe -ma lsass.exe lsass.dmp\n  procdump64.exe -ma lsass.exe lsass.dmp\n  procdump.exe -r -ma lsass.exe lsass.dmp   (clone before dump — EDR evasion)\n  procdump.exe -ma -accepteula lsass lsass.dmp\n\nMatching on \"procdump\" in the image name and \"lsass\" anywhere in the command line covers all variants including obfuscated output paths.\n",
+  "sigma_file": "rules/sigma/DETECT-2026-0021_LSASS-Dump-via-ProcDump.sigma.yml",
+  "level": "critical",
+  "status": "experimental",
+  "author": "Bence Marton",
+  "date": "2026-06-06",
+  "modified": "2026-06-06",
+
+  "convert_time": "2026-06-06T10:09:05+02:00",
+  "rule_version": "1.0",
+  "git_sha": "33abf3a2076ab26ebdd5023d91858423bf0565a1",
+  "ci_managed": true,
+  "origin": "sigma_to_spl.py",
+  "sigma_pipeline": "splunk_sysmon_acceleration",
+
+  "deploy_mode": "alert",
+  "index": "sysmon",
+  "cron": "*/5 * * * *",
+  "earliest": "-5m",
+  "latest": "now",
+  "severity": "critical",
+
+  "testing enabled": true,
+  "runner": "windows-victim",
+  "tester": "atomic",
+  "atomic tests": [
+    {
+      "technique": "T1003.001",
+      "test_numbers": [
+        1
+      ]
+    }
+  ],
+
+  "references": [
+    "https://attack.mitre.org/techniques/T1003/001/",
+    "https://learn.microsoft.com/en-us/sysinternals/downloads/procdump"
+  ],
+
+  "tags": [
+    "attack.credential_access",
+    "attack.t1003.001"
+  ],
+
+  "logsource": {
+    "product_category": "os",
+    "product": "windows",
+    "service": "sysmon",
+    "event_type": "process_creation"
+  },
+
+  "falsepositives": [
+    "Authorized IT/security staff using ProcDump on LSASS for legitimate crash analysis under documented change control",
+    "Incident response workflows creating LSASS captures for forensic investigation"
+  ]
+}
+META_END
+---
+index=sysmon Image="*\\procdump*" OR OriginalFileName="*procdump*" CommandLine="*lsass*" CommandLine IN ("*.dmp*", "*-ma*", "*-mm*", "*-mp*", "*-accepteula*", "*-r*") | table _time,ComputerName,User,Image,CommandLine,CurrentDirectory,IntegrityLevel,ParentImage,ParentCommandLine,ProcessId,ParentProcessId
