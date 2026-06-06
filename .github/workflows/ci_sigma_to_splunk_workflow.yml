@@ -568,36 +568,30 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add outputs/results/ outputs/reports/ README.md rules/RULE_SUMMARY.md docs/index.html
-
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-            exit 0
-          fi
-
-          git commit -m "chore(verify): update verification results and stats [skip ci]"
+          # Snapshot our freshly generated result files before any git resets
+          tmp=$(mktemp -d)
+          mkdir -p "$tmp/results"
+          cp -r outputs/results/. "$tmp/results/"
 
           for i in 1 2 3; do
+            # Reset to latest main — eliminates all merge/rebase conflicts
             git fetch origin main
+            git reset --hard origin/main
 
-            if git rebase origin/main; then
-              : # clean rebase, no conflict
-            else
-              # stats.json / README.md conflict: keep our generated version, continue
-              git checkout --theirs outputs/reports/stats.json outputs/reports/mitre_technique_map.json outputs/reports/navigator_layer.json outputs/results/ README.md docs/index.html rules/RULE_SUMMARY.md 2>/dev/null || true
-              git add outputs/reports/ outputs/results/ README.md rules/RULE_SUMMARY.md docs/index.html 2>/dev/null || true
-              git rebase --continue 2>/dev/null || {
-                git rebase --abort 2>/dev/null || true
-                echo "Rebase failed on attempt $i, retrying..."
-                sleep 2
-                continue
-              }
+            # Overlay our result files (overwrite whatever main already has)
+            cp -r "$tmp/results/." outputs/results/
+
+            # Re-generate aggregated stats (picks up results from all concurrent runs)
+            python scripts/docs/generate_stats.py
+
+            git add outputs/results/ outputs/reports/ README.md rules/RULE_SUMMARY.md docs/index.html
+
+            if git diff --cached --quiet; then
+              echo "No changes to commit."
+              exit 0
             fi
 
-            # Re-generate stats after rebase so it includes all pipelines' results
-            python scripts/docs/generate_stats.py
-            git add outputs/reports/ README.md rules/RULE_SUMMARY.md docs/index.html
-            git diff --cached --quiet || git commit --amend --no-edit
+            git commit -m "chore(verify): update verification results and stats [skip ci]"
 
             if git push origin HEAD:main; then
               echo "Push succeeded."
@@ -605,7 +599,7 @@ jobs:
             fi
 
             echo "Push failed (attempt $i), retrying..."
-            sleep 2
+            sleep $((i * 2))
           done
 
           echo "Push failed after 3 attempts."
