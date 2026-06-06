@@ -1,0 +1,15 @@
+{
+  "detect_id": "DETECT-2026-0021",
+  "title": "ProcDump Targeting LSASS Process",
+  "verdict": "FAIL",
+  "reason": "Too few events: 0 (min expected: 1)",
+  "event_count": 0,
+  "min_pass": 1,
+  "max_pass": 10,
+  "earliest": "-5m",
+  "latest": "now",
+  "run_timestamp": "2026-06-06T08:10:57.513580+00:00",
+  "rule_version": "1.0",
+  "git_sha": "33abf3a2076ab26ebdd5023d91858423bf0565a1",
+  "run_id": "27057052635"
+}
