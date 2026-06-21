@@ -1,0 +1,121 @@
+title: LSASS Memory Access by Non-Standard Process
+detect_id: DETECT-2026-0019
+status: experimental
+description: >
+  Detects when a process outside of known-good system processes opens lsass.exe with
+  memory-read access rights. Reading LSASS memory is the prerequisite for all
+  in-memory credential extraction: tools such as Mimikatz (sekurlsa::logonpasswords),
+  custom shellcode injectors, and minidump utilities all require an OpenProcess
+  call on LSASS with at minimum PROCESS_VM_READ | PROCESS_QUERY_LIMITED_INFORMATION
+  (0x1010) before they can extract credentials. Sysmon EID 10 (ProcessAccess)
+  captures the accessing process, the target, and the GrantedAccess bitmask,
+  making it the earliest and most precise telemetry source for LSASS-targeting
+  activity — firing before any credential is actually read from memory.
+references:
+  - https://attack.mitre.org/techniques/T1003/001/
+author: Bence Marton
+date: 2026-06-21
+modified: 2026-06-21
+tags:
+  - attack.credential_access
+  - attack.t1003.001
+
+logsource:
+  product_category: os
+  product: windows
+  service: sysmon
+  event_type: process_access
+
+detection:
+  selection:
+    TargetImage|endswith:
+      - '\lsass.exe'
+    GrantedAccess|contains:
+      - "0x1010"
+      - "0x1410"
+      - "0x143a"
+      - "0x1438"
+      - "0x40"
+      - "0x1fffff"
+      - "0x1f1fff"
+
+  filter_system_processes:
+    SourceImage|endswith:
+      - '\lsass.exe'
+      - '\werfault.exe'
+      - '\WerFaultSecure.exe'
+      - '\csrss.exe'
+      - '\wininit.exe'
+
+  filter_av_edr:
+    SourceImage|contains:
+      - '\Windows Defender\'
+      - '\Microsoft Security Client\'
+      - '\Malwarebytes\'
+      - '\CrowdStrike\'
+      - '\SentinelOne\'
+      - '\Carbon Black\'
+      - '\Cylance\'
+      - '\Symantec\'
+      - '\McAfee\'
+      - '\Sophos\'
+      - '\ESET\'
+      - '\Kaspersky\'
+      - '\Trend Micro\'
+      - '\Panda Security\'
+      - '\F-Secure\'
+
+  condition: selection and not (filter_system_processes or filter_av_edr)
+
+fields:
+  - _time
+  - ComputerName
+  - User
+  - SourceImage
+  - TargetImage
+  - GrantedAccess
+  - CallTrace
+  - SourceProcessId
+  - TargetProcessId
+
+falsepositives:
+  - AV/EDR agents scanning LSASS memory — add vendor path to filter_av_edr
+  - Windows crash reporting and core system processes (werfault.exe, csrss.exe,
+    wininit.exe — already filtered)
+  - Legitimate diagnostic tools run by IT/security teams under change control
+  - SIEM/XDR agents collecting process telemetry (add agent path to filter)
+
+level: critical
+
+custom:
+  splunk:
+    index: sysmon
+    mode: alert
+    cron: "*/5 * * * *"
+    earliest: "-5m"
+    latest: "now"
+    severity: critical
+
+  testing:
+    enabled: true
+    runner: windows-victim
+    type: emulation
+    custom:
+      - name: "Open LSASS handle with PROCESS_VM_READ rights"
+        description: >
+          Opens a handle to lsass.exe with 0x1010 (PROCESS_VM_READ |
+          PROCESS_QUERY_LIMITED_INFORMATION) access rights using a kernel32
+          P/Invoke call. The handle is closed immediately after — no memory is
+          read, but Sysmon EID 10 fires on the OpenProcess call itself.
+          Requires elevated (admin) context to succeed.
+        executor: powershell
+        command: >-
+          $sig = '[DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint d, bool b, uint pid); [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr h);';
+          $k = Add-Type -MemberDefinition $sig -Name K32 -Namespace Win32 -PassThru;
+          $pid = (Get-Process lsass).Id;
+          $h = $k::OpenProcess(0x1010, $false, $pid);
+          if ($h -ne [IntPtr]::Zero) { $k::CloseHandle($h) }
+        cleanup: ""
+        prerequisites:
+          - Local administrator privileges required to open LSASS handle
+          - Sysmon must be running with a config that enables EID 10 for lsass.exe
