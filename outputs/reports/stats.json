@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-06T10:51:32.200263+00:00",
+  "generated_at": "2026-06-21T08:59:27.954655+00:00",
   "total_rules": 17,
   "total_sigma_rules": 16,
   "total_splunk_rules": 17,
@@ -11,7 +11,7 @@
   "pass_rate_color": "brightgreen",
   "mitre_covered_techniques": 11,
   "mitre_total_techniques": 222,
-  "mitre_total_fetched_at": "2026-06-06T08:11:00.316247+00:00",
+  "mitre_total_fetched_at": "2026-06-21T08:59:27.954655+00:00",
   "mitre_coverage_pct": 5.0,
   "by_level": {
     "critical": 5,
@@ -322,7 +322,7 @@
       "status": "experimental",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "27059194762",
+      "run_id": "27899339503",
       "tactics": [
         "Credential Access"
       ],
