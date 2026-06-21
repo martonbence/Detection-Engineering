@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-06-21T13:42:12.922579+00:00",
-  "total_rules": 18,
-  "total_sigma_rules": 17,
-  "total_splunk_rules": 18,
+  "generated_at": "2026-06-21T14:24:28.202755+00:00",
+  "total_rules": 19,
+  "total_sigma_rules": 18,
+  "total_splunk_rules": 19,
   "total_native_spl_rules": 1,
-  "verified_pass": 16,
+  "verified_pass": 17,
   "verified_fail": 2,
   "not_verified": 0,
   "pass_rate_pct": 89,
@@ -14,20 +14,20 @@
   "mitre_total_fetched_at": "2026-06-21T08:59:27.954655+00:00",
   "mitre_coverage_pct": 5.4,
   "by_level": {
-    "critical": 6,
+    "critical": 7,
     "high": 8,
     "medium": 4
   },
   "by_status": {
-    "experimental": 4,
+    "experimental": 5,
     "stable": 11,
     "test": 3
   },
   "by_tactic": {
     "Execution": 15,
     "Stealth": 8,
+    "Credential Access": 4,
     "Persistence": 3,
-    "Credential Access": 3,
     "Defense Impairment": 2,
     "Command & Control": 1,
     "Initial Access": 1
@@ -352,6 +352,23 @@
         "T1558.003"
       ],
       "file_path": "rules/sigma/DETECT-2026-0022_Known-Credential-Dumping-Tool-Execution.sigma.yml"
+    },
+    {
+      "detect_id": "DETECT-2026-0023",
+      "title": "SAM and LSA Secrets Dump via Registry Hive Export",
+      "level": "critical",
+      "status": "experimental",
+      "source": "sigma",
+      "verdict": "PASS",
+      "run_id": "27907142752",
+      "tactics": [
+        "Credential Access"
+      ],
+      "techniques": [
+        "T1003.002",
+        "T1003.004"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0023_SAM-and-LSA-Secrets-Dump-via-Registry-Hive-Export.sigma.yml"
     }
   ]
 }

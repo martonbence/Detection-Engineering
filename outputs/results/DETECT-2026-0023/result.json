@@ -1,0 +1,15 @@
+{
+  "detect_id": "DETECT-2026-0023",
+  "title": "SAM and LSA Secrets Dump via Registry Hive Export",
+  "verdict": "PASS",
+  "reason": "Event count 5 within expected range [1–10]",
+  "event_count": 5,
+  "min_pass": 1,
+  "max_pass": 10,
+  "earliest": "-5m",
+  "latest": "now",
+  "run_timestamp": "2026-06-21T14:24:25.365474+00:00",
+  "rule_version": "1.0",
+  "git_sha": "8254ca1a6739a1c9997fd8a2ad00c1927de1ca5a",
+  "run_id": "27907142752"
+}

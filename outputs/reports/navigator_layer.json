@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-06-21T13:42:12 UTC.",
+  "description": "Auto-generated detection coverage. 2026-06-21T14:24:28 UTC.",
   "filters": {
     "platforms": [
       "Windows",
@@ -125,7 +125,7 @@
     {
       "techniqueID": "T1003.002",
       "color": "#2EA44F",
-      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)",
+      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)\nDETECT-2026-0023: SAM and LSA Secrets Dump via Registry Hive Export (PASS)",
       "enabled": true,
       "score": 100,
       "showSubtechniques": true
@@ -133,7 +133,7 @@
     {
       "techniqueID": "T1003.004",
       "color": "#2EA44F",
-      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)",
+      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)\nDETECT-2026-0023: SAM and LSA Secrets Dump via Registry Hive Export (PASS)",
       "enabled": true,
       "score": 100,
       "showSubtechniques": true
