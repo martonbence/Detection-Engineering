@@ -9,12 +9,6 @@ description: >
   (sekurlsa::minidump) or pypykatz to recover plaintext credentials, NTLM hashes,
   and Kerberos tickets without ever running an offensive tool on the victim host.
 
-  Common attacker invocations:
-    procdump.exe -ma lsass.exe lsass.dmp
-    procdump64.exe -ma lsass.exe lsass.dmp
-    procdump.exe -r -ma lsass.exe lsass.dmp   (clone before dump — EDR evasion)
-    procdump.exe -ma -accepteula lsass lsass.dmp
-
   Detection matches on "procdump" in either the Image path or the PE
   OriginalFileName (to catch renamed binaries), combined with "lsass" in the
   command line and at least one dump-mode flag (-ma/-mm/-mp) or related switch.
@@ -96,4 +90,4 @@ custom:
     type: atomic
     atomics:
       - technique: T1003.001
-        test_numbers: [1]
+        test_numbers: [1, 9]
