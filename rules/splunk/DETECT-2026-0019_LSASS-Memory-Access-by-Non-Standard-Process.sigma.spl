@@ -10,9 +10,9 @@ META_START
   "date": "2026-06-21",
   "modified": "2026-06-21",
 
-  "convert_time": "2026-06-21T17:15:18+02:00",
-  "rule_version": "1.0",
-  "git_sha": "391fbda3c5d260614f15934ffa07e91120244af0",
+  "convert_time": "2026-06-21T17:23:13+02:00",
+  "rule_version": "1.1",
+  "git_sha": "3905bb9564ac2a43ba6334d05c3a34923d5e9309",
   "ci_managed": true,
   "origin": "sigma_to_spl.py",
   "sigma_pipeline": "splunk_sysmon_acceleration",
@@ -32,7 +32,7 @@ META_START
       "name": "Open LSASS handle with PROCESS_VM_READ rights",
       "description": "Opens a handle to lsass.exe with 0x1010 (PROCESS_VM_READ | PROCESS_QUERY_LIMITED_INFORMATION) access rights using a kernel32 P/Invoke call. The handle is closed immediately after — no memory is read, but Sysmon EID 10 fires on the OpenProcess call itself. Requires elevated (admin) context to succeed.\n",
       "executor": "powershell",
-      "command": "$sig = '[DllImport(\"kernel32.dll\")] public static extern IntPtr OpenProcess(uint d, bool b, uint pid); [DllImport(\"kernel32.dll\")] public static extern bool CloseHandle(IntPtr h);'; $k = Add-Type -MemberDefinition $sig -Name K32 -Namespace Win32 -PassThru; $pid = (Get-Process lsass).Id; $h = $k::OpenProcess(0x1010, $false, $pid); if ($h -ne [IntPtr]::Zero) { $k::CloseHandle($h) }",
+      "command": "$sig = '[DllImport(\"kernel32.dll\")] public static extern IntPtr OpenProcess(uint d, bool b, uint pid); [DllImport(\"kernel32.dll\")] public static extern bool CloseHandle(IntPtr h);'; $k = Add-Type -MemberDefinition $sig -Name K32 -Namespace Win32 -PassThru; $lsassPid = (Get-Process lsass).Id; $h = $k::OpenProcess(0x1010, $false, $lsassPid); if ($h -ne [IntPtr]::Zero) { $k::CloseHandle($h) }",
       "cleanup": "",
       "prerequisites": [
         "Local administrator privileges required to open LSASS handle",
