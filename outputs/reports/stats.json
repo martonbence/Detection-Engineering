@@ -1,25 +1,25 @@
 {
-  "generated_at": "2026-06-21T08:59:27.954655+00:00",
-  "total_rules": 17,
-  "total_sigma_rules": 16,
-  "total_splunk_rules": 17,
+  "generated_at": "2026-06-21T09:47:39.863553+00:00",
+  "total_rules": 18,
+  "total_sigma_rules": 17,
+  "total_splunk_rules": 18,
   "total_native_spl_rules": 1,
-  "verified_pass": 15,
+  "verified_pass": 16,
   "verified_fail": 2,
   "not_verified": 0,
-  "pass_rate_pct": 88,
+  "pass_rate_pct": 89,
   "pass_rate_color": "brightgreen",
-  "mitre_covered_techniques": 11,
+  "mitre_covered_techniques": 12,
   "mitre_total_techniques": 222,
   "mitre_total_fetched_at": "2026-06-21T08:59:27.954655+00:00",
-  "mitre_coverage_pct": 5.0,
+  "mitre_coverage_pct": 5.4,
   "by_level": {
-    "critical": 5,
+    "critical": 6,
     "high": 8,
     "medium": 4
   },
   "by_status": {
-    "experimental": 3,
+    "experimental": 4,
     "stable": 11,
     "test": 3
   },
@@ -27,8 +27,8 @@
     "Execution": 15,
     "Stealth": 8,
     "Persistence": 3,
+    "Credential Access": 3,
     "Defense Impairment": 2,
-    "Credential Access": 2,
     "Command & Control": 1,
     "Initial Access": 1
   },
@@ -330,6 +330,28 @@
         "T1003.001"
       ],
       "file_path": "rules/sigma/DETECT-2026-0021_LSASS-Dump-via-ProcDump.sigma.yml"
+    },
+    {
+      "detect_id": "DETECT-2026-0022",
+      "title": "Known Credential Dumping Tool Execution",
+      "level": "critical",
+      "status": "experimental",
+      "source": "sigma",
+      "verdict": "PASS",
+      "run_id": "27900474193",
+      "tactics": [
+        "Credential Access"
+      ],
+      "techniques": [
+        "T1003.001",
+        "T1003.002",
+        "T1003.004",
+        "T1003.006",
+        "T1558.001",
+        "T1558.002",
+        "T1558.003"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0022_Known-Credential-Dumping-Tool-Execution.sigma.yml"
     }
   ]
 }
