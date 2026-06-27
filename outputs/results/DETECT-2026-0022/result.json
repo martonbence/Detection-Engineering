@@ -1,15 +1,15 @@
 {
   "detect_id": "DETECT-2026-0022",
   "title": "Known Credential Dumping Tool Execution",
-  "verdict": "PASS",
-  "reason": "Event count 4 within expected range [1–10]",
-  "event_count": 4,
+  "verdict": "FAIL",
+  "reason": "Too few events: 0 (min expected: 1)",
+  "event_count": 0,
   "min_pass": 1,
   "max_pass": 10,
   "earliest": "-5m",
   "latest": "now",
-  "run_timestamp": "2026-06-21T13:42:09.912679+00:00",
-  "rule_version": "1.2",
-  "git_sha": "d896382d13667dd179f57851ef895d71e16799f4",
-  "run_id": "27906150848"
+  "run_timestamp": "2026-06-27T07:37:02.217571+00:00",
+  "rule_version": "1.4",
+  "git_sha": "1ed9ebf3c35ab92e1871ef2d97556ebc8116351c",
+  "run_id": "28282569989"
 }
