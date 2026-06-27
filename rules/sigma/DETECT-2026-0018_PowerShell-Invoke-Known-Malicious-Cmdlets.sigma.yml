@@ -1,6 +1,6 @@
 title: PowerShell Known Malicious Cmdlet Invocation
 detect_id: DETECT-2026-0018
-status: test
+status: stable
 description:
   Detects invocation of known offensive PowerShell cmdlets originating
   from frameworks such as PowerSploit, PowerView, PowerUp, and Nishang. These

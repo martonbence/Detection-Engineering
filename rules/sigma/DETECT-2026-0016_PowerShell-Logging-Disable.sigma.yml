@@ -1,6 +1,6 @@
 title: PowerShell Script Block or Module Logging Disable
 detect_id: DETECT-2026-0016
-status: test
+status: stable
 description: Detects PowerShell commands that disable or tamper with ScriptBlock
   or Module logging — either via registry manipulation (Set-ItemProperty on the
   PowerShell policy path) or via in-memory reflection patching of the
