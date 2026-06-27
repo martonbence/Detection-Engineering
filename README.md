@@ -2,9 +2,9 @@
 
 A CI/CD-driven detection engineering pipeline: Sigma rules → Splunk SPL → deployed saved searches → Atomic Red Team validation → verified coverage.
 
-🔍 **[Interactive Rule Browser](https://martonbence.github.io/Detection-Engineering/)** → Interactive rule browser (GitHub Pages)
+🔍 **[Interactive Rule Browser](https://martonbence.github.io/Detection-Engineering/)**
 
-🛡️ **[GitHub Pages](https://martonbence.github.io/Detection-Engineering/#navigator)** → Interactive MITRE Navigator (Github Pages)
+🛡️ **[Interactive MITRE Navigator](https://martonbence.github.io/Detection-Engineering/#navigator)**
 
 <!-- STATS_START -->
 [![Total Rules](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.total_rules&label=Total%20Rules&color=informational)](https://github.com/martonbence/Detection-Engineering/tree/main/rules)
