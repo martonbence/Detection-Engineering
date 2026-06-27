@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-06-27T07:37:05 UTC.",
+  "description": "Auto-generated detection coverage. 2026-06-27T07:47:01 UTC.",
   "filters": {
     "platforms": [
       "Windows",
@@ -176,14 +176,6 @@
       "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (FAIL)",
       "enabled": true,
       "score": 50,
-      "showSubtechniques": true
-    },
-    {
-      "techniqueID": "T1053.005",
-      "color": "#2EA44F",
-      "comment": "DETECT-2026-0001: Scheduled Task Creation via schtasks.exe (PASS)",
-      "enabled": true,
-      "score": 100,
       "showSubtechniques": true
     }
   ],
