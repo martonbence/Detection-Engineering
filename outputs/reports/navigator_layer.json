@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-06-27T07:53:02 UTC.",
+  "description": "Auto-generated detection coverage. 2026-06-27T10:00:18 UTC.",
   "filters": {
     "platforms": [
       "Windows",
@@ -176,6 +176,14 @@
       "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)",
       "enabled": true,
       "score": 100,
+      "showSubtechniques": true
+    },
+    {
+      "techniqueID": "T1003.003",
+      "color": "#CF222E",
+      "comment": "DETECT-2026-0024: NTDS.dit Credential Dump Attempt (FAIL)",
+      "enabled": true,
+      "score": 50,
       "showSubtechniques": true
     }
   ],

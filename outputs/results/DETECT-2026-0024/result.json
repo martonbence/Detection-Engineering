@@ -1,0 +1,15 @@
+{
+  "detect_id": "DETECT-2026-0024",
+  "title": "NTDS.dit Credential Dump Attempt",
+  "verdict": "FAIL",
+  "reason": "Too few events: 0 (min expected: 1)",
+  "event_count": 0,
+  "min_pass": 1,
+  "max_pass": 10,
+  "earliest": "-5m",
+  "latest": "now",
+  "run_timestamp": "2026-06-27T10:00:15.575083+00:00",
+  "rule_version": "1.0",
+  "git_sha": "8e9870ec58eb56ff34dc4e93ecd39254ecf70f78",
+  "run_id": "28285790383"
+}
