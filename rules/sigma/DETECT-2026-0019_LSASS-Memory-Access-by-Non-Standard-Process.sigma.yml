@@ -1,6 +1,6 @@
 title: LSASS Memory Access by Non-Standard Process
 detect_id: DETECT-2026-0019
-status: experimental
+status: stable
 description: >
   Detects when a process outside of known-good system processes opens lsass.exe with
   memory-read access rights. Reading LSASS memory is the prerequisite for all

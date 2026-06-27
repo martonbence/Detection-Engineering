@@ -1,6 +1,6 @@
 title: LSASS Credential Dump via comsvcs.dll MiniDump
 detect_id: DETECT-2026-0020
-status: experimental
+status: stable
 description: >
   Detects LSASS memory dump creation using the MiniDump export of the native
   Windows DLL comsvcs.dll, invoked via rundll32.exe. This is a well-known
