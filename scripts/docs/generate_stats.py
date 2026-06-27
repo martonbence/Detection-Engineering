@@ -1,5 +1,5 @@
 """
-generate_stats.py — Collect detection rule stats and update README.md + RULE_SUMMARY.md + docs/index.html.
+generate_stats.py — Collect detection rule stats and update README.md + docs/index.html.
 
 Reads:
   - rules/sigma/*.yml          — sigma rules (level, status, tags, detect_id)
@@ -9,7 +9,6 @@ Reads:
 Writes:
   - outputs/reports/stats.json — consumed by shields.io dynamic badges
   - README.md                  — replaces content between <!-- STATS_START --> and <!-- STATS_END -->
-  - rules/RULE_SUMMARY.md      — full rule index with MITRE links
   - docs/index.html            — GitHub Pages filterable/sortable rule table
 """
 
@@ -861,7 +860,7 @@ def render_readme_section(stats: dict, repo: str) -> str:
     lines += [
         f"🗺️ Interactive MITRE Navigator → [GitHub Pages]({gh_pages}#navigator)",
         "",
-        f"📋 Full rule index → [rules/RULE_SUMMARY.md](https://github.com/{repo}/blob/main/rules/RULE_SUMMARY.md)",
+        f"📋 Full rule index → [GitHub Pages]({gh_pages})",
         "",
         f"*Generated at {stats['generated_at'][:19]} UTC*",
     ]
@@ -869,55 +868,6 @@ def render_readme_section(stats: dict, repo: str) -> str:
     return "\n".join(lines)
 
 
-def render_rule_summary(stats: dict, repo: str) -> str:
-    lines: list[str] = [
-        "# Rule Summary",
-        "",
-        f"*Generated at {stats['generated_at'][:19]} UTC — {stats['total_rules']} rules total*",
-        "",
-        "| ID | Title | Source | Tactic | Technique | Severity | Status | Verdict |",
-        "|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|",
-    ]
-
-    for r in stats["rules"]:
-        detect_id = r["detect_id"]
-        display_id = detect_id.replace("-", "\u2011")  # non-breaking hyphen
-        file_path = r.get("file_path", "")
-        if file_path:
-            id_cell = f"[`{display_id}`](https://github.com/{repo}/blob/main/{file_path})"
-        else:
-            id_cell = f"`{display_id}`"
-
-        lvl = r["level"]
-        lvl_cell = LEVEL_BADGE.get(lvl, f"`{lvl}`") if lvl else "—"
-        run_id = r.get("run_id", "")
-        badge_img = VERDICT_BADGE.get(r["verdict"], r["verdict"])
-        if run_id:
-            verdict_cell = f"[{badge_img}](https://github.com/{repo}/actions/runs/{run_id})"
-        else:
-            verdict_cell = badge_img
-        source_cell = "Sigma" if r.get("source") == "sigma" else "Native&nbsp;SPL"
-
-        tactics = r.get("tactics") or []
-        tactic_links = []
-        for t in tactics:
-            ta_id = TACTIC_ID_MAP.get(t, "")
-            if ta_id:
-                tactic_links.append(f"[{t}](https://attack.mitre.org/tactics/{ta_id}/)")
-            else:
-                tactic_links.append(t)
-        tactic_cell = "<br>".join(tactic_links) if tactic_links else "—"
-
-        techniques = r.get("techniques") or []
-        tech_links = [f"[{t}]({technique_url(t)})" for t in techniques]
-        tech_cell = "<br>".join(tech_links) if tech_links else "—"
-
-        title_cell = f"<nobr>{r['title']}</nobr>"
-        lines.append(
-            f"| {id_cell} | {title_cell} | {source_cell} | {tactic_cell} | {tech_cell} | {lvl_cell} | {r['status']} | {verdict_cell} |"
-        )
-
-    return "\n".join(lines) + "\n"
 
 
 def update_readme(section_content: str) -> None:
@@ -941,9 +891,6 @@ def update_readme(section_content: str) -> None:
     readme.write_text(text, encoding="utf-8")
 
 
-def update_rule_summary(content: str) -> None:
-    out_path = REPO_ROOT / "rules" / "RULE_SUMMARY.md"
-    out_path.write_text(content, encoding="utf-8")
 
 
 def render_html_summary(stats: dict, repo: str) -> str:
@@ -1261,8 +1208,7 @@ def render_html_summary(stats: dict, repo: str) -> str:
   </div>
   <div id="att-tip"></div>
   <footer>
-    Generated at {ts} UTC &nbsp;·&nbsp;
-    <a href="https://github.com/{repo}/blob/main/rules/RULE_SUMMARY.md" target="_blank">Markdown version</a>
+    Generated at {ts} UTC
   </footer>
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
@@ -1531,10 +1477,6 @@ def main() -> int:
     section = render_readme_section(stats, repo)
     update_readme(section)
     print("README.md updated.")
-
-    summary = render_rule_summary(stats, repo)
-    update_rule_summary(summary)
-    print("rules/RULE_SUMMARY.md updated.")
 
     nav_layer = render_navigator_layer(build_technique_coverage(stats.get("_rules_detail", stats.get("rules", [])), repo), stats)
     write_navigator_layer(nav_layer)
