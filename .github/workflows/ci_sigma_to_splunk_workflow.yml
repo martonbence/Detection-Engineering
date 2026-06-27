@@ -584,7 +584,7 @@ jobs:
             # Re-generate aggregated stats (picks up results from all concurrent runs)
             python scripts/docs/generate_stats.py
 
-            git add outputs/results/ outputs/reports/ README.md rules/RULE_SUMMARY.md docs/index.html
+            git add outputs/results/ outputs/reports/ README.md docs/index.html
 
             if git diff --cached --quiet; then
               echo "No changes to commit."
