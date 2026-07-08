@@ -1,17 +1,17 @@
 {
-  "generated_at": "2026-06-27T12:02:25.445119+00:00",
+  "generated_at": "2026-07-08T15:14:55.897801+00:00",
   "total_rules": 20,
   "total_sigma_rules": 19,
   "total_splunk_rules": 20,
   "total_native_spl_rules": 1,
-  "verified_pass": 17,
-  "verified_fail": 3,
+  "verified_pass": 18,
+  "verified_fail": 2,
   "not_verified": 0,
-  "pass_rate_pct": 85,
+  "pass_rate_pct": 90,
   "pass_rate_color": "brightgreen",
   "mitre_covered_techniques": 11,
   "mitre_total_techniques": 222,
-  "mitre_total_fetched_at": "2026-06-21T08:59:27.954655+00:00",
+  "mitre_total_fetched_at": "2026-07-08T15:14:55.897801+00:00",
   "mitre_coverage_pct": 5.0,
   "by_level": {
     "critical": 9,
@@ -377,8 +377,8 @@
       "level": "critical",
       "status": "experimental",
       "source": "sigma",
-      "verdict": "FAIL",
-      "run_id": "28285790383",
+      "verdict": "PASS",
+      "run_id": "28953571747",
       "tactics": [
         "Credential Access"
       ],
