@@ -323,6 +323,7 @@
                             "type": "string",
                             "enum": [
                                 "windows-victim",
+                                "windows-dc",
                                 "linux-victim"
                             ]
                         },
