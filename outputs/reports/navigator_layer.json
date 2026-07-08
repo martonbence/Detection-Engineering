@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-07-08T17:42:07 UTC.",
+  "description": "Auto-generated detection coverage. 2026-07-08T17:50:56 UTC.",
   "filters": {
     "platforms": [
       "Windows",
@@ -125,7 +125,7 @@
     {
       "techniqueID": "T1003.002",
       "color": "#2EA44F",
-      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)\nDETECT-2026-0023: SAM and LSA Secrets Dump via Registry Hive Export (PASS)\nDETECT-2026-0026: SAM and LSA Credential Hive Copy via esentutl (PASS)",
+      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)\nDETECT-2026-0023: SAM and LSA Secrets Dump via Registry Hive Export (PASS)\nDETECT-2026-0026: SAM and LSA Credential Hive Copy via esentutl (PASS)\nDETECT-2026-0027: Credential Hive Access via Volume Shadow Copy (FAIL)",
       "enabled": true,
       "score": 100,
       "showSubtechniques": true
@@ -133,7 +133,7 @@
     {
       "techniqueID": "T1003.004",
       "color": "#2EA44F",
-      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)\nDETECT-2026-0023: SAM and LSA Secrets Dump via Registry Hive Export (PASS)\nDETECT-2026-0026: SAM and LSA Credential Hive Copy via esentutl (PASS)",
+      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)\nDETECT-2026-0023: SAM and LSA Secrets Dump via Registry Hive Export (PASS)\nDETECT-2026-0026: SAM and LSA Credential Hive Copy via esentutl (PASS)\nDETECT-2026-0027: Credential Hive Access via Volume Shadow Copy (FAIL)",
       "enabled": true,
       "score": 100,
       "showSubtechniques": true
@@ -141,7 +141,7 @@
     {
       "techniqueID": "T1003.005",
       "color": "#2EA44F",
-      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)\nDETECT-2026-0023: SAM and LSA Secrets Dump via Registry Hive Export (PASS)",
+      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)\nDETECT-2026-0023: SAM and LSA Secrets Dump via Registry Hive Export (PASS)\nDETECT-2026-0027: Credential Hive Access via Volume Shadow Copy (FAIL)",
       "enabled": true,
       "score": 100,
       "showSubtechniques": true
