@@ -2,14 +2,14 @@
   "detect_id": "DETECT-2026-0027",
   "title": "Credential Hive Access via Volume Shadow Copy",
   "verdict": "FAIL",
-  "reason": "Too many events: 11 (max expected: 10)",
-  "event_count": 11,
+  "reason": "Too few events: 0 (min expected: 1)",
+  "event_count": 0,
   "min_pass": 1,
   "max_pass": 10,
   "earliest": "-5m",
   "latest": "now",
-  "run_timestamp": "2026-07-08T17:50:54.026877+00:00",
-  "rule_version": "1.0",
-  "git_sha": "4e0f55f9b339874523efa358c02de41022b2f5cc",
-  "run_id": "28963797353"
+  "run_timestamp": "2026-07-08T18:04:00.281251+00:00",
+  "rule_version": "1.1",
+  "git_sha": "46e3ade01f814c862a2dc76753a9be5c72379cdd",
+  "run_id": "28964605507"
 }
