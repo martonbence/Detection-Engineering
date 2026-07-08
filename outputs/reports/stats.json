@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-07-08T15:14:55.897801+00:00",
-  "total_rules": 20,
-  "total_sigma_rules": 19,
-  "total_splunk_rules": 20,
+  "generated_at": "2026-07-08T17:24:57.092140+00:00",
+  "total_rules": 21,
+  "total_sigma_rules": 20,
+  "total_splunk_rules": 21,
   "total_native_spl_rules": 1,
-  "verified_pass": 18,
+  "verified_pass": 19,
   "verified_fail": 2,
   "not_verified": 0,
   "pass_rate_pct": 90,
@@ -14,19 +14,19 @@
   "mitre_total_fetched_at": "2026-07-08T15:14:55.897801+00:00",
   "mitre_coverage_pct": 5.0,
   "by_level": {
-    "critical": 9,
+    "critical": 10,
     "high": 8,
     "medium": 3
   },
   "by_status": {
     "experimental": 6,
-    "stable": 11,
+    "stable": 12,
     "test": 3
   },
   "by_tactic": {
     "Execution": 14,
     "Stealth": 8,
-    "Credential Access": 6,
+    "Credential Access": 7,
     "Persistence": 2,
     "Defense Impairment": 2,
     "Command & Control": 1,
@@ -386,6 +386,22 @@
         "T1003.003"
       ],
       "file_path": "rules/sigma/DETECT-2026-0024_NTDS-Credential-Dump-Attempt.sigma.yml"
+    },
+    {
+      "detect_id": "DETECT-2026-0025",
+      "title": "LSASS Memory Dump via Task Manager or Suspicious File Creation",
+      "level": "critical",
+      "status": "stable",
+      "source": "sigma",
+      "verdict": "PASS",
+      "run_id": "28962173099",
+      "tactics": [
+        "Credential Access"
+      ],
+      "techniques": [
+        "T1003.001"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0025_LSASS-Dump-via-TaskManager-and-FileCreate.sigma.yml"
     }
   ]
 }

@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-07-08T15:14:55 UTC.",
+  "description": "Auto-generated detection coverage. 2026-07-08T17:24:57 UTC.",
   "filters": {
     "platforms": [
       "Windows",
@@ -109,7 +109,7 @@
     {
       "techniqueID": "T1003.001",
       "color": "#2EA44F",
-      "comment": "DETECT-2026-0019: LSASS Memory Access by Non-Standard Process (PASS)\nDETECT-2026-0020: LSASS Credential Dump via comsvcs.dll MiniDump (PASS)\nDETECT-2026-0021: LSASS Dump via ProcDump (PASS)\nDETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)",
+      "comment": "DETECT-2026-0019: LSASS Memory Access by Non-Standard Process (PASS)\nDETECT-2026-0020: LSASS Credential Dump via comsvcs.dll MiniDump (PASS)\nDETECT-2026-0021: LSASS Dump via ProcDump (PASS)\nDETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)\nDETECT-2026-0025: LSASS Memory Dump via Task Manager or Suspicious File Creation (PASS)",
       "enabled": true,
       "score": 100,
       "showSubtechniques": true
