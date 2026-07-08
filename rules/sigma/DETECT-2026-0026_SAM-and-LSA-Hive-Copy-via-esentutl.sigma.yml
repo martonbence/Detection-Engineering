@@ -52,9 +52,9 @@ detection:
 
   selection_hives:
     CommandLine|contains:
-      - '\system32\config\SAM'
-      - '\system32\config\SECURITY'
-      - '\system32\config\SYSTEM'
+      - "/system32/config/SAM"
+      - "/system32/config/SECURITY"
+      - "/system32/config/SYSTEM"
 
   condition: selection_image and selection_copy_flag and selection_hives
 
