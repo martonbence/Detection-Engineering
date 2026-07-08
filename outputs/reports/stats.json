@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-08T18:04:03.143156+00:00",
+  "generated_at": "2026-07-08T18:16:01.562515+00:00",
   "total_rules": 23,
   "total_sigma_rules": 22,
   "total_splunk_rules": 23,
@@ -427,7 +427,7 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "FAIL",
-      "run_id": "28964605507",
+      "run_id": "28965322823",
       "tactics": [
         "Credential Access"
       ],
