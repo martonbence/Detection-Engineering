@@ -43,6 +43,7 @@ jobs:
       rule_files: ${{ steps.changes.outputs.rule_files }}
       spl_files: ${{ steps.bundle.outputs.spl_files }}
       has_atomic_tests: ${{ steps.test_types.outputs.has_atomic_tests }}
+      has_atomic_dc_tests: ${{ steps.test_types.outputs.has_atomic_dc_tests }}
       has_emulation_tests: ${{ steps.test_types.outputs.has_emulation_tests }}
 
     steps:
@@ -282,6 +283,7 @@ jobs:
           set -euo pipefail
 
           has_atomic=false
+          has_atomic_dc=false
           has_emulation=false
 
           mapfile -t rules <<'EOF'
@@ -291,15 +293,23 @@ jobs:
           for rule in "${rules[@]}"; do
             [[ -z "$rule" ]] && continue
             tester=$(python3 -c "import yaml,sys; d=yaml.safe_load(open(sys.argv[1])) or {}; t=(d.get('custom') or {}).get('testing') or {}; print(t.get('type','') if t.get('enabled') else '')" "$rule" 2>/dev/null || true)
+            runner=$(python3 -c "import yaml,sys; d=yaml.safe_load(open(sys.argv[1])) or {}; t=(d.get('custom') or {}).get('testing') or {}; print(t.get('runner','windows-victim') if t.get('enabled') else '')" "$rule" 2>/dev/null || true)
             case "$tester" in
-              atomic)    has_atomic=true ;;
+              atomic)
+                if [[ "$runner" == "windows-dc" ]]; then
+                  has_atomic_dc=true
+                else
+                  has_atomic=true
+                fi
+                ;;
               emulation) has_emulation=true ;;
             esac
           done
 
           echo "has_atomic_tests=$has_atomic" >> "$GITHUB_OUTPUT"
+          echo "has_atomic_dc_tests=$has_atomic_dc" >> "$GITHUB_OUTPUT"
           echo "has_emulation_tests=$has_emulation" >> "$GITHUB_OUTPUT"
-          echo "Detected: has_atomic_tests=$has_atomic  has_emulation_tests=$has_emulation"
+          echo "Detected: has_atomic_tests=$has_atomic  has_atomic_dc_tests=$has_atomic_dc  has_emulation_tests=$has_emulation"
 
       - name: Upload pipeline bundle
         if: steps.bundle.outputs.has_spl == 'true'
@@ -409,6 +419,48 @@ jobs:
           .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles -PreflightOnly
           .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles
 
+  atomic_verify_dc:
+    name: Atomic Red Team Test (DC)
+    needs: [ prepare_validate_convert, deploy_to_splunk ]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      needs.prepare_validate_convert.outputs.has_spl == 'true' &&
+      needs.prepare_validate_convert.outputs.has_atomic_dc_tests == 'true'
+    continue-on-error: true
+    runs-on: [ self-hosted, X64, Windows, dc, windows-dc ]
+
+    steps:
+      - name: Download pipeline bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: spl-pipeline-bundle
+          path: pipeline_bundle
+
+      - name: Run Atomic Red Team tests on Domain Controller
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass
+          -Command ". '{0}'"
+        env:
+          ATOMIC_RUNNER: windows-dc
+          ATOMIC_TESTER_TYPE: atomic
+          ATOMIC_RED_TEAM_MODULE_PATH: ${{ vars.ATOMIC_RED_TEAM_MODULE_PATH }}
+          ATOMIC_RED_TEAM_PATH: ${{ vars.ATOMIC_RED_TEAM_PATH }}
+          ATOMIC_DISABLE_REALTIME_MONITORING: ${{ vars.ATOMIC_DISABLE_REALTIME_MONITORING || 'true' }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $splFiles = @'
+          ${{ needs.prepare_validate_convert.outputs.spl_files }}
+          '@ -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+          if ($splFiles.Count -eq 0) {
+            Write-Host "No SPL files selected for DC Atomic verification."
+            exit 0
+          }
+
+          $bundleSplFiles = $splFiles | ForEach-Object { Join-Path "pipeline_bundle" $_ }
+
+          .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles -PreflightOnly
+          .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles
+
   emulation_verify:
     name: Script Emulation Test
     needs: [ prepare_validate_convert, deploy_to_splunk ]
@@ -449,7 +501,7 @@ jobs:
 
   splunk_verify:
     name: Splunk Verification
-    needs: [ prepare_validate_convert, atomic_verify, emulation_verify ]
+    needs: [ prepare_validate_convert, atomic_verify, atomic_verify_dc, emulation_verify ]
     if: |
       always() &&
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
@@ -457,6 +509,7 @@ jobs:
       needs.prepare_validate_convert.result == 'success' &&
       (
         needs.atomic_verify.result == 'success' || needs.atomic_verify.result == 'skipped' ||
+        needs.atomic_verify_dc.result == 'success' || needs.atomic_verify_dc.result == 'skipped' ||
         needs.emulation_verify.result == 'success' || needs.emulation_verify.result == 'skipped'
       )
     runs-on: [ self-hosted, linux, de-lab ]
@@ -611,7 +664,7 @@ jobs:
 
   deploy_pages:
     name: Deploy GitHub Pages
-    needs: [splunk_verify, atomic_verify, emulation_verify]
+    needs: [splunk_verify, atomic_verify, atomic_verify_dc, emulation_verify]
     if: |
       always() &&
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
