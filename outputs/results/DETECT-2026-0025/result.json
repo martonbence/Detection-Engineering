@@ -1,0 +1,15 @@
+{
+  "detect_id": "DETECT-2026-0025",
+  "title": "LSASS Memory Dump via Task Manager or Suspicious File Creation",
+  "verdict": "PASS",
+  "reason": "Event count 1 within expected range [1–10]",
+  "event_count": 1,
+  "min_pass": 1,
+  "max_pass": 10,
+  "earliest": "-5m",
+  "latest": "now",
+  "run_timestamp": "2026-07-08T17:24:54.165019+00:00",
+  "rule_version": "1.0",
+  "git_sha": "0e7c6324805708873be260feccd97b2c41a0f985",
+  "run_id": "28962173099"
+}
