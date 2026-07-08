@@ -1,15 +1,15 @@
 {
   "detect_id": "DETECT-2026-0026",
   "title": "SAM and LSA Credential Hive Copy via esentutl",
-  "verdict": "FAIL",
-  "reason": "Too few events: 0 (min expected: 1)",
-  "event_count": 0,
+  "verdict": "PASS",
+  "reason": "Event count 1 within expected range [1–10]",
+  "event_count": 1,
   "min_pass": 1,
   "max_pass": 10,
   "earliest": "-5m",
   "latest": "now",
-  "run_timestamp": "2026-07-08T17:36:31.558154+00:00",
-  "rule_version": "1.0",
-  "git_sha": "5ce1c9a34ece1f40b9a8fff5d3047441fe8e78b7",
-  "run_id": "28962902655"
+  "run_timestamp": "2026-07-08T17:42:04.952433+00:00",
+  "rule_version": "1.1",
+  "git_sha": "c6652993f8d84d0a1942f61d9f8539005bc919e8",
+  "run_id": "28963240988"
 }
