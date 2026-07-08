@@ -1,32 +1,32 @@
 {
-  "generated_at": "2026-07-08T17:24:57.092140+00:00",
-  "total_rules": 21,
-  "total_sigma_rules": 20,
-  "total_splunk_rules": 21,
+  "generated_at": "2026-07-08T17:36:34.506456+00:00",
+  "total_rules": 22,
+  "total_sigma_rules": 21,
+  "total_splunk_rules": 22,
   "total_native_spl_rules": 1,
   "verified_pass": 19,
-  "verified_fail": 2,
+  "verified_fail": 3,
   "not_verified": 0,
-  "pass_rate_pct": 90,
+  "pass_rate_pct": 86,
   "pass_rate_color": "brightgreen",
   "mitre_covered_techniques": 11,
   "mitre_total_techniques": 222,
   "mitre_total_fetched_at": "2026-07-08T15:14:55.897801+00:00",
   "mitre_coverage_pct": 5.0,
   "by_level": {
-    "critical": 10,
+    "critical": 11,
     "high": 8,
     "medium": 3
   },
   "by_status": {
     "experimental": 6,
-    "stable": 12,
+    "stable": 13,
     "test": 3
   },
   "by_tactic": {
     "Execution": 14,
     "Stealth": 8,
-    "Credential Access": 7,
+    "Credential Access": 8,
     "Persistence": 2,
     "Defense Impairment": 2,
     "Command & Control": 1,
@@ -402,6 +402,23 @@
         "T1003.001"
       ],
       "file_path": "rules/sigma/DETECT-2026-0025_LSASS-Dump-via-TaskManager-and-FileCreate.sigma.yml"
+    },
+    {
+      "detect_id": "DETECT-2026-0026",
+      "title": "SAM and LSA Credential Hive Copy via esentutl",
+      "level": "critical",
+      "status": "stable",
+      "source": "sigma",
+      "verdict": "FAIL",
+      "run_id": "28962902655",
+      "tactics": [
+        "Credential Access"
+      ],
+      "techniques": [
+        "T1003.002",
+        "T1003.004"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0026_SAM-and-LSA-Hive-Copy-via-esentutl.sigma.yml"
     }
   ]
 }
