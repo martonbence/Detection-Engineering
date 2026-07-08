@@ -1,32 +1,32 @@
 {
-  "generated_at": "2026-07-08T17:42:07.780918+00:00",
-  "total_rules": 22,
-  "total_sigma_rules": 21,
-  "total_splunk_rules": 22,
+  "generated_at": "2026-07-08T17:50:56.878483+00:00",
+  "total_rules": 23,
+  "total_sigma_rules": 22,
+  "total_splunk_rules": 23,
   "total_native_spl_rules": 1,
   "verified_pass": 20,
-  "verified_fail": 2,
+  "verified_fail": 3,
   "not_verified": 0,
-  "pass_rate_pct": 91,
+  "pass_rate_pct": 87,
   "pass_rate_color": "brightgreen",
   "mitre_covered_techniques": 11,
   "mitre_total_techniques": 222,
   "mitre_total_fetched_at": "2026-07-08T15:14:55.897801+00:00",
   "mitre_coverage_pct": 5.0,
   "by_level": {
-    "critical": 11,
+    "critical": 12,
     "high": 8,
     "medium": 3
   },
   "by_status": {
     "experimental": 6,
-    "stable": 13,
+    "stable": 14,
     "test": 3
   },
   "by_tactic": {
     "Execution": 14,
+    "Credential Access": 9,
     "Stealth": 8,
-    "Credential Access": 8,
     "Persistence": 2,
     "Defense Impairment": 2,
     "Command & Control": 1,
@@ -419,6 +419,24 @@
         "T1003.004"
       ],
       "file_path": "rules/sigma/DETECT-2026-0026_SAM-and-LSA-Hive-Copy-via-esentutl.sigma.yml"
+    },
+    {
+      "detect_id": "DETECT-2026-0027",
+      "title": "Credential Hive Access via Volume Shadow Copy",
+      "level": "critical",
+      "status": "stable",
+      "source": "sigma",
+      "verdict": "FAIL",
+      "run_id": "28963797353",
+      "tactics": [
+        "Credential Access"
+      ],
+      "techniques": [
+        "T1003.002",
+        "T1003.004",
+        "T1003.005"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0027_Credential-Hive-Access-via-Volume-Shadow-Copy.sigma.yml"
     }
   ]
 }
