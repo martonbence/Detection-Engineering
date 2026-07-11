@@ -1,6 +1,6 @@
 title: DCSync via DSInternals Get-ADReplAccount
 detect_id: DETECT-2026-0029
-status: experimental
+status: stable
 description: >
   Detects use of the DSInternals PowerShell module's Get-ADReplAccount cmdlet
   to pull account secrets — including NTLM hashes, Kerberos keys, and
@@ -67,7 +67,7 @@ falsepositives:
   - Security assessment tools (e.g. PingCastle, Purple Knight) invoking
     DSInternals cmdlets during an authorized engagement
 
-level: critical
+level: high
 
 custom:
   splunk:
@@ -76,7 +76,7 @@ custom:
     cron: "*/5 * * * *"
     earliest: "-5m"
     latest: "now"
-    severity: critical
+    severity: high
 
   testing:
     enabled: true
