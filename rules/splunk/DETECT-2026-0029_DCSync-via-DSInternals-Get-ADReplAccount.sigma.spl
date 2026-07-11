@@ -1,0 +1,66 @@
+META_START
+{
+  "title": "DCSync via DSInternals Get-ADReplAccount",
+  "detect_id": "DETECT-2026-0029",
+  "description": "Detects use of the DSInternals PowerShell module's Get-ADReplAccount cmdlet to pull account secrets — including NTLM hashes, Kerberos keys, and password history — from a Domain Controller over the MS-DRSR directory replication protocol.\nThis achieves the same outcome as the classic Mimikatz lsadump::dcsync attack (T1003.006) but without ever touching Mimikatz: DSInternals is a signed, legitimate PowerShell module, and Get-ADReplAccount is a real administrative cmdlet used for AD backup and password-audit tooling. As with any DCSync-style attack, successfully retrieving output requires the calling account to hold Replicating Directory Changes / Replicating Directory Changes All rights on the domain — so a non-privileged or unexpected account invoking this cmdlet indicates either a compromised privileged account or a prior AD ACL abuse step (e.g. granting these rights to a controlled principal).\n",
+  "sigma_file": "rules/sigma/DETECT-2026-0029_DCSync-via-DSInternals-Get-ADReplAccount.sigma.yml",
+  "level": "critical",
+  "status": "experimental",
+  "author": "Bence Marton",
+  "date": "2026-07-11",
+  "modified": "2026-07-11",
+
+  "convert_time": "2026-07-11T11:33:45+02:00",
+  "rule_version": "1.0",
+  "git_sha": "10159a419ff1aab22f3bd6fa67c18bb3174069b7",
+  "ci_managed": true,
+  "origin": "sigma_to_spl.py",
+  "sigma_pipeline": "splunk_sysmon_acceleration",
+
+  "deploy_mode": "alert",
+  "index": "sysmon",
+  "cron": "*/5 * * * *",
+  "earliest": "-5m",
+  "latest": "now",
+  "severity": "critical",
+
+  "testing enabled": true,
+  "runner": "windows-victim",
+  "tester": "atomic",
+  "atomic tests": [
+    {
+      "technique": "T1003.006",
+      "test_numbers": [
+        2
+      ]
+    }
+  ],
+
+  "references": [
+    "https://attack.mitre.org/techniques/T1003/006/",
+    "https://www.dsinternals.com/en/retrieving-active-directory-passwords-remotely/",
+    "https://github.com/MichaelGrafnetter/DSInternals",
+    "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1003.006/T1003.006.md"
+  ],
+
+  "tags": [
+    "attack.credential_access",
+    "attack.t1003.006"
+  ],
+
+  "logsource": {
+    "product_category": "os",
+    "product": "windows",
+    "service": "sysmon",
+    "event_type": "process_creation"
+  },
+
+  "falsepositives": [
+    "Authorized AD password-audit or credential-hygiene tooling built on DSInternals (e.g. weak/leaked password checks against NTLM hashes)",
+    "AD disaster-recovery or backup processes that use DSInternals to export account secrets under documented change control",
+    "Security assessment tools (e.g. PingCastle, Purple Knight) invoking DSInternals cmdlets during an authorized engagement"
+  ]
+}
+META_END
+---
+index=sysmon Image IN ("*\\powershell.exe", "*\\pwsh.exe") CommandLine="*Get-ADReplAccount*" | table _time,ComputerName,User,Image,CommandLine,ParentImage,ParentCommandLine,ProcessId,ParentProcessId
