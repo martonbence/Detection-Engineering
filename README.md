@@ -26,5 +26,5 @@ A CI/CD-driven detection engineering pipeline: Sigma rules → Splunk SPL → de
 
 📋 Full rule index → [GitHub Pages](https://martonbence.github.io/Detection-Engineering/)
 
-*Generated at 2026-07-11T11:28:06 UTC*
+*Generated at 2026-07-11T11:57:55 UTC*
 <!-- STATS_END -->
