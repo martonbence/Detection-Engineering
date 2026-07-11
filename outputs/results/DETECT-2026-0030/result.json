@@ -1,15 +1,15 @@
 {
   "detect_id": "DETECT-2026-0030",
-  "title": "Remote Volume Shadow Copy Creation via WMI",
-  "verdict": "FAIL",
-  "reason": "Too few events: 0 (min expected: 1)",
-  "event_count": 0,
+  "title": "Symlink Creation to Volume Shadow Copy Device Path",
+  "verdict": "PASS",
+  "reason": "Event count 1 within expected range [1–10]",
+  "event_count": 1,
   "min_pass": 1,
   "max_pass": 10,
   "earliest": "-5m",
   "latest": "now",
-  "run_timestamp": "2026-07-11T11:57:52.382667+00:00",
-  "rule_version": "1.1",
-  "git_sha": "ace11c3c4a36e7f3129734b09723a5e3ab5f8b27",
-  "run_id": "29151784455"
+  "run_timestamp": "2026-07-11T12:17:10.573235+00:00",
+  "rule_version": "1.0",
+  "git_sha": "b7212f4f3b46b93dfc1f72f9803b2c60df0b262d",
+  "run_id": "29152309169"
 }
