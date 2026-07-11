@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-07-11T12:33:12 UTC.",
+  "description": "Auto-generated detection coverage. 2026-07-11T18:06:44 UTC.",
   "filters": {
     "platforms": [
       "Windows",
@@ -181,7 +181,7 @@
     {
       "techniqueID": "T1003.003",
       "color": "#2EA44F",
-      "comment": "DETECT-2026-0024: NTDS.dit Credential Dump Attempt (PASS)\nDETECT-2026-0030: Symlink Creation to Volume Shadow Copy Device Path (PASS)\nDETECT-2026-0031: Credential Hive Access via Low-Level NTFS Acquisition (FAIL)",
+      "comment": "DETECT-2026-0024: NTDS.dit Credential Dump Attempt (PASS)\nDETECT-2026-0030: Symlink Creation to Volume Shadow Copy Device Path (PASS)\nDETECT-2026-0031: Credential Hive Access via Low-Level NTFS Acquisition (PASS)",
       "enabled": true,
       "score": 100,
       "showSubtechniques": true
