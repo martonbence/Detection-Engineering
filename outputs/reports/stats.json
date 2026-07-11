@@ -1,32 +1,32 @@
 {
-  "generated_at": "2026-07-11T12:17:13.445301+00:00",
-  "total_rules": 26,
-  "total_sigma_rules": 25,
-  "total_splunk_rules": 26,
+  "generated_at": "2026-07-11T12:33:12.231352+00:00",
+  "total_rules": 27,
+  "total_sigma_rules": 26,
+  "total_splunk_rules": 27,
   "total_native_spl_rules": 1,
   "verified_pass": 24,
-  "verified_fail": 2,
+  "verified_fail": 3,
   "not_verified": 0,
-  "pass_rate_pct": 92,
+  "pass_rate_pct": 89,
   "pass_rate_color": "brightgreen",
   "mitre_covered_techniques": 11,
   "mitre_total_techniques": 222,
   "mitre_total_fetched_at": "2026-07-08T15:14:55.897801+00:00",
   "mitre_coverage_pct": 5.0,
   "by_level": {
-    "critical": 13,
+    "critical": 14,
     "high": 9,
     "low": 1,
     "medium": 3
   },
   "by_status": {
     "experimental": 5,
-    "stable": 18,
+    "stable": 19,
     "test": 3
   },
   "by_tactic": {
     "Execution": 14,
-    "Credential Access": 12,
+    "Credential Access": 13,
     "Stealth": 8,
     "Persistence": 2,
     "Defense Impairment": 2,
@@ -483,6 +483,22 @@
         "T1003.003"
       ],
       "file_path": "rules/sigma/DETECT-2026-0030_Symlink-Creation-to-Volume-Shadow-Copy-Device-Path.sigma.yml"
+    },
+    {
+      "detect_id": "DETECT-2026-0031",
+      "title": "Credential Hive Access via Low-Level NTFS Acquisition",
+      "level": "critical",
+      "status": "stable",
+      "source": "sigma",
+      "verdict": "FAIL",
+      "run_id": "29152757486",
+      "tactics": [
+        "Credential Access"
+      ],
+      "techniques": [
+        "T1003.003"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0031_Credential-Hive-Access-via-Low-Level-NTFS-Acquisition.sigma.yml"
     }
   ]
 }
