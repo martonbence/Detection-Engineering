@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-11T09:35:37.981445+00:00",
+  "generated_at": "2026-07-11T09:49:04.034471+00:00",
   "total_rules": 25,
   "total_sigma_rules": 24,
   "total_splunk_rules": 25,
@@ -14,14 +14,14 @@
   "mitre_total_fetched_at": "2026-07-08T15:14:55.897801+00:00",
   "mitre_coverage_pct": 5.0,
   "by_level": {
-    "critical": 13,
-    "high": 8,
+    "critical": 12,
+    "high": 9,
     "low": 1,
     "medium": 3
   },
   "by_status": {
-    "experimental": 6,
-    "stable": 16,
+    "experimental": 5,
+    "stable": 17,
     "test": 3
   },
   "by_tactic": {
@@ -455,11 +455,11 @@
     {
       "detect_id": "DETECT-2026-0029",
       "title": "DCSync via DSInternals Get-ADReplAccount",
-      "level": "critical",
-      "status": "experimental",
+      "level": "high",
+      "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "29147923174",
+      "run_id": "29148278693",
       "tactics": [
         "Credential Access"
       ],
