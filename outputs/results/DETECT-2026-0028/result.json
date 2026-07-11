@@ -1,0 +1,15 @@
+{
+  "detect_id": "DETECT-2026-0028",
+  "title": "Cached Credential Enumeration via Cmdkey",
+  "verdict": "PASS",
+  "reason": "Event count 3 within expected range [1–10]",
+  "event_count": 3,
+  "min_pass": 1,
+  "max_pass": 10,
+  "earliest": "-5m",
+  "latest": "now",
+  "run_timestamp": "2026-07-11T08:22:00.743953+00:00",
+  "rule_version": "1.0",
+  "git_sha": "b98d36942e533355c22f8eeb5f9acd38df5ba27e",
+  "run_id": "29145939369"
+}

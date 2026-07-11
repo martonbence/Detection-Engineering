@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-07-08T18:25:03.266565+00:00",
-  "total_rules": 23,
-  "total_sigma_rules": 22,
-  "total_splunk_rules": 23,
+  "generated_at": "2026-07-11T08:22:03.693882+00:00",
+  "total_rules": 24,
+  "total_sigma_rules": 23,
+  "total_splunk_rules": 24,
   "total_native_spl_rules": 1,
-  "verified_pass": 21,
+  "verified_pass": 22,
   "verified_fail": 2,
   "not_verified": 0,
-  "pass_rate_pct": 91,
+  "pass_rate_pct": 92,
   "pass_rate_color": "brightgreen",
   "mitre_covered_techniques": 11,
   "mitre_total_techniques": 222,
@@ -16,16 +16,17 @@
   "by_level": {
     "critical": 12,
     "high": 8,
+    "low": 1,
     "medium": 3
   },
   "by_status": {
     "experimental": 6,
-    "stable": 14,
+    "stable": 15,
     "test": 3
   },
   "by_tactic": {
     "Execution": 14,
-    "Credential Access": 9,
+    "Credential Access": 10,
     "Stealth": 8,
     "Persistence": 2,
     "Defense Impairment": 2,
@@ -435,6 +436,22 @@
         "T1003.002"
       ],
       "file_path": "rules/sigma/DETECT-2026-0027_Credential-Hive-Access-via-Volume-Shadow-Copy.sigma.yml"
+    },
+    {
+      "detect_id": "DETECT-2026-0028",
+      "title": "Cached Credential Enumeration via Cmdkey",
+      "level": "low",
+      "status": "stable",
+      "source": "sigma",
+      "verdict": "PASS",
+      "run_id": "29145939369",
+      "tactics": [
+        "Credential Access"
+      ],
+      "techniques": [
+        "T1003.005"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0028_Cached-Credential-Enumeration-via-Cmdkey.sigma.yml"
     }
   ]
 }
