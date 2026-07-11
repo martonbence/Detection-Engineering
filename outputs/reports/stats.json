@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-07-11T08:30:49.112079+00:00",
-  "total_rules": 24,
-  "total_sigma_rules": 23,
-  "total_splunk_rules": 24,
+  "generated_at": "2026-07-11T09:35:37.981445+00:00",
+  "total_rules": 25,
+  "total_sigma_rules": 24,
+  "total_splunk_rules": 25,
   "total_native_spl_rules": 1,
-  "verified_pass": 22,
+  "verified_pass": 23,
   "verified_fail": 2,
   "not_verified": 0,
   "pass_rate_pct": 92,
@@ -14,19 +14,19 @@
   "mitre_total_fetched_at": "2026-07-08T15:14:55.897801+00:00",
   "mitre_coverage_pct": 5.0,
   "by_level": {
-    "critical": 12,
+    "critical": 13,
     "high": 8,
     "low": 1,
     "medium": 3
   },
   "by_status": {
-    "experimental": 5,
+    "experimental": 6,
     "stable": 16,
     "test": 3
   },
   "by_tactic": {
     "Execution": 14,
-    "Credential Access": 10,
+    "Credential Access": 11,
     "Stealth": 8,
     "Persistence": 2,
     "Defense Impairment": 2,
@@ -451,6 +451,22 @@
         "T1003.005"
       ],
       "file_path": "rules/sigma/DETECT-2026-0028_Cached-Credential-Enumeration-via-Cmdkey.sigma.yml"
+    },
+    {
+      "detect_id": "DETECT-2026-0029",
+      "title": "DCSync via DSInternals Get-ADReplAccount",
+      "level": "critical",
+      "status": "experimental",
+      "source": "sigma",
+      "verdict": "PASS",
+      "run_id": "29147923174",
+      "tactics": [
+        "Credential Access"
+      ],
+      "techniques": [
+        "T1003.006"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0029_DCSync-via-DSInternals-Get-ADReplAccount.sigma.yml"
     }
   ]
 }
