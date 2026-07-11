@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-11T08:22:03.693882+00:00",
+  "generated_at": "2026-07-11T08:30:49.112079+00:00",
   "total_rules": 24,
   "total_sigma_rules": 23,
   "total_splunk_rules": 24,
@@ -20,8 +20,8 @@
     "medium": 3
   },
   "by_status": {
-    "experimental": 6,
-    "stable": 15,
+    "experimental": 5,
+    "stable": 16,
     "test": 3
   },
   "by_tactic": {
@@ -358,17 +358,16 @@
       "detect_id": "DETECT-2026-0023",
       "title": "SAM and LSA Secrets Dump via Registry Hive Export",
       "level": "critical",
-      "status": "experimental",
+      "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "28282793022",
+      "run_id": "29146058925",
       "tactics": [
         "Credential Access"
       ],
       "techniques": [
         "T1003.002",
-        "T1003.004",
-        "T1003.005"
+        "T1003.004"
       ],
       "file_path": "rules/sigma/DETECT-2026-0023_SAM-and-LSA-Secrets-Dump-via-Registry-Hive-Export.sigma.yml"
     },
