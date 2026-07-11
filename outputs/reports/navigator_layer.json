@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-07-11T09:49:04 UTC.",
+  "description": "Auto-generated detection coverage. 2026-07-11T11:28:06 UTC.",
   "filters": {
     "platforms": [
       "Windows",
@@ -181,7 +181,7 @@
     {
       "techniqueID": "T1003.003",
       "color": "#2EA44F",
-      "comment": "DETECT-2026-0024: NTDS.dit Credential Dump Attempt (PASS)",
+      "comment": "DETECT-2026-0024: NTDS.dit Credential Dump Attempt (PASS)\nDETECT-2026-0030: Remote Volume Shadow Copy Creation via WMI (FAIL)",
       "enabled": true,
       "score": 100,
       "showSubtechniques": true

@@ -1,0 +1,15 @@
+{
+  "detect_id": "DETECT-2026-0030",
+  "title": "Remote Volume Shadow Copy Creation via WMI",
+  "verdict": "FAIL",
+  "reason": "Too few events: 0 (min expected: 1)",
+  "event_count": 0,
+  "min_pass": 1,
+  "max_pass": 10,
+  "earliest": "-5m",
+  "latest": "now",
+  "run_timestamp": "2026-07-11T11:28:03.425641+00:00",
+  "rule_version": "1.0",
+  "git_sha": "a67c17bd972455d9ab83edc7d93d5c7d35118dec",
+  "run_id": "29150955123"
+}
