@@ -1,0 +1,15 @@
+{
+  "detect_id": "DETECT-2026-0031",
+  "title": "Credential Hive Access via Low-Level NTFS Acquisition",
+  "verdict": "FAIL",
+  "reason": "Too few events: 0 (min expected: 1)",
+  "event_count": 0,
+  "min_pass": 1,
+  "max_pass": 10,
+  "earliest": "-5m",
+  "latest": "now",
+  "run_timestamp": "2026-07-11T12:33:09.359064+00:00",
+  "rule_version": "1.0",
+  "git_sha": "21ce0f34c18f038681c418dcee5be1ee3bdea881",
+  "run_id": "29152757486"
+}
