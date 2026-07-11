@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-11T11:28:06.293462+00:00",
+  "generated_at": "2026-07-11T11:57:55.292658+00:00",
   "total_rules": 26,
   "total_sigma_rules": 25,
   "total_splunk_rules": 26,
@@ -20,8 +20,8 @@
     "medium": 3
   },
   "by_status": {
-    "experimental": 6,
-    "stable": 17,
+    "experimental": 5,
+    "stable": 18,
     "test": 3
   },
   "by_tactic": {
@@ -472,10 +472,10 @@
       "detect_id": "DETECT-2026-0030",
       "title": "Remote Volume Shadow Copy Creation via WMI",
       "level": "high",
-      "status": "experimental",
+      "status": "stable",
       "source": "sigma",
       "verdict": "FAIL",
-      "run_id": "29150955123",
+      "run_id": "29151784455",
       "tactics": [
         "Credential Access"
       ],
