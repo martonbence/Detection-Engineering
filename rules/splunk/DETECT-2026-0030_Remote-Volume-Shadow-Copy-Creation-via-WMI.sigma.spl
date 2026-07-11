@@ -1,0 +1,63 @@
+META_START
+{
+  "title": "Remote Volume Shadow Copy Creation via WMI",
+  "detect_id": "DETECT-2026-0030",
+  "description": "Detects wmic.exe invoking a remote Volume Shadow Copy creation on another host via the /node: switch combined with the shadowcopy WMI class's create method.\nUnlike local VSC creation — which is routine on any server running agent-based backup software — orchestrating a shadow copy on a *remote* host from an admin workstation via WMI is an unusual administrative pattern. Most legitimate backup architectures create shadow copies locally through an installed agent rather than remotely targeting another machine by hostname/IP. This exact pattern (wmic /node:<target> shadowcopy call create) is a documented precursor step for remote extraction of credential-sensitive files — most notably NTDS.dit on a Domain Controller (T1003.003) — allowing an attacker to snapshot a locked file on the target without first obtaining an interactive session there.\nThis rule intentionally does not require an NTDS.dit or hive-path reference, since the snapshot-creation step itself carries no such reference — the follow-on extraction from the resulting shadow copy is covered separately by DETECT-2026-0024 (NTDS.dit) and DETECT-2026-0027 (SAM/SECURITY/SYSTEM hives).\n",
+  "sigma_file": "rules/sigma/DETECT-2026-0030_Remote-Volume-Shadow-Copy-Creation-via-WMI.sigma.yml",
+  "level": "high",
+  "status": "experimental",
+  "author": "Bence Marton",
+  "date": "2026-07-11",
+  "modified": "2026-07-11",
+
+  "convert_time": "2026-07-11T13:26:13+02:00",
+  "rule_version": "1.0",
+  "git_sha": "a67c17bd972455d9ab83edc7d93d5c7d35118dec",
+  "ci_managed": true,
+  "origin": "sigma_to_spl.py",
+  "sigma_pipeline": "splunk_sysmon_acceleration",
+
+  "deploy_mode": "alert",
+  "index": "sysmon",
+  "cron": "*/5 * * * *",
+  "earliest": "-5m",
+  "latest": "now",
+  "severity": "high",
+
+  "testing enabled": true,
+  "runner": "windows-victim",
+  "tester": "atomic",
+  "atomic tests": [
+    {
+      "technique": "T1003.003",
+      "test_numbers": [
+        5
+      ]
+    }
+  ],
+
+  "references": [
+    "https://attack.mitre.org/techniques/T1003/003/",
+    "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1003.003/T1003.003.md"
+  ],
+
+  "tags": [
+    "attack.credential_access",
+    "attack.t1003.003"
+  ],
+
+  "logsource": {
+    "product_category": "os",
+    "product": "windows",
+    "service": "sysmon",
+    "event_type": "process_creation"
+  },
+
+  "falsepositives": [
+    "Centralized backup or disaster-recovery tooling that orchestrates remote shadow copy creation from a management/jump host rather than a local agent — rare architecture, verify against known backup infrastructure",
+    "IT administrators using wmic for remote disk/storage troubleshooting that happens to involve shadow copies"
+  ]
+}
+META_END
+---
+index=sysmon Image="*\\wmic.exe" OR OriginalFileName="wmic.exe" CommandLine="*/node:*" CommandLine="*shadowcopy*" CommandLine="*create*" | table _time,ComputerName,User,Image,OriginalFileName,CommandLine,CurrentDirectory,IntegrityLevel,ParentImage,ParentCommandLine,ProcessId,ParentProcessId
