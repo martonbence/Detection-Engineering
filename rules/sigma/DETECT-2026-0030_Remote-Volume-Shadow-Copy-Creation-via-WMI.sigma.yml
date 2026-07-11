@@ -1,6 +1,6 @@
 title: Remote Volume Shadow Copy Creation via WMI
 detect_id: DETECT-2026-0030
-status: experimental
+status: stable
 description: >
   Detects wmic.exe invoking a remote Volume Shadow Copy creation on another
   host via the /node: switch combined with the shadowcopy WMI class's create
