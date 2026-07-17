@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-07-15T17:52:45 UTC.",
+  "description": "Auto-generated detection coverage. 2026-07-17T13:40:09 UTC.",
   "filters": {
     "platforms": [
       "Windows",

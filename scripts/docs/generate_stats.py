@@ -161,10 +161,27 @@ def load_native_spl_rules() -> list[dict]:
                 meta = json.loads(m.group(1))
                 if isinstance(meta, dict):
                     meta["_file_path"] = f"rules/splunk/{p.name}"
+                    meta["_body"] = content[m.end():].strip()
                     rules.append(meta)
         except Exception:
             pass
     return rules
+
+
+def extract_sigma_body(rule: dict) -> str:
+    """Re-serializes the logsource/detection/fields portion of a sigma rule
+    (the actual search logic) for the drawer's syntax-highlighted code view —
+    keeps it separate from the metadata already shown elsewhere in the drawer."""
+    body = {k: rule[k] for k in ("logsource", "detection", "fields") if k in rule}
+    if not body:
+        return ""
+    try:
+        return yaml.safe_dump(
+            body, sort_keys=False, allow_unicode=True,
+            default_flow_style=False, width=100,
+        ).strip()
+    except Exception:
+        return ""
 
 
 def load_verdicts() -> dict[str, dict]:
@@ -692,6 +709,13 @@ def generate_stats() -> dict:
         else:
             not_verified += 1
 
+        if source == "sigma":
+            rule_body = extract_sigma_body(rule)
+            rule_body_lang = "yaml"
+        else:
+            rule_body = str(rule.get("_body") or "")
+            rule_body_lang = "spl"
+
         rules_detail.append({
             "detect_id": detect_id,
             "title": title,
@@ -711,6 +735,8 @@ def generate_stats() -> dict:
             "references": [str(r) for r in (rule.get("references") or [])],
             "falsepositives": [str(f) for f in (rule.get("falsepositives") or [])],
             "testing": extract_testing(rule),
+            "rule_body": rule_body,
+            "rule_body_lang": rule_body_lang if rule_body else "",
         })
 
     total_sigma = len(sigma_rules)
@@ -1162,24 +1188,47 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .fc-verdict-fail { --fc:#f85149; --fc-bg:rgba(248,81,73,0.13); --fc-br:rgba(248,81,73,0.38); }
     .fc-verdict-na   { --fc:#8b949e; --fc-bg:rgba(139,148,158,0.12);--fc-br:rgba(139,148,158,0.35); }
 
-    .filter-group {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      padding: 8px 0 8px 10px;
-      border-left: 2px solid var(--group-accent, var(--border2));
-      margin-left: 1px;
+    .filter-supergroup {
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--group-accent, var(--border2));
+      border-radius: var(--radius);
+      background: var(--bg3);
+      overflow: hidden;
+      flex-shrink: 0;
     }
 
-    .filter-group-title {
-      font-size: 9px;
-      font-weight: 700;
+    .filter-supergroup-head {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 9px 10px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .filter-supergroup-head:hover { background: var(--bg4); }
+
+    .filter-supergroup-title {
+      flex: 1;
+      font-size: 10px;
+      font-weight: 600;
       letter-spacing: 0.8px;
       text-transform: uppercase;
-      color: var(--group-accent, var(--text3));
-      padding-left: 2px;
-      opacity: 0.85;
+      color: var(--text3);
     }
+
+    .filter-supergroup.open > .filter-supergroup-head .filter-supergroup-title { color: var(--group-accent, var(--text2)); }
+    .filter-supergroup-head .filter-active-count { background: var(--group-accent, var(--accent2)); }
+    .filter-supergroup.open > .filter-supergroup-head .filter-caret { transform: rotate(90deg); }
+
+    .filter-supergroup-body {
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      padding: 0 8px 8px;
+    }
+
+    .filter-supergroup.open > .filter-supergroup-body { display: flex; }
 
     .filter-section {
       border: 1px solid var(--border);
@@ -1347,7 +1396,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       background: var(--bg2);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 7px 10px 7px 32px;
+      padding: 7px 32px 7px 32px;
       font-size: 13px;
       color: var(--text);
       outline: none;
@@ -1357,6 +1406,29 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
     .search-input:focus { border-color: var(--accent); }
     .search-input::placeholder { color: var(--text3); }
+
+    .search-clear {
+      position: absolute;
+      right: 7px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      padding: 0;
+      background: none;
+      border: none;
+      border-radius: var(--radius);
+      color: var(--text3);
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+
+    .search-clear.show { display: flex; }
+    .search-clear:hover { color: var(--text); background: var(--bg3); }
+    .search-clear svg { position: static; width: 13px; height: 13px; stroke: currentColor; fill: none; }
 
     .result-count { font-size: 12px; color: var(--text3); white-space: nowrap; font-family: var(--font); }
 
@@ -1707,6 +1779,31 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .drawer-cta:hover { background: var(--accent-bg); text-decoration: none; }
     .drawer-cta svg { width: 12px; height: 12px; stroke: currentColor; fill: none; }
 
+    .code-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+
+    .rule-body-pre {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      font-family: var(--font);
+      font-size: 11px;
+      line-height: 1.65;
+      color: #a5b4d4;
+      overflow-x: auto;
+      white-space: pre;
+      tab-size: 2;
+    }
+
+    /* ── Rule body syntax highlight (Sigma YAML / SPL) ── */
+    .t-kw  { color: #ff7b72; font-weight: 600; }  /* keywords: search, stats, detection… */
+    .t-op  { color: #8b949e; }                    /* operators/punctuation: =, |, - , : */
+    .t-fld { color: #79c0ff; }                     /* field/key names */
+    .t-val { color: #ffffff; }                     /* literal values, strings, numbers */
+    .t-fn  { color: #d2a8ff; }                     /* functions: count, sum… */
+    .t-com { color: #6e7681; font-style: italic; } /* comments */
+    .t-id  { color: #c9d1d9; }                     /* plain identifiers */
+
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
@@ -1822,6 +1919,9 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
           <div class="search-input-wrap">
             <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input class="search-input" id="search-input" type="text" placeholder="Search title, description, ID, product…" oninput="onSearchInput()">
+            <button class="search-clear" id="search-clear" onclick="clearSearch()" title="Clear search" aria-label="Clear search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
           </div>
           <span class="result-count" id="result-count"></span>
           <span class="kbd-hint">
@@ -1965,7 +2065,9 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   let currentView = [];
   let selectedPos = -1;
   let currentTab = 'rules';
+  let currentRuleBody = '';
   const openSections = new Set();
+  const openGroups = new Set();
 
   function escHtml(s) {
     return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -2045,6 +2147,21 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     return FIELD_FC[key] || '';
   }
 
+  // Word-start match: the term must begin at a word boundary in the haystack,
+  // not just appear anywhere inside it — so "sec" matches "Security" but not
+  // "WMIExec", cutting down noisy substring hits while typing.
+  function wordStartMatch(haystack, term) {
+    if (!term) return true;
+    let from = 0;
+    while (true) {
+      const idx = haystack.indexOf(term, from);
+      if (idx < 0) return false;
+      const before = idx === 0 ? '' : haystack[idx - 1];
+      if (!before || !/[\p{L}\p{N}]/u.test(before)) return true;
+      from = idx + 1;
+    }
+  }
+
   function matchesSearch(rule, q) {
     if (!q || !q.trim()) return true;
     const haystack = [
@@ -2053,12 +2170,18 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       ...(rule.tactics || []), ...(rule.techniques || []),
       rule.severity, rule.status, rule.verdict, rule.author,
     ].join(' ').toLowerCase();
-    return q.trim().toLowerCase().split(/\s+/).every(w => haystack.includes(w));
+    return q.trim().toLowerCase().split(/\s+/).every(w => wordStartMatch(haystack, w));
   }
 
   function toggleSection(key) {
     if (openSections.has(key)) openSections.delete(key);
     else openSections.add(key);
+    renderFilters();
+  }
+
+  function toggleGroup(name) {
+    if (openGroups.has(name)) openGroups.delete(name);
+    else openGroups.add(name);
     renderFilters();
   }
 
@@ -2084,34 +2207,62 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
   let hashDebounce = null;
   function onSearchInput() {
+    const input = document.getElementById('search-input');
+    document.getElementById('search-clear')?.classList.toggle('show', !!input.value);
     renderFilters();
     renderTable();
     clearTimeout(hashDebounce);
     hashDebounce = setTimeout(updateHash, 350);
   }
 
+  function clearSearch() {
+    const input = document.getElementById('search-input');
+    input.value = '';
+    document.getElementById('search-clear')?.classList.remove('show');
+    renderFilters();
+    renderTable();
+    updateHash();
+    input.focus();
+  }
+
   function renderFilters() {
     const panel = document.getElementById('filters-panel');
     const groupHasVals = {};
-    FILTER_FIELDS.forEach(({ key, group }) => { if (group && allVals(key).length) groupHasVals[group] = true; });
+    const groupActive = {};
+    FILTER_FIELDS.forEach(({ key, group }) => {
+      if (!group) return;
+      if (allVals(key).length) groupHasVals[group] = true;
+      groupActive[group] = (groupActive[group] || 0) + (activeFilters[key]?.length || 0);
+    });
 
     let html = '';
     let openGroup = null;
+    let groupVisible = true;
 
     FILTER_FIELDS.forEach(({ key, label, group }) => {
       const vals = allVals(key);
       const effectiveGroup = (group && groupHasVals[group]) ? group : null;
 
       if (effectiveGroup !== openGroup) {
-        if (openGroup !== null) html += '</div>';
+        if (openGroup !== null) html += '</div></div>';
         if (effectiveGroup) {
           const accent = GROUP_ACCENT[effectiveGroup] || 'var(--border2)';
-          html += `<div class="filter-group" style="--group-accent:${accent}"><div class="filter-group-title">${escHtml(effectiveGroup)}</div>`;
+          const expanded = openGroups.has(effectiveGroup);
+          const act = groupActive[effectiveGroup] || 0;
+          html += `<div class="filter-supergroup ${expanded ? 'open' : ''}" style="--group-accent:${accent}">
+            <div class="filter-supergroup-head" onclick="toggleGroup('${effectiveGroup}')">
+              <svg class="filter-caret" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+              <span class="filter-supergroup-title">${escHtml(effectiveGroup)}</span>
+              ${act ? `<span class="filter-active-count">${act}</span>` : ''}
+            </div>
+            <div class="filter-supergroup-body">`;
+          groupVisible = expanded;
         }
         openGroup = effectiveGroup;
       }
 
       if (!vals.length) return;
+      if (effectiveGroup && !groupVisible) return;
 
       const activeCount = (activeFilters[key] || []).length;
       const isOpen = openSections.has(key);
@@ -2137,7 +2288,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       </div>`;
     });
 
-    if (openGroup !== null) html += '</div>';
+    if (openGroup !== null) html += '</div></div>';
     panel.innerHTML = html + '<button class="clear-filters-btn" onclick="clearFilters()">Clear filters</button>';
   }
 
@@ -2333,6 +2484,138 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     paintSelection();
   }
 
+  // ── Rule body syntax highlight (Sigma YAML / SPL) ───────────────────────
+
+  const YAML_LIST_RX = /^(-\s+)(.*)$/;
+  const YAML_KV_RX = /^([A-Za-z0-9_.|-]+)(:)(\s*)(.*)$/;
+
+  function highlightYAMLValue(val) {
+    if (!val) return '';
+    if (/^['"]/.test(val)) return `<span class="t-val">${escHtml(val)}</span>`;
+    if (/^-?\d+(\.\d+)?$/.test(val)) return `<span class="t-val">${escHtml(val)}</span>`;
+    if (val === '|' || val === '>') return `<span class="t-op">${escHtml(val)}</span>`;
+    return `<span class="t-id">${escHtml(val)}</span>`;
+  }
+
+  function highlightYAML(code) {
+    return code.split('\n').map(line => {
+      const indentM = line.match(/^\s*/);
+      const indent = indentM[0];
+      let rest = line.slice(indent.length);
+      if (!rest) return line;
+      if (rest.startsWith('#')) return indent + `<span class="t-com">${escHtml(rest)}</span>`;
+
+      let prefix = '';
+      const listM = rest.match(YAML_LIST_RX);
+      if (listM) { prefix = `<span class="t-op">-</span> `; rest = listM[2]; }
+      else if (rest === '-') { return indent + `<span class="t-op">-</span>`; }
+
+      const kv = rest.match(YAML_KV_RX);
+      if (kv) {
+        const [, key, , sp, val] = kv;
+        return indent + prefix + `<span class="t-fld">${escHtml(key)}</span><span class="t-op">:</span>${sp}${highlightYAMLValue(val)}`;
+      }
+      if (/^['"]/.test(rest)) return indent + prefix + `<span class="t-val">${escHtml(rest)}</span>`;
+      return indent + prefix + `<span class="t-id">${escHtml(rest)}</span>`;
+    }).join('\n');
+  }
+
+  const SPL_KEYWORDS = new Set([
+    'search', 'stats', 'eval', 'where', 'table', 'sort', 'dedup', 'rename',
+    'rex', 'lookup', 'join', 'transaction', 'timechart', 'bin', 'top', 'rare',
+    'head', 'tail', 'fields', 'streamstats', 'eventstats', 'multikv',
+    'fillnull', 'convert', 'makemv', 'mvexpand', 'append', 'appendcols',
+    'union', 'format', 'foreach', 'map', 'collect', 'outputlookup',
+    'inputlookup', 'regex', 'by', 'as', 'index', 'sourcetype',
+  ]);
+  const SPL_OPERATOR_WORDS = new Set(['and', 'or', 'not', 'in', 'like']);
+  const SPL_FUNCS = new Set([
+    'count', 'sum', 'avg', 'max', 'min', 'values', 'distinct_count',
+    'earliest', 'latest', 'first', 'last', 'stdev', 'median', 'mode',
+    'if', 'case', 'coalesce', 'strftime', 'strptime', 'tostring',
+    'tonumber', 'substr', 'len', 'upper', 'lower', 'replace', 'split',
+    'mvcount', 'mvindex', 'mvjoin',
+  ]);
+
+  function tokenizeSPL(code) {
+    const rx = /(```[\s\S]*?```)|('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")|(\|)|(\b\d+(?:\.\d+)?\b)|([A-Za-z_][\w.]*)|(!=|>=|<=|=|<|>)|(\s+)|([\s\S])/g;
+    const toks = [];
+    let m;
+    while ((m = rx.exec(code)) !== null) {
+      const [, comment, str, pipe, num, ident, op, ws, other] = m;
+      if (comment) toks.push({ k: 'comment', t: comment });
+      else if (str) toks.push({ k: 'string', t: str });
+      else if (pipe) toks.push({ k: 'pipe', t: pipe });
+      else if (num) toks.push({ k: 'num', t: num });
+      else if (ident) toks.push({ k: 'ident', t: ident });
+      else if (op) toks.push({ k: 'op', t: op });
+      else if (ws) toks.push({ k: 'ws', t: ws });
+      else toks.push({ k: 'punct', t: other });
+    }
+    return toks;
+  }
+
+  function highlightSPL(code) {
+    const toks = tokenizeSPL(code);
+    const nextN = (i, n) => {
+      let c = 0;
+      for (let j = i + 1; j < toks.length; j++) {
+        if (toks[j].k === 'ws') continue;
+        if (++c === n) return toks[j];
+      }
+      return null;
+    };
+
+    let out = '';
+    toks.forEach((tok, i) => {
+      const { k, t } = tok;
+      if (k === 'ws')      { out += t; return; }
+      if (k === 'comment') { out += `<span class="t-com">${escHtml(t)}</span>`; return; }
+      if (k === 'string')  { out += `<span class="t-val">${escHtml(t)}</span>`; return; }
+      if (k === 'num')     { out += `<span class="t-val">${escHtml(t)}</span>`; return; }
+      if (k === 'pipe')    { out += `<span class="t-kw">${escHtml(t)}</span>`; return; }
+      if (k === 'op')      { out += `<span class="t-op">${escHtml(t)}</span>`; return; }
+      if (k === 'punct')   { out += escHtml(t); return; }
+
+      const lower = t.toLowerCase();
+      const n1 = nextN(i, 1);
+      let cls;
+      if (SPL_OPERATOR_WORDS.has(lower)) cls = 't-op';
+      else if (SPL_KEYWORDS.has(lower)) cls = 't-kw';
+      else if (SPL_FUNCS.has(lower) && n1 && n1.t === '(') cls = 't-fn';
+      else if (n1 && n1.t === '=') cls = 't-fld';
+      else cls = 't-id';
+      out += `<span class="${cls}">${escHtml(t)}</span>`;
+    });
+    return out;
+  }
+
+  function highlightRuleBody(code, lang) {
+    return lang === 'spl' ? highlightSPL(code) : highlightYAML(code);
+  }
+
+  async function copyRuleBody(btn) {
+    if (!currentRuleBody) return;
+    try {
+      await navigator.clipboard.writeText(currentRuleBody);
+    } catch (e) {
+      const ta = document.createElement('textarea');
+      ta.value = currentRuleBody;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch (e2) { /* clipboard unavailable */ }
+      document.body.removeChild(ta);
+    }
+    const label = btn.querySelector('.cc-label');
+    if (!label) return;
+    const prev = label.textContent;
+    label.textContent = 'Copied';
+    btn.classList.add('ok');
+    setTimeout(() => { label.textContent = prev; btn.classList.remove('ok'); }, 1400);
+  }
+
   // ── Drawer ───────────────────────────────────────────────────────────────
 
   function openDrawer(idx) {
@@ -2411,6 +2694,22 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
           ${t.type ? `<span class="meta-key">Type</span><span class="meta-val">${escHtml(t.type)}</span>` : ''}
         </div>
         <div class="drawer-list" style="margin-top:8px">${atomicsHtml}</div>
+      </div>`;
+    }
+
+    currentRuleBody = '';
+    if (r.ruleBody) {
+      currentRuleBody = r.ruleBody;
+      const langLabel = r.ruleBodyLang === 'spl' ? 'SPL' : 'Sigma YAML';
+      body += `<div>
+        <div class="code-head">
+          <span class="drawer-section-label" style="margin:0">Rule Definition (${langLabel})</span>
+          <button class="code-copy" onclick="copyRuleBody(this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            <span class="cc-label">Copy</span>
+          </button>
+        </div>
+        <pre class="rule-body-pre">${highlightRuleBody(r.ruleBody, r.ruleBodyLang)}</pre>
       </div>`;
     }
 
@@ -2557,9 +2856,14 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   function applyState(state) {
     activeFilters = {};
     Object.entries(state.filters).forEach(([key, vals]) => { if (vals.length) activeFilters[key] = vals; });
-    Object.keys(activeFilters).forEach(key => openSections.add(key));
+    Object.keys(activeFilters).forEach(key => {
+      openSections.add(key);
+      const f = FILTER_FIELDS.find(f => f.key === key);
+      if (f && f.group) openGroups.add(f.group);
+    });
     const si = document.getElementById('search-input');
     if (si) si.value = state.q || '';
+    document.getElementById('search-clear')?.classList.toggle('show', !!(state.q));
     sortCol = state.sortCol;
     sortAsc = state.sortAsc;
     setActiveTab(state.tab, { skipHash: true });
@@ -3039,6 +3343,8 @@ def render_html_summary(stats: dict, repo: str) -> str:
             "modified": r.get("modified", ""),
             "references": r.get("references") or [],
             "falsepositives": r.get("falsepositives") or [],
+            "ruleBody": r.get("rule_body", ""),
+            "ruleBodyLang": r.get("rule_body_lang", ""),
             "testing": {
                 "enabled": bool(testing.get("enabled")),
                 "runner": testing.get("runner", ""),
