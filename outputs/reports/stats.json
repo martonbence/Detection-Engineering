@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-17T13:40:09.287381+00:00",
+  "generated_at": "2026-07-17T16:36:10.442137+00:00",
   "total_rules": 27,
   "total_sigma_rules": 26,
   "total_splunk_rules": 27,
@@ -133,7 +133,7 @@
           }
         ]
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: process_creation\ndetection:\n  selection_bitsadmin_image:\n    Image|endswith: \\bitsadmin.exe\n  selection_bitsadmin_flags:\n    CommandLine|contains:\n    - /transfer\n    - /create\n    - /addfile\n  selection_ps_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_ps_cmdlets:\n    CommandLine|contains:\n    - Start-BitsTransfer\n    - Complete-BitsTransfer\n    - Add-BitsFile\n  filter_suspicious_path:\n    CommandLine|contains:\n    - :\\PerfLogs\n    - :\\ProgramData\\\n    - :\\Temp\\\n    - :\\Users\\Public\\\n    - :\\Windows\\Temp\n    - \\$Recycle.Bin\\\n    - \\AppData\\Local\\\n    - \\AppData\\Roaming\\\n    - \\Contacts\\\n    - \\Desktop\\\n    - \\Favorites\\\n    - \\Favourites\\\n    - \\inetpub\\wwwroot\\\n    - \\Music\\\n    - \\Pictures\\\n    - \\Videos\\\n    - \\Start Menu\\Programs\\Startup\\\n    - \\Users\\Default\\\n    - '%ProgramData%'\n    - '%public%'\n    - '%temp%'\n    - '%tmp%'\n  filter_suspicious_extension:\n    CommandLine|contains:\n    - .bat\n    - .cmd\n    - .dll\n    - .exe\n    - .hta\n    - .msi\n    - .ps1\n    - .psm1\n    - .scf\n    - .sct\n    - .vbe\n    - .vbs\n    - .wsf\n    - .wsh\n    - .7z\n    - .chm\n    - .rar\n    - .xll\n    - .zip\n    - .asax\n    - .ashx\n    - .asmx\n    - .asp\n    - .aspx\n    - .cfm\n    - .cgi\n    - .jsp\n    - .jspx\n    - .war\n    - .gif\n    - .jpeg\n    - .jpg\n    - .png\n  filter_legit_user:\n    User|contains:\n    - SYSTEM\n    - NETWORK SERVICE\n  filter_legit_parent:\n    ParentImage|endswith:\n    - \\svchost.exe\n    - \\MsMpEng.exe\n  condition: ( ( selection_bitsadmin_image and selection_bitsadmin_flags ) or ( selection_ps_image and\n    selection_ps_cmdlets ) ) and not ( filter_legit_user and filter_legit_parent )\nfields:\n- _time\n- ComputerName\n- User\n- Image\n- CommandLine\n- ParentImage\n- ParentCommandLine\n- ProcessId\n- ParentProcessId",
+      "rule_body": "detection:\n  selection_bitsadmin_image:\n    Image|endswith: \\bitsadmin.exe\n  selection_bitsadmin_flags:\n    CommandLine|contains:\n    - /transfer\n    - /create\n    - /addfile\n  selection_ps_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_ps_cmdlets:\n    CommandLine|contains:\n    - Start-BitsTransfer\n    - Complete-BitsTransfer\n    - Add-BitsFile\n  filter_suspicious_path:\n    CommandLine|contains:\n    - :\\PerfLogs\n    - :\\ProgramData\\\n    - :\\Temp\\\n    - :\\Users\\Public\\\n    - :\\Windows\\Temp\n    - \\$Recycle.Bin\\\n    - \\AppData\\Local\\\n    - \\AppData\\Roaming\\\n    - \\Contacts\\\n    - \\Desktop\\\n    - \\Favorites\\\n    - \\Favourites\\\n    - \\inetpub\\wwwroot\\\n    - \\Music\\\n    - \\Pictures\\\n    - \\Videos\\\n    - \\Start Menu\\Programs\\Startup\\\n    - \\Users\\Default\\\n    - '%ProgramData%'\n    - '%public%'\n    - '%temp%'\n    - '%tmp%'\n  filter_suspicious_extension:\n    CommandLine|contains:\n    - .bat\n    - .cmd\n    - .dll\n    - .exe\n    - .hta\n    - .msi\n    - .ps1\n    - .psm1\n    - .scf\n    - .sct\n    - .vbe\n    - .vbs\n    - .wsf\n    - .wsh\n    - .7z\n    - .chm\n    - .rar\n    - .xll\n    - .zip\n    - .asax\n    - .ashx\n    - .asmx\n    - .asp\n    - .aspx\n    - .cfm\n    - .cgi\n    - .jsp\n    - .jspx\n    - .war\n    - .gif\n    - .jpeg\n    - .jpg\n    - .png\n  filter_legit_user:\n    User|contains:\n    - SYSTEM\n    - NETWORK SERVICE\n  filter_legit_parent:\n    ParentImage|endswith:\n    - \\svchost.exe\n    - \\MsMpEng.exe\n  condition: ( ( selection_bitsadmin_image and selection_bitsadmin_flags ) or ( selection_ps_image and\n    selection_ps_cmdlets ) ) and not ( filter_legit_user and filter_legit_parent )",
       "rule_body_lang": "yaml"
     },
     {
@@ -184,7 +184,7 @@
           }
         ]
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: process_creation\ndetection:\n  selection_image_commandline:\n    Image|endswith: \\bitsadmin.exe\n    CommandLine|contains: /setnotifycmdline\n  filter_legit_user:\n    User|contains:\n    - SYSTEM\n    - NETWORK SERVICE\n  filter_legit_parent:\n    ParentImage|endswith:\n    - \\svchost.exe\n  condition: selection_image_commandline and not (filter_legit_user and filter_legit_parent)\nfields:\n- _time\n- ComputerName\n- User\n- Image\n- CommandLine\n- ParentImage\n- ParentCommandLine\n- ProcessId\n- ParentProcessId",
+      "rule_body": "detection:\n  selection_image_commandline:\n    Image|endswith: \\bitsadmin.exe\n    CommandLine|contains: /setnotifycmdline\n  filter_legit_user:\n    User|contains:\n    - SYSTEM\n    - NETWORK SERVICE\n  filter_legit_parent:\n    ParentImage|endswith:\n    - \\svchost.exe\n  condition: selection_image_commandline and not (filter_legit_user and filter_legit_parent)",
       "rule_body_lang": "yaml"
     },
     {
@@ -240,7 +240,7 @@
           }
         ]
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: process_creation\ndetection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_cmdline_enc:\n    CommandLine|re: (?i)(?:^|[\\s\\t\"])-e(?:c|n(?:c(?:o(?:d(?:e(?:d(?:c(?:o(?:m(?:m(?:a(?:n(?:d)?)?)?)?)?)?)?)?)?)?)?))(?:[\\s\\t\"=]|$)\n  selection_cmdline_e_standalone:\n    CommandLine|re: (?i)(?:^|[\\s\\t\"])-e[\\s\\t]+(?:[A-Za-z0-9+/]{80,}={0,2})(?:[\\s\\t\"]|$)\n  condition: selection_image and (selection_cmdline_enc or selection_cmdline_e_standalone)\nfields:\n- _time\n- ComputerName\n- User\n- Image\n- CommandLine\n- ParentImage\n- ParentCommandLine\n- ProcessId\n- ParentProcessId",
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_cmdline_enc:\n    CommandLine|re: (?i)(?:^|[\\s\\t\"])-e(?:c|n(?:c(?:o(?:d(?:e(?:d(?:c(?:o(?:m(?:m(?:a(?:n(?:d)?)?)?)?)?)?)?)?)?)?)?))(?:[\\s\\t\"=]|$)\n  selection_cmdline_e_standalone:\n    CommandLine|re: (?i)(?:^|[\\s\\t\"])-e[\\s\\t]+(?:[A-Za-z0-9+/]{80,}={0,2})(?:[\\s\\t\"]|$)\n  condition: selection_image and (selection_cmdline_enc or selection_cmdline_e_standalone)",
       "rule_body_lang": "yaml"
     },
     {
@@ -297,7 +297,7 @@
           }
         ]
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: process_creation\ndetection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_download:\n    CommandLine|contains:\n    - .DownloadString(\n    - .DownloadFile(\n    - .DownloadData(\n    - .OpenRead(\n    - Invoke-WebRequest\n    - 'iwr '\n    - Invoke-RestMethod\n    - 'irm '\n    - '[System.Net.Http.HttpClient]'\n    - Net.WebRequest\n    - Net.WebClient\n    - HttpWebRequest\n  selection_iex:\n    CommandLine|contains:\n    - '| IEX'\n    - '|IEX '\n    - I`E`X\n    - I`EX\n    - IE`X\n    - 'iex '\n    - IEX (\n    - IEX(\n    - iex(\n    - Invoke-Expression\n    - '[scriptblock]::create('\n    - '|iex;'\n    - '| iex}'\n    - $ExecutionContext.InvokeCommand\n    - '&([scriptblock]'\n  condition: all of selection_*\nfields:\n- _time\n- ComputerName\n- User\n- Image\n- CommandLine\n- ParentImage\n- ParentCommandLine\n- ProcessId\n- ParentProcessId",
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_download:\n    CommandLine|contains:\n    - .DownloadString(\n    - .DownloadFile(\n    - .DownloadData(\n    - .OpenRead(\n    - Invoke-WebRequest\n    - 'iwr '\n    - Invoke-RestMethod\n    - 'irm '\n    - '[System.Net.Http.HttpClient]'\n    - Net.WebRequest\n    - Net.WebClient\n    - HttpWebRequest\n  selection_iex:\n    CommandLine|contains:\n    - '| IEX'\n    - '|IEX '\n    - I`E`X\n    - I`EX\n    - IE`X\n    - 'iex '\n    - IEX (\n    - IEX(\n    - iex(\n    - Invoke-Expression\n    - '[scriptblock]::create('\n    - '|iex;'\n    - '| iex}'\n    - $ExecutionContext.InvokeCommand\n    - '&([scriptblock]'\n  condition: all of selection_*",
       "rule_body_lang": "yaml"
     },
     {
@@ -355,7 +355,7 @@
           }
         ]
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: process_creation\ndetection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_decode:\n    CommandLine|contains:\n    - FromBase64String\n    - FromBase64CharArray(\n  selection_iex:\n    CommandLine|contains:\n    - '| IEX'\n    - '|IEX '\n    - I`E`X\n    - I`EX\n    - IE`X\n    - 'iex '\n    - IEX (\n    - IEX(\n    - iex(\n    - Invoke-Expression\n    - '[scriptblock]::create('\n    - '|iex;'\n    - '| iex}'\n    - $ExecutionContext.InvokeCommand\n    - '&([scriptblock]'\n  condition: all of selection_*\nfields:\n- _time\n- ComputerName\n- User\n- Image\n- CommandLine\n- ParentImage\n- ParentCommandLine\n- ProcessId\n- ParentProcessId",
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_decode:\n    CommandLine|contains:\n    - FromBase64String\n    - FromBase64CharArray(\n  selection_iex:\n    CommandLine|contains:\n    - '| IEX'\n    - '|IEX '\n    - I`E`X\n    - I`EX\n    - IE`X\n    - 'iex '\n    - IEX (\n    - IEX(\n    - iex(\n    - Invoke-Expression\n    - '[scriptblock]::create('\n    - '|iex;'\n    - '| iex}'\n    - $ExecutionContext.InvokeCommand\n    - '&([scriptblock]'\n  condition: all of selection_*",
       "rule_body_lang": "yaml"
     },
     {
@@ -406,7 +406,7 @@
           }
         ]
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: process_creation\ndetection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_option:\n    CommandLine|contains:\n    - '-executionpolicy '\n    - ' -ep '\n    - ' -exec '\n    - ' -ex '\n  selection_level:\n    CommandLine|contains:\n    - Bypass\n    - Unrestricted\n    - -Scope\n  condition: selection_image and selection_option and selection_level\nfields:\n- _time\n- ComputerName\n- User\n- Image\n- CommandLine\n- CurrentDirectory\n- IntegrityLevel\n- ParentImage\n- ParentCommandLine\n- ProcessId\n- ParentProcessId",
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_option:\n    CommandLine|contains:\n    - '-executionpolicy '\n    - ' -ep '\n    - ' -exec '\n    - ' -ex '\n  selection_level:\n    CommandLine|contains:\n    - Bypass\n    - Unrestricted\n    - -Scope\n  condition: selection_image and selection_option and selection_level",
       "rule_body_lang": "yaml"
     },
     {
@@ -450,7 +450,7 @@
         "type": "emulation",
         "atomics": []
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: process_creation\ndetection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_decompress:\n    CommandLine|contains:\n    - DeflateStream\n    - GZipStream\n    - IO.Compression\n  selection_iex:\n    CommandLine|contains:\n    - '| IEX'\n    - '|IEX '\n    - I`E`X\n    - I`EX\n    - IE`X\n    - 'iex '\n    - IEX (\n    - IEX(\n    - iex(\n    - Invoke-Expression\n    - '[scriptblock]::create('\n    - '|iex;'\n    - '| iex}'\n    - $ExecutionContext.InvokeCommand\n    - '&([scriptblock]'\n    - .Invoke(\n    - InvokeCommand.InvokeScript\n  condition: all of selection_*\nfields:\n- _time\n- ComputerName\n- User\n- Image\n- CommandLine\n- CurrentDirectory\n- IntegrityLevel\n- ParentImage\n- ParentCommandLine\n- ProcessId\n- ParentProcessId",
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_decompress:\n    CommandLine|contains:\n    - DeflateStream\n    - GZipStream\n    - IO.Compression\n  selection_iex:\n    CommandLine|contains:\n    - '| IEX'\n    - '|IEX '\n    - I`E`X\n    - I`EX\n    - IE`X\n    - 'iex '\n    - IEX (\n    - IEX(\n    - iex(\n    - Invoke-Expression\n    - '[scriptblock]::create('\n    - '|iex;'\n    - '| iex}'\n    - $ExecutionContext.InvokeCommand\n    - '&([scriptblock]'\n    - .Invoke(\n    - InvokeCommand.InvokeScript\n  condition: all of selection_*",
       "rule_body_lang": "yaml"
     },
     {
@@ -495,7 +495,7 @@
         "type": "emulation",
         "atomics": []
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: process_creation\ndetection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_amsi:\n    CommandLine|contains:\n    - AmsiUtils\n    - amsiInitFailed\n    - AmsiScanBuffer\n    - amsi.dll\n    - AmsiOpenSession\n    - AmsiScanString\n    - amsiContext\n    - amsiSession\n    - AmsiInitialize\n    - AmsiCloseSession\n  condition: selection_image and selection_amsi\nfields:\n- _time\n- ComputerName\n- User\n- Image\n- CommandLine\n- CurrentDirectory\n- IntegrityLevel\n- ParentImage\n- ParentCommandLine\n- ProcessId\n- ParentProcessId",
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_amsi:\n    CommandLine|contains:\n    - AmsiUtils\n    - amsiInitFailed\n    - AmsiScanBuffer\n    - amsi.dll\n    - AmsiOpenSession\n    - AmsiScanString\n    - amsiContext\n    - amsiSession\n    - AmsiInitialize\n    - AmsiCloseSession\n  condition: selection_image and selection_amsi",
       "rule_body_lang": "yaml"
     },
     {
@@ -540,7 +540,7 @@
         "type": "emulation",
         "atomics": []
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: process_creation\ndetection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_parent:\n    ParentImage|endswith:\n    - \\winword.exe\n    - \\excel.exe\n    - \\outlook.exe\n    - \\powerpnt.exe\n    - \\mspub.exe\n    - \\msaccess.exe\n    - \\visio.exe\n    - \\onenote.exe\n    - \\mshta.exe\n    - \\wscript.exe\n    - \\cscript.exe\n    - \\rundll32.exe\n    - \\regsvr32.exe\n    - \\iexplore.exe\n    - \\firefox.exe\n    - \\chrome.exe\n    - \\msedge.exe\n    - \\acrord32.exe\n    - \\acrobat.exe\n    - \\wmiprvse.exe\n    - \\pcalua.exe\n    - \\searchprotocolhost.exe\n    - \\msdt.exe\n    - \\msiexec.exe\n    - \\wordpad.exe\n    - \\teams.exe\n    - \\msedgewebview2.exe\n  condition: all of selection_*\nfields:\n- _time\n- ComputerName\n- User\n- Image\n- CommandLine\n- CurrentDirectory\n- IntegrityLevel\n- ParentImage\n- ParentCommandLine\n- ProcessId\n- ParentProcessId",
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_parent:\n    ParentImage|endswith:\n    - \\winword.exe\n    - \\excel.exe\n    - \\outlook.exe\n    - \\powerpnt.exe\n    - \\mspub.exe\n    - \\msaccess.exe\n    - \\visio.exe\n    - \\onenote.exe\n    - \\mshta.exe\n    - \\wscript.exe\n    - \\cscript.exe\n    - \\rundll32.exe\n    - \\regsvr32.exe\n    - \\iexplore.exe\n    - \\firefox.exe\n    - \\chrome.exe\n    - \\msedge.exe\n    - \\acrord32.exe\n    - \\acrobat.exe\n    - \\wmiprvse.exe\n    - \\pcalua.exe\n    - \\searchprotocolhost.exe\n    - \\msdt.exe\n    - \\msiexec.exe\n    - \\wordpad.exe\n    - \\teams.exe\n    - \\msedgewebview2.exe\n  condition: all of selection_*",
       "rule_body_lang": "yaml"
     },
     {
@@ -585,7 +585,7 @@
         "type": "emulation",
         "atomics": []
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: process_creation\ndetection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_flags_hidden:\n    CommandLine|contains:\n    - -WindowStyle Hidden\n    - -WindowStyle hidden\n    - -W Hidden\n    - -W hidden\n    - -W h\n  selection_flags_noprofile:\n    CommandLine|contains:\n    - -NoProfile\n    - -NoP\n    - -nop\n    - -noprofile\n  selection_flags_noninteractive:\n    CommandLine|contains:\n    - -NonInteractive\n    - -NonI\n    - -noni\n    - -noninteractive\n  selection_flags_nologo:\n    CommandLine|contains:\n    - -NoLogo\n    - -NoL\n    - -nol\n    - -nologo\n  condition: selection_image and ((selection_flags_hidden and selection_flags_noprofile) or (selection_flags_hidden\n    and selection_flags_noninteractive) or (selection_flags_hidden and selection_flags_nologo) or (selection_flags_noprofile\n    and selection_flags_noninteractive) or (selection_flags_noprofile and selection_flags_nologo) or (selection_flags_noninteractive\n    and selection_flags_nologo))\nfields:\n- _time\n- ComputerName\n- User\n- Image\n- CommandLine\n- CurrentDirectory\n- IntegrityLevel\n- ParentImage\n- ParentCommandLine\n- ProcessId\n- ParentProcessId",
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_flags_hidden:\n    CommandLine|contains:\n    - -WindowStyle Hidden\n    - -WindowStyle hidden\n    - -W Hidden\n    - -W hidden\n    - -W h\n  selection_flags_noprofile:\n    CommandLine|contains:\n    - -NoProfile\n    - -NoP\n    - -nop\n    - -noprofile\n  selection_flags_noninteractive:\n    CommandLine|contains:\n    - -NonInteractive\n    - -NonI\n    - -noni\n    - -noninteractive\n  selection_flags_nologo:\n    CommandLine|contains:\n    - -NoLogo\n    - -NoL\n    - -nol\n    - -nologo\n  condition: selection_image and ((selection_flags_hidden and selection_flags_noprofile) or (selection_flags_hidden\n    and selection_flags_noninteractive) or (selection_flags_hidden and selection_flags_nologo) or (selection_flags_noprofile\n    and selection_flags_noninteractive) or (selection_flags_noprofile and selection_flags_nologo) or (selection_flags_noninteractive\n    and selection_flags_nologo))",
       "rule_body_lang": "yaml"
     },
     {
@@ -637,7 +637,7 @@
           }
         ]
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: process_creation\ndetection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_reflect:\n    CommandLine|contains:\n    - Reflection.Assembly]::Load(\n    - Reflection.Assembly]::LoadFile(\n    - Reflection.Assembly]::LoadFrom(\n    - Reflection.Assembly]::LoadWithPartialName(\n    - Reflection.Assembly]::UnsafeLoadFrom(\n    - '[Runtime.InteropServices.Marshal]::Copy('\n    - '[Runtime.InteropServices.Marshal]::AllocHGlobal('\n    - '[AppDomain]::CurrentDomain.Load('\n    - ::Load([Convert]::FromBase64String(\n  filter_legitimate:\n    ParentImage|endswith:\n    - \\devenv.exe\n    - \\msbuild.exe\n  condition: selection_image and selection_reflect and not filter_legitimate\nfields:\n- _time\n- ComputerName\n- User\n- Image\n- CommandLine\n- ParentImage\n- ParentCommandLine\n- ProcessId\n- ParentProcessId",
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_reflect:\n    CommandLine|contains:\n    - Reflection.Assembly]::Load(\n    - Reflection.Assembly]::LoadFile(\n    - Reflection.Assembly]::LoadFrom(\n    - Reflection.Assembly]::LoadWithPartialName(\n    - Reflection.Assembly]::UnsafeLoadFrom(\n    - '[Runtime.InteropServices.Marshal]::Copy('\n    - '[Runtime.InteropServices.Marshal]::AllocHGlobal('\n    - '[AppDomain]::CurrentDomain.Load('\n    - ::Load([Convert]::FromBase64String(\n  filter_legitimate:\n    ParentImage|endswith:\n    - \\devenv.exe\n    - \\msbuild.exe\n  condition: selection_image and selection_reflect and not filter_legitimate",
       "rule_body_lang": "yaml"
     },
     {
@@ -683,7 +683,7 @@
         "type": "emulation",
         "atomics": []
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: process_creation\ndetection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_logging:\n    CommandLine|contains:\n    - ScriptBlockLogging\n    - EnableScriptBlockLogging\n    - EnableScriptBlockInvocationLogging\n    - ModuleLogging\n    - EnableModuleLogging\n    - ProtectedEventLogging\n    - cachedGroupPolicySettings\n    - SOFTWARE\\Policies\\Microsoft\\Windows\\PowerShell\n  selection_delete:\n    CommandLine|contains|all:\n    - Remove-Item\n    - Policies\\Microsoft\\Windows\\PowerShell\n  condition: selection_image and (selection_logging or selection_delete)\nfields:\n- _time\n- ComputerName\n- User\n- Image\n- CommandLine\n- ParentImage\n- ParentCommandLine\n- ProcessId\n- ParentProcessId",
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_logging:\n    CommandLine|contains:\n    - ScriptBlockLogging\n    - EnableScriptBlockLogging\n    - EnableScriptBlockInvocationLogging\n    - ModuleLogging\n    - EnableModuleLogging\n    - ProtectedEventLogging\n    - cachedGroupPolicySettings\n    - SOFTWARE\\Policies\\Microsoft\\Windows\\PowerShell\n  selection_delete:\n    CommandLine|contains|all:\n    - Remove-Item\n    - Policies\\Microsoft\\Windows\\PowerShell\n  condition: selection_image and (selection_logging or selection_delete)",
       "rule_body_lang": "yaml"
     },
     {
@@ -726,7 +726,7 @@
         "type": "emulation",
         "atomics": []
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: process_creation\ndetection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_cmdlets:\n    CommandLine|contains:\n    - Add-Persistence\n    - Find-AVSignature\n    - Get-GPPAutologon\n    - Get-GPPPassword\n    - Get-HttpStatus\n    - Get-Keystrokes\n    - Get-SecurityPackages\n    - Get-TimedScreenshot\n    - Get-VaultCredential\n    - Get-VolumeShadowCopy\n    - Install-SSP\n    - Invoke-CredentialInjection\n    - Invoke-DllInjection\n    - Invoke-Mimikatz\n    - Invoke-NinjaCopy\n    - Invoke-Portscan\n    - Invoke-ReflectivePEInjection\n    - Invoke-ReverseDnsLookup\n    - Invoke-Shellcode\n    - Invoke-TokenManipulation\n    - Invoke-WmiCommand\n    - Mount-VolumeShadowCopy\n    - New-ElevatedPersistenceOption\n    - New-UserPersistenceOption\n    - New-VolumeShadowCopy\n    - Out-CompressedDll\n    - Out-EncodedCommand\n    - Out-EncryptedScript\n    - Out-Minidump\n    - PowerUp\n    - PowerView\n    - Remove-Comments\n    - Remove-VolumeShadowCopy\n    - Set-CriticalProcess\n    - Set-MasterBootRecord\n    - Invoke-Kerberoast\n    - Invoke-ASREPRoast\n    - Invoke-DCSync\n    - Invoke-BloodHound\n    - Invoke-TheHash\n    - Invoke-WMIExec\n    - Invoke-SMBExec\n    - Invoke-DCOM\n    - Invoke-PowerShellTcp\n    - Invoke-PowerShellUdp\n    - Invoke-Inveigh\n    - Invoke-InveighRelay\n    - Invoke-EventViewer\n    - Invoke-SilentCleanup\n    - Invoke-Tater\n    - Invoke-Obfuscation\n    - Get-PassHashes\n  condition: selection_image and selection_cmdlets\nfields:\n- _time\n- ComputerName\n- User\n- Image\n- CommandLine\n- ParentImage\n- ParentCommandLine\n- ProcessId\n- ParentProcessId",
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_cmdlets:\n    CommandLine|contains:\n    - Add-Persistence\n    - Find-AVSignature\n    - Get-GPPAutologon\n    - Get-GPPPassword\n    - Get-HttpStatus\n    - Get-Keystrokes\n    - Get-SecurityPackages\n    - Get-TimedScreenshot\n    - Get-VaultCredential\n    - Get-VolumeShadowCopy\n    - Install-SSP\n    - Invoke-CredentialInjection\n    - Invoke-DllInjection\n    - Invoke-Mimikatz\n    - Invoke-NinjaCopy\n    - Invoke-Portscan\n    - Invoke-ReflectivePEInjection\n    - Invoke-ReverseDnsLookup\n    - Invoke-Shellcode\n    - Invoke-TokenManipulation\n    - Invoke-WmiCommand\n    - Mount-VolumeShadowCopy\n    - New-ElevatedPersistenceOption\n    - New-UserPersistenceOption\n    - New-VolumeShadowCopy\n    - Out-CompressedDll\n    - Out-EncodedCommand\n    - Out-EncryptedScript\n    - Out-Minidump\n    - PowerUp\n    - PowerView\n    - Remove-Comments\n    - Remove-VolumeShadowCopy\n    - Set-CriticalProcess\n    - Set-MasterBootRecord\n    - Invoke-Kerberoast\n    - Invoke-ASREPRoast\n    - Invoke-DCSync\n    - Invoke-BloodHound\n    - Invoke-TheHash\n    - Invoke-WMIExec\n    - Invoke-SMBExec\n    - Invoke-DCOM\n    - Invoke-PowerShellTcp\n    - Invoke-PowerShellUdp\n    - Invoke-Inveigh\n    - Invoke-InveighRelay\n    - Invoke-EventViewer\n    - Invoke-SilentCleanup\n    - Invoke-Tater\n    - Invoke-Obfuscation\n    - Get-PassHashes\n  condition: selection_image and selection_cmdlets",
       "rule_body_lang": "yaml"
     },
     {
@@ -769,7 +769,7 @@
         "type": "emulation",
         "atomics": []
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: process_access\ndetection:\n  selection:\n    TargetImage|endswith:\n    - \\lsass.exe\n    GrantedAccess|contains:\n    - '0x1010'\n    - '0x1410'\n    - '0x143a'\n    - '0x1438'\n    - '0x40'\n    - '0x1fffff'\n    - '0x1f1fff'\n  filter_system_processes:\n    SourceImage|endswith:\n    - \\lsass.exe\n    - \\werfault.exe\n    - \\WerFaultSecure.exe\n    - \\csrss.exe\n    - \\wininit.exe\n  filter_av_edr:\n    SourceImage|contains:\n    - \\Windows Defender\\\n    - \\Microsoft Security Client\\\n    - \\Malwarebytes\\\n    - \\CrowdStrike\\\n    - \\SentinelOne\\\n    - \\Carbon Black\\\n    - \\Cylance\\\n    - \\Symantec\\\n    - \\McAfee\\\n    - \\Sophos\\\n    - \\ESET\\\n    - \\Kaspersky\\\n    - \\Trend Micro\\\n    - \\Panda Security\\\n    - \\F-Secure\\\n  condition: selection and not (filter_system_processes or filter_av_edr)\nfields:\n- _time\n- ComputerName\n- User\n- SourceImage\n- TargetImage\n- GrantedAccess\n- CallTrace\n- SourceProcessId\n- TargetProcessId",
+      "rule_body": "detection:\n  selection:\n    TargetImage|endswith:\n    - \\lsass.exe\n    GrantedAccess|contains:\n    - '0x1010'\n    - '0x1410'\n    - '0x143a'\n    - '0x1438'\n    - '0x40'\n    - '0x1fffff'\n    - '0x1f1fff'\n  filter_system_processes:\n    SourceImage|endswith:\n    - \\lsass.exe\n    - \\werfault.exe\n    - \\WerFaultSecure.exe\n    - \\csrss.exe\n    - \\wininit.exe\n  filter_av_edr:\n    SourceImage|contains:\n    - \\Windows Defender\\\n    - \\Microsoft Security Client\\\n    - \\Malwarebytes\\\n    - \\CrowdStrike\\\n    - \\SentinelOne\\\n    - \\Carbon Black\\\n    - \\Cylance\\\n    - \\Symantec\\\n    - \\McAfee\\\n    - \\Sophos\\\n    - \\ESET\\\n    - \\Kaspersky\\\n    - \\Trend Micro\\\n    - \\Panda Security\\\n    - \\F-Secure\\\n  condition: selection and not (filter_system_processes or filter_av_edr)",
       "rule_body_lang": "yaml"
     },
     {
@@ -820,7 +820,7 @@
           }
         ]
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: process_creation\ndetection:\n  selection_image:\n    Image|endswith:\n    - \\rundll32.exe\n  selection_original_filename:\n    OriginalFileName:\n    - RUNDLL32.EXE\n  selection_cmdlet:\n    CommandLine|contains|all:\n    - comsvcs\n    - MiniDump\n    - full\n  condition: (selection_image or selection_original_filename) and selection_cmdlet\nfields:\n- _time\n- ComputerName\n- User\n- Image\n- OriginalFileName\n- CommandLine\n- CurrentDirectory\n- IntegrityLevel\n- ParentImage\n- ParentCommandLine\n- ProcessId\n- ParentProcessId",
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\rundll32.exe\n  selection_original_filename:\n    OriginalFileName:\n    - RUNDLL32.EXE\n  selection_cmdlet:\n    CommandLine|contains|all:\n    - comsvcs\n    - MiniDump\n    - full\n  condition: (selection_image or selection_original_filename) and selection_cmdlet",
       "rule_body_lang": "yaml"
     },
     {
@@ -870,7 +870,7 @@
           }
         ]
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: process_creation\ndetection:\n  selection_image:\n    Image|contains:\n    - \\procdump\n  selection_original_filename:\n    OriginalFileName|contains:\n    - procdump\n  selection_lsass:\n    CommandLine|contains:\n    - lsass\n  selection_dump_flag:\n    CommandLine|contains:\n    - .dmp\n    - -ma\n    - -mm\n    - -mp\n    - -accepteula\n    - -r\n  condition: (1 of selection_image or 1 of selection_original_filename) and selection_lsass and 1 of selection_dump_flag\nfields:\n- _time\n- ComputerName\n- User\n- Image\n- OriginalFileName\n- CommandLine\n- CurrentDirectory\n- IntegrityLevel\n- ParentImage\n- ParentCommandLine\n- ProcessId\n- ParentProcessId",
+      "rule_body": "detection:\n  selection_image:\n    Image|contains:\n    - \\procdump\n  selection_original_filename:\n    OriginalFileName|contains:\n    - procdump\n  selection_lsass:\n    CommandLine|contains:\n    - lsass\n  selection_dump_flag:\n    CommandLine|contains:\n    - .dmp\n    - -ma\n    - -mm\n    - -mp\n    - -accepteula\n    - -r\n  condition: (1 of selection_image or 1 of selection_original_filename) and selection_lsass and 1 of selection_dump_flag",
       "rule_body_lang": "yaml"
     },
     {
@@ -943,7 +943,7 @@
           }
         ]
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: process_creation\ndetection:\n  selection_known_tools:\n    Image|endswith:\n    - \\mimikatz.exe\n    - \\wce.exe\n    - \\fgdump.exe\n    - \\gsecdump.exe\n    - \\pwdumpx.exe\n    - \\cachedump.exe\n    - \\pwdump.exe\n    - \\pwdump2.exe\n    - \\pwdump3.exe\n    - \\pwdump4.exe\n    - \\pwdump5.exe\n    - \\pwdump6.exe\n    - \\pwdump7.exe\n    - \\nanodump.x64.exe\n    - \\DumpMinitool.exe\n    - \\xordump.exe\n    - \\createdump.exe\n    - \\Outflank-Dumpert.exe\n    - \\SharpDump.exe\n    - \\SharpDumpx64.exe\n    - \\Rubeus.exe\n    - \\SafetyKatz.exe\n    - \\HandleKatz.exe\n    - \\PPLBlade.exe\n    - \\lsassy.exe\n    - \\lazagne.exe\n    - \\KDU.exe\n  selection_original_name:\n    OriginalFileName:\n    - mimikatz.exe\n    - wce.exe\n    - fgdump.exe\n    - gsecdump.exe\n    - pwdumpx.exe\n    - cachedump.exe\n    - Rubeus.exe\n    - SafetyKatz.exe\n    - HandleKatz.exe\n    - PPLBlade.exe\n    - lsassy.exe\n    - lazagne.exe\n    - KDU.exe\n    - SharpDump.exe\n    - SharpDumpx64.exe\n    - Outflank-Dumpert.exe\n    - xordump.exe\n    - DumpMinitool.exe\n    - nanodump.exe\n  selection_keywords_cli:\n    CommandLine|contains:\n    - 'sekurlsa::'\n    - 'lsadump::'\n    - 'privilege::'\n    - kerberos::list\n    - kerberos::golden\n    - kerberos::silver\n    - kerberos::ptt\n    - kerberos::purge\n    - kerberos::tgt\n    - kerberos::tgs\n    - kerberos::ptc\n    - 'crypto::'\n    - token::elevate\n    - token::impersonate\n    - vault::cred\n    - vault::list\n    - dpapi::cred\n    - dpapi::masterkey\n    - dpapi::blob\n    - misc::skeleton\n    - misc::memssp\n    - misc::shadowcopies\n    - misc::printnightmare\n    - Invoke-Mimikatz\n    - Invoke-PowerDump\n    - -DumpCreds\n    - mimilib.dll\n    - 'rpc::'\n  filter_createdump_legit:\n    Image|startswith:\n    - C:\\Windows\\\n    - C:\\Program Files\\dotnet\\\n    - C:\\Program Files (x86)\\dotnet\\\n    Image|endswith:\n    - \\createdump.exe\n  condition: (selection_known_tools and not filter_createdump_legit) or selection_original_name or selection_keywords_cli\nfields:\n- _time\n- ComputerName\n- User\n- Image\n- OriginalFileName\n- CommandLine\n- CurrentDirectory\n- IntegrityLevel\n- ParentImage\n- ParentCommandLine\n- ProcessId\n- ParentProcessId",
+      "rule_body": "detection:\n  selection_known_tools:\n    Image|endswith:\n    - \\mimikatz.exe\n    - \\wce.exe\n    - \\fgdump.exe\n    - \\gsecdump.exe\n    - \\pwdumpx.exe\n    - \\cachedump.exe\n    - \\pwdump.exe\n    - \\pwdump2.exe\n    - \\pwdump3.exe\n    - \\pwdump4.exe\n    - \\pwdump5.exe\n    - \\pwdump6.exe\n    - \\pwdump7.exe\n    - \\nanodump.x64.exe\n    - \\DumpMinitool.exe\n    - \\xordump.exe\n    - \\createdump.exe\n    - \\Outflank-Dumpert.exe\n    - \\SharpDump.exe\n    - \\SharpDumpx64.exe\n    - \\Rubeus.exe\n    - \\SafetyKatz.exe\n    - \\HandleKatz.exe\n    - \\PPLBlade.exe\n    - \\lsassy.exe\n    - \\lazagne.exe\n    - \\KDU.exe\n  selection_original_name:\n    OriginalFileName:\n    - mimikatz.exe\n    - wce.exe\n    - fgdump.exe\n    - gsecdump.exe\n    - pwdumpx.exe\n    - cachedump.exe\n    - Rubeus.exe\n    - SafetyKatz.exe\n    - HandleKatz.exe\n    - PPLBlade.exe\n    - lsassy.exe\n    - lazagne.exe\n    - KDU.exe\n    - SharpDump.exe\n    - SharpDumpx64.exe\n    - Outflank-Dumpert.exe\n    - xordump.exe\n    - DumpMinitool.exe\n    - nanodump.exe\n  selection_keywords_cli:\n    CommandLine|contains:\n    - 'sekurlsa::'\n    - 'lsadump::'\n    - 'privilege::'\n    - kerberos::list\n    - kerberos::golden\n    - kerberos::silver\n    - kerberos::ptt\n    - kerberos::purge\n    - kerberos::tgt\n    - kerberos::tgs\n    - kerberos::ptc\n    - 'crypto::'\n    - token::elevate\n    - token::impersonate\n    - vault::cred\n    - vault::list\n    - dpapi::cred\n    - dpapi::masterkey\n    - dpapi::blob\n    - misc::skeleton\n    - misc::memssp\n    - misc::shadowcopies\n    - misc::printnightmare\n    - Invoke-Mimikatz\n    - Invoke-PowerDump\n    - -DumpCreds\n    - mimilib.dll\n    - 'rpc::'\n  filter_createdump_legit:\n    Image|startswith:\n    - C:\\Windows\\\n    - C:\\Program Files\\dotnet\\\n    - C:\\Program Files (x86)\\dotnet\\\n    Image|endswith:\n    - \\createdump.exe\n  condition: (selection_known_tools and not filter_createdump_legit) or selection_original_name or selection_keywords_cli",
       "rule_body_lang": "yaml"
     },
     {
@@ -1003,7 +1003,7 @@
           }
         ]
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: process_creation\ndetection:\n  selection_image:\n    Image|endswith:\n    - \\reg.exe\n    - \\PsExec.exe\n    - \\PsExec64.exe\n  selection_original_filename:\n    OriginalFileName:\n    - reg.exe\n    - psexec.c\n  selection_save:\n    CommandLine|contains:\n    - ' save '\n    - ' export '\n  selection_target_hives:\n    CommandLine|contains:\n    - HKLM\\SAM\n    - HKLM\\SECURITY\n    - HKLM\\SYSTEM\n  condition: (selection_image or selection_original_filename) and selection_save and selection_target_hives\nfields:\n- _time\n- ComputerName\n- User\n- Image\n- OriginalFileName\n- CommandLine\n- CurrentDirectory\n- IntegrityLevel\n- ParentImage\n- ParentCommandLine\n- ProcessId\n- ParentProcessId",
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\reg.exe\n    - \\PsExec.exe\n    - \\PsExec64.exe\n  selection_original_filename:\n    OriginalFileName:\n    - reg.exe\n    - psexec.c\n  selection_save:\n    CommandLine|contains:\n    - ' save '\n    - ' export '\n  selection_target_hives:\n    CommandLine|contains:\n    - HKLM\\SAM\n    - HKLM\\SECURITY\n    - HKLM\\SYSTEM\n  condition: (selection_image or selection_original_filename) and selection_save and selection_target_hives",
       "rule_body_lang": "yaml"
     },
     {
@@ -1061,7 +1061,7 @@
           }
         ]
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: process_creation\ndetection:\n  selection_ntdsutil_image:\n  - Image|endswith: \\ntdsutil.exe\n  - OriginalFileName: ntdsutil.exe\n  selection_cli_1:\n    CommandLine|contains|all:\n    - ac i ntds\n    - create full\n  selection_cli_2:\n    CommandLine|contains|all:\n    - activate instance ntds\n    - create full\n  selection_direct_ntds_copy:\n    CommandLine|contains|all:\n    - '/c copy '\n    - \\windows\\ntds\\ntds.dit\n  selection_esentutl_image:\n  - Image|endswith: \\esentutl.exe\n  - OriginalFileName: esentutl.exe\n  selection_esentutl_ntds:\n    CommandLine|contains: \\windows\\ntds\\ntds.dit\n  selection_vss_shadow:\n    CommandLine|contains: HarddiskVolumeShadowCopy\n  selection_vss_ntds:\n    CommandLine|contains: \\windows\\ntds\\ntds.dit\n  selection_diskshadow_image:\n  - Image|endswith: \\diskshadow.exe\n  - OriginalFileName: diskshadow.exe\n  selection_diskshadow_script:\n    CommandLine|contains: '/s '\n  selection_wbadmin_image:\n  - Image|endswith: \\wbadmin.exe\n  - OriginalFileName: WBADMIN.EXE\n  selection_wbadmin_ntds:\n    CommandLine|contains: \\windows\\ntds\n  selection_tool:\n  - Image|endswith:\n    - \\NTDSDump.exe\n    - \\NTDSDumpEx.exe\n  - OriginalFileName:\n    - NTDSDump.exe\n    - NTDSDumpEx.exe\n  - CommandLine|contains|all:\n    - ntds.dit\n    - system.hiv\n  - CommandLine|contains: NTDSgrab.ps1\n  condition: (selection_ntdsutil_image and 1 of selection_cli*) or selection_direct_ntds_copy or (selection_esentutl_image\n    and selection_esentutl_ntds) or (selection_vss_shadow and selection_vss_ntds) or (selection_diskshadow_image\n    and selection_diskshadow_script) or (selection_wbadmin_image and selection_wbadmin_ntds) or selection_tool\nfields:\n- _time\n- ComputerName\n- User\n- Image\n- OriginalFileName\n- CommandLine\n- CurrentDirectory\n- IntegrityLevel\n- ParentImage\n- ParentCommandLine\n- ProcessId\n- ParentProcessId",
+      "rule_body": "detection:\n  selection_ntdsutil_image:\n  - Image|endswith: \\ntdsutil.exe\n  - OriginalFileName: ntdsutil.exe\n  selection_cli_1:\n    CommandLine|contains|all:\n    - ac i ntds\n    - create full\n  selection_cli_2:\n    CommandLine|contains|all:\n    - activate instance ntds\n    - create full\n  selection_direct_ntds_copy:\n    CommandLine|contains|all:\n    - '/c copy '\n    - \\windows\\ntds\\ntds.dit\n  selection_esentutl_image:\n  - Image|endswith: \\esentutl.exe\n  - OriginalFileName: esentutl.exe\n  selection_esentutl_ntds:\n    CommandLine|contains: \\windows\\ntds\\ntds.dit\n  selection_vss_shadow:\n    CommandLine|contains: HarddiskVolumeShadowCopy\n  selection_vss_ntds:\n    CommandLine|contains: \\windows\\ntds\\ntds.dit\n  selection_diskshadow_image:\n  - Image|endswith: \\diskshadow.exe\n  - OriginalFileName: diskshadow.exe\n  selection_diskshadow_script:\n    CommandLine|contains: '/s '\n  selection_wbadmin_image:\n  - Image|endswith: \\wbadmin.exe\n  - OriginalFileName: WBADMIN.EXE\n  selection_wbadmin_ntds:\n    CommandLine|contains: \\windows\\ntds\n  selection_tool:\n  - Image|endswith:\n    - \\NTDSDump.exe\n    - \\NTDSDumpEx.exe\n  - OriginalFileName:\n    - NTDSDump.exe\n    - NTDSDumpEx.exe\n  - CommandLine|contains|all:\n    - ntds.dit\n    - system.hiv\n  - CommandLine|contains: NTDSgrab.ps1\n  condition: (selection_ntdsutil_image and 1 of selection_cli*) or selection_direct_ntds_copy or (selection_esentutl_image\n    and selection_esentutl_ntds) or (selection_vss_shadow and selection_vss_ntds) or (selection_diskshadow_image\n    and selection_diskshadow_script) or (selection_wbadmin_image and selection_wbadmin_ntds) or selection_tool",
       "rule_body_lang": "yaml"
     },
     {
@@ -1105,7 +1105,7 @@
         "type": "emulation",
         "atomics": []
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: file_event\ndetection:\n  selection_taskmgr:\n    Image|endswith: \\taskmgr.exe\n    TargetFilename|contains: lsass\n    TargetFilename|endswith: .dmp\n  selection_lsass_dump:\n    TargetFilename|contains: lsass\n    TargetFilename|endswith: .dmp\n  filter_wer:\n    Image|endswith:\n    - \\WerFault.exe\n    - \\WerFaultSecure.exe\n  condition: (selection_taskmgr or selection_lsass_dump) and not filter_wer\nfields:\n- _time\n- ComputerName\n- User\n- Image\n- TargetFilename\n- ProcessId\n- ParentImage",
+      "rule_body": "detection:\n  selection_taskmgr:\n    Image|endswith: \\taskmgr.exe\n    TargetFilename|contains: lsass\n    TargetFilename|endswith: .dmp\n  selection_lsass_dump:\n    TargetFilename|contains: lsass\n    TargetFilename|endswith: .dmp\n  filter_wer:\n    Image|endswith:\n    - \\WerFault.exe\n    - \\WerFaultSecure.exe\n  condition: (selection_taskmgr or selection_lsass_dump) and not filter_wer",
       "rule_body_lang": "yaml"
     },
     {
@@ -1157,7 +1157,7 @@
           }
         ]
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: process_creation\ndetection:\n  selection_image:\n  - Image|endswith: \\esentutl.exe\n  - OriginalFileName: esentutl.exe\n  selection_copy_flag:\n    CommandLine|contains: ' /y '\n  selection_hives:\n    CommandLine|contains:\n    - /system32/config/SAM\n    - /system32/config/SECURITY\n    - /system32/config/SYSTEM\n  condition: selection_image and selection_copy_flag and selection_hives\nfields:\n- _time\n- ComputerName\n- User\n- Image\n- OriginalFileName\n- CommandLine\n- CurrentDirectory\n- IntegrityLevel\n- ParentImage\n- ParentCommandLine\n- ProcessId\n- ParentProcessId",
+      "rule_body": "detection:\n  selection_image:\n  - Image|endswith: \\esentutl.exe\n  - OriginalFileName: esentutl.exe\n  selection_copy_flag:\n    CommandLine|contains: ' /y '\n  selection_hives:\n    CommandLine|contains:\n    - /system32/config/SAM\n    - /system32/config/SECURITY\n    - /system32/config/SYSTEM\n  condition: selection_image and selection_copy_flag and selection_hives",
       "rule_body_lang": "yaml"
     },
     {
@@ -1210,7 +1210,7 @@
           }
         ]
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: process_creation\ndetection:\n  selection_vss_path:\n    CommandLine|contains: HarddiskVolumeShadowCopy\n  selection_hives:\n    CommandLine|contains:\n    - \\config\\SAM\n    - \\config\\SECURITY\n  condition: selection_vss_path and selection_hives\nfields:\n- _time\n- ComputerName\n- User\n- Image\n- OriginalFileName\n- CommandLine\n- CurrentDirectory\n- IntegrityLevel\n- ParentImage\n- ParentCommandLine\n- ProcessId\n- ParentProcessId",
+      "rule_body": "detection:\n  selection_vss_path:\n    CommandLine|contains: HarddiskVolumeShadowCopy\n  selection_hives:\n    CommandLine|contains:\n    - \\config\\SAM\n    - \\config\\SECURITY\n  condition: selection_vss_path and selection_hives",
       "rule_body_lang": "yaml"
     },
     {
@@ -1262,7 +1262,7 @@
           }
         ]
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: process_creation\ndetection:\n  selection_image:\n    Image|endswith:\n    - \\cmdkey.exe\n  selection_original_filename:\n    OriginalFileName: cmdkey.exe\n  selection_list:\n    CommandLine|contains: /list\n  condition: (selection_image or selection_original_filename) and selection_list\nfields:\n- _time\n- ComputerName\n- User\n- Image\n- OriginalFileName\n- CommandLine\n- CurrentDirectory\n- IntegrityLevel\n- ParentImage\n- ParentCommandLine\n- ProcessId\n- ParentProcessId",
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\cmdkey.exe\n  selection_original_filename:\n    OriginalFileName: cmdkey.exe\n  selection_list:\n    CommandLine|contains: /list\n  condition: (selection_image or selection_original_filename) and selection_list",
       "rule_body_lang": "yaml"
     },
     {
@@ -1314,7 +1314,7 @@
           }
         ]
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: process_creation\ndetection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_cmdlet:\n    CommandLine|contains:\n    - Get-ADReplAccount\n  condition: selection_image and selection_cmdlet\nfields:\n- _time\n- ComputerName\n- User\n- Image\n- CommandLine\n- ParentImage\n- ParentCommandLine\n- ProcessId\n- ParentProcessId",
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_cmdlet:\n    CommandLine|contains:\n    - Get-ADReplAccount\n  condition: selection_image and selection_cmdlet",
       "rule_body_lang": "yaml"
     },
     {
@@ -1363,7 +1363,7 @@
           }
         ]
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: process_creation\ndetection:\n  selection_mklink:\n    CommandLine|contains: mklink\n  selection_powershell_symlink:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n    CommandLine|contains:\n    - SymbolicLink\n    - Junction\n  selection_vss_target:\n    CommandLine|contains: HarddiskVolumeShadowCopy\n  condition: (selection_mklink or selection_powershell_symlink) and selection_vss_target\nfields:\n- _time\n- ComputerName\n- User\n- Image\n- OriginalFileName\n- CommandLine\n- CurrentDirectory\n- IntegrityLevel\n- ParentImage\n- ParentCommandLine\n- ProcessId\n- ParentProcessId",
+      "rule_body": "detection:\n  selection_mklink:\n    CommandLine|contains: mklink\n  selection_powershell_symlink:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n    CommandLine|contains:\n    - SymbolicLink\n    - Junction\n  selection_vss_target:\n    CommandLine|contains: HarddiskVolumeShadowCopy\n  condition: (selection_mklink or selection_powershell_symlink) and selection_vss_target",
       "rule_body_lang": "yaml"
     },
     {
@@ -1414,7 +1414,7 @@
           }
         ]
       },
-      "rule_body": "logsource:\n  product_category: os\n  product: windows\n  service: sysmon\n  event_type: process_creation\ndetection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_cmdlet:\n    CommandLine|contains: Underlay-Copy\n  selection_target:\n    CommandLine|contains:\n    - \\ntds\\ntds.dit\n    - \\config\\SAM\n    - \\config\\SECURITY\n    - \\config\\SYSTEM\n  condition: selection_image and selection_cmdlet and selection_target\nfields:\n- _time\n- ComputerName\n- User\n- Image\n- CommandLine\n- CurrentDirectory\n- IntegrityLevel\n- ParentImage\n- ParentCommandLine\n- ProcessId\n- ParentProcessId",
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_cmdlet:\n    CommandLine|contains: Underlay-Copy\n  selection_target:\n    CommandLine|contains:\n    - \\ntds\\ntds.dit\n    - \\config\\SAM\n    - \\config\\SECURITY\n    - \\config\\SYSTEM\n  condition: selection_image and selection_cmdlet and selection_target",
       "rule_body_lang": "yaml"
     }
   ]
