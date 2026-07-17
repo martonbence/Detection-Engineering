@@ -169,15 +169,15 @@ def load_native_spl_rules() -> list[dict]:
 
 
 def extract_sigma_body(rule: dict) -> str:
-    """Re-serializes the logsource/detection/fields portion of a sigma rule
-    (the actual search logic) for the drawer's syntax-highlighted code view —
-    keeps it separate from the metadata already shown elsewhere in the drawer."""
-    body = {k: rule[k] for k in ("logsource", "detection", "fields") if k in rule}
-    if not body:
+    """Re-serializes the detection portion of a sigma rule (the actual search
+    logic) for the drawer's syntax-highlighted code view — keeps it separate
+    from the metadata already shown elsewhere in the drawer."""
+    detection = rule.get("detection")
+    if not detection:
         return ""
     try:
         return yaml.safe_dump(
-            body, sort_keys=False, allow_unicode=True,
+            {"detection": detection}, sort_keys=False, allow_unicode=True,
             default_flow_style=False, width=100,
         ).strip()
     except Exception:
@@ -930,7 +930,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Detection Engineering — Rule Browser</title>
+  <title>Detection Engineering Dashboard</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -951,8 +951,8 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       --green-bg: rgba(46,164,79,0.12);
       --amber: #d29922;
       --amber-bg: rgba(210,153,34,0.12);
-      --red: #cf222e;
-      --red-bg: rgba(207,34,46,0.12);
+      --red: #f85149;
+      --red-bg: rgba(248,81,73,0.12);
       --purple: #8f95d6;
       --purple-bg: rgba(143,149,214,0.12);
       --radius: 6px;
@@ -1017,27 +1017,35 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
     .strip-total strong { color: var(--text); font-weight: 700; }
 
-    .tab-bar { display: flex; gap: 4px; flex-shrink: 0; }
+    .filters-generated {
+      text-align: center;
+      font-family: var(--font);
+      font-size: 10px;
+      color: var(--text3);
+      padding-top: 4px;
+    }
+
+    .tab-bar { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
 
     .tab-btn {
       background: none;
       border: 1px solid transparent;
-      color: var(--text2);
-      padding: 6px 14px;
-      border-radius: var(--radius);
+      color: var(--text3);
+      padding: 5px 12px;
+      border-radius: 20px;
       cursor: pointer;
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 600;
       font-family: var(--font-ui);
       transition: all 0.12s;
     }
 
-    .tab-btn:hover { color: var(--text); background: var(--bg3); }
+    .tab-btn:hover { color: var(--text2); }
 
     .tab-btn.active {
-      background: var(--accent-bg);
-      border-color: rgba(88,166,255,0.35);
-      color: var(--accent);
+      background: rgba(255,170,0,0.14);
+      border-color: rgba(255,170,0,0.5);
+      color: #ffaa00;
     }
 
     .tab-pane { display: none; flex: 1; min-height: 0; overflow-y: auto; }
@@ -1048,20 +1056,20 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       display: flex;
       align-items: center;
       gap: 6px;
-      height: 26px;
-      padding: 0 10px;
+      height: 28px;
+      padding: 0 12px;
       background: transparent;
-      border: 1px solid var(--border2);
+      border: 1px solid var(--red);
       border-radius: var(--radius);
-      color: var(--text2);
-      font-size: 11px;
+      color: var(--red);
+      font-size: 12px;
       font-family: var(--font-ui);
       cursor: pointer;
       transition: all 0.12s;
       flex-shrink: 0;
     }
 
-    .stats-toggle:hover { border-color: var(--accent); color: var(--text); }
+    .stats-toggle:hover { border-color: var(--red); color: var(--red); box-shadow: 0 0 0 2px var(--red-bg); }
     .stats-toggle svg { width: 12px; height: 12px; transition: transform 0.18s; stroke: currentColor; fill: none; }
     .stats-wrap.open .stats-toggle svg { transform: rotate(180deg); }
 
@@ -1164,12 +1172,14 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       gap: 8px;
     }
 
-    .fc-source   { --fc:#58a6ff; --fc-bg:rgba(88,166,255,0.12);  --fc-br:rgba(88,166,255,0.38); }
-    .fc-category { --fc:#7ec87e; --fc-bg:rgba(126,200,126,0.12); --fc-br:rgba(126,200,126,0.38); }
+    .fc-source   { --fc:#ffffff; --fc-bg:rgba(255,255,255,0.10);  --fc-br:rgba(255,255,255,0.35); }
+    .fc-source-sigma      { --fc:#00acd7; --fc-bg:rgba(0,172,215,0.12); --fc-br:rgba(0,172,215,0.38); }
+    .fc-source-nativespl  { --fc:#ff6600; --fc-bg:rgba(255,102,0,0.12); --fc-br:rgba(255,102,0,0.38); }
+    .fc-category { --fc:#f85149; --fc-bg:rgba(248,81,73,0.13);   --fc-br:rgba(248,81,73,0.38); }
     .fc-product  { --fc:#fb923c; --fc-bg:rgba(251,146,60,0.12);  --fc-br:rgba(251,146,60,0.38); }
-    .fc-service  { --fc:#f85149; --fc-bg:rgba(248,81,73,0.12);   --fc-br:rgba(248,81,73,0.38); }
-    .fc-severity { --fc:#f0783c; --fc-bg:rgba(240,120,60,0.12);  --fc-br:rgba(240,120,60,0.38); }
-    .fc-status   { --fc:#3fb950; --fc-bg:rgba(63,185,80,0.12);   --fc-br:rgba(63,185,80,0.38); }
+    .fc-service  { --fc:#3fb950; --fc-bg:rgba(63,185,80,0.13);   --fc-br:rgba(63,185,80,0.38); }
+    .fc-severity { --fc:#f778ba; --fc-bg:rgba(247,120,186,0.12); --fc-br:rgba(247,120,186,0.38); }
+    .fc-status   { --fc:#e3b341; --fc-bg:rgba(227,179,65,0.12);  --fc-br:rgba(227,179,65,0.38); }
     .fc-verdict  { --fc:#bc8cff; --fc-bg:rgba(188,140,255,0.12); --fc-br:rgba(188,140,255,0.38); }
     .fc-mitre    { --fc:#8f95d6; --fc-bg:rgba(143,149,214,0.12); --fc-br:rgba(143,149,214,0.38); }
 
@@ -1180,8 +1190,8 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .fc-sev-informational { --fc:#8b949e; --fc-bg:rgba(139,148,158,0.12);--fc-br:rgba(139,148,158,0.35); }
 
     .fc-status-stable       { --fc:#3fb950; --fc-bg:rgba(63,185,80,0.13); --fc-br:rgba(63,185,80,0.38); }
-    .fc-status-test         { --fc:#d29922; --fc-bg:rgba(210,153,34,0.13);--fc-br:rgba(210,153,34,0.38); }
-    .fc-status-experimental { --fc:#58a6ff; --fc-bg:rgba(88,166,255,0.13);--fc-br:rgba(88,166,255,0.38); }
+    .fc-status-test         { --fc:#fb923c; --fc-bg:rgba(251,146,60,0.12);--fc-br:rgba(251,146,60,0.38); }
+    .fc-status-experimental { --fc:#388bfd; --fc-bg:rgba(56,139,253,0.15);--fc-br:rgba(56,139,253,0.4); }
     .fc-status-deprecated   { --fc:#8b949e; --fc-bg:rgba(139,148,158,0.12);--fc-br:rgba(139,148,158,0.35); }
 
     .fc-verdict-pass { --fc:#3fb950; --fc-bg:rgba(63,185,80,0.13);  --fc-br:rgba(63,185,80,0.38); }
@@ -1206,7 +1216,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       user-select: none;
     }
 
-    .filter-supergroup-head:hover { background: var(--bg4); }
+    .filter-supergroup-head:hover { background: rgba(233,220,196,0.10); }
 
     .filter-supergroup-title {
       flex: 1;
@@ -1251,7 +1261,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       transition: background 0.1s;
     }
 
-    .filter-section-head:hover { background: var(--bg4); }
+    .filter-section-head:hover { background: rgba(233,220,196,0.10); }
 
     .filter-caret {
       width: 9px;
@@ -1428,7 +1438,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
     .search-clear.show { display: flex; }
     .search-clear:hover { color: var(--text); background: var(--bg3); }
-    .search-clear svg { position: static; width: 13px; height: 13px; stroke: currentColor; fill: none; }
+    .search-clear svg { position: static; left: auto; top: auto; transform: none; width: 13px; height: 13px; stroke: currentColor; fill: none; }
 
     .result-count { font-size: 12px; color: var(--text3); white-space: nowrap; font-family: var(--font); }
 
@@ -1453,11 +1463,12 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       display: flex;
       align-items: center;
       gap: 6px;
-      padding: 6px 12px;
+      height: 28px;
+      padding: 0 12px;
       background: transparent;
-      border: 1px solid var(--border2);
+      border: 1px solid var(--red);
       border-radius: var(--radius);
-      color: var(--text2);
+      color: var(--red);
       font-size: 12px;
       font-family: var(--font-ui);
       cursor: pointer;
@@ -1465,9 +1476,9 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       white-space: nowrap;
     }
 
-    .export-btn:hover, .code-copy:hover { border-color: var(--accent); color: var(--text); }
+    .export-btn:hover, .code-copy:hover { border-color: var(--red); color: var(--red); box-shadow: 0 0 0 2px var(--red-bg); }
     .export-btn svg, .code-copy svg { width: 13px; height: 13px; stroke: currentColor; fill: none; }
-    .export-btn.ok, .code-copy.ok { border-color: var(--green); color: var(--green); }
+    .export-btn.ok, .code-copy.ok { border-color: var(--green); color: var(--green); box-shadow: none; }
 
     .export-menu {
       display: none;
@@ -1517,6 +1528,8 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       overflow: visible;
     }
 
+    #table-body { transition: opacity 0.12s ease; }
+
     table {
       width: 100%;
       border-collapse: separate;
@@ -1529,7 +1542,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       top: 0;
       z-index: 3;
       background: #0d1117;
-      box-shadow: inset 0 -3px 0 rgba(230,237,243,0.28), 0 5px 12px rgba(0,0,0,0.55);
+      box-shadow: inset 0 -1px 0 rgba(230,237,243,0.22), 0 6px 14px -4px rgba(0,0,0,0.5);
       color: #ffffff;
       font-weight: 700;
     }
@@ -1555,28 +1568,32 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     }
 
     th:hover { color: var(--text); }
-    th.sorted { color: var(--accent); }
     th.sorted::after { content: ' \2193'; font-size: 10px; }
     th.sorted.desc::after { content: ' \2191'; }
 
-    th:nth-child(1) { width: 130px; }
-    th:nth-child(2) { width: 280px; }
+    th:nth-child(1) { width: 160px; }
+    th:nth-child(2) { width: 380px; }
     th:nth-child(3) { width: 110px; }
     th:nth-child(4) { width: 100px; }
-    th:nth-child(5) { width: 90px; }
+    th:nth-child(5) { width: 130px; }
     th:nth-child(6) { width: 150px; }
     th:nth-child(7) { width: 150px; }
-    th:nth-child(8) { width: 90px; }
-    th:nth-child(9) { width: 90px; }
+    th:nth-child(8) { width: 140px; }
+    th:nth-child(9) { width: 120px; }
     th:nth-child(10) { width: auto; }
+
+    th:nth-child(8), th:nth-child(9), th:nth-child(10),
+    td:nth-child(8), td:nth-child(9), td:nth-child(10) {
+      text-align: center;
+    }
 
     tbody tr { cursor: pointer; transition: background 0.08s; }
     tbody tr:nth-child(even) { background: rgba(255,255,255,0.022); }
     tbody td { border-bottom: 1px solid var(--border); }
     tbody tr:last-child td { border-bottom: none; }
 
-    tbody tr:hover, tbody tr.selected { background: rgba(88,166,255,0.08); }
-    tbody tr.selected { box-shadow: inset 0 0 0 1px rgba(88,166,255,0.3); }
+    tbody tr:hover, tbody tr.selected { background: rgba(233,220,196,0.10); }
+    tbody tr.selected { box-shadow: inset 0 0 0 1px rgba(233,220,196,0.28); }
 
     td {
       padding: 9px 12px;
@@ -1592,11 +1609,13 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       position: relative;
       font-family: var(--font);
       font-size: 11px;
-      color: var(--text);
-      font-weight: 600;
+      color: #ffffff;
+      font-weight: 700;
       letter-spacing: 0.2px;
       padding-left: 18px;
     }
+
+    td.rule-id a { color: inherit; }
 
     td.rule-id::before {
       content: '';
@@ -1618,7 +1637,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
     td.title-cell { font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-    .cell-pills { display: flex; flex-wrap: wrap; gap: 4px; overflow: visible; white-space: normal; }
+    .cell-pills { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; overflow: visible; white-space: normal; }
 
     .badge {
       display: inline-block;
@@ -1631,10 +1650,11 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       white-space: nowrap;
     }
 
-    .badge-source   { background: rgba(88,166,255,0.1);  color: #58a6ff; border: 1px solid rgba(88,166,255,0.25); }
-    .badge-category { background: rgba(126,200,126,0.1); color: #7ec87e; border: 1px solid rgba(126,200,126,0.22); }
+    .badge-source-sigma      { background: rgba(0,172,215,0.1);  color: #00acd7; border: 1px solid rgba(0,172,215,0.25); }
+    .badge-source-nativespl  { background: rgba(255,102,0,0.1);  color: #ff6600; border: 1px solid rgba(255,102,0,0.25); }
+    .badge-category { background: rgba(248,81,73,0.13);  color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
     .badge-product  { background: rgba(251,146,60,0.1);  color: #fb923c; border: 1px solid rgba(251,146,60,0.25); }
-    .badge-service  { background: rgba(248,81,73,0.1);   color: #f85149; border: 1px solid rgba(248,81,73,0.25); }
+    .badge-service  { background: var(--green-bg);       color: var(--green); border: 1px solid rgba(63,185,80,0.25); }
 
     .badge-mitre {
       background: rgba(143,149,214,0.14);
@@ -1650,15 +1670,18 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .sev-informational { background: rgba(139,148,158,0.12); color: #8b949e; border: 1px solid var(--border); }
 
     .status-stable       { background: var(--green-bg); color: var(--green); border: 1px solid rgba(63,185,80,0.25); }
-    .status-test         { background: var(--amber-bg); color: var(--amber); border: 1px solid rgba(210,153,34,0.25); }
-    .status-experimental { background: var(--accent-bg); color: var(--accent); border: 1px solid rgba(88,166,255,0.25); }
+    .status-test         { background: rgba(251,146,60,0.1); color: #fb923c; border: 1px solid rgba(251,146,60,0.25); }
+    .status-experimental { background: rgba(56,139,253,0.15); color: #388bfd; border: 1px solid rgba(56,139,253,0.4); }
     .status-deprecated   { background: rgba(139,148,158,0.1); color: var(--text3); border: 1px solid var(--border); }
 
     .verdict-pass { background: var(--green-bg); color: var(--green); border: 1px solid rgba(63,185,80,0.25); }
     .verdict-fail { background: rgba(248,81,73,0.13); color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
     .verdict-na   { background: rgba(139,148,158,0.12); color: #8b949e; border: 1px solid var(--border); }
 
-    .no-results { padding: 40px; text-align: center; color: var(--text3); font-size: 13px; }
+    .no-results { padding: 56px 32px; text-align: center; color: var(--text3); }
+    .no-results svg { width: 34px; height: 34px; stroke: var(--text3); opacity: 0.6; margin: 0 auto 14px; display: block; }
+    .no-results-title { font-size: 14px; font-weight: 600; color: var(--text2); margin-bottom: 4px; }
+    .no-results-sub { font-size: 12px; color: var(--text3); }
 
     /* ── Resizable columns ── */
     .col-resizer { position: absolute; right: 0; top: 0; bottom: 0; width: 8px; cursor: col-resize; user-select: none; z-index: 10; display: flex; align-items: center; justify-content: center; }
@@ -1696,13 +1719,13 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     }
 
     .drawer-header-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
-    .drawer-rule-id { font-family: var(--font); font-size: 12px; color: var(--accent); margin-bottom: 4px; }
+    .drawer-rule-id { font-family: var(--font); font-size: 15px; font-weight: 700; color: #ffffff; margin-bottom: 4px; }
     .drawer-rule-id a { color: inherit; }
-    .drawer-title { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.4; }
+    .drawer-title { font-size: 14px; font-weight: 400; color: var(--text); line-height: 1.4; }
 
     .drawer-close {
       background: none;
-      border: 1px solid var(--border);
+      border: 1px solid var(--red);
       border-radius: var(--radius);
       width: 28px;
       height: 28px;
@@ -1710,19 +1733,39 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      color: var(--text2);
+      color: var(--red);
       flex-shrink: 0;
       transition: all 0.1s;
     }
 
-    .drawer-close:hover { border-color: var(--border2); color: var(--text); }
+    .drawer-close:hover { border-color: var(--red); color: var(--red); box-shadow: 0 0 0 2px var(--red-bg); }
     .drawer-close svg { width: 14px; height: 14px; stroke: currentColor; fill: none; }
 
     .drawer-badges { display: flex; flex-wrap: wrap; gap: 5px; }
-    .drawer-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 18px; }
+    .drawer-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
 
-    .drawer-section-label { font-size: 10px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text3); margin-bottom: 8px; }
+    .drawer-body > div {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 14px 16px;
+    }
+
+    .drawer-section-label {
+      display: block;
+      width: fit-content;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.9px;
+      text-transform: uppercase;
+      color: #ffffff;
+      margin-bottom: 10px;
+      padding-bottom: 5px;
+      border-bottom: 2px solid var(--border2);
+    }
     .drawer-desc { font-size: 13px; color: var(--text2); line-height: 1.6; }
+    .drawer-desc p { margin: 0; }
+    .drawer-desc p + p { margin-top: 10px; }
 
     .meta-grid { display: grid; grid-template-columns: 130px 1fr; gap: 7px 12px; }
     .meta-key { font-size: 12px; color: var(--text3); }
@@ -1747,19 +1790,18 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
     .drawer-list-item {
       font-size: 12px;
+      font-family: var(--font);
       color: var(--text2);
       background: var(--bg3);
       border: 1px solid var(--border);
-      border-left: 2px solid var(--purple);
+      border-left: 2px solid #ffaa00;
       border-radius: var(--radius);
       padding: 6px 10px;
       line-height: 1.5;
       word-break: break-word;
     }
 
-    .drawer-list-item.fp { border-left-color: var(--amber); }
-    .drawer-list-item.atomic { border-left-color: #7f9cb5; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
-    .drawer-list-item a { color: var(--accent); }
+    .drawer-list-item a { color: #ffffff; }
 
     .drawer-cta {
       display: inline-flex;
@@ -1779,6 +1821,11 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .drawer-cta:hover { background: var(--accent-bg); text-decoration: none; }
     .drawer-cta svg { width: 12px; height: 12px; stroke: currentColor; fill: none; }
 
+    .drawer-cta.verify-pass { border-color: var(--green); color: var(--green); }
+    .drawer-cta.verify-pass:hover { background: var(--green-bg); }
+    .drawer-cta.verify-fail { border-color: #f85149; color: #f85149; }
+    .drawer-cta.verify-fail:hover { background: rgba(248,81,73,0.13); }
+
     .code-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 
     .rule-body-pre {
@@ -1796,13 +1843,17 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     }
 
     /* ── Rule body syntax highlight (Sigma YAML / SPL) ── */
-    .t-kw  { color: #ff7b72; font-weight: 600; }  /* keywords: search, stats, detection… */
-    .t-op  { color: #8b949e; }                    /* operators/punctuation: =, |, - , : */
-    .t-fld { color: #79c0ff; }                     /* field/key names */
-    .t-val { color: #ffffff; }                     /* literal values, strings, numbers */
-    .t-fn  { color: #d2a8ff; }                     /* functions: count, sum… */
-    .t-com { color: #6e7681; font-style: italic; } /* comments */
-    .t-id  { color: #c9d1d9; }                     /* plain identifiers */
+    .t-kw   { color: #ff7b72; font-weight: 600; }  /* keywords: search, stats… (SPL) */
+    .t-op   { color: #8b949e; }                    /* operators/punctuation: =, - , : */
+    .t-fld  { color: #7ee787; }                     /* field names */
+    .t-val  { color: #ffffff; }                     /* literal values, strings, numbers */
+    .t-fn   { color: #d2a8ff; }                     /* functions: count, sum… (SPL) */
+    .t-com  { color: #6e7681; font-style: italic; } /* comments */
+    .t-id   { color: #c9d1d9; }                     /* neutral wrapper key (e.g. "detection") */
+    .t-sel  { color: #ffa657; }                     /* sigma selection/filter block names */
+    .t-mod  { color: #79c0ff; }                     /* sigma field modifier: endswith, contains… */
+    .t-pipe { color: #a5b4d4; }                     /* the | separating field and modifier */
+    .t-cond { color: #ff7b72; font-weight: 600; }  /* sigma condition key + expression */
 
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -1892,15 +1943,14 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   <div class="stats-wrap" id="stats-wrap">
     <div class="stats-strip">
       <div class="strip-brand">
-        <a class="strip-title" href="https://github.com/@@REPO@@" target="_blank">Detection Engineering</a>
+        <span class="strip-title">Detection Rule Tracker</span>
         <span class="strip-sep"></span>
         <span class="strip-total" id="strip-total"></span>
         <span class="strip-sep"></span>
-        <span class="strip-total" title="Last generated">Generated @@TS@@ UTC</span>
-      </div>
-      <div class="tab-bar">
-        <button class="tab-btn active" data-tab="rules">Rules</button>
-        <button class="tab-btn" data-tab="navigator">MITRE Navigator</button>
+        <div class="tab-bar">
+          <button class="tab-btn active" data-tab="rules">Rule Tracker</button>
+          <button class="tab-btn" data-tab="navigator">MITRE Navigator</button>
+        </div>
       </div>
       <button class="stats-toggle" id="stats-toggle" onclick="toggleStats()" title="Show/hide stats">
         <span>Stats</span>
@@ -1928,15 +1978,6 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
             <span class="kbd">&uarr;&darr;</span> move
             <span class="kbd">&crarr;</span> open
           </span>
-          <div class="export-wrap">
-            <button class="export-btn" id="link-btn" onclick="copyDeepLink()" title="Copy a link to the current filtered view">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
-                <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
-              </svg>
-              <span class="btn-label">Link</span>
-            </button>
-          </div>
           <div class="export-wrap">
             <button class="export-btn" id="export-btn" onclick="toggleExportMenu(event)">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1972,7 +2013,11 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
             </thead>
             <tbody id="table-body"></tbody>
           </table>
-          <div id="no-results" class="no-results" style="display:none;">No rules match the current filters.</div>
+          <div id="no-results" class="no-results" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/><line x1="7" y1="10" x2="13" y2="10"/></svg>
+            <div class="no-results-title">No matching rules</div>
+            <div class="no-results-sub">Try adjusting your filters or search terms.</div>
+          </div>
         </div>
       </div>
     </div>
@@ -2021,6 +2066,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   <script>
   const RULES = @@RULES_JSON@@;
   const TACTIC_IDS = @@TACTIC_IDS_JSON@@;
+  const GENERATED_TS = "@@TS@@";
   const TOTAL_RULES = @@TOTAL@@;
   const PASS_COUNT = @@PASSED@@;
   const FAIL_COUNT = @@FAILED@@;
@@ -2031,10 +2077,11 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   const MITRE_PCT = @@MITRE_PCT@@;
 
   const SEV_HEX = { critical: '#a4133c', high: '#f85149', medium: '#d29922', low: '#3fb950', informational: '#8b949e' };
-  const STATUS_HEX = { stable: '#3fb950', test: '#d29922', experimental: '#58a6ff', deprecated: '#8b949e' };
+  const STATUS_HEX = { stable: '#3fb950', test: '#d29922', experimental: '#388bfd', deprecated: '#8b949e' };
+  const SOURCE_HEX = { sigma: '#00acd7', nativespl: '#ff6600' };
 
   const FILTER_FIELDS = [
-    { key: 'source',     label: 'Source' },
+    { key: 'source',     label: 'Rule Type' },
     { key: 'category',   label: 'Product Category' },
     { key: 'product',    label: 'Product' },
     { key: 'service',    label: 'Service' },
@@ -2144,6 +2191,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     if (key === 'severity') return 'fc-sev-' + normKey(val);
     if (key === 'status') return 'fc-status-' + normKey(val);
     if (key === 'verdict') return 'fc-verdict-' + normKey(val);
+    if (key === 'source') return 'fc-source-' + normKey(val);
     return FIELD_FC[key] || '';
   }
 
@@ -2165,10 +2213,10 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   function matchesSearch(rule, q) {
     if (!q || !q.trim()) return true;
     const haystack = [
-      rule.id, rule.title, rule.description, rule.source,
-      rule.category, rule.product, rule.service, rule.eventType,
+      rule.id, rule.title,
+      rule.category, rule.product, rule.service,
       ...(rule.tactics || []), ...(rule.techniques || []),
-      rule.severity, rule.status, rule.verdict, rule.author,
+      rule.severity, rule.status, rule.verdict,
     ].join(' ').toLowerCase();
     return q.trim().toLowerCase().split(/\s+/).every(w => wordStartMatch(haystack, w));
   }
@@ -2289,7 +2337,9 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     });
 
     if (openGroup !== null) html += '</div></div>';
-    panel.innerHTML = html + '<button class="clear-filters-btn" onclick="clearFilters()">Clear filters</button>';
+    panel.innerHTML = html
+      + '<button class="clear-filters-btn" onclick="clearFilters()">Clear filters</button>'
+      + `<div class="filters-generated" title="Last generated">Generated ${GENERATED_TS} UTC</div>`;
   }
 
   function renderActiveFilterRow() {
@@ -2341,8 +2391,8 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     const sourceCount = {};
     RULES.forEach(r => { sourceCount[r.source] = (sourceCount[r.source] || 0) + 1; });
     const sourceSegs = [
-      { label: 'Sigma', n: sourceCount['Sigma'] || 0, color: '#58a6ff' },
-      { label: 'Native SPL', n: sourceCount['Native SPL'] || 0, color: '#fb923c' },
+      { label: 'Sigma', n: sourceCount['Sigma'] || 0, color: '#00acd7' },
+      { label: 'Native SPL', n: sourceCount['Native SPL'] || 0, color: '#ff6600' },
     ];
 
     const sevOrder = ['critical', 'high', 'medium', 'low', 'informational'];
@@ -2379,12 +2429,12 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
   function sevBadge(r) {
     if (!r.severity) return emptyCell();
-    return `<span class="badge sev-${normKey(r.severity)}">${escHtml(cap(r.severity))}</span>`;
+    return `<span class="badge sev-${normKey(r.severity)}">${escHtml(r.severity)}</span>`;
   }
 
   function statusBadge(r) {
     if (!r.status) return emptyCell();
-    return `<span class="badge status-${normKey(r.status)}">${escHtml(cap(r.status))}</span>`;
+    return `<span class="badge status-${normKey(r.status)}">${escHtml(r.status)}</span>`;
   }
 
   function verdictBadge(r) {
@@ -2441,10 +2491,14 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     const tbody = document.getElementById('table-body');
     const noRes = document.getElementById('no-results');
 
+    tbody.style.opacity = '0.4';
+    const fadeIn = () => requestAnimationFrame(() => requestAnimationFrame(() => { tbody.style.opacity = '1'; }));
+
     if (!filtered.length) {
       tbody.innerHTML = '';
       noRes.style.display = '';
       document.getElementById('result-count').textContent = '0 results';
+      fadeIn();
       return;
     }
 
@@ -2453,7 +2507,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
     tbody.innerHTML = filtered.map(r => {
       const globalIdx = RULES.indexOf(r);
-      const ridColor = SEV_HEX[normKey(r.severity)] || '#444c56';
+      const ridColor = SOURCE_HEX[normKey(r.source)] || '#444c56';
       const idContent = r.fileUrl
         ? `<a href="${escHtml(r.fileUrl)}" target="_blank" onclick="event.stopPropagation()">${escHtml(r.id)}</a>`
         : escHtml(r.id);
@@ -2482,6 +2536,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
     if (selectedPos >= currentView.length) selectedPos = currentView.length - 1;
     paintSelection();
+    fadeIn();
   }
 
   // ── Rule body syntax highlight (Sigma YAML / SPL) ───────────────────────
@@ -2491,18 +2546,38 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
   function highlightYAMLValue(val) {
     if (!val) return '';
-    if (/^['"]/.test(val)) return `<span class="t-val">${escHtml(val)}</span>`;
-    if (/^-?\d+(\.\d+)?$/.test(val)) return `<span class="t-val">${escHtml(val)}</span>`;
     if (val === '|' || val === '>') return `<span class="t-op">${escHtml(val)}</span>`;
-    return `<span class="t-id">${escHtml(val)}</span>`;
+    return `<span class="t-val">${escHtml(val)}</span>`;
+  }
+
+  // Sigma detection keys: top-level "detection" wrapper stays neutral, keys one
+  // level under it are selection/filter block names (red), a "field|modifier"
+  // key splits into field (green) + separator (amber) + modifier (blue).
+  function highlightYAMLKey(key, indent) {
+    if (key === 'detection') return `<span class="t-id">${escHtml(key)}</span>`;
+    if (key.includes('|')) {
+      const i = key.indexOf('|');
+      const field = key.slice(0, i);
+      const mod = key.slice(i + 1);
+      return `<span class="t-fld">${escHtml(field)}</span><span class="t-pipe">|</span><span class="t-mod">${escHtml(mod)}</span>`;
+    }
+    if (indent.length <= 2) return `<span class="t-sel">${escHtml(key)}</span>`;
+    return `<span class="t-fld">${escHtml(key)}</span>`;
   }
 
   function highlightYAML(code) {
+    // "condition" is conventionally the last key in a sigma detection block,
+    // and its boolean expression can wrap onto following lines with no key
+    // of its own — so once we see it, treat the remainder as its expression.
+    let inCondition = false;
     return code.split('\n').map(line => {
       const indentM = line.match(/^\s*/);
       const indent = indentM[0];
       let rest = line.slice(indent.length);
       if (!rest) return line;
+
+      if (inCondition) return indent + `<span class="t-cond">${escHtml(rest)}</span>`;
+
       if (rest.startsWith('#')) return indent + `<span class="t-com">${escHtml(rest)}</span>`;
 
       let prefix = '';
@@ -2513,10 +2588,13 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       const kv = rest.match(YAML_KV_RX);
       if (kv) {
         const [, key, , sp, val] = kv;
-        return indent + prefix + `<span class="t-fld">${escHtml(key)}</span><span class="t-op">:</span>${sp}${highlightYAMLValue(val)}`;
+        if (key === 'condition') {
+          inCondition = true;
+          return indent + prefix + `<span class="t-cond">${escHtml(key)}</span><span class="t-op">:</span>${sp}<span class="t-cond">${escHtml(val)}</span>`;
+        }
+        return indent + prefix + highlightYAMLKey(key, indent) + `<span class="t-op">:</span>${sp}${highlightYAMLValue(val)}`;
       }
-      if (/^['"]/.test(rest)) return indent + prefix + `<span class="t-val">${escHtml(rest)}</span>`;
-      return indent + prefix + `<span class="t-id">${escHtml(rest)}</span>`;
+      return indent + prefix + `<span class="t-val">${escHtml(rest)}</span>`;
     }).join('\n');
   }
 
@@ -2627,20 +2705,21 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     document.getElementById('d-title').textContent = r.title;
 
     const badges = [
-      `<span class="badge badge-source">${escHtml(r.source)}</span>`,
+      `<span class="badge badge-source-${normKey(r.source)}">${escHtml(r.source)}</span>`,
       r.category ? `<span class="badge badge-category">${escHtml(r.category)}</span>` : '',
       r.product ? `<span class="badge badge-product">${escHtml(r.product)}</span>` : '',
       r.service ? `<span class="badge badge-service">${escHtml(r.service)}</span>` : '',
       r.severity ? sevBadge(r) : '',
       r.status ? statusBadge(r) : '',
-      verdictBadge(r),
+      `<span class="badge verdict-${normKey(r.verdict)}">${escHtml(r.verdict)}</span>`,
     ].filter(Boolean);
     document.getElementById('d-badges').innerHTML = badges.join('');
 
     let body = '';
 
     if (r.description) {
-      body += `<div><div class="drawer-section-label">Description</div><div class="drawer-desc">${escHtml(r.description)}</div></div>`;
+      const paras = r.description.split(/\n+/).filter(Boolean).map(p => `<p>${escHtml(p.trim())}</p>`).join('');
+      body += `<div><div class="drawer-section-label">Description</div><div class="drawer-desc">${paras}</div></div>`;
     }
 
     body += `<div>
@@ -2664,13 +2743,6 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       </div>`;
     }
 
-    if (r.falsepositives && r.falsepositives.length) {
-      body += `<div>
-        <div class="drawer-section-label">False Positives</div>
-        <div class="drawer-list">${r.falsepositives.map(f => `<div class="drawer-list-item fp">${escHtml(f)}</div>`).join('')}</div>
-      </div>`;
-    }
-
     if (r.references && r.references.length) {
       body += `<div>
         <div class="drawer-section-label">References</div>
@@ -2678,22 +2750,18 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       </div>`;
     }
 
-    if (r.testing && r.testing.enabled) {
-      const t = r.testing;
-      const atomicsHtml = (t.atomics || []).map(a => {
-        const nums = (a.testNumbers || []).join(', #');
-        const label = escHtml(a.technique) + (nums ? ' — test #' + escHtml(nums) : '');
-        return a.url
-          ? `<div class="drawer-list-item atomic"><a href="${escHtml(a.url)}" target="_blank">${label}</a></div>`
-          : `<div class="drawer-list-item atomic">${label}</div>`;
-      }).join('');
+    if (r.runUrl) {
+      const isFail = r.verdict === 'FAIL';
+      const verifyCls = isFail ? 'verify-fail' : 'verify-pass';
+      const icon = isFail
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
       body += `<div>
-        <div class="drawer-section-label">Atomic Red Team Testing</div>
-        <div class="meta-grid">
-          ${t.runner ? `<span class="meta-key">Runner</span><span class="meta-val">${escHtml(t.runner)}</span>` : ''}
-          ${t.type ? `<span class="meta-key">Type</span><span class="meta-val">${escHtml(t.type)}</span>` : ''}
-        </div>
-        <div class="drawer-list" style="margin-top:8px">${atomicsHtml}</div>
+        <div class="drawer-section-label">Verification</div>
+        <a class="drawer-cta ${verifyCls}" href="${escHtml(r.runUrl)}" target="_blank">
+          ${icon}
+          View Last Action Run — ${escHtml(r.verdict)}
+        </a>
       </div>`;
     }
 
@@ -2711,13 +2779,6 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
         </div>
         <pre class="rule-body-pre">${highlightRuleBody(r.ruleBody, r.ruleBodyLang)}</pre>
       </div>`;
-    }
-
-    if (r.fileUrl) {
-      body += `<a class="drawer-cta" href="${escHtml(r.fileUrl)}" target="_blank">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
-        View rule source on GitHub
-      </a>`;
     }
 
     document.getElementById('d-body').innerHTML = body;
@@ -2876,44 +2937,6 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     const enc = encodeState();
     const url = `${location.pathname}${location.search}#${enc}`;
     try { history.replaceState(null, '', url); } catch (e) { /* sandboxed preview, no real origin */ }
-  }
-
-  function buildDeepLink() {
-    const enc = encodeState();
-    const isWeb = (location.protocol === 'http:' || location.protocol === 'https:') && location.origin && location.origin !== 'null';
-    if (isWeb) return { url: `${location.origin}${location.pathname}${location.search}#${enc}`, full: true };
-    return { url: enc ? '#' + enc : '', full: false };
-  }
-
-  function flashBtn(btn, text) {
-    if (!btn) return;
-    const label = btn.querySelector('.btn-label');
-    if (!label) return;
-    const prev = label.textContent;
-    label.textContent = text;
-    btn.classList.add('ok');
-    setTimeout(() => { label.textContent = prev; btn.classList.remove('ok'); }, 1400);
-  }
-
-  async function copyDeepLink() {
-    const btn = document.getElementById('link-btn');
-    const { url, full } = buildDeepLink();
-    if (!url) { flashBtn(btn, 'No filters'); return; }
-    const okLabel = full ? 'Copied' : 'Hash copied';
-    try {
-      await navigator.clipboard.writeText(url);
-      flashBtn(btn, okLabel);
-    } catch (e) {
-      const ta = document.createElement('textarea');
-      ta.value = url;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      try { document.execCommand('copy'); flashBtn(btn, okLabel); }
-      catch (e2) { prompt('Copy this link:', url); }
-      document.body.removeChild(ta);
-    }
   }
 
   window.addEventListener('hashchange', () => {
@@ -3290,11 +3313,6 @@ def _github_blob_url(repo: str, file_path: str) -> str:
     return f"https://github.com/{repo}/blob/main/{file_path}" if file_path else ""
 
 
-def _atomic_test_url(tech: str) -> str:
-    t = tech.upper()
-    return f"https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/{t}/{t}.md"
-
-
 def render_html_summary(stats: dict, repo: str) -> str:
     ts = stats["generated_at"][:19]
     total = stats["total_rules"]
@@ -3309,16 +3327,6 @@ def render_html_summary(stats: dict, repo: str) -> str:
     rules_js = []
     for r in stats["rules"]:
         ls = r.get("logsource") or {}
-        testing = r.get("testing") or {}
-        atomics = []
-        for a in (testing.get("atomics") or []):
-            tech = str(a.get("technique") or "")
-            nums = a.get("test_numbers") or []
-            atomics.append({
-                "technique": tech,
-                "testNumbers": nums,
-                "url": _atomic_test_url(tech) if tech else "",
-            })
         rules_js.append({
             "id": r.get("detect_id", ""),
             "title": r.get("title", ""),
@@ -3342,15 +3350,8 @@ def render_html_summary(stats: dict, repo: str) -> str:
             "date": r.get("date", ""),
             "modified": r.get("modified", ""),
             "references": r.get("references") or [],
-            "falsepositives": r.get("falsepositives") or [],
             "ruleBody": r.get("rule_body", ""),
             "ruleBodyLang": r.get("rule_body_lang", ""),
-            "testing": {
-                "enabled": bool(testing.get("enabled")),
-                "runner": testing.get("runner", ""),
-                "type": testing.get("type", ""),
-                "atomics": atomics,
-            },
         })
 
     rules_json = json.dumps(rules_js, ensure_ascii=False)
@@ -3363,7 +3364,6 @@ def render_html_summary(stats: dict, repo: str) -> str:
     layer_url = f"https://github.com/{repo}/blob/main/outputs/reports/navigator_layer.json"
 
     html = _PAGE_TEMPLATE
-    html = html.replace("@@REPO@@", repo)
     html = html.replace("@@TS@@", ts)
     html = html.replace("@@TOTAL@@", str(total))
     html = html.replace("@@PASSED@@", str(passed))
