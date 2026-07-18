@@ -161,7 +161,8 @@ def load_native_spl_rules() -> list[dict]:
                 meta = json.loads(m.group(1))
                 if isinstance(meta, dict):
                     meta["_file_path"] = f"rules/splunk/{p.name}"
-                    meta["_body"] = content[m.end():].strip()
+                    body = re.sub(r"^\s*-{3,}\s*\n", "", content[m.end():].lstrip())
+                    meta["_body"] = body.strip()
                     rules.append(meta)
         except Exception:
             pass
@@ -1015,7 +1016,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       white-space: nowrap;
     }
 
-    .strip-total strong { color: var(--text); font-weight: 700; }
+    .strip-total strong { color: #ffaa00; font-weight: 700; }
 
     .filters-generated {
       text-align: center;
@@ -1043,9 +1044,9 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .tab-btn:hover { color: var(--text2); }
 
     .tab-btn.active {
-      background: rgba(255,170,0,0.14);
-      border-color: rgba(255,170,0,0.5);
-      color: #ffaa00;
+      background: #ffaa00;
+      border-color: #ffaa00;
+      color: #111111;
     }
 
     .tab-pane { display: none; flex: 1; min-height: 0; overflow-y: auto; }
@@ -1059,9 +1060,9 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       height: 28px;
       padding: 0 12px;
       background: transparent;
-      border: 1px solid var(--red);
+      border: 1px solid var(--border2);
       border-radius: var(--radius);
-      color: var(--red);
+      color: var(--text2);
       font-size: 12px;
       font-family: var(--font-ui);
       cursor: pointer;
@@ -1069,7 +1070,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       flex-shrink: 0;
     }
 
-    .stats-toggle:hover { border-color: var(--red); color: var(--red); box-shadow: 0 0 0 2px var(--red-bg); }
+    .stats-toggle:hover { border-color: #ffaa00; color: #ffaa00; box-shadow: 0 0 0 2px rgba(255,170,0,0.14); }
     .stats-toggle svg { width: 12px; height: 12px; transition: transform 0.18s; stroke: currentColor; fill: none; }
     .stats-wrap.open .stats-toggle svg { transform: rotate(180deg); }
 
@@ -1185,7 +1186,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
     .fc-sev-critical      { --fc:#e05575; --fc-bg:rgba(128,20,50,0.28);  --fc-br:rgba(164,19,60,0.55); }
     .fc-sev-high          { --fc:#f85149; --fc-bg:rgba(248,81,73,0.13); --fc-br:rgba(248,81,73,0.38); }
-    .fc-sev-medium        { --fc:#d29922; --fc-bg:rgba(210,153,34,0.13);--fc-br:rgba(210,153,34,0.38); }
+    .fc-sev-medium        { --fc:#fb923c; --fc-bg:rgba(251,146,60,0.12);--fc-br:rgba(251,146,60,0.38); }
     .fc-sev-low           { --fc:#3fb950; --fc-bg:rgba(63,185,80,0.13); --fc-br:rgba(63,185,80,0.38); }
     .fc-sev-informational { --fc:#8b949e; --fc-bg:rgba(139,148,158,0.12);--fc-br:rgba(139,148,158,0.35); }
 
@@ -1354,7 +1355,23 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       font-family: var(--font-ui);
     }
 
-    .clear-filters-btn:hover { border-color: var(--red); color: var(--red); }
+    .clear-filters-btn:hover { border-color: #ffaa00; color: #ffaa00; }
+
+    .expand-all-filters-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 6px 12px;
+      color: var(--text2);
+      font-size: 12px;
+      cursor: pointer;
+      width: 100%;
+      flex-shrink: 0;
+      transition: all 0.1s;
+      font-family: var(--font-ui);
+    }
+
+    .expand-all-filters-btn:hover { border-color: #ffaa00; color: #ffaa00; }
 
     /* ── Content / search / table ── */
     .content { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; padding: 0 20px 24px; display: flex; flex-direction: column; gap: 0; }
@@ -1414,7 +1431,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       transition: border-color 0.1s;
     }
 
-    .search-input:focus { border-color: var(--accent); }
+    .search-input:focus { border-color: #ffaa00; }
     .search-input::placeholder { color: var(--text3); }
 
     .search-clear {
@@ -1466,9 +1483,9 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       height: 28px;
       padding: 0 12px;
       background: transparent;
-      border: 1px solid var(--red);
+      border: 1px solid var(--border2);
       border-radius: var(--radius);
-      color: var(--red);
+      color: var(--text2);
       font-size: 12px;
       font-family: var(--font-ui);
       cursor: pointer;
@@ -1476,7 +1493,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       white-space: nowrap;
     }
 
-    .export-btn:hover, .code-copy:hover { border-color: var(--red); color: var(--red); box-shadow: 0 0 0 2px var(--red-bg); }
+    .export-btn:hover, .code-copy:hover { border-color: #ffaa00; color: #ffaa00; box-shadow: 0 0 0 2px rgba(255,170,0,0.14); }
     .export-btn svg, .code-copy svg { width: 13px; height: 13px; stroke: currentColor; fill: none; }
     .export-btn.ok, .code-copy.ok { border-color: var(--green); color: var(--green); box-shadow: none; }
 
@@ -1501,8 +1518,9 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       font-size: 10px;
       letter-spacing: 0.5px;
       text-transform: uppercase;
-      color: var(--text3);
-      background: var(--bg3);
+      color: #ffffff;
+      font-weight: 700;
+      background: #0d1117;
       border-bottom: 1px solid var(--border);
     }
 
@@ -1512,13 +1530,14 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       gap: 8px;
       padding: 8px 12px;
       cursor: pointer;
-      transition: background 0.1s;
+      transition: background 0.08s;
       border-bottom: 1px solid var(--border);
     }
 
+    .export-menu-item:nth-child(even) { background: rgba(255,255,255,0.022); }
     .export-menu-item:last-child { border-bottom: none; }
-    .export-menu-item:hover { background: var(--bg3); }
-    .export-menu-item .ext { font-family: var(--font); font-size: 11px; font-weight: 700; color: var(--accent); min-width: 34px; }
+    .export-menu-item:hover { background: rgba(233,220,196,0.10); }
+    .export-menu-item .ext { font-family: var(--font); font-size: 11px; font-weight: 700; color: #ffaa00; min-width: 34px; }
     .export-menu-item .desc { font-size: 11px; color: var(--text3); }
 
     .table-wrap {
@@ -1526,6 +1545,8 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
       overflow: visible;
+      clip-path: inset(0 round var(--radius-lg));
+      flex-shrink: 0;
     }
 
     #table-body { transition: opacity 0.12s ease; }
@@ -1541,20 +1562,18 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       position: sticky;
       top: 0;
       z-index: 3;
-      background: #0d1117;
-      box-shadow: inset 0 -1px 0 rgba(230,237,243,0.22), 0 6px 14px -4px rgba(0,0,0,0.5);
-      color: #ffffff;
-      font-weight: 700;
+      background: #ffaa00;
+      box-shadow: 0 6px 14px -4px rgba(0,0,0,0.5);
+      color: #111111;
+      font-weight: 800;
     }
 
-    thead th:first-child { border-top-left-radius: var(--radius-lg); }
-    thead th:last-child { border-top-right-radius: var(--radius-lg); }
 
     th {
       text-align: left;
-      padding: 9px 12px;
+      padding: 12px 12px;
       font-size: 11px;
-      font-weight: 600;
+      font-weight: 800;
       letter-spacing: 0.5px;
       text-transform: uppercase;
       color: var(--text3);
@@ -1567,9 +1586,9 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       position: relative;
     }
 
-    th:hover { color: var(--text); }
-    th.sorted::after { content: ' \2193'; font-size: 10px; }
-    th.sorted.desc::after { content: ' \2191'; }
+    th:hover { color: #000000; }
+    th.sorted::after { content: '\25BC'; display: inline-block; font-size: 9px; font-weight: 900; margin-left: 5px; vertical-align: 1px; }
+    th.sorted.desc::after { content: '\25B2'; }
 
     th:nth-child(1) { width: 160px; }
     th:nth-child(2) { width: 380px; }
@@ -1665,7 +1684,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
     .sev-critical      { background: rgba(128,20,50,0.28);  color: #e05575; border: 1px solid rgba(164,19,60,0.55); }
     .sev-high          { background: rgba(248,81,73,0.13); color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
-    .sev-medium        { background: var(--amber-bg);      color: var(--amber); border: 1px solid rgba(210,153,34,0.25); }
+    .sev-medium        { background: rgba(251,146,60,0.1); color: #fb923c;     border: 1px solid rgba(251,146,60,0.25); }
     .sev-low           { background: var(--green-bg);      color: var(--green); border: 1px solid rgba(63,185,80,0.25); }
     .sev-informational { background: rgba(139,148,158,0.12); color: #8b949e; border: 1px solid var(--border); }
 
@@ -1686,7 +1705,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     /* ── Resizable columns ── */
     .col-resizer { position: absolute; right: 0; top: 0; bottom: 0; width: 8px; cursor: col-resize; user-select: none; z-index: 10; display: flex; align-items: center; justify-content: center; }
     .col-resizer::after { content: ''; display: block; width: 1px; height: 60%; background: var(--border2); border-radius: 1px; transition: background 0.1s; }
-    .col-resizer:hover::after, .col-resizer.dragging::after { background: var(--accent); }
+    .col-resizer:hover::after, .col-resizer.dragging::after { background: #000000; }
 
     /* ── Drawer ── */
     .drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; display: none; }
@@ -1725,7 +1744,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
     .drawer-close {
       background: none;
-      border: 1px solid var(--red);
+      border: 1px solid var(--border2);
       border-radius: var(--radius);
       width: 28px;
       height: 28px;
@@ -1733,12 +1752,12 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      color: var(--red);
+      color: var(--text2);
       flex-shrink: 0;
       transition: all 0.1s;
     }
 
-    .drawer-close:hover { border-color: var(--red); color: var(--red); box-shadow: 0 0 0 2px var(--red-bg); }
+    .drawer-close:hover { border-color: #ffaa00; color: #ffaa00; box-shadow: 0 0 0 2px rgba(255,170,0,0.14); }
     .drawer-close svg { width: 14px; height: 14px; stroke: currentColor; fill: none; }
 
     .drawer-badges { display: flex; flex-wrap: wrap; gap: 5px; }
@@ -2076,7 +2095,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   const MITRE_TOTAL = @@MITRE_TOTAL@@;
   const MITRE_PCT = @@MITRE_PCT@@;
 
-  const SEV_HEX = { critical: '#a4133c', high: '#f85149', medium: '#d29922', low: '#3fb950', informational: '#8b949e' };
+  const SEV_HEX = { critical: '#a4133c', high: '#f85149', medium: '#fb923c', low: '#3fb950', informational: '#8b949e' };
   const STATUS_HEX = { stable: '#3fb950', test: '#d29922', experimental: '#388bfd', deprecated: '#8b949e' };
   const SOURCE_HEX = { sigma: '#00acd7', nativespl: '#ff6600' };
 
@@ -2273,6 +2292,32 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     input.focus();
   }
 
+  // Which sections/supergroups currently have any values to show — shared by
+  // renderFilters (to know what "all expanded" means) and the Expand All toggle.
+  function filterAvailability() {
+    const groupHasVals = {};
+    const keysWithVals = [];
+    FILTER_FIELDS.forEach(({ key, group }) => {
+      if (!allVals(key).length) return;
+      keysWithVals.push(key);
+      if (group) groupHasVals[group] = true;
+    });
+    return { keysWithVals, groupsWithVals: Object.keys(groupHasVals) };
+  }
+
+  function toggleExpandAllFilters() {
+    const { keysWithVals, groupsWithVals } = filterAvailability();
+    const allOpen = keysWithVals.every(k => openSections.has(k)) && groupsWithVals.every(g => openGroups.has(g));
+    if (allOpen) {
+      keysWithVals.forEach(k => openSections.delete(k));
+      groupsWithVals.forEach(g => openGroups.delete(g));
+    } else {
+      keysWithVals.forEach(k => openSections.add(k));
+      groupsWithVals.forEach(g => openGroups.add(g));
+    }
+    renderFilters();
+  }
+
   function renderFilters() {
     const panel = document.getElementById('filters-panel');
     const groupHasVals = {};
@@ -2337,7 +2382,16 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     });
 
     if (openGroup !== null) html += '</div></div>';
-    panel.innerHTML = html
+
+    const { keysWithVals, groupsWithVals } = filterAvailability();
+    const allOpen = (keysWithVals.length + groupsWithVals.length) > 0
+      && keysWithVals.every(k => openSections.has(k))
+      && groupsWithVals.every(g => openGroups.has(g));
+    const expandBtn = (keysWithVals.length || groupsWithVals.length)
+      ? `<button class="expand-all-filters-btn" onclick="toggleExpandAllFilters()">${allOpen ? '▲ Collapse All' : '▼ Expand All'}</button>`
+      : '';
+
+    panel.innerHTML = expandBtn + html
       + '<button class="clear-filters-btn" onclick="clearFilters()">Clear filters</button>'
       + `<div class="filters-generated" title="Last generated">Generated ${GENERATED_TS} UTC</div>`;
   }
@@ -2644,25 +2698,44 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       return null;
     };
 
+    // Everything from the first top-level pipe onward (the reporting/
+    // transforming stage, e.g. "| table ...") renders as one red block —
+    // comments stay distinct, whitespace is untouched.
+    let afterPipe = false;
+    const isOperatorTok = (tok) => tok && (tok.k === 'op' || SPL_OPERATOR_WORDS.has(tok.t.toLowerCase()));
+    let prevSig = null; // last non-whitespace token, for detecting values right after an operator
+
     let out = '';
     toks.forEach((tok, i) => {
       const { k, t } = tok;
       if (k === 'ws')      { out += t; return; }
-      if (k === 'comment') { out += `<span class="t-com">${escHtml(t)}</span>`; return; }
-      if (k === 'string')  { out += `<span class="t-val">${escHtml(t)}</span>`; return; }
-      if (k === 'num')     { out += `<span class="t-val">${escHtml(t)}</span>`; return; }
-      if (k === 'pipe')    { out += `<span class="t-kw">${escHtml(t)}</span>`; return; }
-      if (k === 'op')      { out += `<span class="t-op">${escHtml(t)}</span>`; return; }
-      if (k === 'punct')   { out += escHtml(t); return; }
+      if (k === 'comment') { prevSig = tok; out += `<span class="t-com">${escHtml(t)}</span>`; return; }
+      if (k === 'pipe')    { afterPipe = true; prevSig = tok; out += `<span class="t-kw">${escHtml(t)}</span>`; return; }
+      if (afterPipe)       { out += `<span class="t-kw">${escHtml(t)}</span>`; return; }
+
+      if (k === 'string')  { prevSig = tok; out += `<span class="t-val">${escHtml(t)}</span>`; return; }
+      if (k === 'num')     { prevSig = tok; out += `<span class="t-val">${escHtml(t)}</span>`; return; }
+      if (k === 'op')      { prevSig = tok; out += `<span class="t-mod">${escHtml(t)}</span>`; return; }
+      if (k === 'punct')   { prevSig = tok; out += escHtml(t); return; }
 
       const lower = t.toLowerCase();
       const n1 = nextN(i, 1);
+      // A bare identifier immediately followed by a comparison/membership
+      // operator (=, !=, IN, LIKE…) is a field reference — green, like a
+      // Sigma field name — regardless of whether it's also an SPL keyword
+      // (e.g. "index=", "sourcetype=" use the keyword name as a field).
+      const isFieldRef = isOperatorTok(n1);
+      // A bare (unquoted) identifier right after such an operator is its
+      // value — same white as a quoted string value.
+      const isValueRef = isOperatorTok(prevSig);
       let cls;
-      if (SPL_OPERATOR_WORDS.has(lower)) cls = 't-op';
+      if (isFieldRef) cls = 't-fld';
+      else if (isValueRef) cls = 't-val';
+      else if (SPL_OPERATOR_WORDS.has(lower)) cls = 't-mod';
       else if (SPL_KEYWORDS.has(lower)) cls = 't-kw';
       else if (SPL_FUNCS.has(lower) && n1 && n1.t === '(') cls = 't-fn';
-      else if (n1 && n1.t === '=') cls = 't-fld';
       else cls = 't-id';
+      prevSig = tok;
       out += `<span class="${cls}">${escHtml(t)}</span>`;
     });
     return out;
