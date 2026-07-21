@@ -1544,9 +1544,10 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       background: var(--bg2);
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
-      overflow: visible;
+      overflow: auto;
       clip-path: inset(0 round var(--radius-lg));
-      flex-shrink: 0;
+      flex: 1;
+      min-height: 0;
     }
 
     #table-body { transition: opacity 0.12s ease; }
@@ -1558,12 +1559,13 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       table-layout: fixed;
     }
 
+    thead tr { box-shadow: 0 6px 14px -4px rgba(0,0,0,0.5); }
+
     thead th {
       position: sticky;
       top: 0;
       z-index: 3;
       background: #ffaa00;
-      box-shadow: 0 6px 14px -4px rgba(0,0,0,0.5);
       color: #111111;
       font-weight: 800;
     }
@@ -1599,7 +1601,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     th:nth-child(7) { width: 150px; }
     th:nth-child(8) { width: 140px; }
     th:nth-child(9) { width: 120px; }
-    th:nth-child(10) { width: auto; }
+    th:nth-child(10) { width: 110px; }
 
     th:nth-child(8), th:nth-child(9), th:nth-child(10),
     td:nth-child(8), td:nth-child(9), td:nth-child(10) {
@@ -1878,6 +1880,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+    ::-webkit-scrollbar-corner { background: transparent; }
 
     /* MITRE Navigator */
     .nav-wrap { background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:16px; margin:16px 20px; }
