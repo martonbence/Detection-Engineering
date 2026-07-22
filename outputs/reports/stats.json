@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-17T16:36:10.442137+00:00",
+  "generated_at": "2026-07-22T14:47:03.056657+00:00",
   "total_rules": 27,
   "total_sigma_rules": 26,
   "total_splunk_rules": 27,
@@ -78,7 +78,7 @@
           }
         ]
       },
-      "rule_body": "---\nindex=sysmon Image=\"*\\\\powershell.exe\" CommandLine IN (\"* -e *\", \"* -enc *\", \"* -encodedcommand *\") | table _time,CommandLine,ParentImage,Image,User,ProcessId",
+      "rule_body": "index=sysmon Image=\"*\\\\powershell.exe\" CommandLine IN (\"* -e *\", \"* -enc *\", \"* -encodedcommand *\") | table _time,CommandLine,ParentImage,Image,User,ProcessId",
       "rule_body_lang": "spl"
     },
     {
