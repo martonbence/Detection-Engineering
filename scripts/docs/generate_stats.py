@@ -2017,12 +2017,18 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
        55% too (unified, was 70%) — with the enlarged radius (95%, see JS)
        the inner hollow is still comfortably big enough for the overlay
        text, but the overlay font-size/width were trimmed slightly (28px
-       to 22px, 80% to 72% width) as a safety margin so the text never
-       crowds the ring at the smaller cutout. */
+       down, 80% to 68% width) as a safety margin so the text never
+       crowds the ring at the smaller cutout. Status's overlay (center
+       Stable %, added alongside Verification's Pass Rate) reuses these
+       same .verify-overlay* classes verbatim rather than a parallel
+       .status-overlay-* block — Status's canvas-wrap (.severity-canvas-wrap)
+       and Verification's (.verify-canvas-wrap) are byte-for-byte identical
+       in sizing (196px height, flex:1 1 auto, min-width:0), so there is no
+       geometry difference to justify duplicating the rule. */
     .verify-card-body { display:flex; align-items:center; gap:14px; flex:1; min-height:0; }
     .verify-canvas-wrap { flex:1 1 auto; height:196px; min-width:0; }
     .verify-overlay { position:absolute; left:50%; top:50%; transform:translate(-50%, -50%); width:68%; text-align:center; pointer-events:none; }
-    .verify-overlay-pct { font-size:20px; font-weight:800; color:var(--text); line-height:1.1; }
+    .verify-overlay-pct { font-size:24px; font-weight:800; color:var(--text); line-height:1.1; }
     .verify-overlay-label { font-size:8px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:var(--text3); margin-top:2px; }
     .verify-legend { display:flex; flex-direction:column; gap:9px; flex-shrink:0; }
     .verify-legend-item { display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; color:#e6edf3; user-select:none; }
@@ -2284,6 +2290,10 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
           <div class="severity-card-body">
             <div class="chart-card-canvas-wrap severity-canvas-wrap">
               <canvas id="chart-status" aria-label="Doughnut chart showing rule counts broken down by status" role="img"></canvas>
+              <div class="verify-overlay">
+                <div class="verify-overlay-pct" id="status-overlay-pct">—</div>
+                <div class="verify-overlay-label">Stable</div>
+              </div>
             </div>
             <div class="sev-legend" id="status-legend"></div>
           </div>
@@ -2731,6 +2741,14 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     RULES.forEach(r => { const k = (r.status || '').toLowerCase(); if (k) statusCount[k] = (statusCount[k] || 0) + 1; });
     const statusActive = statusOrder.filter(k => statusCount[k] > 0);
     const statusTotal = statusActive.reduce((s, k) => s + statusCount[k], 0);
+    // Center overlay — % of rules that are Stable, mirroring Verification's
+    // center Pass Rate overlay. Unlike PASS_RATE (a Python @@PASS_RATE@@
+    // template substitution), this isn't known until RULES is parsed
+    // client-side, so it's computed here and pushed into the DOM instead of
+    // being baked into the HTML template.
+    const stablePct = statusTotal > 0 ? Math.round((statusCount['stable'] || 0) / statusTotal * 100) : 0;
+    document.getElementById('status-overlay-pct').textContent = stablePct + '%';
+    document.getElementById('chart-status').setAttribute('aria-label', 'Doughnut chart showing rule counts broken down by status — ' + stablePct + '% stable');
     const statusChart = new Chart(document.getElementById('chart-status'), {
       type: 'doughnut',
       data: {
