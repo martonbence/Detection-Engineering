@@ -1882,6 +1882,23 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
     ::-webkit-scrollbar-corner { background: transparent; }
 
+    /* Dashboards */
+    .dashboard-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(380px, 1fr)); gap:16px; margin:16px 20px; }
+    .chart-card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius-lg); padding:20px; display:flex; flex-direction:column; gap:12px; }
+    .chart-card-title { font-size:13px; font-weight:700; color:var(--text); letter-spacing:-0.1px; }
+    .chart-card-canvas-wrap { position:relative; height:300px; }
+    .gauge-canvas-wrap { height:260px; }
+    .gauge-overlay { position:absolute; left:50%; top:56%; transform:translate(-50%, -18%); width:80%; text-align:center; pointer-events:none; }
+    .gauge-overlay-title { font-size:13px; font-weight:700; color:#FFAA00; margin-bottom:6px; }
+    .gauge-pct { font-size:34px; font-weight:800; color:#FFAA00; line-height:1.1; }
+    .gauge-frac { font-size:12px; color:#e6edf3; margin-top:2px; }
+    .severity-card-body { display:flex; align-items:center; gap:14px; flex:1; min-height:0; }
+    .severity-canvas-wrap { flex:1 1 auto; height:100%; min-width:0; }
+    .sev-legend { display:flex; flex-direction:column; gap:9px; flex-shrink:0; }
+    .sev-legend-item { display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12px; color:#e6edf3; user-select:none; }
+    .sev-legend-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; transition:opacity .15s; }
+    .sev-legend-item.off .sev-legend-dot { opacity:0.25; }
+
     /* MITRE Navigator */
     .nav-wrap { background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:16px; margin:16px 20px; }
     .nav-legend { display:flex; gap:16px; margin-bottom:12px; font-size:12px; align-items:center; flex-wrap:wrap; }
@@ -1959,6 +1976,21 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .tip-vbadge.FAIL { background:#CF222E; color:#fff; }
     .tip-vbadge.NA   { background:#6E7681; color:#fff; }
 
+    #chart-tip {
+      display:none; position:fixed; z-index:9999; pointer-events:none;
+      background:rgba(22,27,34,0.88); border:1px solid #30363d; border-radius:8px;
+      padding:8px 16px; text-align:center; box-shadow:0 8px 24px rgba(0,0,0,.5);
+      transform:translate(-50%, -120%);
+    }
+    #chart-tip::after {
+      content:''; position:absolute; left:50%; bottom:-6px; transform:translateX(-50%);
+      border-width:6px 6px 0 6px; border-style:solid;
+      border-color:rgba(22,27,34,0.88) transparent transparent transparent;
+    }
+    .sev-tip-title { font-weight:700; font-size:13px; color:#e6edf3; }
+    .sev-tip-count { font-size:11px; font-weight:700; color:#e6edf3; margin-top:2px; }
+    .sev-tip-pct { font-size:9px; color:#8b949e; margin-top:1px; }
+
   </style>
 </head>
 <body>
@@ -1972,6 +2004,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
         <div class="tab-bar">
           <button class="tab-btn active" data-tab="rules">Rule Tracker</button>
           <button class="tab-btn" data-tab="navigator">MITRE Navigator</button>
+          <button class="tab-btn" data-tab="dashboards">Dashboards</button>
         </div>
       </div>
       <button class="stats-toggle" id="stats-toggle" onclick="toggleStats()" title="Show/hide stats">
@@ -2059,6 +2092,37 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     </div>
   </div>
 
+  <div id="tab-dashboards" class="tab-pane">
+    <div class="dashboard-grid">
+      <div class="chart-card">
+        <div class="chart-card-title">MITRE ATT&amp;CK Coverage</div>
+        <div class="chart-card-canvas-wrap gauge-canvas-wrap">
+          <canvas id="chart-coverage" aria-label="Half-doughnut gauge showing MITRE ATT&amp;CK technique coverage: @@MITRE_PCT@@%, @@MITRE_COVERED@@ of @@MITRE_TOTAL@@ techniques" role="img"></canvas>
+          <div class="gauge-overlay">
+            <div class="gauge-overlay-title">MITRE ATT&amp;CK Coverage</div>
+            <div class="gauge-pct">@@MITRE_PCT@@%</div>
+            <div class="gauge-frac">@@MITRE_COVERED@@ / @@MITRE_TOTAL@@</div>
+          </div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-title">Rules by Severity</div>
+        <div class="severity-card-body">
+          <div class="chart-card-canvas-wrap severity-canvas-wrap">
+            <canvas id="chart-severity" aria-label="Doughnut chart showing rule counts broken down by severity level" role="img"></canvas>
+          </div>
+          <div class="sev-legend" id="sev-legend"></div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-title">Rules per MITRE ATT&amp;CK Tactic</div>
+        <div class="chart-card-canvas-wrap">
+          <canvas id="chart-tactics" aria-label="Horizontal bar chart showing rule counts per MITRE ATT&amp;CK tactic" role="img"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer()"></div>
   <div class="drawer" id="drawer">
     <div class="drawer-header">
@@ -2084,7 +2148,10 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     <div id="detail-body"></div>
   </div>
   <div id="att-tip"></div>
+  <div id="chart-tip"></div>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2/dist/chartjs-plugin-datalabels.min.js"></script>
   <script>
   const RULES = @@RULES_JSON@@;
   const TACTIC_IDS = @@TACTIC_IDS_JSON@@;
@@ -2101,6 +2168,144 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   const SEV_HEX = { critical: '#a4133c', high: '#f85149', medium: '#fb923c', low: '#3fb950', informational: '#8b949e' };
   const STATUS_HEX = { stable: '#3fb950', test: '#d29922', experimental: '#388bfd', deprecated: '#8b949e' };
   const SOURCE_HEX = { sigma: '#00acd7', nativespl: '#ff6600' };
+
+  // ── Dashboards tab charts ────────────────────────────────────────────────
+  // Colors mirror the quickchart.io configs used for README.md (see
+  // generate_stats.py: level_colors_map / tactic_chart_url) so the charts
+  // look the same here as they do in the README.
+  const LEVEL_ORDER = ['critical', 'high', 'medium', 'low', 'informational'];
+  const LEVEL_COLORS = { critical: '#7B0000', high: '#DC2626', medium: '#FFAA00', low: '#2EA44F', informational: '#6E7681' };
+  const LEVEL_DISPLAY = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low', informational: 'Info' };
+
+  let dashboardChartsBuilt = false;
+
+  function buildDashboardCharts() {
+    if (dashboardChartsBuilt || typeof Chart === 'undefined') return;
+    dashboardChartsBuilt = true;
+    if (window.ChartDataLabels) Chart.register(window.ChartDataLabels);
+
+    const animation = { duration: 700, easing: 'easeOutQuart' };
+
+    // MITRE ATT&CK Coverage — half-doughnut gauge
+    new Chart(document.getElementById('chart-coverage'), {
+      type: 'doughnut',
+      data: {
+        datasets: [{
+          data: [MITRE_COVERED, Math.max(MITRE_TOTAL - MITRE_COVERED, 0)],
+          backgroundColor: ['#FFAA00', 'rgba(128,128,128,0.15)'],
+          borderColor: '#0d1117',
+          borderWidth: 1,
+        }],
+      },
+      options: {
+        maintainAspectRatio: false,
+        rotation: -90,
+        circumference: 180,
+        cutout: '68%',
+        animation,
+        plugins: { legend: { display: false }, tooltip: { enabled: false }, datalabels: { display: false } },
+      },
+    });
+
+    // Shared hover tooltip for Severity + Tactic charts — same box, same layout:
+    // title / "N pcs" (same size as title) / "(pct%)" smaller below.
+    function externalChartTip(ctx, total) {
+      const tip = document.getElementById('chart-tip');
+      const t = ctx.tooltip;
+      if (!t || t.opacity === 0) { tip.style.display = 'none'; return; }
+      const dp = t.dataPoints && t.dataPoints[0];
+      if (dp) {
+        const value = dp.raw;
+        const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+        tip.innerHTML =
+          '<div class="sev-tip-title">' + dp.label + '</div>' +
+          '<div class="sev-tip-count">' + value + ' pcs</div>' +
+          '<div class="sev-tip-pct">(' + pct + '%)</div>';
+      }
+      const rect = ctx.chart.canvas.getBoundingClientRect();
+      tip.style.display = 'block';
+      tip.style.left = (rect.left + t.caretX) + 'px';
+      tip.style.top = (rect.top + t.caretY) + 'px';
+    }
+
+    // Rules by Severity — doughnut, custom HTML legend (fades the dot on toggle, no strikethrough)
+    const sevCounts = {};
+    RULES.forEach(r => { sevCounts[r.severity] = (sevCounts[r.severity] || 0) + 1; });
+    const sevActive = LEVEL_ORDER.filter(lvl => sevCounts[lvl] > 0);
+    const sevTotal = sevActive.reduce((s, lvl) => s + sevCounts[lvl], 0);
+    const sevChart = new Chart(document.getElementById('chart-severity'), {
+      type: 'doughnut',
+      data: {
+        labels: sevActive.map(lvl => LEVEL_DISPLAY[lvl]),
+        datasets: [{
+          data: sevActive.map(lvl => sevCounts[lvl]),
+          backgroundColor: sevActive.map(lvl => LEVEL_COLORS[lvl]),
+          borderColor: '#0d1117',
+          borderWidth: 1,
+          hoverOffset: 18,
+        }],
+      },
+      options: {
+        maintainAspectRatio: false,
+        cutout: '55%',
+        radius: '85%',
+        animation,
+        plugins: {
+          legend: { display: false },
+          tooltip: { enabled: false, external: (ctx) => externalChartTip(ctx, sevTotal) },
+          datalabels: { display: false },
+        },
+      },
+    });
+
+    const sevLegendEl = document.getElementById('sev-legend');
+    sevActive.forEach((lvl, i) => {
+      const item = document.createElement('div');
+      item.className = 'sev-legend-item';
+      item.innerHTML = '<span class="sev-legend-dot" style="background:' + LEVEL_COLORS[lvl] + '"></span>' + LEVEL_DISPLAY[lvl];
+      item.addEventListener('click', () => {
+        sevChart.toggleDataVisibility(i);
+        sevChart.update();
+        item.classList.toggle('off', !sevChart.getDataVisibility(i));
+      });
+      sevLegendEl.appendChild(item);
+    });
+
+    // Rules per MITRE ATT&CK Tactic — horizontal bar
+    const tacticCounts = {};
+    RULES.forEach(r => (r.tactics || []).forEach(t => { tacticCounts[t] = (tacticCounts[t] || 0) + 1; }));
+    const tacticEntries = Object.entries(tacticCounts).sort((a, b) => b[1] - a[1]);
+    const tacticMax = tacticEntries.length ? tacticEntries[0][1] : 0;
+    new Chart(document.getElementById('chart-tactics'), {
+      type: 'bar',
+      data: {
+        labels: tacticEntries.map(([t]) => t),
+        datasets: [{
+          data: tacticEntries.map(([, c]) => c),
+          backgroundColor: '#FFAA00',
+          borderColor: 'black',
+          borderWidth: 0.5,
+        }],
+      },
+      options: {
+        indexAxis: 'y',
+        maintainAspectRatio: false,
+        animation,
+        layout: { padding: { right: 24 } },
+        barPercentage: 0.9,
+        categoryPercentage: 0.85,
+        scales: {
+          x: { display: false, grid: { display: false }, suggestedMax: tacticMax * 1.2 },
+          y: { grid: { display: false }, ticks: { color: '#e6edf3', font: { size: 11 } } },
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: { enabled: false, external: (ctx) => externalChartTip(ctx, TOTAL_RULES) },
+          datalabels: { clip: false, anchor: 'end', align: 'end', color: '#e6edf3', font: { weight: 'bold', size: 11 } },
+        },
+      },
+    });
+  }
 
   const FILTER_FIELDS = [
     { key: 'source',     label: 'Rule Type' },
@@ -2942,9 +3147,10 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
   function setActiveTab(name, opts) {
     opts = opts || {};
-    currentTab = (name === 'navigator') ? 'navigator' : 'rules';
+    currentTab = (name === 'navigator' || name === 'dashboards') ? name : 'rules';
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === currentTab));
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'tab-' + currentTab));
+    if (currentTab === 'dashboards') buildDashboardCharts();
     if (!opts.skipHash) updateHash();
   }
 
@@ -2977,7 +3183,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       const key = pair.slice(0, eq);
       const val = pair.slice(eq + 1);
       if (key === 'tab') {
-        state.tab = val === 'navigator' ? 'navigator' : 'rules';
+        state.tab = (val === 'navigator' || val === 'dashboards') ? val : 'rules';
       } else if (key === 'q') {
         state.q = decodeURIComponent(val);
       } else if (key === 'sort') {
