@@ -16,6 +16,7 @@ import html as _html
 import json
 import math
 import re
+import subprocess
 import sys
 import urllib.parse
 import urllib.request
@@ -666,6 +667,181 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
     return "<div class=\"att-matrix\">" + "".join(cols) + "</div>"
 
 
+# ── Historical trend mining (Dashboards "Trends Over Time" section) ────────
+#
+# Two JSON cache files under outputs/reports/ back the trend charts:
+#   - coverage_history.json      → MITRE coverage % over time
+#   - rule_growth_history.json   → total/Sigma/Native SPL rule counts over time
+#
+# Each is updated INCREMENTALLY: one data point is appended (or the existing
+# same-day point replaced, so re-runs on the same day don't spam the file)
+# every time this script runs — cheap, and avoids re-mining full git history
+# on every CI invocation. The first time a cache file doesn't exist yet, a
+# bounded backfill mines existing git history (one commit per calendar day,
+# capped at HISTORY_BACKFILL_MAX_DAYS days) so the chart isn't a single dot
+# the first time this feature ships; after that, backfill never runs again
+# for that file.
+
+HISTORY_MAX_POINTS = 365
+HISTORY_BACKFILL_MAX_DAYS = 90
+
+COVERAGE_HISTORY_PATH = REPO_ROOT / "outputs" / "reports" / "coverage_history.json"
+RULE_GROWTH_HISTORY_PATH = REPO_ROOT / "outputs" / "reports" / "rule_growth_history.json"
+
+
+def _git(args: list[str], input_text: str | None = None) -> str:
+    """Runs git in REPO_ROOT, returns stdout ('' on any failure).
+
+    Best-effort by design: history mining is a nice-to-have dashboard feature,
+    never worth failing the whole stats build over (e.g. shallow clones,
+    missing git binary, non-repo checkouts in some CI contexts)."""
+    try:
+        result = subprocess.run(
+            ["git", *args], cwd=REPO_ROOT, capture_output=True, text=True,
+            input=input_text, timeout=60,
+        )
+        return result.stdout if result.returncode == 0 else ""
+    except Exception:
+        return ""
+
+
+def _commits_touching(path: str, max_commits: int = 500) -> list[tuple[str, str]]:
+    """Returns [(sha, author_iso_date)] newest-first for commits touching `path`."""
+    out = _git(["log", "--format=%H,%aI", "-n", str(max_commits), "--", path])
+    commits: list[tuple[str, str]] = []
+    for line in out.splitlines():
+        sha, _, iso = line.partition(",")
+        sha, iso = sha.strip(), iso.strip()
+        if sha and iso:
+            commits.append((sha, iso))
+    return commits
+
+
+def _one_commit_per_day(
+    commits: list[tuple[str, str]], max_days: int
+) -> list[tuple[str, str, str]]:
+    """De-dupes newest-first commits to the single most-recent commit per
+    calendar day, bounded to `max_days` days, returned oldest-first (the
+    order charts want to plot in)."""
+    seen: set[str] = set()
+    picked: list[tuple[str, str, str]] = []
+    for sha, iso in commits:
+        day = iso[:10]
+        if day in seen:
+            continue
+        seen.add(day)
+        picked.append((sha, iso, day))
+        if len(picked) >= max_days:
+            break
+    picked.reverse()
+    return picked
+
+
+def _load_history(path: Path, key: str) -> list[dict]:
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        points = data.get(key, [])
+        return points if isinstance(points, list) else []
+    except Exception:
+        return []
+
+
+def _save_history(path: Path, key: str, points: list[dict]) -> None:
+    if len(points) > HISTORY_MAX_POINTS:
+        points = points[-HISTORY_MAX_POINTS:]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({key: points}, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+
+
+def _append_or_replace_today(points: list[dict], new_point: dict) -> list[dict]:
+    """Appends a new point, unless the last stored point is already today's
+    (a re-run on the same day updates in place instead of duplicating)."""
+    if points and points[-1].get("date") == new_point["date"]:
+        points[-1] = new_point
+    else:
+        points.append(new_point)
+    return points
+
+
+def _backfill_stats_history() -> tuple[list[dict], list[dict]]:
+    """One-time backfill (only runs while both cache files are still absent)
+    for coverage + rule-growth history, mined from historical
+    outputs/reports/stats.json commits — a single small JSON file, so one
+    `git show` per sampled day is cheap even across ~100+ commits."""
+    coverage_points: list[dict] = []
+    growth_points: list[dict] = []
+    commits = _commits_touching("outputs/reports/stats.json", max_commits=500)
+    sampled = _one_commit_per_day(commits, HISTORY_BACKFILL_MAX_DAYS)
+    for sha, iso, day in sampled:
+        raw = _git(["show", f"{sha}:outputs/reports/stats.json"])
+        if not raw:
+            continue
+        try:
+            data = json.loads(raw)
+        except Exception:
+            continue
+        coverage_points.append({
+            "date": day,
+            "timestamp": iso,
+            "git_sha": sha,
+            "mitre_covered_techniques": data.get("mitre_covered_techniques", 0),
+            "mitre_total_techniques": data.get("mitre_total_techniques", 0),
+            "mitre_coverage_pct": data.get("mitre_coverage_pct", 0),
+        })
+        # total_native_spl_rules is the genuinely-native-SPL count (excludes
+        # Sigma-converted .sigma.spl files) — total_splunk_rules is the mixed
+        # total and was a bug when used here (see update_trend_history()).
+        # Older stats.json commits predating this field will fall back to 0.
+        growth_points.append({
+            "date": day,
+            "timestamp": iso,
+            "git_sha": sha,
+            "total_rules": data.get("total_rules", 0),
+            "total_sigma_rules": data.get("total_sigma_rules", 0),
+            "total_native_spl_rules": data.get("total_native_spl_rules", 0),
+        })
+    return coverage_points, growth_points
+
+
+def update_trend_history(stats: dict) -> tuple[list[dict], list[dict]]:
+    """Appends today's data point to each of the 2 history caches (backfilling
+    from git history first if a cache file doesn't exist yet), writes the
+    caches back to disk, and returns (coverage_points, growth_points) for
+    rendering into the Dashboards charts."""
+    now_iso = datetime.now(timezone.utc).isoformat()
+    today = now_iso[:10]
+    current_sha = _git(["rev-parse", "HEAD"]).strip()
+
+    coverage_points = _load_history(COVERAGE_HISTORY_PATH, "points")
+    growth_points = _load_history(RULE_GROWTH_HISTORY_PATH, "points")
+    if not coverage_points and not growth_points:
+        coverage_points, growth_points = _backfill_stats_history()
+
+    coverage_points = _append_or_replace_today(coverage_points, {
+        "date": today,
+        "timestamp": now_iso,
+        "git_sha": current_sha,
+        "mitre_covered_techniques": stats.get("mitre_covered_techniques", 0),
+        "mitre_total_techniques": stats.get("mitre_total_techniques", 0),
+        "mitre_coverage_pct": stats.get("mitre_coverage_pct", 0),
+    })
+    growth_points = _append_or_replace_today(growth_points, {
+        "date": today,
+        "timestamp": now_iso,
+        "git_sha": current_sha,
+        "total_rules": stats.get("total_rules", 0),
+        "total_sigma_rules": stats.get("total_sigma_rules", 0),
+        "total_native_spl_rules": stats.get("total_native_spl_rules", 0),
+    })
+    _save_history(COVERAGE_HISTORY_PATH, "points", coverage_points)
+    _save_history(RULE_GROWTH_HISTORY_PATH, "points", growth_points)
+
+    return coverage_points, growth_points
+
 
 def generate_stats() -> dict:
     sigma_rules = load_sigma_rules()
@@ -768,7 +944,7 @@ def generate_stats() -> dict:
     mitre_pct = round(covered_count / mitre_total * 100, 1) if mitre_total > 0 else 0.0
     now_iso = datetime.now(timezone.utc).isoformat()
 
-    return {
+    result = {
         "generated_at": now_iso,
         "total_rules": total_rules,
         "total_sigma_rules": total_sigma,
@@ -791,6 +967,17 @@ def generate_stats() -> dict:
         "_technique_map": technique_map,
         "_rules_detail": rules_detail,
     }
+
+    # Dashboards "Trends Over Time" section — see update_trend_history()
+    # docstring for the git-history-backed caching approach. Kept private
+    # (not written to stats.json): these are raw per-day arrays meant only
+    # for the Chart.js dashboard, not the shields.io badge consumers of
+    # stats.json.
+    coverage_history, growth_history = update_trend_history(result)
+    result["_coverage_history"] = coverage_history
+    result["_rule_growth_history"] = growth_history
+
+    return result
 
 
 def render_readme_section(stats: dict, repo: str) -> str:
@@ -978,15 +1165,10 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     a { color: var(--accent); text-decoration: none; }
     a:hover { text-decoration: underline; }
 
-    /* ── Stats strip / collapsible stats bar ── */
-    .stats-wrap {
+    /* ── Top strip: brand + tab bar ── */
+    .stats-strip {
       flex-shrink: 0;
       z-index: 100;
-      background: var(--bg);
-      border-bottom: 1px solid var(--border2);
-    }
-
-    .stats-strip {
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -1052,111 +1234,6 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .tab-pane { display: none; flex: 1; min-height: 0; overflow-y: auto; }
     .tab-pane.active { display: block; }
     #tab-rules.active { display: flex; flex-direction: column; }
-
-    .stats-toggle {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      height: 28px;
-      padding: 0 12px;
-      background: transparent;
-      border: 1px solid var(--border2);
-      border-radius: var(--radius);
-      color: var(--text2);
-      font-size: 12px;
-      font-family: var(--font-ui);
-      cursor: pointer;
-      transition: all 0.12s;
-      flex-shrink: 0;
-    }
-
-    .stats-toggle:hover { border-color: #ffaa00; color: #ffaa00; box-shadow: 0 0 0 2px rgba(255,170,0,0.14); }
-    .stats-toggle svg { width: 12px; height: 12px; transition: transform 0.18s; stroke: currentColor; fill: none; }
-    .stats-wrap.open .stats-toggle svg { transform: rotate(180deg); }
-
-    .stats-bar {
-      display: flex;
-      align-items: stretch;
-      gap: 0;
-      padding: 0 18px;
-      background: var(--bg2);
-      border-bottom: 0 solid var(--border);
-      flex-wrap: wrap;
-      max-height: 0;
-      opacity: 0;
-      overflow: hidden;
-      transition: max-height 0.18s ease, padding 0.18s ease, opacity 0.15s ease, border-bottom-width 0.18s ease;
-    }
-
-    .stats-wrap.open .stats-bar {
-      max-height: 220px;
-      opacity: 1;
-      padding: 10px 18px;
-      border-bottom-width: 1px;
-    }
-
-    .stat-block {
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-      padding: 0 18px;
-      border-right: 1px solid var(--border);
-      justify-content: center;
-      min-width: 0;
-    }
-
-    .stat-block:first-child { padding-left: 0; }
-    .stat-block:last-child { border-right: none; }
-
-    .stat-block-title {
-      font-size: 9px;
-      font-weight: 700;
-      letter-spacing: 0.7px;
-      text-transform: uppercase;
-      color: var(--text3);
-      white-space: nowrap;
-    }
-
-    .stat-big { display: flex; align-items: baseline; gap: 5px; }
-
-    .stat-big .num {
-      font-size: 20px;
-      font-weight: 700;
-      font-family: var(--font);
-      line-height: 1;
-    }
-
-    .stat-big .unit { font-size: 11px; color: var(--text3); }
-
-    .stat-bar {
-      display: flex;
-      height: 6px;
-      width: 100%;
-      min-width: 150px;
-      border-radius: 3px;
-      overflow: hidden;
-      background: var(--bg4);
-    }
-
-    .stat-bar-seg { height: 100%; transition: opacity 0.1s; }
-    .stat-bar-seg:hover { opacity: 0.75; }
-
-    .stat-legend { display: flex; gap: 10px; flex-wrap: wrap; }
-
-    .stat-legend-item {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 10px;
-      color: var(--text2);
-      white-space: nowrap;
-    }
-
-    .stat-legend-item .ldot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-    .stat-legend-item .lpct { font-family: var(--font); font-weight: 600; color: var(--text); }
-
-    .stat-pct { font-size: 22px; font-weight: 700; font-family: var(--font); line-height: 1; }
-    .stat-sub { font-size: 10px; color: var(--text3); white-space: nowrap; }
 
     /* ── Layout ── */
     .main { display: flex; flex: 1; min-height: 0; }
@@ -1883,21 +1960,108 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     ::-webkit-scrollbar-corner { background: transparent; }
 
     /* Dashboards */
-    .dashboard-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(380px, 1fr)); gap:16px; margin:16px 20px; }
+    #tab-dashboards { padding: 16px 20px 20px; }
+    .dash-section { background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius-lg); padding:18px; }
+    .dash-section + .dash-section { margin-top:16px; }
+    .dash-section-title { font-size:12px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:var(--text2); margin-bottom:14px; }
+    .dash-section-grid { display:grid; gap:16px; }
+    .dash-section-grid-4 { grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); }
+    .dash-section-grid-mitre { grid-template-columns: minmax(300px, 400px) minmax(360px, 1fr); }
+    @media (max-width: 900px) {
+      .dash-section-grid-mitre { grid-template-columns: 1fr; }
+    }
     .chart-card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius-lg); padding:20px; display:flex; flex-direction:column; gap:12px; }
     .chart-card-title { font-size:13px; font-weight:700; color:var(--text); letter-spacing:-0.1px; }
     .chart-card-canvas-wrap { position:relative; height:300px; }
     .gauge-canvas-wrap { height:260px; }
-    .gauge-overlay { position:absolute; left:50%; top:56%; transform:translate(-50%, -18%); width:80%; text-align:center; pointer-events:none; }
-    .gauge-overlay-title { font-size:13px; font-weight:700; color:#FFAA00; margin-bottom:6px; }
+    .gauge-overlay { position:absolute; left:50%; top:62%; transform:translate(-50%, -12%); width:70%; text-align:center; pointer-events:none; }
+    .gauge-overlay-title { font-size:15px; font-weight:700; color:#FFAA00; margin-bottom:6px; }
     .gauge-pct { font-size:34px; font-weight:800; color:#FFAA00; line-height:1.1; }
     .gauge-frac { font-size:12px; color:#e6edf3; margin-top:2px; }
     .severity-card-body { display:flex; align-items:center; gap:14px; flex:1; min-height:0; }
-    .severity-canvas-wrap { flex:1 1 auto; height:100%; min-width:0; }
+    /* Fixed (not height:100%-of-flex-fill) so the doughnut/column tiles are
+       compact and don't inherit a tall flex-stretched box with a lot of
+       empty space around a width-constrained circle. Also used by Rule
+       Type's stacked-column canvas (reused verbatim), so enlarging this one
+       value both enlarges the doughnuts AND keeps Rule Type's height in
+       sync with them automatically. 196px (was 180px) — measured with
+       Playwright that the ring is WIDTH-constrained (canvas ~136x180, so
+       width is the binding dimension for radius), and a little extra height
+       gives the hoverOffset pop-out more room on the vertical axis too. */
+    .severity-canvas-wrap { flex:1 1 auto; height:196px; min-width:0; }
     .sev-legend { display:flex; flex-direction:column; gap:9px; flex-shrink:0; }
-    .sev-legend-item { display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12px; color:#e6edf3; user-select:none; }
+    .sev-legend-item { display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; color:#e6edf3; user-select:none; }
     .sev-legend-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; transition:opacity .15s; }
     .sev-legend-item.off .sev-legend-dot { opacity:0.25; }
+
+    /* Status, Verification and Rule Type reuse Severity's exact doughnut/
+       column-tile markup (.severity-card-body / .severity-canvas-wrap /
+       .sev-legend) so their canvas box is byte-for-byte identical to
+       Severity's. A legend's width is otherwise content-derived (sized to
+       its own longest currently-visible label), so with 4 different label
+       sets (Severity, Status, Verification, Rule Type) each legend could
+       organically resolve to a different width, which skews the sibling
+       canvas-wrap's remaining width and therefore the doughnut's actual
+       rendered diameter — measured with Playwright: Severity's real
+       unconstrained legend width was 64.25px (only Critical/High/Medium/Low
+       shown) while the other three were pinned to 124px, a ~60px real
+       canvas-width discrepancy. Fix: pin ALL FOUR legends (including
+       #sev-legend, no special case) to one shared explicit width, sized to
+       fit the longest realistically-occurring label ("Experimental",
+       measured ~93.9px natural width) plus a small buffer. */
+    #sev-legend, #status-legend, #verify-legend, #source-legend { width: 96px; }
+
+    /* Verification — doughnut + center pass-rate overlay + side legend.
+       Canvas-wrap height matches .severity-canvas-wrap exactly (180px) so
+       the doughnut is the same size as Severity's/Status's. cutout is now
+       55% too (unified, was 70%) — with the enlarged radius (95%, see JS)
+       the inner hollow is still comfortably big enough for the overlay
+       text, but the overlay font-size/width were trimmed slightly (28px
+       to 22px, 80% to 72% width) as a safety margin so the text never
+       crowds the ring at the smaller cutout. */
+    .verify-card-body { display:flex; align-items:center; gap:14px; flex:1; min-height:0; }
+    .verify-canvas-wrap { flex:1 1 auto; height:196px; min-width:0; }
+    .verify-overlay { position:absolute; left:50%; top:50%; transform:translate(-50%, -50%); width:68%; text-align:center; pointer-events:none; }
+    .verify-overlay-pct { font-size:20px; font-weight:800; color:var(--text); line-height:1.1; }
+    .verify-overlay-label { font-size:8px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:var(--text3); margin-top:2px; }
+    .verify-legend { display:flex; flex-direction:column; gap:9px; flex-shrink:0; }
+    .verify-legend-item { display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; color:#e6edf3; user-select:none; }
+    .verify-legend-item .vdot { width:10px; height:10px; border-radius:50%; flex-shrink:0; transition:opacity .15s; }
+    .verify-legend-item.off .vdot { opacity:0.25; }
+
+    /* Trends Over Time — line/area/bar tiles, plain (non-flex-body) canvas
+       wraps like Rules per Tactic / Coverage gauge above, no snap-to-integer
+       fix needed (that bug is specific to the doughnut controller). */
+    .trend-legend { display:flex; flex-wrap:wrap; justify-content:center; gap:16px; }
+    .trend-empty {
+      position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+      text-align:center; padding:0 24px; color:var(--text3); font-size:12.5px; line-height:1.5;
+    }
+
+    /* Trend range bar — one shared row above both trend charts (a filter row
+       scopes everything below it, never lives per-card/per-chart). Styled to
+       match the Rule Tracker's Export button (.export-btn) exactly — same
+       chrome family, so it reads as "a control of this dashboard" rather
+       than a one-off widget: transparent fill, var(--border2) hairline,
+       var(--radius) corners, gold hover/selected state. A year <select>
+       only makes sense — and so only appears — once a granularity that
+       needs one (Quarterly/Monthly) is active; Yearly/All show every year
+       at once, so the picker would be a control with nothing to do. */
+    .trend-range-bar { display:flex; align-items:center; gap:10px; margin:-6px 0 14px; flex-wrap:wrap; }
+    .trend-gran-group { display:flex; gap:6px; flex-shrink:0; }
+    .trend-gran-btn {
+      height:28px; padding:0 12px; background:transparent; border:1px solid var(--border2);
+      border-radius:var(--radius); color:var(--text2); font-size:12px; font-family:var(--font-ui);
+      cursor:pointer; transition:all 0.1s;
+    }
+    .trend-gran-btn:hover { border-color:#ffaa00; color:#ffaa00; box-shadow:0 0 0 2px rgba(255,170,0,0.14); }
+    .trend-gran-btn.active { border-color:#ffaa00; color:#ffaa00; box-shadow:0 0 0 2px rgba(255,170,0,0.14); }
+    .trend-year-select {
+      height:28px; padding:0 10px; background:transparent; border:1px solid var(--border2);
+      border-radius:var(--radius); color:var(--text2); font-size:12px; font-family:var(--font-ui);
+      cursor:pointer; transition:all 0.1s;
+    }
+    .trend-year-select:hover { border-color:#ffaa00; color:#ffaa00; box-shadow:0 0 0 2px rgba(255,170,0,0.14); }
 
     /* MITRE Navigator */
     .nav-wrap { background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:16px; margin:16px 20px; }
@@ -1991,28 +2155,29 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .sev-tip-count { font-size:11px; font-weight:700; color:#e6edf3; margin-top:2px; }
     .sev-tip-pct { font-size:9px; color:#8b949e; margin-top:1px; }
 
+    /* Trend chart tooltips (Coverage/Growth) — no date title (the crosshair
+       already pins the reader to an x-position; the chosen granularity's
+       axis label under the cursor already names the point), just the 2
+       value rows, sized up a step from .sev-tip-count/-pct since there's no
+       title line to carry visual weight instead. */
+    .trend-tip-primary { font-weight:700; font-size:13px; color:#e6edf3; }
+    .trend-tip-secondary { font-size:10px; color:#8b949e; margin-top:2px; }
+
   </style>
 </head>
 <body>
-  <div class="stats-wrap" id="stats-wrap">
-    <div class="stats-strip">
-      <div class="strip-brand">
-        <span class="strip-title">Detection Rule Tracker</span>
-        <span class="strip-sep"></span>
-        <span class="strip-total" id="strip-total"></span>
-        <span class="strip-sep"></span>
-        <div class="tab-bar">
-          <button class="tab-btn active" data-tab="rules">Rule Tracker</button>
-          <button class="tab-btn" data-tab="navigator">MITRE Navigator</button>
-          <button class="tab-btn" data-tab="dashboards">Dashboards</button>
-        </div>
+  <div class="stats-strip">
+    <div class="strip-brand">
+      <span class="strip-title">Detection Rule Tracker</span>
+      <span class="strip-sep"></span>
+      <span class="strip-total" id="strip-total"></span>
+      <span class="strip-sep"></span>
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="rules">Rule Tracker</button>
+        <button class="tab-btn" data-tab="navigator">MITRE Navigator</button>
+        <button class="tab-btn" data-tab="dashboards">Dashboards</button>
       </div>
-      <button class="stats-toggle" id="stats-toggle" onclick="toggleStats()" title="Show/hide stats">
-        <span>Stats</span>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-      </button>
     </div>
-    <div class="stats-bar" id="stats-bar"></div>
   </div>
 
   <div id="tab-rules" class="tab-pane active">
@@ -2093,31 +2258,99 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   </div>
 
   <div id="tab-dashboards" class="tab-pane">
-    <div class="dashboard-grid">
-      <div class="chart-card">
-        <div class="chart-card-title">MITRE ATT&amp;CK Coverage</div>
-        <div class="chart-card-canvas-wrap gauge-canvas-wrap">
-          <canvas id="chart-coverage" aria-label="Half-doughnut gauge showing MITRE ATT&amp;CK technique coverage: @@MITRE_PCT@@%, @@MITRE_COVERED@@ of @@MITRE_TOTAL@@ techniques" role="img"></canvas>
-          <div class="gauge-overlay">
-            <div class="gauge-overlay-title">MITRE ATT&amp;CK Coverage</div>
-            <div class="gauge-pct">@@MITRE_PCT@@%</div>
-            <div class="gauge-frac">@@MITRE_COVERED@@ / @@MITRE_TOTAL@@</div>
+    <div class="dash-section">
+      <div class="dash-section-title">Rule Overview</div>
+      <div class="dash-section-grid dash-section-grid-4">
+        <div class="chart-card">
+          <div class="chart-card-title">Rule Type</div>
+          <div class="severity-card-body">
+            <div class="chart-card-canvas-wrap severity-canvas-wrap">
+              <canvas id="chart-source" aria-label="Stacked column chart showing the number of Sigma rules versus Native SPL rules" role="img"></canvas>
+            </div>
+            <div class="sev-legend" id="source-legend"></div>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-title">Rules by Severity</div>
+          <div class="severity-card-body">
+            <div class="chart-card-canvas-wrap severity-canvas-wrap">
+              <canvas id="chart-severity" aria-label="Doughnut chart showing rule counts broken down by severity level" role="img"></canvas>
+            </div>
+            <div class="sev-legend" id="sev-legend"></div>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-title">Status</div>
+          <div class="severity-card-body">
+            <div class="chart-card-canvas-wrap severity-canvas-wrap">
+              <canvas id="chart-status" aria-label="Doughnut chart showing rule counts broken down by status" role="img"></canvas>
+            </div>
+            <div class="sev-legend" id="status-legend"></div>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-title">Verification</div>
+          <div class="verify-card-body">
+            <div class="chart-card-canvas-wrap verify-canvas-wrap">
+              <canvas id="chart-verify" aria-label="Doughnut chart showing rule verification breakdown: pass, fail, not verified — overall pass rate @@PASS_RATE@@%" role="img"></canvas>
+              <div class="verify-overlay">
+                <div class="verify-overlay-pct">@@PASS_RATE@@%</div>
+                <div class="verify-overlay-label">Pass Rate</div>
+              </div>
+            </div>
+            <div class="verify-legend" id="verify-legend"></div>
           </div>
         </div>
       </div>
-      <div class="chart-card">
-        <div class="chart-card-title">Rules by Severity</div>
-        <div class="severity-card-body">
-          <div class="chart-card-canvas-wrap severity-canvas-wrap">
-            <canvas id="chart-severity" aria-label="Doughnut chart showing rule counts broken down by severity level" role="img"></canvas>
+    </div>
+
+    <div class="dash-section">
+      <div class="dash-section-title">MITRE ATT&amp;CK Alignment</div>
+      <div class="dash-section-grid dash-section-grid-mitre">
+        <div class="chart-card">
+          <div class="chart-card-title">MITRE ATT&amp;CK Coverage</div>
+          <div class="chart-card-canvas-wrap gauge-canvas-wrap">
+            <canvas id="chart-coverage" aria-label="Half-doughnut gauge showing MITRE ATT&amp;CK technique coverage: @@MITRE_PCT@@%, @@MITRE_COVERED@@ of @@MITRE_TOTAL@@ techniques" role="img"></canvas>
+            <div class="gauge-overlay">
+              <div class="gauge-overlay-title">MITRE ATT&amp;CK Coverage</div>
+              <div class="gauge-pct">@@MITRE_PCT@@%</div>
+              <div class="gauge-frac">@@MITRE_COVERED@@ / @@MITRE_TOTAL@@</div>
+            </div>
           </div>
-          <div class="sev-legend" id="sev-legend"></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-title">Rules per MITRE ATT&amp;CK Tactic</div>
+          <div class="chart-card-canvas-wrap">
+            <canvas id="chart-tactics" aria-label="Horizontal bar chart showing rule counts per MITRE ATT&amp;CK tactic" role="img"></canvas>
+          </div>
         </div>
       </div>
-      <div class="chart-card">
-        <div class="chart-card-title">Rules per MITRE ATT&amp;CK Tactic</div>
-        <div class="chart-card-canvas-wrap">
-          <canvas id="chart-tactics" aria-label="Horizontal bar chart showing rule counts per MITRE ATT&amp;CK tactic" role="img"></canvas>
+    </div>
+
+    <div class="dash-section">
+      <div class="dash-section-title">Trends Over Time</div>
+      <div class="trend-range-bar">
+        <div class="trend-gran-group" id="trend-gran-group" role="group" aria-label="Trend chart time granularity">
+          <button type="button" class="trend-gran-btn active" data-granularity="all">All</button>
+          <button type="button" class="trend-gran-btn" data-granularity="yearly">Yearly</button>
+          <button type="button" class="trend-gran-btn" data-granularity="quarterly">Quarterly</button>
+          <button type="button" class="trend-gran-btn" data-granularity="monthly">Monthly</button>
+        </div>
+        <select class="trend-year-select" id="trend-year-select" aria-label="Year" style="display:none;"></select>
+      </div>
+      <div class="dash-section-grid dash-section-grid-4">
+        <div class="chart-card">
+          <div class="chart-card-title">MITRE ATT&amp;CK Coverage Over Time</div>
+          <div class="chart-card-canvas-wrap">
+            <canvas id="chart-coverage-trend" aria-label="Line chart showing MITRE ATT&amp;CK technique coverage percentage over time" role="img"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-title">Rule Count Growth</div>
+          <div class="chart-card-canvas-wrap">
+            <canvas id="chart-rule-growth" aria-label="Line chart showing Sigma rule count and Native SPL rule count as two independent series over time" role="img"></canvas>
+          </div>
+          <div class="trend-legend" id="growth-legend"></div>
         </div>
       </div>
     </div>
@@ -2164,6 +2397,8 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   const MITRE_COVERED = @@MITRE_COVERED@@;
   const MITRE_TOTAL = @@MITRE_TOTAL@@;
   const MITRE_PCT = @@MITRE_PCT@@;
+  const COVERAGE_HISTORY = @@COVERAGE_HISTORY_JSON@@;
+  const RULE_GROWTH_HISTORY = @@RULE_GROWTH_HISTORY_JSON@@;
 
   const SEV_HEX = { critical: '#a4133c', high: '#f85149', medium: '#fb923c', low: '#3fb950', informational: '#8b949e' };
   const STATUS_HEX = { stable: '#3fb950', test: '#d29922', experimental: '#388bfd', deprecated: '#8b949e' };
@@ -2179,12 +2414,86 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
   let dashboardChartsBuilt = false;
 
+  // Chart.js 4.5.1 has a confirmed bug (verified empirically, not from docs):
+  // if a chart's canvas container has a FRACTIONAL CSS pixel width/height at
+  // construction time (e.g. 136.5px — routine with CSS Grid's auto-fit
+  // column division), the doughnut controller's entrance animation
+  // (animateRotate/animateScale) is silently skipped entirely — the ring
+  // renders at its final state on the very first frame, with zero visible
+  // sweep or grow-in. Integer widths (136px, 137px) animate correctly; the
+  // exact same config differs ONLY in whether the measured size happens to
+  // be a whole number. Snapping each canvas-wrap's box to the nearest whole
+  // pixel via inline style, right before constructing its chart, avoids the
+  // bug. A resize listener re-snaps (and re-triggers Chart.js's own resize)
+  // so this doesn't freeze these tiles at their initial size if the window
+  // is resized later.
+  // Ids whose canvas-wrap is a flex-grow item (flex: 1 1 auto) inside a ROW
+  // flex container (.severity-card-body / .verify-card-body) — main axis is
+  // horizontal, so plain `style.width` is ignored because flex-grow
+  // recomputes the main-axis size regardless of any width set on the item.
+  // Disabling grow/shrink and fixing the flex-basis to the rounded width is
+  // what actually makes the rendered width an integer.
+  const ROW_FLEX_CANVAS_IDS = ['chart-severity', 'chart-status', 'chart-verify', 'chart-source'];
+
+  // Ids whose canvas-wrap (.chart-card-canvas-wrap, no row-flex modifier
+  // class) sits directly in a COLUMN flex container (.chart-card) — main
+  // axis there is vertical, so the wrap's width instead comes from
+  // align-items:stretch on the cross axis, which CSS Grid's auto-fit column
+  // division can just as easily leave fractional. Plain `style.width` isn't
+  // fought by flex-grow on this axis, so it's enough to pin it directly.
+  const COLUMN_FLEX_CANVAS_IDS = ['chart-coverage-trend', 'chart-rule-growth'];
+
+  function snapCanvasWrapsToIntegerSize() {
+    ROW_FLEX_CANVAS_IDS.forEach(id => {
+      const canvas = document.getElementById(id);
+      const wrap = canvas && canvas.parentElement;
+      if (!wrap) return;
+      const rect = wrap.getBoundingClientRect();
+      if (rect.width > 0) wrap.style.flex = '0 0 ' + Math.round(rect.width) + 'px';
+      if (rect.height > 0) wrap.style.height = Math.round(rect.height) + 'px';
+    });
+    COLUMN_FLEX_CANVAS_IDS.forEach(id => {
+      const canvas = document.getElementById(id);
+      const wrap = canvas && canvas.parentElement;
+      if (!wrap) return;
+      const rect = wrap.getBoundingClientRect();
+      if (rect.width > 0) wrap.style.width = Math.round(rect.width) + 'px';
+      if (rect.height > 0) wrap.style.height = Math.round(rect.height) + 'px';
+    });
+  }
+
+  let resizeSnapTimer = null;
+  window.addEventListener('resize', () => {
+    if (!dashboardChartsBuilt) return;
+    clearTimeout(resizeSnapTimer);
+    resizeSnapTimer = setTimeout(() => {
+      snapCanvasWrapsToIntegerSize();
+      [...ROW_FLEX_CANVAS_IDS, ...COLUMN_FLEX_CANVAS_IDS].forEach(id => {
+        const c = Chart.getChart(id);
+        if (c) c.resize();
+      });
+    }, 150);
+  });
+
   function buildDashboardCharts() {
     if (dashboardChartsBuilt || typeof Chart === 'undefined') return;
     dashboardChartsBuilt = true;
     if (window.ChartDataLabels) Chart.register(window.ChartDataLabels);
+    snapCanvasWrapsToIntegerSize();
 
     const animation = { duration: 700, easing: 'easeOutQuart' };
+    // Chart.js's doughnut/pie controller has two animation-specific toggles
+    // that are NOT part of the generic duration/easing config: `animateRotate`
+    // (default true — arcs sweep in) and `animateScale` (default FALSE — the
+    // ring does not grow from the center, it appears at full radius
+    // immediately and only the sweep plays). At the enlarged 95% radius used
+    // by Severity/Status/Verification, the sweep-only default reads as much
+    // less noticeable than the bar/gauge charts' size-change animations.
+    // Explicitly turning on animateScale gives these 3 doughnuts a visible
+    // "grow from center + sweep" reveal, matching the perceptible weight of
+    // the other charts. Not applied to the Coverage gauge below, which
+    // already animates visibly and isn't part of the reported issue.
+    const doughnutAnimation = { ...animation, animateScale: true };
 
     // MITRE ATT&CK Coverage — half-doughnut gauge
     new Chart(document.getElementById('chart-coverage'), {
@@ -2242,14 +2551,14 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
           backgroundColor: sevActive.map(lvl => LEVEL_COLORS[lvl]),
           borderColor: '#0d1117',
           borderWidth: 1,
-          hoverOffset: 18,
+          hoverOffset: 8,
         }],
       },
       options: {
         maintainAspectRatio: false,
         cutout: '55%',
         radius: '85%',
-        animation,
+        animation: doughnutAnimation,
         plugins: {
           legend: { display: false },
           tooltip: { enabled: false, external: (ctx) => externalChartTip(ctx, sevTotal) },
@@ -2276,6 +2585,13 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     RULES.forEach(r => (r.tactics || []).forEach(t => { tacticCounts[t] = (tacticCounts[t] || 0) + 1; }));
     const tacticEntries = Object.entries(tacticCounts).sort((a, b) => b[1] - a[1]);
     const tacticMax = tacticEntries.length ? tacticEntries[0][1] : 0;
+
+    // Row hover highlight for the tactic bars — a plain color tint on the
+    // hovered bar via Chart.js's built-in `hoverBackgroundColor`, no
+    // geometry/size change at all, so there is zero possibility of the
+    // highlight bleeding above/below the bar's own existing height (the
+    // earlier "grow" plugin drew an oversized highlight rect that could
+    // bleed into neighboring rows — replaced entirely, not just tuned down).
     new Chart(document.getElementById('chart-tactics'), {
       type: 'bar',
       data: {
@@ -2283,6 +2599,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
         datasets: [{
           data: tacticEntries.map(([, c]) => c),
           backgroundColor: '#FFAA00',
+          hoverBackgroundColor: '#ffc94d',
           borderColor: 'black',
           borderWidth: 0.5,
         }],
@@ -2296,7 +2613,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
         categoryPercentage: 0.85,
         scales: {
           x: { display: false, grid: { display: false }, suggestedMax: tacticMax * 1.2 },
-          y: { grid: { display: false }, ticks: { color: '#e6edf3', font: { size: 11 } } },
+          y: { grid: { display: false }, ticks: { color: '#e6edf3', font: { size: 13 } } },
         },
         plugins: {
           legend: { display: false },
@@ -2305,6 +2622,494 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
         },
       },
     });
+
+    // Rule Type — a single column, stacked internally into a Sigma segment and
+    // a Native SPL segment. Sized to fill 85% of its plot box on both axes —
+    // the same 85% fill proportion as the doughnuts' `radius: '85%'` — so the
+    // column reads at the same visual "weight" within its tile as the
+    // doughnuts do within theirs. Card markup (.severity-card-body /
+    // .severity-canvas-wrap / .sev-legend) is reused verbatim from Severity,
+    // so the margins around the plot — and now the overall canvas height too
+    // (196px) — are byte-for-byte the same as Severity's.
+    //
+    // This is a TRUE 100%-stacked column: the plotted values are always a
+    // percentage of whichever datasets are currently visible, recomputed on
+    // every legend toggle, so hiding one segment makes the other expand to
+    // fill the whole column rather than staying pinned to its original
+    // share of the full (both-visible) total. The underlying raw counts
+    // (sourceEntries) never change — only the plotted percentages do — so
+    // the tooltip can still look up and display the real counts.
+    const sourceCount = {};
+    RULES.forEach(r => { sourceCount[normKey(r.source)] = (sourceCount[normKey(r.source)] || 0) + 1; });
+    const sourceEntries = [
+      { label: 'Sigma', n: sourceCount['sigma'] || 0, color: SOURCE_HEX.sigma },
+      { label: 'Native SPL', n: sourceCount['nativespl'] || 0, color: SOURCE_HEX.nativespl },
+    ].filter(s => s.n > 0);
+    const sourceVisible = sourceEntries.map(() => true);
+
+    function sourceChartTip(ctx) {
+      const tip = document.getElementById('chart-tip');
+      const t = ctx.tooltip;
+      if (!t || t.opacity === 0) { tip.style.display = 'none'; return; }
+      const dp = t.dataPoints && t.dataPoints[0];
+      if (dp) {
+        const entry = sourceEntries[dp.datasetIndex];
+        const value = entry ? entry.n : 0;
+        const pctVal = Math.round(dp.raw); // the percentage actually plotted (of the visible total)
+        tip.innerHTML =
+          '<div class="sev-tip-title">' + dp.dataset.label + '</div>' +
+          '<div class="sev-tip-count">' + value + ' pcs</div>' +
+          '<div class="sev-tip-pct">(' + pctVal + '%)</div>';
+      }
+      const rect = ctx.chart.canvas.getBoundingClientRect();
+      tip.style.display = 'block';
+      tip.style.left = (rect.left + t.caretX) + 'px';
+      tip.style.top = (rect.top + t.caretY) + 'px';
+    }
+
+    const sourceChart = new Chart(document.getElementById('chart-source'), {
+      type: 'bar',
+      data: {
+        labels: [''],
+        datasets: sourceEntries.map(s => ({
+          label: s.label,
+          data: [0], // recomputed to real percentages immediately below
+          backgroundColor: s.color,
+          borderColor: '#0d1117',
+          borderWidth: 1,
+        })),
+      },
+      options: {
+        maintainAspectRatio: false,
+        animation,
+        categoryPercentage: 0.85, // same 85% fill fraction as the doughnuts' radius
+        barPercentage: 1,
+        scales: {
+          x: { stacked: true, display: false, grid: { display: false } },
+          y: { stacked: true, display: false, grid: { display: false }, min: 0, max: 100 / 0.85 },
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: { enabled: false, external: (ctx) => sourceChartTip(ctx) },
+          datalabels: { display: false },
+        },
+      },
+    });
+
+    // Recompute every dataset's plotted value as a percentage of the sum of
+    // currently-visible datasets' real counts, so the visible segment(s)
+    // always add up to exactly 100% of the column — a true 100%-stacked
+    // chart, not a fixed scale based on the (both-visible) grand total.
+    function recomputeSourceStack() {
+      const visibleTotal = sourceEntries.reduce((s, e, i) => s + (sourceVisible[i] ? e.n : 0), 0);
+      sourceChart.data.datasets.forEach((ds, i) => {
+        ds.hidden = !sourceVisible[i];
+        ds.data = [visibleTotal > 0 && sourceVisible[i] ? (sourceEntries[i].n / visibleTotal) * 100 : 0];
+      });
+      sourceChart.update();
+    }
+    recomputeSourceStack();
+
+    const sourceLegendEl = document.getElementById('source-legend');
+    sourceEntries.forEach((s, i) => {
+      const item = document.createElement('div');
+      item.className = 'sev-legend-item';
+      item.innerHTML = '<span class="sev-legend-dot" style="background:' + s.color + '"></span>' + escHtml(s.label);
+      item.addEventListener('click', () => {
+        sourceVisible[i] = !sourceVisible[i];
+        recomputeSourceStack();
+        item.classList.toggle('off', !sourceVisible[i]);
+      });
+      sourceLegendEl.appendChild(item);
+    });
+
+    // Status — doughnut + custom HTML legend, built identically to Rules by
+    // Severity (same interaction, same legend format: dot + name, no numbers).
+    const statusOrder = ['stable', 'test', 'experimental', 'deprecated'];
+    const STATUS_DISPLAY = { stable: 'Stable', test: 'Test', experimental: 'Experimental', deprecated: 'Deprecated' };
+    const statusCount = {};
+    RULES.forEach(r => { const k = (r.status || '').toLowerCase(); if (k) statusCount[k] = (statusCount[k] || 0) + 1; });
+    const statusActive = statusOrder.filter(k => statusCount[k] > 0);
+    const statusTotal = statusActive.reduce((s, k) => s + statusCount[k], 0);
+    const statusChart = new Chart(document.getElementById('chart-status'), {
+      type: 'doughnut',
+      data: {
+        labels: statusActive.map(k => STATUS_DISPLAY[k]),
+        datasets: [{
+          data: statusActive.map(k => statusCount[k]),
+          backgroundColor: statusActive.map(k => STATUS_HEX[k] || '#4d5866'),
+          borderColor: '#0d1117',
+          borderWidth: 1,
+          hoverOffset: 8,
+        }],
+      },
+      options: {
+        maintainAspectRatio: false,
+        cutout: '55%',
+        radius: '85%',
+        animation: doughnutAnimation,
+        plugins: {
+          legend: { display: false },
+          tooltip: { enabled: false, external: (ctx) => externalChartTip(ctx, statusTotal) },
+          datalabels: { display: false },
+        },
+      },
+    });
+
+    const statusLegendEl = document.getElementById('status-legend');
+    statusActive.forEach((k, i) => {
+      const item = document.createElement('div');
+      item.className = 'sev-legend-item';
+      item.innerHTML = '<span class="sev-legend-dot" style="background:' + (STATUS_HEX[k] || '#4d5866') + '"></span>' + STATUS_DISPLAY[k];
+      item.addEventListener('click', () => {
+        statusChart.toggleDataVisibility(i);
+        statusChart.update();
+        item.classList.toggle('off', !statusChart.getDataVisibility(i));
+      });
+      statusLegendEl.appendChild(item);
+    });
+
+    // Verification — doughnut with center Pass Rate overlay + side legend (status palette: good/critical/neutral)
+    const verifySegs = [
+      { label: 'Pass', n: PASS_COUNT, color: '#3fb950' },
+      { label: 'Fail', n: FAIL_COUNT, color: '#f85149' },
+      { label: 'Not Verified', n: NOTVER_COUNT, color: '#8b949e' },
+    ].filter(s => s.n > 0);
+    const verifyTotal = verifySegs.reduce((s, x) => s + x.n, 0);
+    const verifyChart = new Chart(document.getElementById('chart-verify'), {
+      type: 'doughnut',
+      data: {
+        labels: verifySegs.map(s => s.label),
+        datasets: [{
+          data: verifySegs.map(s => s.n),
+          backgroundColor: verifySegs.map(s => s.color),
+          borderColor: '#0d1117',
+          borderWidth: 1,
+          hoverOffset: 8,
+        }],
+      },
+      options: {
+        maintainAspectRatio: false,
+        cutout: '55%',
+        radius: '85%',
+        animation: doughnutAnimation,
+        plugins: {
+          legend: { display: false },
+          tooltip: { enabled: false, external: (ctx) => externalChartTip(ctx, verifyTotal) },
+          datalabels: { display: false },
+        },
+      },
+    });
+
+    const verifyLegendEl = document.getElementById('verify-legend');
+    verifySegs.forEach((s, i) => {
+      const item = document.createElement('div');
+      item.className = 'verify-legend-item';
+      item.innerHTML = '<span class="vdot" style="background:' + s.color + '"></span>' + escHtml(s.label);
+      item.addEventListener('click', () => {
+        verifyChart.toggleDataVisibility(i);
+        verifyChart.update();
+        item.classList.toggle('off', !verifyChart.getDataVisibility(i));
+      });
+      verifyLegendEl.appendChild(item);
+    });
+
+    // ── Trends Over Time ──────────────────────────────────────────────────
+    // Shared date formatter + empty-state helper for the 2 history-backed
+    // charts below. History is only as deep as the incrementally-updated
+    // outputs/reports/*_history.json caches (see generate_stats.py's
+    // update_trend_history()) — a brand-new checkout may have just 1-2
+    // points, which these charts render fine (a single dot / short line)
+    // rather than erroring.
+    function formatTrendDate(iso) {
+      const d = new Date(iso + 'T00:00:00Z');
+      if (isNaN(d.getTime())) return iso;
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    }
+
+    function clearTrendEmptyState(canvasId) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      canvas.style.display = '';
+      const wrap = canvas.parentElement;
+      const note = wrap && wrap.querySelector('.trend-empty');
+      if (note) note.remove();
+    }
+
+    function trendEmptyState(canvasId, message) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      clearTrendEmptyState(canvasId);
+      canvas.style.display = 'none';
+      const note = document.createElement('div');
+      note.className = 'trend-empty';
+      note.textContent = message;
+      canvas.parentElement.appendChild(note);
+    }
+
+    function trendPointTip(ctx, points, formatBody) {
+      const tip = document.getElementById('chart-tip');
+      const t = ctx.tooltip;
+      if (!t || t.opacity === 0) { tip.style.display = 'none'; return; }
+      const dp = t.dataPoints && t.dataPoints[0];
+      if (dp) tip.innerHTML = formatBody(points[dp.dataIndex]);
+      const rect = ctx.chart.canvas.getBoundingClientRect();
+      tip.style.display = 'block';
+      tip.style.left = (rect.left + t.caretX) + 'px';
+      tip.style.top = (rect.top + t.caretY) + 'px';
+    }
+
+    // ── Time-range bucketing (Yearly / Quarterly / Monthly / All) ──────────
+    // Both history caches store one raw point per day (see
+    // update_trend_history() in generate_stats.py). Over a multi-year
+    // project that grows into thousands of points, which is exactly what
+    // "All" is for — everyone else drills down to a coarser grain so the
+    // chart stays a handful of ticks instead of an unreadable comb. Each
+    // point is a snapshot/cumulative total (not a per-period delta), so
+    // "bucketing" always means "keep the chronologically LAST point in the
+    // period", never sum/average — that's what the underlying values mean
+    // (e.g. total rule count as of that day).
+    const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const QUARTER_LABELS = ['Q1', 'Q2', 'Q3', 'Q4'];
+
+    function trendPointYear(iso) { return parseInt(iso.slice(0, 4), 10); }
+    function trendPointMonth(iso) { return parseInt(iso.slice(5, 7), 10); }
+    function trendPointQuarter(iso) { return Math.ceil(trendPointMonth(iso) / 3); }
+
+    function trendAvailableYears() {
+      const years = new Set();
+      COVERAGE_HISTORY.forEach(p => years.add(trendPointYear(p.date)));
+      RULE_GROWTH_HISTORY.forEach(p => years.add(trendPointYear(p.date)));
+      return [...years].sort((a, b) => a - b);
+    }
+
+    function bucketTrendPoints(points, granularity, year) {
+      if (!points.length) return [];
+      if (granularity === 'yearly') {
+        const byYear = new Map();
+        points.forEach(p => byYear.set(trendPointYear(p.date), p)); // points are date-ascending, so last write wins
+        return [...byYear.entries()].sort((a, b) => a[0] - b[0]).map(([y, p]) => ({ ...p, _bucketLabel: String(y) }));
+      }
+      if (granularity === 'quarterly' || granularity === 'monthly') {
+        const inYear = points.filter(p => trendPointYear(p.date) === year);
+        const byBucket = new Map();
+        inYear.forEach(p => {
+          const key = granularity === 'quarterly' ? trendPointQuarter(p.date) : trendPointMonth(p.date);
+          byBucket.set(key, p);
+        });
+        const labels = granularity === 'quarterly' ? QUARTER_LABELS : MONTH_LABELS;
+        return [...byBucket.entries()].sort((a, b) => a[0] - b[0]).map(([i, p]) => ({ ...p, _bucketLabel: labels[i - 1] }));
+      }
+      // 'all' — every raw point, at full daily resolution.
+      return points.map(p => ({ ...p, _bucketLabel: formatTrendDate(p.date) }));
+    }
+
+    // MITRE ATT&CK Coverage Over Time — single-series line/area. Uses the
+    // same accent gold as the Coverage gauge and Tactics bar above, so color
+    // keeps meaning "MITRE" consistently across the whole dashboard. Single
+    // series → no legend needed (the card title already names it).
+    function renderCoverageTrendChart(points) {
+      const prior = Chart.getChart('chart-coverage-trend');
+      if (prior) prior.destroy();
+      if (!points.length) {
+        trendEmptyState('chart-coverage-trend', 'History builds up as CI runs continue — check back soon.');
+        return;
+      }
+      clearTrendEmptyState('chart-coverage-trend');
+      new Chart(document.getElementById('chart-coverage-trend'), {
+        type: 'line',
+        data: {
+          labels: points.map(p => p._bucketLabel),
+          datasets: [{
+            label: 'Coverage %',
+            data: points.map(p => p.mitre_coverage_pct),
+            borderColor: '#FFAA00',
+            backgroundColor: 'rgba(255,170,0,0.1)',
+            fill: true,
+            borderWidth: 2,
+            tension: 0.25,
+            pointRadius: points.length > 1 ? 0 : 4,
+            pointHoverRadius: 5,
+            pointHitRadius: 12,
+            pointBackgroundColor: '#FFAA00',
+            pointBorderColor: '#0d1117',
+            pointBorderWidth: 2,
+          }],
+        },
+        options: {
+          maintainAspectRatio: false,
+          animation,
+          // The entrance/rebuild animation above (700ms, easeOutQuart) should
+          // NOT also govern the per-hover active-point transition — Chart.js
+          // otherwise reuses `animation`'s duration for the hover-triggered
+          // "move the highlighted point" transition too, which is why the
+          // previous position's dot used to visibly linger/fade for ~700ms
+          // after the cursor had already moved on. Zeroing just the `active`
+          // transition makes the highlighted point snap immediately to the
+          // new nearest position, independent of the entrance animation.
+          transitions: { active: { animation: { duration: 0 } } },
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#8b949e', font: { size: 11 }, maxRotation: 0, autoSkip: true } },
+            y: {
+              grid: { color: 'rgba(139,148,158,0.15)' },
+              ticks: { color: '#8b949e', font: { size: 11 }, callback: (v) => v + '%' },
+              suggestedMin: 0, suggestedMax: 100,
+            },
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              enabled: false,
+              external: (ctx) => trendPointTip(ctx, points, (p) =>
+                '<div class="trend-tip-primary">' + p.mitre_coverage_pct + '% coverage</div>' +
+                '<div class="trend-tip-secondary">' + p.mitre_covered_techniques + ' / ' + p.mitre_total_techniques + ' techniques</div>'),
+            },
+            datalabels: { display: false },
+          },
+        },
+      });
+    }
+
+    // Rule Count Growth — Sigma vs Native SPL as two INDEPENDENT lines (not
+    // stacked): both are rule counts (same unit), just very different
+    // magnitude, so one shared y-axis stays honest — stacking previously
+    // made the near-flat Native SPL series visually track Sigma's growth
+    // (it was drawn as Sigma-count + Native-count), which misrepresented it
+    // as growing when it has stayed at 1 for most of this project's history.
+    // Reuses the same 2 identity colors as the Rule Type tile above.
+    function renderGrowthChart(points) {
+      const priorLegend = document.getElementById('growth-legend');
+      if (priorLegend) priorLegend.innerHTML = '';
+      const prior = Chart.getChart('chart-rule-growth');
+      if (prior) prior.destroy();
+      if (!points.length) {
+        trendEmptyState('chart-rule-growth', 'History builds up as CI runs continue — check back soon.');
+        return;
+      }
+      clearTrendEmptyState('chart-rule-growth');
+      const growthChart = new Chart(document.getElementById('chart-rule-growth'), {
+        type: 'line',
+        data: {
+          labels: points.map(p => p._bucketLabel),
+          datasets: [
+            {
+              label: 'Sigma',
+              data: points.map(p => p.total_sigma_rules),
+              borderColor: SOURCE_HEX.sigma,
+              backgroundColor: 'rgba(0,172,215,0.1)',
+              fill: 'origin',
+              borderWidth: 2,
+              tension: 0.2,
+              pointRadius: points.length > 1 ? 0 : 4,
+              pointHoverRadius: 5,
+              pointHitRadius: 12,
+              pointBackgroundColor: SOURCE_HEX.sigma,
+              pointBorderColor: '#0d1117',
+              pointBorderWidth: 2,
+            },
+            {
+              label: 'Native SPL',
+              data: points.map(p => p.total_native_spl_rules),
+              borderColor: SOURCE_HEX.nativespl,
+              backgroundColor: 'rgba(255,102,0,0.1)',
+              fill: 'origin',
+              borderWidth: 2,
+              tension: 0.2,
+              pointRadius: points.length > 1 ? 0 : 4,
+              pointHoverRadius: 5,
+              pointHitRadius: 12,
+              pointBackgroundColor: SOURCE_HEX.nativespl,
+              pointBorderColor: '#0d1117',
+              pointBorderWidth: 2,
+            },
+          ],
+        },
+        options: {
+          maintainAspectRatio: false,
+          animation,
+          // See renderCoverageTrendChart() above for why this is zeroed
+          // separately from the entrance `animation` — without it the
+          // previously-hovered point lingers/fades for the full entrance
+          // duration after the cursor has already moved to a new date.
+          transitions: { active: { animation: { duration: 0 } } },
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#8b949e', font: { size: 11 }, maxRotation: 0, autoSkip: true } },
+            y: {
+              beginAtZero: true,
+              grid: { color: 'rgba(139,148,158,0.15)' },
+              ticks: { color: '#8b949e', font: { size: 11 }, precision: 0 },
+            },
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              enabled: false,
+              external: (ctx) => trendPointTip(ctx, points, (p) =>
+                '<div class="trend-tip-primary">' + p.total_rules + ' rules total</div>' +
+                '<div class="trend-tip-secondary">' + p.total_sigma_rules + ' Sigma / ' + p.total_native_spl_rules + ' Native SPL</div>'),
+            },
+            datalabels: { display: false },
+          },
+        },
+      });
+
+      const growthLegendEl = document.getElementById('growth-legend');
+      [['Sigma', SOURCE_HEX.sigma], ['Native SPL', SOURCE_HEX.nativespl]].forEach(([label, color], i) => {
+        const item = document.createElement('div');
+        item.className = 'sev-legend-item';
+        item.innerHTML = '<span class="sev-legend-dot" style="background:' + color + '"></span>' + escHtml(label);
+        item.addEventListener('click', () => {
+          growthChart.setDatasetVisibility(i, !growthChart.isDatasetVisible(i));
+          growthChart.update();
+          item.classList.toggle('off', !growthChart.isDatasetVisible(i));
+        });
+        growthLegendEl.appendChild(item);
+      });
+    }
+
+    // ── Trend range bar wiring ──────────────────────────────────────────────
+    // One shared { granularity, year } selection scopes BOTH trend charts, so
+    // they always agree on what window they're showing (see interaction.md:
+    // filters live in one row above the content they scope, never per-chart).
+    const trendState = { granularity: 'all', year: null };
+
+    function applyTrendRange() {
+      renderCoverageTrendChart(bucketTrendPoints(COVERAGE_HISTORY, trendState.granularity, trendState.year));
+      renderGrowthChart(bucketTrendPoints(RULE_GROWTH_HISTORY, trendState.granularity, trendState.year));
+    }
+
+    const granGroupEl = document.getElementById('trend-gran-group');
+    const yearSelectEl = document.getElementById('trend-year-select');
+    const availableYears = trendAvailableYears();
+    availableYears.forEach(y => {
+      const opt = document.createElement('option');
+      opt.value = String(y);
+      opt.textContent = String(y);
+      yearSelectEl.appendChild(opt);
+    });
+    trendState.year = availableYears.length ? availableYears[availableYears.length - 1] : new Date().getUTCFullYear();
+    yearSelectEl.value = String(trendState.year);
+
+    if (granGroupEl) {
+      granGroupEl.querySelectorAll('.trend-gran-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (btn.classList.contains('active')) return;
+          granGroupEl.querySelectorAll('.trend-gran-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          trendState.granularity = btn.dataset.granularity;
+          yearSelectEl.style.display = (trendState.granularity === 'quarterly' || trendState.granularity === 'monthly') ? '' : 'none';
+          applyTrendRange();
+        });
+      });
+    }
+    yearSelectEl.addEventListener('change', () => {
+      trendState.year = parseInt(yearSelectEl.value, 10);
+      applyTrendRange();
+    });
+
+    applyTrendRange();
   }
 
   const FILTER_FIELDS = [
@@ -2350,8 +3155,6 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   function jsStr(v) {
     return JSON.stringify(v).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
-
-  function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
 
   function normKey(s) { return (s || '').toLowerCase().replace(/[^a-z0-9]+/g, ''); }
 
@@ -2616,75 +3419,12 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     row.classList.toggle('hidden', !tags.length);
   }
 
-  // ── Stats bar ────────────────────────────────────────────────────────────
+  // ── Top strip total ─────────────────────────────────────────────────────
 
-  function pct(n, total) { return total ? Math.round(n / total * 100) : 0; }
-
-  function distBlock(title, segments, total) {
-    const present = segments.filter(s => s.n > 0);
-    if (!present.length) return '';
-    const bar = present.map(s =>
-      `<div class="stat-bar-seg" style="width:${(s.n / total) * 100}%;background:${s.color}" title="${escHtml(s.label)}: ${s.n} (${pct(s.n, total)}%)"></div>`
-    ).join('');
-    const legend = present.map(s =>
-      `<span class="stat-legend-item"><span class="ldot" style="background:${s.color}"></span>${escHtml(s.label)} <span class="lpct">${pct(s.n, total)}%</span></span>`
-    ).join('');
-    return `<div class="stat-block" style="flex:1;min-width:200px">
-      <div class="stat-block-title">${escHtml(title)}</div>
-      <div class="stat-bar">${bar}</div>
-      <div class="stat-legend">${legend}</div>
-    </div>`;
-  }
-
-  function pctBlock(title, value, sub) {
-    return `<div class="stat-block">
-      <div class="stat-block-title">${escHtml(title)}</div>
-      <div class="stat-pct">${escHtml(value)}</div>
-      <div class="stat-sub">${escHtml(sub)}</div>
-    </div>`;
-  }
-
-  function renderStats() {
+  function renderStripTotal() {
     const total = RULES.length;
     const stripTotal = document.getElementById('strip-total');
     if (stripTotal) stripTotal.innerHTML = `<strong>${total}</strong> rule${total === 1 ? '' : 's'}`;
-    if (!total) { document.getElementById('stats-bar').innerHTML = ''; return; }
-
-    const sourceCount = {};
-    RULES.forEach(r => { sourceCount[r.source] = (sourceCount[r.source] || 0) + 1; });
-    const sourceSegs = [
-      { label: 'Sigma', n: sourceCount['Sigma'] || 0, color: '#00acd7' },
-      { label: 'Native SPL', n: sourceCount['Native SPL'] || 0, color: '#ff6600' },
-    ];
-
-    const sevOrder = ['critical', 'high', 'medium', 'low', 'informational'];
-    const sevCount = {};
-    RULES.forEach(r => { const k = (r.severity || '').toLowerCase(); if (k) sevCount[k] = (sevCount[k] || 0) + 1; });
-    const sevSegs = sevOrder.filter(k => sevCount[k]).map(k => ({ label: cap(k), n: sevCount[k], color: SEV_HEX[k] || '#4d5866' }));
-
-    const statusCount = {};
-    RULES.forEach(r => { const k = (r.status || '').toLowerCase(); if (k) statusCount[k] = (statusCount[k] || 0) + 1; });
-    const statusSegs = Object.entries(statusCount)
-      .sort((a, b) => b[1] - a[1])
-      .map(([k, n]) => ({ label: cap(k), n, color: STATUS_HEX[k] || '#4d5866' }));
-
-    const verdictSegs = [
-      { label: 'Pass', n: PASS_COUNT, color: '#3fb950' },
-      { label: 'Fail', n: FAIL_COUNT, color: '#f85149' },
-      { label: 'Not Verified', n: NOTVER_COUNT, color: '#8b949e' },
-    ];
-
-    document.getElementById('stats-bar').innerHTML =
-      distBlock('Rule Type', sourceSegs, total) +
-      distBlock('Severity', sevSegs, total) +
-      distBlock('Status', statusSegs, total) +
-      distBlock('Verification', verdictSegs, total) +
-      pctBlock('Pass Rate', PASS_RATE + '%', `${PASS_COUNT} / ${PASS_COUNT + FAIL_COUNT + NOTVER_COUNT} verified`) +
-      pctBlock('MITRE Coverage', MITRE_PCT + '%', `${MITRE_COVERED} / ${MITRE_TOTAL} techniques`);
-  }
-
-  function toggleStats() {
-    document.getElementById('stats-wrap')?.classList.toggle('open');
   }
 
   // ── Badges ───────────────────────────────────────────────────────────────
@@ -3150,7 +3890,36 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     currentTab = (name === 'navigator' || name === 'dashboards') ? name : 'rules';
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === currentTab));
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'tab-' + currentTab));
-    if (currentTab === 'dashboards') buildDashboardCharts();
+    if (currentTab === 'dashboards') {
+      // Force a synchronous reflow before constructing the charts. The
+      // `.active` class above switches this pane from display:none to
+      // display:block in the same tick buildDashboardCharts() runs in, but
+      // without an explicit layout read in between, Chart.js's own size
+      // detection could still observe a stale (zero/previous) size on the
+      // very first frame and only correct itself on a later async resize —
+      // by which point its initial "created" animation has already played
+      // out against the wrong dimensions. Reading offsetHeight forces the
+      // browser to resolve layout immediately, so Chart.js always measures
+      // the real, final size before its first paint.
+      const dashPane = document.getElementById('tab-dashboards');
+      if (dashPane) void dashPane.offsetHeight;
+      // Defer the actual chart construction to after the browser's next
+      // real paint. When the Dashboards tab is the one restored on initial
+      // load (e.g. reloading a URL with #tab=dashboards, via the
+      // applyState()/decodeState() call below), this whole function runs
+      // synchronously during the page's initial <script> execution — i.e.
+      // before the browser has painted anything at all yet. Chart.js's
+      // animation progress is wall-clock-based, not frame-count-based, so
+      // if a chart's "created" animation starts well before the first real
+      // paint, a large chunk (or all) of its duration can silently elapse
+      // while nothing is being rendered, and the very first frame the user
+      // sees is already at (or very near) the final state — the reveal
+      // never appears to animate. A double requestAnimationFrame guarantees
+      // at least one real paint has already happened before the charts (and
+      // their animation clocks) are created, on first load or later clicks
+      // alike.
+      requestAnimationFrame(() => requestAnimationFrame(() => buildDashboardCharts()));
+    }
     if (!opts.skipHash) updateHash();
   }
 
@@ -3581,7 +4350,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   });
 
 
-  renderStats();
+  renderStripTotal();
   applyState(decodeState(location.hash));
   initResizableColumns();
 
@@ -3639,6 +4408,9 @@ def render_html_summary(stats: dict, repo: str) -> str:
     rules_json = json.dumps(rules_js, ensure_ascii=False)
     tactic_ids_json = json.dumps(TACTIC_ID_MAP, ensure_ascii=False)
 
+    coverage_history_json = json.dumps(stats.get("_coverage_history", []), ensure_ascii=False)
+    rule_growth_history_json = json.dumps(stats.get("_rule_growth_history", []), ensure_ascii=False)
+
     technique_map = stats.get("_technique_map", [])
     rules_detail_inner = stats.get("_rules_detail", stats.get("rules", []))
     technique_coverage = build_technique_coverage(rules_detail_inner, repo)
@@ -3657,6 +4429,8 @@ def render_html_summary(stats: dict, repo: str) -> str:
     html = html.replace("@@MITRE_PCT@@", str(mitre_pct))
     html = html.replace("@@RULES_JSON@@", rules_json)
     html = html.replace("@@TACTIC_IDS_JSON@@", tactic_ids_json)
+    html = html.replace("@@COVERAGE_HISTORY_JSON@@", coverage_history_json)
+    html = html.replace("@@RULE_GROWTH_HISTORY_JSON@@", rule_growth_history_json)
     html = html.replace("@@MATRIX_HTML@@", matrix_html)
     html = html.replace("@@LAYER_URL@@", layer_url)
     return html

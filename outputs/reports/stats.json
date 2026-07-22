@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-22T14:47:03.056657+00:00",
+  "generated_at": "2026-07-22T21:01:08.537986+00:00",
   "total_rules": 27,
   "total_sigma_rules": 26,
   "total_splunk_rules": 27,
@@ -11,7 +11,7 @@
   "pass_rate_color": "brightgreen",
   "mitre_covered_techniques": 11,
   "mitre_total_techniques": 222,
-  "mitre_total_fetched_at": "2026-07-15T17:51:02.397734+00:00",
+  "mitre_total_fetched_at": "2026-07-22T17:58:10.897088+00:00",
   "mitre_coverage_pct": 5.0,
   "by_level": {
     "critical": 14,

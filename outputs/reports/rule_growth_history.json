@@ -1,0 +1,156 @@
+{
+  "points": [
+    {
+      "date": "2026-04-06",
+      "timestamp": "2026-04-06T17:43:59+02:00",
+      "git_sha": "5bc8644b7c1d1216e4aba417eaf2f4012b0b4358",
+      "total_rules": 2,
+      "total_sigma_rules": 2,
+      "total_native_spl_rules": 0
+    },
+    {
+      "date": "2026-04-17",
+      "timestamp": "2026-04-17T17:39:24+02:00",
+      "git_sha": "e6c6621c3c54a484c1c774c5468df8c7f4bf32dd",
+      "total_rules": 4,
+      "total_sigma_rules": 3,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-04-18",
+      "timestamp": "2026-04-18T14:28:04+02:00",
+      "git_sha": "77df3797a79ebb68a76726bb945273beb6a6a76b",
+      "total_rules": 4,
+      "total_sigma_rules": 3,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-04-25",
+      "timestamp": "2026-04-25T12:12:43+02:00",
+      "git_sha": "05f5b272f6c0679129c08159c3b8e390cab7eb2b",
+      "total_rules": 4,
+      "total_sigma_rules": 3,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-04-26",
+      "timestamp": "2026-04-26T19:59:17+02:00",
+      "git_sha": "18e8c8da94ae447bbb86d238b5887794c6f764c1",
+      "total_rules": 4,
+      "total_sigma_rules": 3,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-05-01",
+      "timestamp": "2026-05-01T20:56:38+02:00",
+      "git_sha": "db36279480c1796fee97a6ee98a3a03f46d6b82a",
+      "total_rules": 5,
+      "total_sigma_rules": 4,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-05-03",
+      "timestamp": "2026-05-03T22:21:43+02:00",
+      "git_sha": "f5e9e00b40ff4da32a2d743098fd07526002b39a",
+      "total_rules": 7,
+      "total_sigma_rules": 6,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-05-08",
+      "timestamp": "2026-05-08T14:43:25+02:00",
+      "git_sha": "416101b85e67ddf7ad1558c966bac7a69be04d33",
+      "total_rules": 16,
+      "total_sigma_rules": 15,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-05-11",
+      "timestamp": "2026-05-11T21:02:52+02:00",
+      "git_sha": "f3d9e4e3d0a5755ad76dd0aab322f5aa4fbc2a8a",
+      "total_rules": 16,
+      "total_sigma_rules": 15,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-05-12",
+      "timestamp": "2026-05-12T23:07:45+02:00",
+      "git_sha": "5abf479cfa69e0499a1838233a072234e5b2c3f7",
+      "total_rules": 17,
+      "total_sigma_rules": 16,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-05-16",
+      "timestamp": "2026-05-16T14:08:58+02:00",
+      "git_sha": "96575ba5828a0ed8af4c520f146440952086d82f",
+      "total_rules": 15,
+      "total_sigma_rules": 14,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-06-06",
+      "timestamp": "2026-06-06T12:51:32+02:00",
+      "git_sha": "3314fa259f61ea04287af58621ed140dd0886d8f",
+      "total_rules": 17,
+      "total_sigma_rules": 16,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-06-21",
+      "timestamp": "2026-06-21T17:25:01+02:00",
+      "git_sha": "373dd3c58cb3d44cc3e8e8d708c50babe7afda6f",
+      "total_rules": 20,
+      "total_sigma_rules": 19,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-06-27",
+      "timestamp": "2026-06-27T14:02:39+02:00",
+      "git_sha": "8f5b923c1c477f8825071027ecdd6f08f78fe45d",
+      "total_rules": 20,
+      "total_sigma_rules": 19,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-07-08",
+      "timestamp": "2026-07-08T20:25:03+02:00",
+      "git_sha": "90e810febfbf94aeec614d59a76c5d27b833176a",
+      "total_rules": 23,
+      "total_sigma_rules": 22,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-07-11",
+      "timestamp": "2026-07-11T20:06:45+02:00",
+      "git_sha": "dc58d1d82f9fc0d434a83056d087632e0ef3bb53",
+      "total_rules": 27,
+      "total_sigma_rules": 26,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-07-15",
+      "timestamp": "2026-07-15T20:02:47+02:00",
+      "git_sha": "d5fd47500a611451864570362b74cc74da8c0a48",
+      "total_rules": 27,
+      "total_sigma_rules": 26,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-07-17",
+      "timestamp": "2026-07-17T18:39:46+02:00",
+      "git_sha": "b517d8f8d87364e05953f6ddacd397739c9dc243",
+      "total_rules": 27,
+      "total_sigma_rules": 26,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-07-22",
+      "timestamp": "2026-07-22T21:01:08.538002+00:00",
+      "git_sha": "4c1157fa0aedef6868b5dea5f1b4d2c66027c145",
+      "total_rules": 27,
+      "total_sigma_rules": 26,
+      "total_native_spl_rules": 1
+    }
+  ]
+}
