@@ -218,8 +218,8 @@ def main(argv: list[str]) -> int:
             )
             continue
 
-        search_name = savedsearch_name_from_file(path)
         meta = extract_meta(path)
+        search_name = saved_search_name(meta)
         detect_id = (meta.get("detect_id") or "").strip() or path.stem
 
         print(f"\n[{detect_id}] Dispatching '{search_name}' ({args.earliest} → {args.latest})")
