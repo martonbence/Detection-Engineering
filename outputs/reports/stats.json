@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-07-11T18:06:44.984833+00:00",
+  "generated_at": "2026-07-23T20:50:58.281967+00:00",
   "total_rules": 27,
-  "total_sigma_rules": 26,
-  "total_splunk_rules": 27,
+  "total_sigma_rules": 27,
+  "total_splunk_rules": 26,
   "total_native_spl_rules": 1,
   "verified_pass": 25,
   "verified_fail": 2,
@@ -11,7 +11,7 @@
   "pass_rate_color": "brightgreen",
   "mitre_covered_techniques": 11,
   "mitre_total_techniques": 222,
-  "mitre_total_fetched_at": "2026-07-08T15:14:55.897801+00:00",
+  "mitre_total_fetched_at": "2026-07-22T17:58:10.897088+00:00",
   "mitre_coverage_pct": 5.0,
   "by_level": {
     "critical": 14,
@@ -37,6 +37,7 @@
     {
       "detect_id": "DETECT-2026-0003",
       "title": "Test3",
+      "description": "Test Sigma rule for demonstration purposes.",
       "level": "critical",
       "status": "test",
       "source": "native_spl",
@@ -48,11 +49,43 @@
       "techniques": [
         "T1059.001"
       ],
-      "file_path": "rules/splunk/test3.spl"
+      "file_path": "rules/sigma/DETECT-2026-0003_Test3.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "security",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-04-17",
+      "modified": "2026-04-17",
+      "references": [
+        "https://example.com"
+      ],
+      "falsepositives": [
+        "Legitimate administrative scripts using EncodedCommand"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1059.001",
+            "test_numbers": [
+              17
+            ]
+          }
+        ]
+      },
+      "rule_body": "index=sysmon Image=\"*\\\\powershell.exe\" CommandLine IN (\"* -e *\", \"* -enc *\", \"* -encodedcommand *\") | table _time,CommandLine,ParentImage,Image,User,ProcessId",
+      "rule_body_lang": "spl",
+      "rule_version": "1.1"
     },
     {
       "detect_id": "DETECT-2026-0005",
       "title": "BITS Job abuse via BITSAdmin or PowerShell",
+      "description": "Detects suspicious use of the Background Intelligent Transfer Service (BITS) via bitsadmin.exe flags (/transfer, /create, /addfile) or PowerShell BITS cmdlets (Start-BitsTransfer, Complete-BitsTransfer, Add-BitsFile) in a non-system user context. BITS is abused by attackers for stealthy file transfer and persistence (T1197), as jobs survive reboots and blend into legitimate Windows traffic.",
       "level": "high",
       "status": "stable",
       "source": "sigma",
@@ -66,11 +99,49 @@
       "techniques": [
         "T1197"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0005_BITS-Job-abuse-via-BITSAdmin-or-PowerShell.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0005_BITS-Job-abuse-via-BITSAdmin-or-PowerShell.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-05-01",
+      "modified": "2026-05-03",
+      "references": [
+        "https://attack.mitre.org/techniques/T1197/",
+        "https://lolbas-project.github.io/lolbas/Binaries/Bitsadmin/"
+      ],
+      "falsepositives": [
+        "SCCM / Configuration Manager package deployments (service account context)",
+        "Windows Update components (SYSTEM, svchost parent)",
+        "Legacy Adobe or backup agent installers",
+        "IT admin scripts using bitsadmin.exe directly",
+        "Legitimate PowerShell modules using Start-BitsTransfer"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1197",
+            "test_numbers": [
+              1,
+              2
+            ]
+          }
+        ]
+      },
+      "rule_body": "detection:\n  selection_bitsadmin_image:\n    Image|endswith: \\bitsadmin.exe\n  selection_bitsadmin_flags:\n    CommandLine|contains:\n    - /transfer\n    - /create\n    - /addfile\n  selection_ps_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_ps_cmdlets:\n    CommandLine|contains:\n    - Start-BitsTransfer\n    - Complete-BitsTransfer\n    - Add-BitsFile\n  filter_suspicious_path:\n    CommandLine|contains:\n    - :\\PerfLogs\n    - :\\ProgramData\\\n    - :\\Temp\\\n    - :\\Users\\Public\\\n    - :\\Windows\\Temp\n    - \\$Recycle.Bin\\\n    - \\AppData\\Local\\\n    - \\AppData\\Roaming\\\n    - \\Contacts\\\n    - \\Desktop\\\n    - \\Favorites\\\n    - \\Favourites\\\n    - \\inetpub\\wwwroot\\\n    - \\Music\\\n    - \\Pictures\\\n    - \\Videos\\\n    - \\Start Menu\\Programs\\Startup\\\n    - \\Users\\Default\\\n    - '%ProgramData%'\n    - '%public%'\n    - '%temp%'\n    - '%tmp%'\n  filter_suspicious_extension:\n    CommandLine|contains:\n    - .bat\n    - .cmd\n    - .dll\n    - .exe\n    - .hta\n    - .msi\n    - .ps1\n    - .psm1\n    - .scf\n    - .sct\n    - .vbe\n    - .vbs\n    - .wsf\n    - .wsh\n    - .7z\n    - .chm\n    - .rar\n    - .xll\n    - .zip\n    - .asax\n    - .ashx\n    - .asmx\n    - .asp\n    - .aspx\n    - .cfm\n    - .cgi\n    - .jsp\n    - .jspx\n    - .war\n    - .gif\n    - .jpeg\n    - .jpg\n    - .png\n  filter_legit_user:\n    User|contains:\n    - SYSTEM\n    - NETWORK SERVICE\n  filter_legit_parent:\n    ParentImage|endswith:\n    - \\svchost.exe\n    - \\MsMpEng.exe\n  condition: ( ( selection_bitsadmin_image and selection_bitsadmin_flags ) or ( selection_ps_image and\n    selection_ps_cmdlets ) ) and not ( filter_legit_user and filter_legit_parent )",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.4"
     },
     {
       "detect_id": "DETECT-2026-0006",
       "title": "BITS Persistence via SetNotifyCmdLine",
+      "description": "Detects use of bitsadmin.exe /setnotifycmdline, which registers an arbitrary command to execute automatically when a BITS job completes. Attackers abuse this to chain payload delivery with execution — the BITS job downloads the file, and /setnotifycmdline triggers it without further user interaction. This flag has no known legitimate production use case and is a strong indicator of persistence establishment (T1197).",
       "level": "critical",
       "status": "stable",
       "source": "sigma",
@@ -84,16 +155,50 @@
       "techniques": [
         "T1197"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0006_BITS-Persistence-via-SetNotifyCmdLine.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0006_BITS-Persistence-via-SetNotifyCmdLine.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-05-01",
+      "modified": "2026-05-03",
+      "references": [
+        "https://attack.mitre.org/techniques/T1197/",
+        "https://lolbas-project.github.io/lolbas/Binaries/Bitsadmin/",
+        "https://pentestlab.blog/2019/10/30/persistence-bits-jobs/"
+      ],
+      "falsepositives": [
+        "None known; /setnotifycmdline has no legitimate production use case"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1197",
+            "test_numbers": [
+              3
+            ]
+          }
+        ]
+      },
+      "rule_body": "detection:\n  selection_image_commandline:\n    Image|endswith: \\bitsadmin.exe\n    CommandLine|contains: /setnotifycmdline\n  filter_legit_user:\n    User|contains:\n    - SYSTEM\n    - NETWORK SERVICE\n  filter_legit_parent:\n    ParentImage|endswith:\n    - \\svchost.exe\n  condition: selection_image_commandline and not (filter_legit_user and filter_legit_parent)",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.5"
     },
     {
       "detect_id": "DETECT-2026-0007",
       "title": "PowerShell Encoded Command Execution",
+      "description": "Detects execution of PowerShell with encoded command flags, a common obfuscation technique used to hide malicious payloads. Covers all -ec and -en[codedcommand] prefix variants (selection_cmdline_enc), and the -e standalone flag when followed by a minimum 80-character Base64 payload (selection_cmdline_e_standalone).",
       "level": "medium",
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "25757237398",
+      "run_id": "30043658254",
       "tactics": [
         "Execution",
         "Stealth"
@@ -102,11 +207,50 @@
         "T1059.001",
         "T1027.010"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0007_PowerShell-Encoded-Command-Execution.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0007_PowerShell-Encoded-Command-Execution.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-05-03",
+      "modified": "2026-07-23",
+      "references": [
+        "https://attack.mitre.org/techniques/T1059/001/",
+        "https://attack.mitre.org/techniques/T1027/010/"
+      ],
+      "falsepositives": [
+        "Administrative and deployment scripts using encoded commands for special character handling",
+        "Software installers and build tools (Visual Studio, JetBrains, MSBuild, etc.)",
+        "CI/CD pipelines invoking PowerShell with encoded commands (GitHub Actions, Azure DevOps, Jenkins)",
+        "Task Scheduler entries created by legitimate software",
+        "Remote management and configuration tools (SCCM, Ansible, DSC)"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1059.001",
+            "test_numbers": [
+              15,
+              16,
+              17
+            ]
+          }
+        ]
+      },
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_cmdline_enc:\n    CommandLine|re: (?i)(?:^|[\\s\\t\"])-e(?:c|n(?:c(?:o(?:d(?:e(?:d(?:c(?:o(?:m(?:m(?:a(?:n(?:d)?)?)?)?)?)?)?)?)?)?)?))(?:[\\s\\t\"=]|$)\n  selection_cmdline_e_standalone:\n    CommandLine|re: (?i)(?:^|[\\s\\t\"])-e[\\s\\t]+(?:[A-Za-z0-9+/]{80,}={0,2})(?:[\\s\\t\"]|$)\n  condition: selection_image and (selection_cmdline_enc or selection_cmdline_e_standalone)",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.13"
     },
     {
       "detect_id": "DETECT-2026-0008",
       "title": "PowerShell Download Cradle Execution",
+      "description": "Detects PowerShell download cradle patterns used to fetch and execute remote code in-memory. Covers WebClient and WebRequest download methods (DownloadString, DownloadFile, DownloadData, OpenRead), Net.WebClient and Net.WebRequest type forms, Invoke-WebRequest (iwr), Invoke-RestMethod (irm), HttpWebRequest, and HttpClient combined with any IEX/Invoke-Expression variant including backtick-obfuscated forms (I`E`X, I`EX, IE`X) and scriptblock-based execution — the primary fileless malware delivery mechanism.",
       "level": "high",
       "status": "stable",
       "source": "sigma",
@@ -120,11 +264,51 @@
         "T1059.001",
         "T1105"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0008_PowerShell-Download-Cradle-Execution.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0008_PowerShell-Download-Cradle-Execution.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-05-04",
+      "modified": "2026-05-11",
+      "references": [
+        "https://attack.mitre.org/techniques/T1059/001/",
+        "https://attack.mitre.org/techniques/T1105/",
+        "https://github.com/VirtualAlllocEx/Payload-Download-Cradles/blob/88e8eca34464a547c90d9140d70e9866dcbc6a12/Download-Cradles.cmd"
+      ],
+      "falsepositives": [
+        "PowerShell module installation from PSGallery or NuGet (Install-Module, Save-Module)",
+        "Cloud management scripts (Azure, AWS, GCP) that download and apply configuration",
+        "Legitimate software update mechanisms using WebClient internally",
+        "Infrastructure-as-code tools (Terraform provisioners, Ansible win_shell) invoking remote scripts",
+        "IT admin bootstrap scripts (e.g. Chocolatey install one-liner)"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1059.001",
+            "test_numbers": [
+              1,
+              3,
+              5
+            ]
+          }
+        ]
+      },
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_download:\n    CommandLine|contains:\n    - .DownloadString(\n    - .DownloadFile(\n    - .DownloadData(\n    - .OpenRead(\n    - Invoke-WebRequest\n    - 'iwr '\n    - Invoke-RestMethod\n    - 'irm '\n    - '[System.Net.Http.HttpClient]'\n    - Net.WebRequest\n    - Net.WebClient\n    - HttpWebRequest\n  selection_iex:\n    CommandLine|contains:\n    - '| IEX'\n    - '|IEX '\n    - I`E`X\n    - I`EX\n    - IE`X\n    - 'iex '\n    - IEX (\n    - IEX(\n    - iex(\n    - Invoke-Expression\n    - '[scriptblock]::create('\n    - '|iex;'\n    - '| iex}'\n    - $ExecutionContext.InvokeCommand\n    - '&([scriptblock]'\n  condition: all of selection_*",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.4"
     },
     {
       "detect_id": "DETECT-2026-0009",
       "title": "PowerShell Inline Base64 Decode and Execute",
+      "description": "Detects PowerShell payloads that decode a Base64 string at runtime and immediately execute the result via IEX or equivalent. Unlike encoded command flags (-EncodedCommand, covered by DETECT-2026-0007), this technique embeds the Base64 payload inline in the script body using [System.Convert]::FromBase64String or FromBase64CharArray, making it resistant to simple flag-based detection while still leaving a characteristic decode-then-execute signature in the CommandLine.",
       "level": "critical",
       "status": "stable",
       "source": "sigma",
@@ -138,11 +322,52 @@
         "T1059.001",
         "T1027.010"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0009_PowerShell-Base64-Decode-and-Execute.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0009_PowerShell-Base64-Decode-and-Execute.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-05-04",
+      "modified": "2026-05-11",
+      "references": [
+        "https://attack.mitre.org/techniques/T1059/001/",
+        "https://attack.mitre.org/techniques/T1027/010/"
+      ],
+      "falsepositives": [
+        "Legitimate scripts that decode Base64-encoded configuration or binary data and process it without execution",
+        "PowerShell DSC resources that decode and apply configuration payloads",
+        "Custom module loaders using Base64 for binary serialization"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1027",
+            "test_numbers": [
+              3
+            ]
+          },
+          {
+            "technique": "T1059.001",
+            "test_numbers": [
+              10
+            ]
+          }
+        ]
+      },
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_decode:\n    CommandLine|contains:\n    - FromBase64String\n    - FromBase64CharArray(\n  selection_iex:\n    CommandLine|contains:\n    - '| IEX'\n    - '|IEX '\n    - I`E`X\n    - I`EX\n    - IE`X\n    - 'iex '\n    - IEX (\n    - IEX(\n    - iex(\n    - Invoke-Expression\n    - '[scriptblock]::create('\n    - '|iex;'\n    - '| iex}'\n    - $ExecutionContext.InvokeCommand\n    - '&([scriptblock]'\n  condition: all of selection_*",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.6"
     },
     {
       "detect_id": "DETECT-2026-0010",
       "title": "PowerShell Execution Policy Bypass",
+      "description": "Detects PowerShell invocations that bypass the execution policy — a common initial step for running unsigned or untrusted scripts. Covers parameter-based bypasses (-ExecutionPolicy/-ep/-exec/-ex Bypass|Unrestricted), scope-targeted Set-ExecutionPolicy calls, and direct policy changes via the Set-ExecutionPolicy cmdlet.",
       "level": "medium",
       "status": "stable",
       "source": "sigma",
@@ -154,11 +379,47 @@
       "techniques": [
         "T1059.001"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0010_PowerShell-Execution-Policy-Bypass.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0010_PowerShell-Execution-Policy-Bypass.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-05-05",
+      "modified": "2026-05-07",
+      "references": [
+        "https://attack.mitre.org/techniques/T1059/001/"
+      ],
+      "falsepositives": [
+        "Software installers and package managers (Chocolatey, NuGet, Scoop)",
+        "CI/CD pipelines and build agents requiring unsigned script execution",
+        "IT admin bootstrap and provisioning scripts",
+        "Remote management tools (SCCM, Ansible, DSC)"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1059.001",
+            "test_numbers": [
+              6,
+              7
+            ]
+          }
+        ]
+      },
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_option:\n    CommandLine|contains:\n    - '-executionpolicy '\n    - ' -ep '\n    - ' -exec '\n    - ' -ex '\n  selection_level:\n    CommandLine|contains:\n    - Bypass\n    - Unrestricted\n    - -Scope\n  condition: selection_image and selection_option and selection_level",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.4"
     },
     {
       "detect_id": "DETECT-2026-0011",
       "title": "PowerShell Compressed Payload Decompression and Execute",
+      "description": "Detects PowerShell payloads that decompress a GZip- or Deflate-compressed blob at runtime and immediately execute the result via IEX or equivalent. This is the primary stager pattern used by Empire and PowerSploit — a Base64-encoded, compressed payload is decoded and decompressed in-memory using IO.Compression streams, then executed — evading static analysis and simple string-based detection.",
       "level": "high",
       "status": "stable",
       "source": "sigma",
@@ -172,11 +433,38 @@
         "T1059.001",
         "T1027.010"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0011_PowerShell-Compressed-Payload-Execution.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0011_PowerShell-Compressed-Payload-Execution.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-05-05",
+      "modified": "2026-05-11",
+      "references": [
+        "https://attack.mitre.org/techniques/T1059/001/",
+        "https://attack.mitre.org/techniques/T1027/"
+      ],
+      "falsepositives": [
+        "Custom module loaders that decompress binary resources without executing them",
+        "PowerShell-based archive utilities using IO.Compression internally"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "emulation",
+        "atomics": []
+      },
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_decompress:\n    CommandLine|contains:\n    - DeflateStream\n    - GZipStream\n    - IO.Compression\n  selection_iex:\n    CommandLine|contains:\n    - '| IEX'\n    - '|IEX '\n    - I`E`X\n    - I`EX\n    - IE`X\n    - 'iex '\n    - IEX (\n    - IEX(\n    - iex(\n    - Invoke-Expression\n    - '[scriptblock]::create('\n    - '|iex;'\n    - '| iex}'\n    - $ExecutionContext.InvokeCommand\n    - '&([scriptblock]'\n    - .Invoke(\n    - InvokeCommand.InvokeScript\n  condition: all of selection_*",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.4"
     },
     {
       "detect_id": "DETECT-2026-0012",
       "title": "PowerShell AMSI Bypass",
+      "description": "Detects PowerShell commands that attempt to bypass the Antimalware Scan Interface (AMSI) by manipulating the AmsiUtils type, patching AmsiScanBuffer in memory, or disabling AMSI initialization. Successful AMSI bypass allows subsequent malicious scripts to execute without AV/EDR inspection — making this a critical precursor to many PS-based attacks.",
       "level": "high",
       "status": "stable",
       "source": "sigma",
@@ -190,11 +478,39 @@
         "T1059.001",
         "T1685.001"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0012_PowerShell-AMSI-Bypass.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0012_PowerShell-AMSI-Bypass.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-05-05",
+      "modified": "2026-05-13",
+      "references": [
+        "https://attack.mitre.org/techniques/T1059/001/",
+        "https://attack.mitre.org/techniques/T1685/001/"
+      ],
+      "falsepositives": [
+        "Security testing tools and red team frameworks referencing AMSI internals",
+        "AV/EDR vendor scripts performing AMSI integration testing",
+        "Security research and educational scripts"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "emulation",
+        "atomics": []
+      },
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_amsi:\n    CommandLine|contains:\n    - AmsiUtils\n    - amsiInitFailed\n    - AmsiScanBuffer\n    - amsi.dll\n    - AmsiOpenSession\n    - AmsiScanString\n    - amsiContext\n    - amsiSession\n    - AmsiInitialize\n    - AmsiCloseSession\n  condition: selection_image and selection_amsi",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.14"
     },
     {
       "detect_id": "DETECT-2026-0013",
       "title": "PowerShell Spawned from Suspicious Parent Process",
+      "description": "Detects PowerShell spawned by processes that rarely have a legitimate reason to launch it — including Office applications, browsers, script interpreters, COM/WMI hosts, system utilities, and communication clients. This pattern is characteristic of phishing macro execution, malicious document droppers, exploit chains (e.g. Follina), and living-off-the-land lateral movement.",
       "level": "high",
       "status": "stable",
       "source": "sigma",
@@ -208,11 +524,39 @@
         "T1059.001",
         "T1566.001"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0013_PowerShell-Suspicious-Parent-Process.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0013_PowerShell-Suspicious-Parent-Process.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-05-05",
+      "modified": "2026-05-07",
+      "references": [
+        "https://attack.mitre.org/techniques/T1059/001/",
+        "https://attack.mitre.org/techniques/T1566/001/"
+      ],
+      "falsepositives": [
+        "WMI-based management tools invoking PS for legitimate automation (wmiprvse)",
+        "Browser extension helper processes in enterprise environments",
+        "SCCM and Intune deployments using msiexec to install software that internally invokes PS"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "emulation",
+        "atomics": []
+      },
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_parent:\n    ParentImage|endswith:\n    - \\winword.exe\n    - \\excel.exe\n    - \\outlook.exe\n    - \\powerpnt.exe\n    - \\mspub.exe\n    - \\msaccess.exe\n    - \\visio.exe\n    - \\onenote.exe\n    - \\mshta.exe\n    - \\wscript.exe\n    - \\cscript.exe\n    - \\rundll32.exe\n    - \\regsvr32.exe\n    - \\iexplore.exe\n    - \\firefox.exe\n    - \\chrome.exe\n    - \\msedge.exe\n    - \\acrord32.exe\n    - \\acrobat.exe\n    - \\wmiprvse.exe\n    - \\pcalua.exe\n    - \\searchprotocolhost.exe\n    - \\msdt.exe\n    - \\msiexec.exe\n    - \\wordpad.exe\n    - \\teams.exe\n    - \\msedgewebview2.exe\n  condition: all of selection_*",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.3"
     },
     {
       "detect_id": "DETECT-2026-0014",
       "title": "PowerShell Stealth Execution Flags Combination",
+      "description": "Detects PowerShell launched with a combination of stealth flags designed to suppress user visibility and logging. Requires at least two of four flag groups — hidden window, no profile, non-interactive, and no logo — to fire, reducing false positives while catching the typical attacker pattern of combining multiple suppression flags in a single invocation.",
       "level": "medium",
       "status": "stable",
       "source": "sigma",
@@ -226,11 +570,39 @@
         "T1059.001",
         "T1564.003"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0014_PowerShell-Stealth-Execution-Flags.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0014_PowerShell-Stealth-Execution-Flags.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-05-05",
+      "modified": "2026-05-12",
+      "references": [
+        "https://attack.mitre.org/techniques/T1059/001/",
+        "https://attack.mitre.org/techniques/T1564/003/"
+      ],
+      "falsepositives": [
+        "Legitimate background automation scripts using hidden windows",
+        "Software deployment tools running PS silently (SCCM, PDQ, Intune)",
+        "CI/CD pipeline agents invoking PS non-interactively without a profile"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "emulation",
+        "atomics": []
+      },
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_flags_hidden:\n    CommandLine|contains:\n    - -WindowStyle Hidden\n    - -WindowStyle hidden\n    - -W Hidden\n    - -W hidden\n    - -W h\n  selection_flags_noprofile:\n    CommandLine|contains:\n    - -NoProfile\n    - -NoP\n    - -nop\n    - -noprofile\n  selection_flags_noninteractive:\n    CommandLine|contains:\n    - -NonInteractive\n    - -NonI\n    - -noni\n    - -noninteractive\n  selection_flags_nologo:\n    CommandLine|contains:\n    - -NoLogo\n    - -NoL\n    - -nol\n    - -nologo\n  condition: selection_image and ((selection_flags_hidden and selection_flags_noprofile) or (selection_flags_hidden\n    and selection_flags_noninteractive) or (selection_flags_hidden and selection_flags_nologo) or (selection_flags_noprofile\n    and selection_flags_noninteractive) or (selection_flags_noprofile and selection_flags_nologo) or (selection_flags_noninteractive\n    and selection_flags_nologo))",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.5"
     },
     {
       "detect_id": "DETECT-2026-0015",
       "title": "PowerShell Reflection-Based Assembly Load",
+      "description": "Detects PowerShell commands that load a .NET assembly directly into memory via reflection, bypassing filesystem-based execution. Also covers native memory operations via InteropServices.Marshal that indicate shellcode staging. This technique is used by offensive frameworks (Cobalt Strike, Metasploit, PowerSploit) to execute credential stealers and post-exploitation modules without writing an executable to disk.",
       "level": "high",
       "status": "stable",
       "source": "sigma",
@@ -244,11 +616,46 @@
         "T1059.001",
         "T1620"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0015_PowerShell-Reflection-Assembly-Load.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0015_PowerShell-Reflection-Assembly-Load.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-05-05",
+      "modified": "2026-05-12",
+      "references": [
+        "https://attack.mitre.org/techniques/T1059/001/",
+        "https://attack.mitre.org/techniques/T1620/"
+      ],
+      "falsepositives": [
+        "Advanced legitimate PS modules using reflection for compatibility shims",
+        "Security tooling and EDR agents that inspect PS reflection activity",
+        "Custom automation frameworks loading helper assemblies at runtime"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1059.001",
+            "test_numbers": [
+              4
+            ]
+          }
+        ]
+      },
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_reflect:\n    CommandLine|contains:\n    - Reflection.Assembly]::Load(\n    - Reflection.Assembly]::LoadFile(\n    - Reflection.Assembly]::LoadFrom(\n    - Reflection.Assembly]::LoadWithPartialName(\n    - Reflection.Assembly]::UnsafeLoadFrom(\n    - '[Runtime.InteropServices.Marshal]::Copy('\n    - '[Runtime.InteropServices.Marshal]::AllocHGlobal('\n    - '[AppDomain]::CurrentDomain.Load('\n    - ::Load([Convert]::FromBase64String(\n  filter_legitimate:\n    ParentImage|endswith:\n    - \\devenv.exe\n    - \\msbuild.exe\n  condition: selection_image and selection_reflect and not filter_legitimate",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.4"
     },
     {
       "detect_id": "DETECT-2026-0016",
       "title": "PowerShell Script Block or Module Logging Disable",
+      "description": "Detects PowerShell commands that disable or tamper with ScriptBlock or Module logging — either via registry manipulation (Set-ItemProperty on the PowerShell policy path) or via in-memory reflection patching of the cachedGroupPolicySettings field. Disabling these logs is a common anti-forensics step before executing malicious payloads.",
       "level": "high",
       "status": "test",
       "source": "sigma",
@@ -263,11 +670,39 @@
         "T1685.001",
         "T1685.005"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0016_PowerShell-Logging-Disable.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0016_PowerShell-Logging-Disable.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-05-05",
+      "modified": "2026-05-11",
+      "references": [
+        "https://attack.mitre.org/techniques/T1059/001/",
+        "https://attack.mitre.org/techniques/T1562/002/"
+      ],
+      "falsepositives": [
+        "Group Policy management scripts auditing or enforcing PowerShell logging settings",
+        "Security hardening scripts enabling logging (same strings, opposite intent)",
+        "SIEM/EDR deployment scripts configuring PS logging policy"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "emulation",
+        "atomics": []
+      },
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_logging:\n    CommandLine|contains:\n    - ScriptBlockLogging\n    - EnableScriptBlockLogging\n    - EnableScriptBlockInvocationLogging\n    - ModuleLogging\n    - EnableModuleLogging\n    - ProtectedEventLogging\n    - cachedGroupPolicySettings\n    - SOFTWARE\\Policies\\Microsoft\\Windows\\PowerShell\n  selection_delete:\n    CommandLine|contains|all:\n    - Remove-Item\n    - Policies\\Microsoft\\Windows\\PowerShell\n  condition: selection_image and (selection_logging or selection_delete)",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.3"
     },
     {
       "detect_id": "DETECT-2026-0018",
       "title": "PowerShell Known Malicious Cmdlet Invocation",
+      "description": "Detects invocation of known offensive PowerShell cmdlets originating from frameworks such as PowerSploit, PowerView, PowerUp, and Nishang. These cmdlets cover credential theft, persistence, injection, reconnaissance, and lateral movement — their presence in CommandLine is a strong indicator of post-exploitation activity.",
       "level": "high",
       "status": "test",
       "source": "sigma",
@@ -279,11 +714,39 @@
       "techniques": [
         "T1059.001"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0018_PowerShell-Invoke-Known-Malicious-Cmdlets.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0018_PowerShell-Invoke-Known-Malicious-Cmdlets.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-05-12",
+      "modified": "2026-05-13",
+      "references": [
+        "https://attack.mitre.org/techniques/T1059/001/",
+        "https://github.com/PowerShellMafia/PowerSploit",
+        "https://github.com/samratashok/nishang"
+      ],
+      "falsepositives": [
+        "Authorized red team or penetration testing engagements",
+        "Security researchers running PowerSploit or Nishang in isolated lab environments"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "emulation",
+        "atomics": []
+      },
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_cmdlets:\n    CommandLine|contains:\n    - Add-Persistence\n    - Find-AVSignature\n    - Get-GPPAutologon\n    - Get-GPPPassword\n    - Get-HttpStatus\n    - Get-Keystrokes\n    - Get-SecurityPackages\n    - Get-TimedScreenshot\n    - Get-VaultCredential\n    - Get-VolumeShadowCopy\n    - Install-SSP\n    - Invoke-CredentialInjection\n    - Invoke-DllInjection\n    - Invoke-Mimikatz\n    - Invoke-NinjaCopy\n    - Invoke-Portscan\n    - Invoke-ReflectivePEInjection\n    - Invoke-ReverseDnsLookup\n    - Invoke-Shellcode\n    - Invoke-TokenManipulation\n    - Invoke-WmiCommand\n    - Mount-VolumeShadowCopy\n    - New-ElevatedPersistenceOption\n    - New-UserPersistenceOption\n    - New-VolumeShadowCopy\n    - Out-CompressedDll\n    - Out-EncodedCommand\n    - Out-EncryptedScript\n    - Out-Minidump\n    - PowerUp\n    - PowerView\n    - Remove-Comments\n    - Remove-VolumeShadowCopy\n    - Set-CriticalProcess\n    - Set-MasterBootRecord\n    - Invoke-Kerberoast\n    - Invoke-ASREPRoast\n    - Invoke-DCSync\n    - Invoke-BloodHound\n    - Invoke-TheHash\n    - Invoke-WMIExec\n    - Invoke-SMBExec\n    - Invoke-DCOM\n    - Invoke-PowerShellTcp\n    - Invoke-PowerShellUdp\n    - Invoke-Inveigh\n    - Invoke-InveighRelay\n    - Invoke-EventViewer\n    - Invoke-SilentCleanup\n    - Invoke-Tater\n    - Invoke-Obfuscation\n    - Get-PassHashes\n  condition: selection_image and selection_cmdlets",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.6"
     },
     {
       "detect_id": "DETECT-2026-0019",
       "title": "LSASS Memory Access by Non-Standard Process",
+      "description": "Detects when a process outside of known-good system processes opens lsass.exe with memory-read access rights. Reading LSASS memory is the prerequisite for all in-memory credential extraction: tools such as Mimikatz (sekurlsa::logonpasswords), custom shellcode injectors, and minidump utilities all require an OpenProcess call on LSASS with at minimum PROCESS_VM_READ | PROCESS_QUERY_LIMITED_INFORMATION (0x1010) before they can extract credentials. Sysmon EID 10 (ProcessAccess) captures the accessing process, the target, and the GrantedAccess bitmask, making it the earliest and most precise telemetry source for LSASS-targeting activity — firing before any credential is actually read from memory.\n",
       "level": "critical",
       "status": "experimental",
       "source": "sigma",
@@ -295,11 +758,39 @@
       "techniques": [
         "T1003.001"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0019_LSASS-Memory-Access-by-Non-Standard-Process.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0019_LSASS-Memory-Access-by-Non-Standard-Process.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_access"
+      },
+      "author": "Bence Marton",
+      "date": "2026-06-21",
+      "modified": "2026-06-21",
+      "references": [
+        "https://attack.mitre.org/techniques/T1003/001/"
+      ],
+      "falsepositives": [
+        "AV/EDR agents scanning LSASS memory — add vendor path to filter_av_edr",
+        "Windows crash reporting and core system processes (werfault.exe, csrss.exe, wininit.exe — already filtered)",
+        "Legitimate diagnostic tools run by IT/security teams under change control",
+        "SIEM/XDR agents collecting process telemetry (add agent path to filter)"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "emulation",
+        "atomics": []
+      },
+      "rule_body": "detection:\n  selection:\n    TargetImage|endswith:\n    - \\lsass.exe\n    GrantedAccess|contains:\n    - '0x1010'\n    - '0x1410'\n    - '0x143a'\n    - '0x1438'\n    - '0x40'\n    - '0x1fffff'\n    - '0x1f1fff'\n  filter_system_processes:\n    SourceImage|endswith:\n    - \\lsass.exe\n    - \\werfault.exe\n    - \\WerFaultSecure.exe\n    - \\csrss.exe\n    - \\wininit.exe\n  filter_av_edr:\n    SourceImage|contains:\n    - \\Windows Defender\\\n    - \\Microsoft Security Client\\\n    - \\Malwarebytes\\\n    - \\CrowdStrike\\\n    - \\SentinelOne\\\n    - \\Carbon Black\\\n    - \\Cylance\\\n    - \\Symantec\\\n    - \\McAfee\\\n    - \\Sophos\\\n    - \\ESET\\\n    - \\Kaspersky\\\n    - \\Trend Micro\\\n    - \\Panda Security\\\n    - \\F-Secure\\\n  condition: selection and not (filter_system_processes or filter_av_edr)",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.2"
     },
     {
       "detect_id": "DETECT-2026-0020",
       "title": "LSASS Credential Dump via comsvcs.dll MiniDump",
+      "description": "Detects LSASS memory dump creation using the MiniDump export of the native Windows DLL comsvcs.dll, invoked via rundll32.exe. This is a well-known living-off-the-land (LOLBAS) technique that avoids dropping third-party dumping tools to disk: the attacker passes the LSASS PID, an output file path, and the literal string \"full\" to the MiniDump function, which creates a complete minidump of LSASS that can be later parsed offline with Mimikatz or pypykatz to extract credentials. Because the target is identified by PID rather than process name, \"lsass\" does not appear in the command line.\nCanonical command form:\n  rundll32.exe C:\\Windows\\System32\\comsvcs.dll, MiniDump <lsass_pid> <output> full\n\nDetection matches on rundll32.exe via Image path or PE OriginalFileName (to catch renamed binaries), combined with \"comsvcs\", \"MiniDump\", and \"full\" all present in the command line. This combination has a near-zero false-positive rate outside of authorized security testing.\nKnown gap: ordinal-based invocation (e.g. comsvcs.dll,#24 instead of MiniDump by name) bypasses this rule, as the export name does not appear in the command line.\n",
       "level": "critical",
       "status": "experimental",
       "source": "sigma",
@@ -313,11 +804,45 @@
         "T1003.001",
         "T1218.011"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0020_LSASS-Dump-via-comsvcs-MiniDump.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0020_LSASS-Dump-via-comsvcs-MiniDump.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-06-06",
+      "modified": "2026-06-06",
+      "references": [
+        "https://attack.mitre.org/techniques/T1003/001/",
+        "https://lolbas-project.github.io/lolbas/Libraries/comsvcs/"
+      ],
+      "falsepositives": [
+        "No known legitimate use of comsvcs.dll MiniDump outside of security testing",
+        "Authorized red team or incident response activities under change control"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1003.001",
+            "test_numbers": [
+              2
+            ]
+          }
+        ]
+      },
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\rundll32.exe\n  selection_original_filename:\n    OriginalFileName:\n    - RUNDLL32.EXE\n  selection_cmdlet:\n    CommandLine|contains|all:\n    - comsvcs\n    - MiniDump\n    - full\n  condition: (selection_image or selection_original_filename) and selection_cmdlet",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.4"
     },
     {
       "detect_id": "DETECT-2026-0021",
       "title": "LSASS Dump via ProcDump",
+      "description": "Detects the use of Sysinternals ProcDump (procdump.exe / procdump64.exe) to create a memory dump of the LSASS process. ProcDump is a legitimate diagnostic tool, but targeting lsass.exe specifically is a classic credential harvesting step: the resulting .dmp file can be copied off-system and parsed with Mimikatz (sekurlsa::minidump) or pypykatz to recover plaintext credentials, NTLM hashes, and Kerberos tickets without ever running an offensive tool on the victim host.\nDetection matches on \"procdump\" in either the Image path or the PE OriginalFileName (to catch renamed binaries), combined with \"lsass\" in the command line and at least one dump-mode flag (-ma/-mm/-mp) or related switch. PID-based targeting (e.g. procdump -ma 624) is a known gap: the LSASS process name does not appear in the command line in that case.\n",
       "level": "critical",
       "status": "experimental",
       "source": "sigma",
@@ -329,11 +854,46 @@
       "techniques": [
         "T1003.001"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0021_LSASS-Dump-via-ProcDump.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0021_LSASS-Dump-via-ProcDump.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-06-06",
+      "modified": "2026-06-06",
+      "references": [
+        "https://attack.mitre.org/techniques/T1003/001/",
+        "https://learn.microsoft.com/en-us/sysinternals/downloads/procdump"
+      ],
+      "falsepositives": [
+        "Authorized IT/security staff using ProcDump on LSASS for legitimate crash analysis under documented change control",
+        "Incident response workflows creating LSASS captures for forensic investigation"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1003.001",
+            "test_numbers": [
+              1,
+              9
+            ]
+          }
+        ]
+      },
+      "rule_body": "detection:\n  selection_image:\n    Image|contains:\n    - \\procdump\n  selection_original_filename:\n    OriginalFileName|contains:\n    - procdump\n  selection_lsass:\n    CommandLine|contains:\n    - lsass\n  selection_dump_flag:\n    CommandLine|contains:\n    - .dmp\n    - -ma\n    - -mm\n    - -mp\n    - -accepteula\n    - -r\n  condition: (1 of selection_image or 1 of selection_original_filename) and selection_lsass and 1 of selection_dump_flag",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.4"
     },
     {
       "detect_id": "DETECT-2026-0022",
       "title": "Known Credential Dumping Tool Execution",
+      "description": "Detects execution of known credential dumping tools by binary name, original file name metadata, or Mimikatz-specific CLI keywords in any process's CommandLine. Three complementary detection branches cover distinct evasion scenarios across multiple credential-access and Kerberos-abuse techniques (T1003.001/002/004/006, T1558.001/002/003).\nBinary name matching catches tools run directly without renaming (common in less sophisticated attacks or automated malware drops): mimikatz.exe, wce.exe, fgdump.exe, gsecdump.exe, pwdumpx.exe, cachedump.exe, Rubeus.exe, and others.\nOriginalFileName matching catches renamed copies of known tools by inspecting PE header metadata written at compile time — a field attackers often overlook.\nCLI keyword matching catches Mimikatz invocations regardless of binary name — including renamed copies, reflectively loaded Invoke-Mimikatz, or Cobalt Strike's built-in mimikatz command — by looking for Mimikatz module::command syntax patterns (sekurlsa::, lsadump::, misc::, privilege::, kerberos::, crypto::, token::, vault::, dpapi::). These namespaces are unique to Mimikatz's interactive and non-interactive command syntax and do not appear in legitimate system operations.\n",
       "level": "critical",
       "status": "experimental",
       "source": "sigma",
@@ -352,11 +912,62 @@
         "T1558.002",
         "T1558.003"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0022_Known-Credential-Dumping-Tool-Execution.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0022_Known-Credential-Dumping-Tool-Execution.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-06-06",
+      "modified": "2026-06-27",
+      "references": [
+        "https://attack.mitre.org/techniques/T1003/001/",
+        "https://attack.mitre.org/techniques/T1003/002/",
+        "https://attack.mitre.org/techniques/T1003/004/",
+        "https://attack.mitre.org/techniques/T1003/005/",
+        "https://attack.mitre.org/techniques/T1003/006/",
+        "https://attack.mitre.org/techniques/T1558/001/",
+        "https://attack.mitre.org/techniques/T1558/002/",
+        "https://attack.mitre.org/techniques/T1558/003/",
+        "https://github.com/gentilkiwi/mimikatz"
+      ],
+      "falsepositives": [
+        "Security research and red team activities under authorized rules of engagement",
+        "AV/EDR signature testing using deactivated or sandboxed samples",
+        "CTF competitions and training lab environments"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1003.001",
+            "test_numbers": [
+              3,
+              4,
+              6,
+              10
+            ]
+          },
+          {
+            "technique": "T1003.002",
+            "test_numbers": [
+              4
+            ]
+          }
+        ]
+      },
+      "rule_body": "detection:\n  selection_known_tools:\n    Image|endswith:\n    - \\mimikatz.exe\n    - \\wce.exe\n    - \\fgdump.exe\n    - \\gsecdump.exe\n    - \\pwdumpx.exe\n    - \\cachedump.exe\n    - \\pwdump.exe\n    - \\pwdump2.exe\n    - \\pwdump3.exe\n    - \\pwdump4.exe\n    - \\pwdump5.exe\n    - \\pwdump6.exe\n    - \\pwdump7.exe\n    - \\nanodump.x64.exe\n    - \\DumpMinitool.exe\n    - \\xordump.exe\n    - \\createdump.exe\n    - \\Outflank-Dumpert.exe\n    - \\SharpDump.exe\n    - \\SharpDumpx64.exe\n    - \\Rubeus.exe\n    - \\SafetyKatz.exe\n    - \\HandleKatz.exe\n    - \\PPLBlade.exe\n    - \\lsassy.exe\n    - \\lazagne.exe\n    - \\KDU.exe\n  selection_original_name:\n    OriginalFileName:\n    - mimikatz.exe\n    - wce.exe\n    - fgdump.exe\n    - gsecdump.exe\n    - pwdumpx.exe\n    - cachedump.exe\n    - Rubeus.exe\n    - SafetyKatz.exe\n    - HandleKatz.exe\n    - PPLBlade.exe\n    - lsassy.exe\n    - lazagne.exe\n    - KDU.exe\n    - SharpDump.exe\n    - SharpDumpx64.exe\n    - Outflank-Dumpert.exe\n    - xordump.exe\n    - DumpMinitool.exe\n    - nanodump.exe\n  selection_keywords_cli:\n    CommandLine|contains:\n    - 'sekurlsa::'\n    - 'lsadump::'\n    - 'privilege::'\n    - kerberos::list\n    - kerberos::golden\n    - kerberos::silver\n    - kerberos::ptt\n    - kerberos::purge\n    - kerberos::tgt\n    - kerberos::tgs\n    - kerberos::ptc\n    - 'crypto::'\n    - token::elevate\n    - token::impersonate\n    - vault::cred\n    - vault::list\n    - dpapi::cred\n    - dpapi::masterkey\n    - dpapi::blob\n    - misc::skeleton\n    - misc::memssp\n    - misc::shadowcopies\n    - misc::printnightmare\n    - Invoke-Mimikatz\n    - Invoke-PowerDump\n    - -DumpCreds\n    - mimilib.dll\n    - 'rpc::'\n  filter_createdump_legit:\n    Image|startswith:\n    - C:\\Windows\\\n    - C:\\Program Files\\dotnet\\\n    - C:\\Program Files (x86)\\dotnet\\\n    Image|endswith:\n    - \\createdump.exe\n  condition: (selection_known_tools and not filter_createdump_legit) or selection_original_name or selection_keywords_cli",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.7"
     },
     {
       "detect_id": "DETECT-2026-0023",
       "title": "SAM and LSA Secrets Dump via Registry Hive Export",
+      "description": "Detects the use of reg.exe to export credential-sensitive registry hives — HKLM\\SAM, HKLM\\SECURITY, and HKLM\\SYSTEM — as the primary step in offline credential extraction.\nThe SAM hive (T1003.002) contains local account NTLM password hashes. The SECURITY hive (T1003.004) contains cached LSA secrets: service account credentials, Domain Cached Credentials (DCC2) hashes, auto-logon passwords, and VPN or wireless pre-shared keys. When combined with the SYSTEM hive (which holds the boot key required for decryption), an attacker can recover all of these offline using Impacket secretsdump.py, pypykatz, or Mimikatz lsadump::sam / lsadump::secrets — without ever touching LSASS memory.\nThis is a classic LOLBAS technique: reg.exe is a legitimate Windows binary signed by Microsoft, making it resistant to application allowlisting. Both HKLM\\SAM and HKLM\\SECURITY are readable only by the SYSTEM account, so a successful execution indicates the attacker already holds SYSTEM-level privileges — placing this event firmly in the late-stage credential harvesting phase.\nAttackers also invoke this via PsExec's \"-s\" flag to run reg.exe as SYSTEM without first obtaining a SYSTEM shell (e.g. Atomic Red Team T1003.004 Test #1). The spawned reg.exe child process already matches this rule, but the PsExec.exe launcher process itself carries the full \"reg save/export ...\" command line as its own arguments, so it is matched directly as well — covering environments where child-process telemetry from the PsExec service is incomplete.\n",
       "level": "critical",
       "status": "stable",
       "source": "sigma",
@@ -369,11 +980,55 @@
         "T1003.002",
         "T1003.004"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0023_SAM-and-LSA-Secrets-Dump-via-Registry-Hive-Export.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0023_SAM-and-LSA-Secrets-Dump-via-Registry-Hive-Export.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-06-21",
+      "modified": "2026-07-11",
+      "references": [
+        "https://attack.mitre.org/techniques/T1003/002/",
+        "https://attack.mitre.org/techniques/T1003/004/",
+        "https://attack.mitre.org/techniques/T1003/005/",
+        "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1003.002/T1003.002.md",
+        "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1003.004/T1003.004.md"
+      ],
+      "falsepositives": [
+        "No known legitimate use case for exporting HKLM\\SAM or HKLM\\SECURITY outside of incident response or forensic investigation under documented change control",
+        "HKLM\\SYSTEM export by legitimate backup software using reg.exe directly (rare — most backup tools use their own API, not reg.exe)"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1003.002",
+            "test_numbers": [
+              1,
+              8
+            ]
+          },
+          {
+            "technique": "T1003.004",
+            "test_numbers": [
+              1
+            ]
+          }
+        ]
+      },
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\reg.exe\n    - \\PsExec.exe\n    - \\PsExec64.exe\n  selection_original_filename:\n    OriginalFileName:\n    - reg.exe\n    - psexec.c\n  selection_save:\n    CommandLine|contains:\n    - ' save '\n    - ' export '\n  selection_target_hives:\n    CommandLine|contains:\n    - HKLM\\SAM\n    - HKLM\\SECURITY\n    - HKLM\\SYSTEM\n  condition: (selection_image or selection_original_filename) and selection_save and selection_target_hives",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.5"
     },
     {
       "detect_id": "DETECT-2026-0024",
       "title": "NTDS.dit Credential Dump Attempt",
+      "description": "Detects attempts to extract credential data from the Active Directory database (NTDS.dit) stored on Domain Controllers via seven complementary detection branches.\nntdsutil.exe IFM (Install From Media) is the most common native method: the attacker activates the NTDS instance and calls \"ifm create full\" to produce a self-contained copy of NTDS.dit and the SYSTEM hive that can be taken offline for credential extraction with Impacket secretsdump, DSInternals, or Mimikatz lsadump::lsa. The \"ac i ntds\" and \"activate instance ntds\" variants are abbreviated and long-form equivalents of the same sub-command sequence.\nesentutl.exe can copy the locked NTDS.dit by leveraging the Volume Shadow Copy Service (/vss flag) or the generic file-copy operation (/y), bypassing the Extensible Storage Engine (ESE) lock that prevents direct file access while AD DS is running.\nVolume Shadow Copy paths in any process's CommandLine indicate direct extraction of NTDS.dit from a VSS snapshot — the manual copy step that follows snapshot creation via vssadmin, wmic, or PowerShell WMI. The process is typically xcopy.exe, robocopy.exe, or cmd.exe piping a copy command.\ndiskshadow.exe invoked in script mode (/s) is a LOLBin technique used to automate the full snapshot-and-extract workflow in a single binary call. Legitimate interactive diskshadow sessions do not require a script file argument.\nwbadmin.exe (Windows Server Backup) can be abused to back up or recover the NTDS.dit file or the entire NTDS directory, producing an offline-accessible copy without touching VSS shadow paths directly. Unlike vssadmin or WMI-based snapshot creation — where the target file is implicit — wbadmin embeds the source path in its CommandLine (-include: or -items:), making the NTDS reference directly observable in process telemetry.\nDirect live-path copy detects any process that runs a copy command against the NTDS.dit at its original location (C:\\Windows\\NTDS\\ntds.dit) rather than through a shadow copy or backup utility. This succeeds only when AD DS is stopped; the pattern still fires if an attacker attempts it while the service is running, revealing the intent regardless of whether the copy actually completes.\nKnown NTDS dump tools are matched by binary name, OriginalFileName PE metadata, and characteristic CLI patterns. NTDSDump.exe and NTDSDumpEx.exe are purpose-built NTDS extraction utilities. The ntds.dit + system.hiv CLI combination is a fingerprint of offline extraction workflows that require both the ESE database and the SYSTEM hive boot key for decryption. NTDSgrab.ps1 is a PowerShell wrapper that automates the same extraction flow.\n",
       "level": "critical",
       "status": "experimental",
       "source": "sigma",
@@ -385,11 +1040,54 @@
       "techniques": [
         "T1003.003"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0024_NTDS-Credential-Dump-Attempt.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0024_NTDS-Credential-Dump-Attempt.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-06-27",
+      "modified": "2026-06-27",
+      "references": [
+        "https://attack.mitre.org/techniques/T1003/003/",
+        "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1003.003/T1003.003.md",
+        "https://www.ired.team/offensive-security/credential-access-and-credential-dumping/ntds.dit-enumeration",
+        "https://docs.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2012-r2-and-2012/cc732530(v=ws.11)"
+      ],
+      "falsepositives": [
+        "ntdsutil.exe IFM — legitimate DC provisioning and IFM media creation; expected only from known admin accounts during planned Domain Controller deployments",
+        "esentutl.exe — offline AD database defragmentation or integrity checks; rare, always requires AD DS to be stopped and documented in change management",
+        "VSS + ntds.dit path — backup software exposing shadow copy paths in CommandLine (e.g., Veeam, Windows Server Backup); filter by trusted ParentImage if needed",
+        "diskshadow.exe /s — backup and storage automation scripts using diskshadow for disk management tasks unrelated to NTDS",
+        "wbadmin.exe — legitimate offline AD DS backup or recovery by authorized administrators; requires AD DS to be stopped and documented in change management",
+        "direct live-path copy — no known legitimate use; any process copying ntds.dit from its original path warrants immediate investigation",
+        "NTDSDump/NTDSDumpEx/NTDSgrab.ps1 — no known legitimate use outside authorized red team or penetration testing engagements"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-dc",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1003.003",
+            "test_numbers": [
+              3,
+              6,
+              9
+            ]
+          }
+        ]
+      },
+      "rule_body": "detection:\n  selection_ntdsutil_image:\n  - Image|endswith: \\ntdsutil.exe\n  - OriginalFileName: ntdsutil.exe\n  selection_cli_1:\n    CommandLine|contains|all:\n    - ac i ntds\n    - create full\n  selection_cli_2:\n    CommandLine|contains|all:\n    - activate instance ntds\n    - create full\n  selection_direct_ntds_copy:\n    CommandLine|contains|all:\n    - '/c copy '\n    - \\windows\\ntds\\ntds.dit\n  selection_esentutl_image:\n  - Image|endswith: \\esentutl.exe\n  - OriginalFileName: esentutl.exe\n  selection_esentutl_ntds:\n    CommandLine|contains: \\windows\\ntds\\ntds.dit\n  selection_vss_shadow:\n    CommandLine|contains: HarddiskVolumeShadowCopy\n  selection_vss_ntds:\n    CommandLine|contains: \\windows\\ntds\\ntds.dit\n  selection_diskshadow_image:\n  - Image|endswith: \\diskshadow.exe\n  - OriginalFileName: diskshadow.exe\n  selection_diskshadow_script:\n    CommandLine|contains: '/s '\n  selection_wbadmin_image:\n  - Image|endswith: \\wbadmin.exe\n  - OriginalFileName: WBADMIN.EXE\n  selection_wbadmin_ntds:\n    CommandLine|contains: \\windows\\ntds\n  selection_tool:\n  - Image|endswith:\n    - \\NTDSDump.exe\n    - \\NTDSDumpEx.exe\n  - OriginalFileName:\n    - NTDSDump.exe\n    - NTDSDumpEx.exe\n  - CommandLine|contains|all:\n    - ntds.dit\n    - system.hiv\n  - CommandLine|contains: NTDSgrab.ps1\n  condition: (selection_ntdsutil_image and 1 of selection_cli*) or selection_direct_ntds_copy or (selection_esentutl_image\n    and selection_esentutl_ntds) or (selection_vss_shadow and selection_vss_ntds) or (selection_diskshadow_image\n    and selection_diskshadow_script) or (selection_wbadmin_image and selection_wbadmin_ntds) or selection_tool",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.2"
     },
     {
       "detect_id": "DETECT-2026-0025",
       "title": "LSASS Memory Dump via Task Manager or Suspicious File Creation",
+      "description": "Detects the creation of LSASS memory dump files via Sysmon EID 11 (FileCreate), covering scenarios that are invisible to process-based LSASS rules.\nThe primary technique is Windows Task Manager: right-clicking lsass.exe and selecting \"Create dump file\" writes a complete process memory snapshot to %LOCALAPPDATA%\\Temp\\lsass.DMP. This is entirely GUI-driven and produces no process_creation telemetry with LSASS-related arguments, making it invisible to DETECT-2026-0019 through DETECT-2026-0021. The FileCreate event captures it regardless of the initiating mechanism.\nA second branch detects any process writing a file whose name contains \"lsass\" with a .dmp extension. This covers custom tools, scripts, and automated attack frameworks that retain the lsass filename convention — a common oversight in attacker tooling — regardless of the parent process.\nWindows Error Reporting (WerFault.exe, WerFaultSecure.exe) can legitimately create LSASS crash dumps and is filtered to suppress operational noise while preserving detection for all other callers.\n",
       "level": "critical",
       "status": "stable",
       "source": "sigma",
@@ -401,11 +1099,40 @@
       "techniques": [
         "T1003.001"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0025_LSASS-Dump-via-TaskManager-and-FileCreate.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0025_LSASS-Dump-via-TaskManager-and-FileCreate.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "file_event"
+      },
+      "author": "Bence Marton",
+      "date": "2026-07-08",
+      "modified": "2026-07-08",
+      "references": [
+        "https://attack.mitre.org/techniques/T1003/001/",
+        "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1003.001/T1003.001.md",
+        "https://www.deepinstinct.com/blog/lsass-memory-dumping-techniques"
+      ],
+      "falsepositives": [
+        "Windows Error Reporting creating LSASS crash dumps — filtered via filter_wer",
+        "Authorized IR/forensic teams creating LSASS captures under documented change control",
+        "Security products snapshotting LSASS for behavioral analysis — add vendor path to filter_wer"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "emulation",
+        "atomics": []
+      },
+      "rule_body": "detection:\n  selection_taskmgr:\n    Image|endswith: \\taskmgr.exe\n    TargetFilename|contains: lsass\n    TargetFilename|endswith: .dmp\n  selection_lsass_dump:\n    TargetFilename|contains: lsass\n    TargetFilename|endswith: .dmp\n  filter_wer:\n    Image|endswith:\n    - \\WerFault.exe\n    - \\WerFaultSecure.exe\n  condition: (selection_taskmgr or selection_lsass_dump) and not filter_wer",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.1"
     },
     {
       "detect_id": "DETECT-2026-0026",
       "title": "SAM and LSA Credential Hive Copy via esentutl",
+      "description": "Detects the use of esentutl.exe to copy credential-sensitive registry hive files — SAM, SECURITY, and SYSTEM — as an alternative to the reg.exe export approach covered by DETECT-2026-0023.\nesentutl.exe is the Extensible Storage Engine utility shipped with Windows. Its /y (copy) combined with /vss (Volume Shadow Copy Service) flag allows copying files that are locked by the OS at runtime, bypassing the exclusive locks placed on credential hives while Windows is running. The resulting copies can be taken offline and decrypted with Impacket secretsdump.py, pypykatz, or Mimikatz lsadump::sam / lsadump::secrets — identical to the reg.exe export workflow but with a different LOLBAS binary.\nThe SAM hive (T1003.002) contains local account NTLM hashes. The SECURITY hive (T1003.004) contains cached LSA secrets: service account credentials, Domain Cached Credentials (DCC2) hashes, auto-logon passwords, and VPN or wireless pre-shared keys. The SYSTEM hive is required in both cases as it holds the boot key needed for offline decryption.\nNote: esentutl targeting NTDS.dit on Domain Controllers is a separate technique (T1003.003) covered by DETECT-2026-0024.\n",
       "level": "critical",
       "status": "stable",
       "source": "sigma",
@@ -418,11 +1145,47 @@
         "T1003.002",
         "T1003.004"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0026_SAM-and-LSA-Hive-Copy-via-esentutl.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0026_SAM-and-LSA-Hive-Copy-via-esentutl.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-07-08",
+      "modified": "2026-07-08",
+      "references": [
+        "https://attack.mitre.org/techniques/T1003/002/",
+        "https://attack.mitre.org/techniques/T1003/004/",
+        "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1003.002/T1003.002.md",
+        "https://lolbas-project.github.io/lolbas/Binaries/Esentutl/"
+      ],
+      "falsepositives": [
+        "Offline AD DS database defragmentation or integrity checks requiring SYSTEM hive access — rare, always requires AD DS to be stopped and change management",
+        "Authorized backup software invoking esentutl directly for hive-level backups (uncommon — most backup tools use VSS API, not esentutl)"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1003.002",
+            "test_numbers": [
+              3
+            ]
+          }
+        ]
+      },
+      "rule_body": "detection:\n  selection_image:\n  - Image|endswith: \\esentutl.exe\n  - OriginalFileName: esentutl.exe\n  selection_copy_flag:\n    CommandLine|contains: ' /y '\n  selection_hives:\n    CommandLine|contains:\n    - /system32/config/SAM\n    - /system32/config/SECURITY\n    - /system32/config/SYSTEM\n  condition: selection_image and selection_copy_flag and selection_hives",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.2"
     },
     {
       "detect_id": "DETECT-2026-0027",
       "title": "Credential Hive Access via Volume Shadow Copy",
+      "description": "Detects any process accessing credential-sensitive registry hive files (SAM, SECURITY, SYSTEM) through a Volume Shadow Copy path in its CommandLine.\nVolume Shadow Copy paths (\\\\?\\GLOBALROOT\\Device\\HarddiskVolumeShadowCopy*) bypass the exclusive OS locks placed on live registry hives, allowing an attacker to read or copy SAM, SECURITY, and SYSTEM without stopping the relevant Windows services. The resulting files can be decrypted offline with Impacket secretsdump.py, pypykatz, or Mimikatz lsadump::sam / lsadump::secrets.\nThis rule is tool-agnostic: the VSS path combined with a credential hive name appears in the CommandLine regardless of which LOLBAS or custom binary performs the access. Known exploiting tools include certutil.exe (-encodehex), PowerShell ([System.IO.File]::Copy), xcopy.exe, robocopy.exe, and cmd.exe (copy command).\nCVE-2021-36934 (HiveNightmare / SeriousSAM) made this technique exploitable by non-admin users on unpatched Windows 10/11 systems: a misconfigured ACL on the VSS copies of credential hives allowed standard users to read SAM and SECURITY directly. The detection fires on both privileged and unprivileged access attempts since the CommandLine pattern is identical in both cases.\nNote: VSS access targeting NTDS.dit on Domain Controllers is a separate technique (T1003.003) covered by DETECT-2026-0024.\n",
       "level": "critical",
       "status": "stable",
       "source": "sigma",
@@ -434,11 +1197,49 @@
       "techniques": [
         "T1003.002"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0027_Credential-Hive-Access-via-Volume-Shadow-Copy.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0027_Credential-Hive-Access-via-Volume-Shadow-Copy.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-07-08",
+      "modified": "2026-07-08",
+      "references": [
+        "https://attack.mitre.org/techniques/T1003/002/",
+        "https://attack.mitre.org/techniques/T1003/004/",
+        "https://attack.mitre.org/techniques/T1003/005/",
+        "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1003.002/T1003.002.md",
+        "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2021-36934",
+        "https://www.kb.cert.org/vuls/id/506989"
+      ],
+      "falsepositives": [
+        "Backup software that exposes VSS shadow copy paths in process CommandLine when backing up system state — filter by trusted ParentImage or Image path",
+        "Authorized forensic or incident response tools accessing VSS copies of credential hives under documented change control"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1003.002",
+            "test_numbers": [
+              5
+            ]
+          }
+        ]
+      },
+      "rule_body": "detection:\n  selection_vss_path:\n    CommandLine|contains: HarddiskVolumeShadowCopy\n  selection_hives:\n    CommandLine|contains:\n    - \\config\\SAM\n    - \\config\\SECURITY\n  condition: selection_vss_path and selection_hives",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.4"
     },
     {
       "detect_id": "DETECT-2026-0028",
       "title": "Cached Credential Enumeration via Cmdkey",
+      "description": "Detects the use of cmdkey.exe with the /list switch to enumerate credentials stored in Windows Credential Manager, including cached domain credential targets for RDP sessions, mapped network shares, and other saved logons.\ncmdkey /list only returns credential target names and associated usernames — it does not disclose passwords, which Windows never exposes through cmdkey. As such this is a reconnaissance / discovery step rather than a direct secrets dump: attackers use it to identify which remote hosts or shares a compromised account has saved credentials for, informing follow-on lateral movement (T1021) or targeted credential theft.\nBecause cmdkey /list is also a common, legitimate troubleshooting command (help desk verifying saved RDP credentials, scripts auditing stored network credentials), this rule is intentionally scored low and is best used as a discovery/context signal that gains significance when correlated with subsequent authentication to the enumerated targets or other credential access activity.\n",
       "level": "low",
       "status": "stable",
       "source": "sigma",
@@ -450,11 +1251,48 @@
       "techniques": [
         "T1003.005"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0028_Cached-Credential-Enumeration-via-Cmdkey.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0028_Cached-Credential-Enumeration-via-Cmdkey.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-07-11",
+      "modified": "2026-07-11",
+      "references": [
+        "https://attack.mitre.org/techniques/T1003/005/",
+        "https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/cmdkey",
+        "https://www.peew.pw/blog/2017/11/26/exploring-cmdkey-an-edge-case-for-privilege-escalation",
+        "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1003.005/T1003.005.md"
+      ],
+      "falsepositives": [
+        "Help desk or IT support checking a user's stored RDP or network share credentials during troubleshooting",
+        "Logon scripts or credential hygiene audits that enumerate Credential Manager entries",
+        "Automated deployment or Group Policy scripts validating stored credentials before mapping drives"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1003.005",
+            "test_numbers": [
+              1
+            ]
+          }
+        ]
+      },
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\cmdkey.exe\n  selection_original_filename:\n    OriginalFileName: cmdkey.exe\n  selection_list:\n    CommandLine|contains: /list\n  condition: (selection_image or selection_original_filename) and selection_list",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.1"
     },
     {
       "detect_id": "DETECT-2026-0029",
       "title": "DCSync via DSInternals Get-ADReplAccount",
+      "description": "Detects use of the DSInternals PowerShell module's Get-ADReplAccount cmdlet to pull account secrets — including NTLM hashes, Kerberos keys, and password history — from a Domain Controller over the MS-DRSR directory replication protocol.\nThis achieves the same outcome as the classic Mimikatz lsadump::dcsync attack (T1003.006) but without ever touching Mimikatz: DSInternals is a signed, legitimate PowerShell module, and Get-ADReplAccount is a real administrative cmdlet used for AD backup and password-audit tooling. As with any DCSync-style attack, successfully retrieving output requires the calling account to hold Replicating Directory Changes / Replicating Directory Changes All rights on the domain — so a non-privileged or unexpected account invoking this cmdlet indicates either a compromised privileged account or a prior AD ACL abuse step (e.g. granting these rights to a controlled principal).\n",
       "level": "high",
       "status": "stable",
       "source": "sigma",
@@ -466,11 +1304,48 @@
       "techniques": [
         "T1003.006"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0029_DCSync-via-DSInternals-Get-ADReplAccount.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0029_DCSync-via-DSInternals-Get-ADReplAccount.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-07-11",
+      "modified": "2026-07-11",
+      "references": [
+        "https://attack.mitre.org/techniques/T1003/006/",
+        "https://www.dsinternals.com/en/retrieving-active-directory-passwords-remotely/",
+        "https://github.com/MichaelGrafnetter/DSInternals",
+        "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1003.006/T1003.006.md"
+      ],
+      "falsepositives": [
+        "Authorized AD password-audit or credential-hygiene tooling built on DSInternals (e.g. weak/leaked password checks against NTLM hashes)",
+        "AD disaster-recovery or backup processes that use DSInternals to export account secrets under documented change control",
+        "Security assessment tools (e.g. PingCastle, Purple Knight) invoking DSInternals cmdlets during an authorized engagement"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1003.006",
+            "test_numbers": [
+              2
+            ]
+          }
+        ]
+      },
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_cmdlet:\n    CommandLine|contains:\n    - Get-ADReplAccount\n  condition: selection_image and selection_cmdlet",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.2"
     },
     {
       "detect_id": "DETECT-2026-0030",
       "title": "Symlink Creation to Volume Shadow Copy Device Path",
+      "description": "Detects creation of a directory symbolic link or junction whose target is a raw Volume Shadow Copy device path (\\\\?\\GLOBALROOT\\Device\\HarddiskVolumeShadowCopyN), via either the mklink built-in command or PowerShell's New-Item -ItemType SymbolicLink/Junction equivalent.\nThis is a documented evasion technique against VSS-path-based credential hive detection: DETECT-2026-0024 (NTDS.dit) and DETECT-2026-0027 (SAM/SECURITY/SYSTEM hives) both key on the literal string \"HarddiskVolumeShadowCopy\" appearing in the CommandLine of the process that reads the credential file. Once a symlink is created pointing at the shadow copy device, every subsequent file operation references the symlink path instead — the raw VSS device path never appears again, silently evading both of those rules.\nLegitimate administrative or backup use of this pattern is effectively nonexistent: VSS-aware backup software accesses shadow copies through the VSS writer/requestor API, not by manually creating a persistent symlink to the underlying device path. A symlink pointing at a VSS device is a strong, largely unambiguous indicator of intentional evasion.\n",
       "level": "critical",
       "status": "stable",
       "source": "sigma",
@@ -482,11 +1357,45 @@
       "techniques": [
         "T1003.003"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0030_Symlink-Creation-to-Volume-Shadow-Copy-Device-Path.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0030_Symlink-Creation-to-Volume-Shadow-Copy-Device-Path.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-07-11",
+      "modified": "2026-07-11",
+      "references": [
+        "https://attack.mitre.org/techniques/T1003/003/",
+        "https://attack.mitre.org/techniques/T1003/002/",
+        "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1003.003/T1003.003.md"
+      ],
+      "falsepositives": [
+        "No known legitimate use case for symlinking to a raw Volume Shadow Copy device path outside of forensic/incident response tooling under documented change control"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-dc",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1003.003",
+            "test_numbers": [
+              8
+            ]
+          }
+        ]
+      },
+      "rule_body": "detection:\n  selection_mklink:\n    CommandLine|contains: mklink\n  selection_powershell_symlink:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n    CommandLine|contains:\n    - SymbolicLink\n    - Junction\n  selection_vss_target:\n    CommandLine|contains: HarddiskVolumeShadowCopy\n  condition: (selection_mklink or selection_powershell_symlink) and selection_vss_target",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.1"
     },
     {
       "detect_id": "DETECT-2026-0031",
       "title": "Credential Hive Access via Low-Level NTFS Acquisition",
+      "description": "Detects invocation of the UnderlayCopy PowerShell tool's Underlay-Copy cmdlet against NTDS.dit or a SAM/SECURITY/SYSTEM registry hive file.\nUnderlayCopy performs low-level NTFS acquisition — either by parsing the Master File Table (MFT mode) or by reading raw file metadata via fsutil (Metadata mode) — to copy files that are exclusively locked by the OS at runtime, including NTDS.dit on a Domain Controller and the SAM/SECURITY/ SYSTEM hives on any Windows Host.\nThis bypasses both detection surfaces the rest of this rule family relies on: it never creates a Volume Shadow Copy (so the \"HarddiskVolumeShadowCopy\" string used by DETECT-2026-0024 and DETECT-2026-0027 never appears), and it never shells out to cmd.exe's copy command (so the \"/c copy \" pattern used by DETECT-2026-0024's direct-copy branch never appears either). The Underlay-Copy cmdlet name itself is the most reliable fingerprint — it is a distinctive, single-purpose community tool with no legitimate presence in standard administrative scripting.\n",
       "level": "critical",
       "status": "stable",
       "source": "sigma",
@@ -498,7 +1407,42 @@
       "techniques": [
         "T1003.003"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0031_Credential-Hive-Access-via-Low-Level-NTFS-Acquisition.sigma.yml"
+      "file_path": "rules/sigma/DETECT-2026-0031_Credential-Hive-Access-via-Low-Level-NTFS-Acquisition.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-07-11",
+      "modified": "2026-07-11",
+      "references": [
+        "https://attack.mitre.org/techniques/T1003/003/",
+        "https://attack.mitre.org/techniques/T1003/002/",
+        "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1003.003/T1003.003.md",
+        "https://github.com/kfallahi/UnderlayCopy"
+      ],
+      "falsepositives": [
+        "No known legitimate use case — UnderlayCopy is a single-purpose offensive/red-team acquisition tool with no administrative function"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-dc",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1003.003",
+            "test_numbers": [
+              10,
+              11
+            ]
+          }
+        ]
+      },
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_cmdlet:\n    CommandLine|contains: Underlay-Copy\n  selection_target:\n    CommandLine|contains:\n    - \\ntds\\ntds.dit\n    - \\config\\SAM\n    - \\config\\SECURITY\n    - \\config\\SYSTEM\n  condition: selection_image and selection_cmdlet and selection_target",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.2"
     }
   ]
 }

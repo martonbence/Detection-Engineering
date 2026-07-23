@@ -1,0 +1,60 @@
+title: Test3
+detect_id: DETECT-2026-0003
+status: test
+description: Test Sigma rule for demonstration purposes.
+author: Bence Marton
+date: 2026-04-17
+modified: 2026-04-17
+references:
+  - https://example.com
+tags:
+  - attack.execution
+  - attack.t1059.001
+
+logsource:
+  product_category: os
+  product: windows
+  service: security
+  event_type: process_creation
+
+# Placeholder detection block: this rule is authored as raw SPL via
+# custom.splunk.raw_query below, so sigma_to_spl.py never runs this through
+# an actual Sigma-to-SPL conversion. It exists only to satisfy the Sigma
+# schema/linter's required detection: block.
+detection:
+  selection:
+    Image|endswith: "\\powershell.exe"
+  condition: selection
+
+fields:
+  - _time
+  - CommandLine
+  - ParentImage
+  - Image
+  - User
+  - ProcessId
+
+falsepositives:
+  - Legitimate administrative scripts using EncodedCommand
+
+level: critical
+
+custom:
+  splunk:
+    index: sysmon
+    mode: report
+    cron: "*/5 * * * *"
+    earliest: "-5m"
+    latest: "now"
+    severity: critical
+    raw_query: >-
+      index=sysmon Image="*\\powershell.exe" CommandLine IN ("* -e *", "* -enc *", "* -encodedcommand *")
+      | table _time,CommandLine,ParentImage,Image,User,ProcessId
+
+  testing:
+    enabled: true
+    runner: windows-victim
+    type: atomic
+    atomics:
+      - technique: T1059.001
+        test_numbers: [17]

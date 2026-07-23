@@ -1,0 +1,84 @@
+name: CI - Prod Deploy
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "rules/sigma/**/*.yml"
+      - "rules/sigma/**/*.yaml"
+      - ".github/workflows/ci_prod_workflow.yml"
+
+concurrency:
+  group: detection-pipeline-prod-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy_to_prod:
+    name: Deploy to Prod Splunk
+    runs-on: [ self-hosted, linux, de-lab ]
+    environment: prod
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install pyyaml jsonschema sigma-cli pysigma-backend-splunk requests
+
+      - name: Regenerate SPL + meta sidecars from Sigma source
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t rule_files < <(git ls-files "rules/sigma/**/*.yml" "rules/sigma/**/*.yaml")
+
+          if [[ "${#rule_files[@]}" -eq 0 ]]; then
+            echo "No Sigma rules found."
+            exit 0
+          fi
+
+          # dev already produced and committed the .spl query files -- this step
+          # only exists to regenerate the .meta.json sidecar (gitignored, never
+          # committed) that deploy_spl_to_splunk.py needs. Re-running the same
+          # converter against the same, already-reviewed Sigma source is
+          # deterministic: the .spl output is byte-identical to what's already
+          # committed, only the sidecar is newly written.
+          python scripts/convert/sigma_to_spl.py --outdir rules/splunk "${rule_files[@]}"
+
+      - name: Deploy all SPL files to prod Splunk
+        shell: bash
+        env:
+          SPLUNK_BASE_URL: ${{ secrets.SPLUNK_BASE_URL }}
+          SPLUNK_USERNAME: ${{ secrets.SPLUNK_USERNAME }}
+          SPLUNK_PASSWORD: ${{ secrets.SPLUNK_PASSWORD }}
+          SPLUNK_APP: ${{ secrets.SPLUNK_APP }}
+          SPLUNK_OWNER: ${{ secrets.SPLUNK_OWNER }}
+          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS || 'false' }}
+          SPLUNK_SHARING: app
+          SPLUNK_PERMS_READ: "*"
+          SPLUNK_PERMS_WRITE: admin,ci_deploy_savedsearches
+        run: |
+          set -euo pipefail
+
+          mapfile -t spl_files < <(git ls-files "rules/splunk/**/*.spl")
+
+          if [[ "${#spl_files[@]}" -eq 0 ]]; then
+            echo "No SPL files to deploy."
+            exit 0
+          fi
+
+          python scripts/deploy/deploy_spl_to_splunk.py "${spl_files[@]}"

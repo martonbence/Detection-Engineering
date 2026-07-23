@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "agent",
+            "if": "Bash(git commit *)",
+            "prompt": "A git commit just completed in this repo. Run `git show --stat HEAD` to see which files changed in that commit. If, and only if, the changed files include anything under .github/workflows/, scripts/convert/, scripts/deploy/, scripts/verify/, or scripts/atomic/, update this repo's documentation to match reality: refresh README.md, docs/architecture/*.md, and (if a wiki remote is reachable) the GitHub Wiki content, so they accurately describe the current pipeline stages, CI workflow jobs, and scripts. Follow the same scope and standards as this repo's docs-maintainer subagent definition (.claude/agents/docs-maintainer.md) -- exhaustive coverage of pipeline stages, CI jobs, and named scripts, kept accurate to what the code actually does, no invented content. If the commit did not touch any of those paths, do nothing and exit quietly without making any changes.",
+            "timeout": 600,
+            "statusMessage": "Checking whether docs need updating after this commit..."
+          }
+        ]
+      }
+    ]
+  }
+}

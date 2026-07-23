@@ -305,6 +305,11 @@
                                 "high",
                                 "critical"
                             ]
+                        },
+                        "raw_query": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Raw SPL query for rules with no real Sigma detection logic. When set, sigma_to_spl.py emits this text verbatim instead of running the Sigma-to-SPL conversion; the rule's detection: block is a required placeholder only."
                         }
                     }
                 },
