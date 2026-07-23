@@ -12,8 +12,8 @@ references:
 author: Bence Marton
 date: 2026-05-03
 modified: 2026-07-23
-# retrigger 4: dev pipeline live test, after switching the promotion PR step
-# to GH_PAT_DEV_PUSH so it can open the dev -> main PR on PASS
+# retrigger 5: dev pipeline live test, after regenerating GH_PAT_DEV_PUSH with
+# Pull requests: Read and write permission added
 tags:
   - attack.execution
   - attack.t1059.001
