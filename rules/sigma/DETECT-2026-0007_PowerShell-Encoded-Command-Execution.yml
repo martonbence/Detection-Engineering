@@ -12,6 +12,7 @@ references:
 author: Bence Marton
 date: 2026-05-03
 modified: 2026-07-23
+# retrigger: dev/prod pipeline live test (SPLUNK_APP fix + splunk_verify gate fix)
 tags:
   - attack.execution
   - attack.t1059.001
