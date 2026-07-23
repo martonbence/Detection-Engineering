@@ -48,7 +48,7 @@ def pick_pipeline(rule: dict) -> str:
 
 
 def output_name_for_rule(rule_path: Path) -> str:
-    # rules/sigma/foo.sigma.yml -> foo.sigma.spl (always keep .sigma marker)
+    # rules/sigma/foo.sigma.yml -> foo.spl
     name = rule_path.name
     if name.endswith(".yml"):
         name = name[:-4]
@@ -56,7 +56,7 @@ def output_name_for_rule(rule_path: Path) -> str:
         name = name[:-5]
     if name.endswith(".sigma"):
         name = name[:-6]
-    return f"{name}.sigma.spl"
+    return f"{name}.spl"
 
 
 def run_sigma_convert(rule_path: Path, out_path: Path, pipeline: str) -> None:
@@ -89,6 +89,10 @@ def _get_splunk_custom(rule: dict) -> dict:
     custom = rule.get("custom") or {}
     splunk_custom = custom.get("splunk") if isinstance(custom, dict) else None
     return splunk_custom if isinstance(splunk_custom, dict) else {}
+
+
+def _get_raw_query(rule: dict) -> str:
+    return _safe_str(_get_splunk_custom(rule).get("raw_query"))
 
 
 def _get_testing_custom(rule: dict) -> dict:
@@ -181,6 +185,10 @@ def _inject_index_prefix(query: str, index_value: str) -> str:
     return f"index={idx} {q}"
 
 
+def write_raw_query(out_path: Path, raw_query: str) -> None:
+    out_path.write_text(raw_query.strip() + "\n", encoding="utf-8")
+
+
 def enforce_index_prefix(out_path: Path, index_value: str) -> None:
     content = out_path.read_text(encoding="utf-8")
     updated = _inject_index_prefix(content, index_value)
@@ -220,89 +228,13 @@ def _compute_rule_version(rule_path: Path) -> str:
     return f"1.{minor}"
 
 
-def _format_meta_json_with_spacing(meta: dict) -> str:
+def build_meta_dict(rule_path: Path, rule: dict, deploy_mode: str, pipeline: str, is_raw_query: bool) -> dict:
     """
-    JSON is still valid with extra blank lines. We insert a few empty lines for readability:
-      - after "modified"
-      - after "sigma_pipeline"
-      - before "testing enabled"
-      - before "references"
-      - before "tags"
-      - before and after "logsource"
+    Build the CI metadata dict for a rule. This is written out as a sidecar
+    <name>.meta.json next to the generated <name>.spl (never merged into it) --
+    it is CI-runtime metadata for the deploy/verify/atomic-runner steps, not
+    something that belongs in the query file itself.
     """
-    raw = json.dumps(meta, ensure_ascii=False, indent=2, default=str)
-    lines = raw.splitlines()
-
-    out = []
-    inside_logsource = False
-    depth = 0
-
-    for i, line in enumerate(lines):
-        stripped = line.lstrip()
-
-        # blank line before logsource
-        if stripped.startswith('"logsource":') or stripped.startswith('"logsource" :'):
-            if out and out[-1] != "":
-                out.append("")
-            inside_logsource = True
-            depth = 0  # will be updated below
-
-        # blank line before references
-        if stripped.startswith('"references":') or stripped.startswith('"references" :'):
-            if out and out[-1] != "":
-                out.append("")
-
-        # blank line before tags
-        if stripped.startswith('"tags":') or stripped.startswith('"tags" :'):
-            if out and out[-1] != "":
-                out.append("")
-
-        out.append(line)
-
-        # blank line after modified
-        if stripped.startswith('"modified":'):
-            out.append("")
-
-        # blank line after sigma_pipeline
-        if stripped.startswith('"sigma_pipeline":'):
-            out.append("")
-
-        # blank line before testing fields
-        if stripped.startswith('"testing enabled":') or stripped.startswith('"testing enabled" :'):
-            out.pop()
-            if out and out[-1] != "":
-                out.append("")
-            out.append(line)
-
-        # Track logsource object depth to add blank line after it ends
-        if inside_logsource:
-            depth += line.count("{") - line.count("}")
-            # When we reach the end of the logsource object, depth will hit 0
-            # after consuming the closing brace line.
-            if depth == 0:
-                inside_logsource = False
-                out.append("")
-
-    # Remove trailing blank lines right before closing brace if any
-    # (keep JSON clean-looking)
-    while len(out) > 1 and out[-1] == "" and out[-2].strip() == "}":
-        out.pop(-1)
-
-    return "\n".join(out)
-
-
-def build_ci_header(rule_path: Path, rule: dict, deploy_mode: str, pipeline: str) -> str:
-    """
-    Output format:
-      - Everything that is NOT the SPL query is stored inside a single JSON block
-        between META_START and META_END.
-      - The converted SPL query follows below META_END (after a '---' delimiter).
-    """
-
-    # Sigma file reference (or native SPL message)
-    sigma_file_value = rule_path.as_posix() if rule_path and rule_path.name else (
-        "No Sigma source is associated with this detection; it was authored natively as an SPL rule."
-    )
 
     # Rule version derived from git commit count (1.0, 1.1, 1.2, ...)
     rule_version = _compute_rule_version(rule_path)
@@ -337,7 +269,7 @@ def build_ci_header(rule_path: Path, rule: dict, deploy_mode: str, pipeline: str
     if "description" in sigma_meta:
         meta["description"] = sigma_meta.pop("description")
 
-    meta["sigma_file"] = sigma_file_value
+    meta["sigma_file"] = rule_path.as_posix()
 
     if "level" in sigma_meta:
         meta["level"] = sigma_meta.pop("level")
@@ -353,15 +285,15 @@ def build_ci_header(rule_path: Path, rule: dict, deploy_mode: str, pipeline: str
     if "modified" in sigma_meta:
         meta["modified"] = sigma_meta.pop("modified")
 
-    # Enrichment fields (directly under modified/date section)
+    # Enrichment fields
     meta["convert_time"] = convert_time
     meta["rule_version"] = rule_version
     meta["git_sha"] = git_sha_value
 
-    # CI/conversion context (kept in JSON only)
+    # CI/conversion context
     meta["ci_managed"] = True
-    meta["origin"] = "sigma_to_spl.py"
-    meta["sigma_pipeline"] = pipeline or "without-pipeline"
+    meta["origin"] = "raw_query" if is_raw_query else "sigma"
+    meta["sigma_pipeline"] = "raw_query" if is_raw_query else (pipeline or "without-pipeline")
     meta["deploy_mode"] = deploy_mode
 
     splunk_custom = _get_splunk_custom(rule)
@@ -378,12 +310,12 @@ def build_ci_header(rule_path: Path, rule: dict, deploy_mode: str, pipeline: str
             continue
         meta[k] = v
 
-    meta_json = _format_meta_json_with_spacing(meta)
-    return "META_START\n" + meta_json + "\nMETA_END\n---\n"
+    return meta
 
-def prepend_header(out_path: Path, header: str) -> None:
-    content = out_path.read_text(encoding="utf-8")
-    out_path.write_text(header + content, encoding="utf-8")
+
+def write_meta_sidecar(out_path: Path, meta: dict) -> None:
+    meta_path = out_path.parent / (out_path.stem + ".meta.json")
+    meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8")
 
 
 def main() -> int:
@@ -419,6 +351,7 @@ def main() -> int:
         custom = rule.get("custom") or {}
         splunk_custom = _get_splunk_custom(rule)
         splunk_index = _get_splunk_index(rule)
+        raw_query = _get_raw_query(rule)
         deploy_mode = ""
         if splunk_custom:
             deploy_mode = _safe_str(splunk_custom.get("mode"))
@@ -428,16 +361,20 @@ def main() -> int:
             deploy_mode = "report"
 
         service = _normalize_service(rule)
-        print_mode = f"pipeline={pipeline}" if pipeline else "without-pipeline"
 
-        print(f"Converting: {rule_path} -> {out_path} ({print_mode}, service={service or 'N/A'}, mode={deploy_mode})")
+        if raw_query:
+            print(f"Converting: {rule_path} -> {out_path} (raw_query, mode={deploy_mode})")
+            write_raw_query(out_path, raw_query)
+        else:
+            print_mode = f"pipeline={pipeline}" if pipeline else "without-pipeline"
+            print(f"Converting: {rule_path} -> {out_path} ({print_mode}, service={service or 'N/A'}, mode={deploy_mode})")
 
-        try:
-            run_sigma_convert(rule_path, out_path, pipeline)
-        except subprocess.CalledProcessError as e:
-            print(f"ERROR: sigma convert failed for {rule_path}: {e}", file=sys.stderr)
-            failed += 1
-            continue  # do not write header if conversion failed
+            try:
+                run_sigma_convert(rule_path, out_path, pipeline)
+            except subprocess.CalledProcessError as e:
+                print(f"ERROR: sigma convert failed for {rule_path}: {e}", file=sys.stderr)
+                failed += 1
+                continue  # do not write meta if conversion failed
 
         # Burn Sigma custom.splunk.index into the beginning of the generated SPL query
         try:
@@ -447,12 +384,12 @@ def main() -> int:
             failed += 1
             continue
 
-        # Always prepend header AFTER successful conversion
+        # Always write the meta sidecar AFTER successful query generation
         try:
-            header = build_ci_header(rule_path, rule, deploy_mode, pipeline)
-            prepend_header(out_path, header)
+            meta = build_meta_dict(rule_path, rule, deploy_mode, pipeline, is_raw_query=bool(raw_query))
+            write_meta_sidecar(out_path, meta)
         except Exception as e:
-            print(f"ERROR: failed writing header for {out_path}: {e}", file=sys.stderr)
+            print(f"ERROR: failed writing meta sidecar for {out_path}: {e}", file=sys.stderr)
             failed += 1
             continue
 

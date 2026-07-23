@@ -193,10 +193,11 @@ jobs:
           set -euo pipefail
 
           rm -rf pipeline_bundle
-          mkdir -p pipeline_bundle/scripts/atomic pipeline_bundle/scripts/deploy
+          mkdir -p pipeline_bundle/scripts/atomic pipeline_bundle/scripts/deploy pipeline_bundle/scripts/lib
 
           cp scripts/atomic/run_atomic.ps1 pipeline_bundle/scripts/atomic/run_atomic.ps1
           cp scripts/deploy/deploy_spl_to_splunk.py pipeline_bundle/scripts/deploy/deploy_spl_to_splunk.py
+          cp scripts/lib/rule_naming.py pipeline_bundle/scripts/lib/rule_naming.py
 
           mapfile -t rules <<'EOF'
           ${{ steps.changes.outputs.rule_files }}
@@ -211,15 +212,22 @@ jobs:
             name="${name%.yaml}"
             name="${name%.sigma}"
 
-            spl_path="rules/splunk/${name}.sigma.spl"
+            spl_path="rules/splunk/${name}.spl"
             if [[ ! -f "$spl_path" ]]; then
               echo "Expected generated SPL file is missing: $spl_path"
+              exit 1
+            fi
+
+            meta_path="rules/splunk/${name}.meta.json"
+            if [[ ! -f "$meta_path" ]]; then
+              echo "Expected generated meta sidecar is missing: $meta_path"
               exit 1
             fi
 
             spl_files+=("$spl_path")
             mkdir -p "pipeline_bundle/$(dirname "$spl_path")"
             cp "$spl_path" "pipeline_bundle/$spl_path"
+            cp "$meta_path" "pipeline_bundle/$meta_path"
           done
 
           if [[ "${#spl_files[@]}" -eq 0 ]]; then
@@ -250,6 +258,7 @@ jobs:
           set -euo pipefail
 
           git add -A rules/splunk
+          git reset -q -- 'rules/splunk/**/*.meta.json' 2>/dev/null || true
 
           if git diff --cached --quiet; then
             echo "No SPL changes to commit."

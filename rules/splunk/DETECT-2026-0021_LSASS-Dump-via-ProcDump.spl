@@ -1,0 +1,1 @@
+index=sysmon Image="*\\procdump*" OR OriginalFileName="*procdump*" CommandLine="*lsass*" CommandLine IN ("*.dmp*", "*-ma*", "*-mm*", "*-mp*", "*-accepteula*", "*-r*") | table _time,ComputerName,User,Image,OriginalFileName,CommandLine,CurrentDirectory,IntegrityLevel,ParentImage,ParentCommandLine,ProcessId,ParentProcessId

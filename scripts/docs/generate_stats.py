@@ -2,8 +2,10 @@
 generate_stats.py — Collect detection rule stats and update README.md + docs/index.html.
 
 Reads:
-  - rules/sigma/*.yml          — sigma rules (level, status, tags, detect_id)
-  - rules/splunk/*.spl         — counts native (non-sigma) SPL rules
+  - rules/sigma/*.yml          — every rule (level, status, tags, detect_id);
+    rules with custom.splunk.raw_query set are hand-crafted SPL classified as
+    "native_spl" for the rule browser's source badge, everyone else is "sigma"
+  - rules/splunk/*.spl         — generated query output, counted for total_splunk_rules only
   - outputs/results/*/result.json — pass/fail verdicts
 
 Writes:
@@ -136,38 +138,24 @@ def load_sigma_rules() -> list[dict]:
     return rules
 
 
-def count_spl_rules() -> tuple[int, int]:
-    """Returns (total_spl, native_spl). Total includes sigma-converted .spl files."""
+def count_spl_rules() -> int:
+    """Returns the total number of generated .spl files under rules/splunk."""
     splunk_dir = REPO_ROOT / "rules" / "splunk"
     if not splunk_dir.exists():
-        return 0, 0
-    all_spl = list(splunk_dir.glob("*.spl"))
-    native = sum(1 for p in all_spl if ".sigma." not in p.name)
-    return len(all_spl), native
+        return 0
+    return len(list(splunk_dir.glob("*.spl")))
 
 
-def load_native_spl_rules() -> list[dict]:
-    """Read META block from native (non-sigma-converted) .spl files."""
-    rules = []
-    splunk_dir = REPO_ROOT / "rules" / "splunk"
-    if not splunk_dir.exists():
-        return rules
-    for p in sorted(splunk_dir.glob("*.spl")):
-        if ".sigma." in p.name:
-            continue
-        try:
-            content = p.read_text(encoding="utf-8")
-            m = re.search(r"META_START\s*(\{.*?\})\s*META_END", content, re.DOTALL)
-            if m:
-                meta = json.loads(m.group(1))
-                if isinstance(meta, dict):
-                    meta["_file_path"] = f"rules/splunk/{p.name}"
-                    body = re.sub(r"^\s*-{3,}\s*\n", "", content[m.end():].lstrip())
-                    meta["_body"] = body.strip()
-                    rules.append(meta)
-        except Exception:
-            pass
-    return rules
+def get_raw_query(rule: dict) -> str:
+    """Rules with no real Sigma detection logic set custom.splunk.raw_query
+    instead -- sigma_to_spl.py emits that text verbatim. Used to classify a
+    rule as 'native_spl' (hand-crafted SPL) vs 'sigma' (converted) for the
+    rule browser's source badge, even though both live in rules/sigma/*.yml."""
+    custom = rule.get("custom") or {}
+    splunk_custom = custom.get("splunk") if isinstance(custom, dict) else None
+    if not isinstance(splunk_custom, dict):
+        return ""
+    return str(splunk_custom.get("raw_query") or "").strip()
 
 
 def extract_sigma_body(rule: dict) -> str:
@@ -792,9 +780,9 @@ def _backfill_stats_history() -> tuple[list[dict], list[dict]]:
             "mitre_total_techniques": data.get("mitre_total_techniques", 0),
             "mitre_coverage_pct": data.get("mitre_coverage_pct", 0),
         })
-        # total_native_spl_rules is the genuinely-native-SPL count (excludes
-        # Sigma-converted .sigma.spl files) — total_splunk_rules is the mixed
-        # total and was a bug when used here (see update_trend_history()).
+        # total_native_spl_rules counts rules/sigma/*.yml entries with
+        # custom.splunk.raw_query set (hand-crafted SPL, no real Sigma
+        # detection logic) -- a subset of total_sigma_rules, not disjoint.
         # Older stats.json commits predating this field will fall back to 0.
         growth_points.append({
             "date": day,
@@ -845,8 +833,8 @@ def update_trend_history(stats: dict) -> tuple[list[dict], list[dict]]:
 
 def generate_stats() -> dict:
     sigma_rules = load_sigma_rules()
-    native_spl_rules = load_native_spl_rules()
-    total_spl_count, native_spl_count = count_spl_rules()
+    total_spl_count = count_spl_rules()
+    native_spl_count = sum(1 for r in sigma_rules if get_raw_query(r))
     verdicts = load_verdicts()
 
     by_level: dict[str, int] = {}
@@ -858,10 +846,8 @@ def generate_stats() -> dict:
     not_verified = 0
     rules_detail: list[dict] = []
 
-    for rule, source in (
-        [(r, "sigma") for r in sigma_rules]
-        + [(r, "native_spl") for r in native_spl_rules]
-    ):
+    for rule in sigma_rules:
+        source = "native_spl" if get_raw_query(rule) else "sigma"
         detect_id = str(rule.get("detect_id") or "")
         title = str(rule.get("title") or "")
         level = str(rule.get("level") or "").lower()
@@ -886,12 +872,12 @@ def generate_stats() -> dict:
         else:
             not_verified += 1
 
-        if source == "sigma":
+        if source == "native_spl":
+            rule_body = get_raw_query(rule)
+            rule_body_lang = "spl"
+        else:
             rule_body = extract_sigma_body(rule)
             rule_body_lang = "yaml"
-        else:
-            rule_body = str(rule.get("_body") or "")
-            rule_body_lang = "spl"
 
         rules_detail.append({
             "detect_id": detect_id,
@@ -916,9 +902,11 @@ def generate_stats() -> dict:
             "rule_body_lang": rule_body_lang if rule_body else "",
         })
 
+    # native_spl_count is a subset of sigma_rules (raw_query rules), not a
+    # disjoint set -- total/verifiable counts must not add it a second time.
     total_sigma = len(sigma_rules)
-    total_rules = total_sigma + native_spl_count
-    total_verifiable = total_sigma + native_spl_count
+    total_rules = total_sigma
+    total_verifiable = total_sigma
     pass_rate = round(verified_pass / total_verifiable * 100) if total_verifiable > 0 else 0
 
     # Unique parent techniques covered (T1053.005 → T1053)
