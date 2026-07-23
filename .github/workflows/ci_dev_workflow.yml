@@ -39,6 +39,7 @@ jobs:
   prepare_validate_convert:
     name: Prepare, Validate, Convert
     runs-on: ubuntu-latest
+    environment: dev
     outputs:
       mode: ${{ steps.changes.outputs.mode }}
       has_rules: ${{ steps.changes.outputs.has_rules }}
@@ -53,6 +54,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          token: ${{ secrets.GH_PAT_DEV_PUSH }}
           fetch-depth: 0
 
       - name: Setup Python
@@ -533,6 +535,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          token: ${{ secrets.GH_PAT_DEV_PUSH }}
           fetch-depth: 0
 
       - name: Download pipeline bundle
