@@ -16,11 +16,9 @@ Writes:
 
 import html as _html
 import json
-import math
 import re
 import subprocess
 import sys
-import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -357,119 +355,6 @@ def fetch_mitre_techniques(
         return cached_count or 201, cached_map, False
 
 
-def mitre_coverage_color(pct: float) -> str:
-    if pct <= 25:
-        return "#7B0000"
-    if pct <= 50:
-        return "#DC2626"
-    if pct <= 75:
-        return "#FFAA00"
-    return "#2EA44F"
-
-
-def tactic_chart_url(by_tactic: dict) -> str:
-    """Horizontal bar chart: rules per MITRE ATT&CK tactic, sorted by count desc."""
-    if not by_tactic:
-        return ""
-    tactics = sorted(by_tactic.items(), key=lambda x: -x[1])
-    labels = [t for t, _ in tactics]
-    values = [c for _, c in tactics]
-    height = max(160, len(tactics) * 36 + 70)
-    cfg = {
-        "type": "horizontalBar",
-        "data": {
-            "labels": labels,
-            "datasets": [{
-                "label": "Rules",
-                "data": values,
-                "backgroundColor": "#FFAA00",
-                "borderColor": "black",
-                "borderWidth": 0.5,
-            }],
-        },
-        "options": {
-            "scales": {
-                "xAxes": [{
-                    "display": False,
-                    "gridLines": {
-                        "display": False,
-                        "drawOnChartArea": False,
-                        "drawBorder": False,
-                    },
-                    "ticks": {
-                        "display": False,
-                        "beginAtZero": True,
-                    },
-                }],
-                "yAxes": [{
-                    "display": True,
-                    "position": "left",
-                    "gridLines": {
-                        "display": False,
-                        "drawOnChartArea": False,
-                        "drawBorder": False,
-                    },
-                    "ticks": {"fontColor": "#FFAA00"},
-                }],
-            },
-            "legend": {"display": False},
-            "plugins": {
-                "datalabels": {
-                    "anchor": "end",
-                    "align": "start",
-                    "color": "black",
-                    "font": {"size": 12, "weight": "bold"},
-                },
-            },
-        },
-    }
-    chart_json = json.dumps(cfg, separators=(",", ":"))
-    return (
-        "https://quickchart.io/chart?c=" + urllib.parse.quote(chart_json)
-        + f"&width=500&height={height}&f=svg"
-    )
-
-
-def mitre_coverage_chart_url(covered: int, total: int, pct: float) -> str:
-    """Build a QuickChart URL for a half-doughnut MITRE coverage gauge.
-
-    QuickChart's server-side SVG renderer does not expose the Canvas 2D API
-    (beginPath, save, measureText, etc.) to custom afterDraw hooks, so
-    per-label pill backgrounds are not achievable. The doughnutlabel plugin
-    renders text with white color directly on the chart background.
-    """
-    cfg = {
-        "type": "doughnut",
-        "data": {
-            "datasets": [{
-                "data": [covered, total - covered],
-                "backgroundColor": ["#FFAA00", "rgba(128,128,128,0.15)"],
-                "borderColor": "black",
-                "borderWidth": 0.5,
-            }],
-        },
-        "options": {
-            "rotation": math.pi,
-            "circumference": math.pi,
-            "cutoutPercentage": 80,
-            "plugins": {
-                "legend": {"display": False},
-                "tooltip": {"enabled": False},
-                "datalabels": {"display": False},
-                "doughnutlabel": {
-                    "labels": [
-                        {"text": "MITRE ATT&CK Coverage", "color": "#FFAA00", "font": {"size": 18, "weight": "bold"}},
-                        {"text": f"{pct:.1f}%", "color": "#FFAA00", "font": {"size": 34, "weight": "bold"}},
-                        {"text": f"{covered} / {total}", "color": "#FFAA00", "font": {"size": 13}},
-                    ],
-                },
-            },
-        },
-    }
-    chart_json = json.dumps(cfg, separators=(",", ":"))
-    return "https://quickchart.io/chart?c=" + urllib.parse.quote(chart_json) + "&width=500&height=300&f=svg"
-
-
 def build_technique_coverage(rules_detail: list, repo: str) -> dict:
     """Build {tech_id: {best_verdict, rules:[{id,title,verdict,url}]}} from rules."""
     cov: dict = {}
@@ -675,6 +560,28 @@ HISTORY_BACKFILL_MAX_DAYS = 90
 
 COVERAGE_HISTORY_PATH = REPO_ROOT / "outputs" / "reports" / "coverage_history.json"
 RULE_GROWTH_HISTORY_PATH = REPO_ROOT / "outputs" / "reports" / "rule_growth_history.json"
+
+
+def compute_rule_version(file_path: str) -> str:
+    """
+    Same versioning scheme as scripts/convert/sigma_to_spl.py's
+    _compute_rule_version(): 1.0 on the first commit, 1.1 on the second, etc.,
+    derived from how many commits have touched the rule's Sigma YAML source.
+    Uses `git log --follow` (not `git rev-list --count`) so renaming or
+    restructuring a rule file never resets its version count.
+
+    rule_version only ever lived in the CI-generated .meta.json sidecar
+    (gitignored, never committed) once rules/splunk/*.spl became pure query
+    text -- surfacing it here in the rule browser is the only place a repo
+    visitor can still see it without digging into a CI run's artifacts.
+    """
+    if not file_path:
+        return ""
+    raw = _git(["log", "--follow", "--format=%H", "--", file_path])
+    count = len([l for l in raw.splitlines() if l.strip()])
+    if count <= 0:
+        return ""
+    return f"1.{max(0, count - 1)}"
 
 
 def _git(args: list[str], input_text: str | None = None) -> str:
@@ -900,6 +807,7 @@ def generate_stats() -> dict:
             "testing": extract_testing(rule),
             "rule_body": rule_body,
             "rule_body_lang": rule_body_lang if rule_body else "",
+            "rule_version": compute_rule_version(rule.get("_file_path", "")),
         })
 
     # native_spl_count is a subset of sigma_rules (raw_query rules), not a
@@ -992,77 +900,6 @@ def render_readme_section(stats: dict, repo: str) -> str:
     for row in [row1, "", row2, "", row3]:
         lines.append(row)
     lines.append("")
-
-    # --- MITRE ATT&CK Coverage doughnut gauge ---
-    covered = stats.get("mitre_covered_techniques", 0)
-    total_mitre = stats.get("mitre_total_techniques", 201)
-    mitre_pct = stats.get("mitre_coverage_pct", 0.0)
-    coverage_url = mitre_coverage_chart_url(covered, total_mitre, mitre_pct)
-    lines += ["**MITRE ATT&CK Coverage**", f"![MITRE ATT&CK Coverage]({coverage_url})", ""]
-
-    # --- Severity outlabeledPie chart via quickchart.io ---
-    level_order = ["critical", "high", "medium", "low", "informational"]
-    level_colors_map = {
-        "critical":      "#7B0000",
-        "high":          "#DC2626",
-        "medium":        "#FFAA00",
-        "low":           "#2EA44F",
-        "informational": "#6E7681",
-    }
-    level_display = {
-        "critical": "Critical", "high": "High", "medium": "Medium",
-        "low": "Low", "informational": "Info",
-    }
-    active = [
-        (lvl, stats["by_level"].get(lvl, 0))
-        for lvl in level_order
-        if stats["by_level"].get(lvl, 0) > 0
-    ]
-    chart_cfg = {
-        "type": "outlabeledPie",
-        "backgroundColor": "transparent",
-        "data": {
-            "labels": [level_display[lvl] for lvl, _ in active],
-            "datasets": [{
-                "backgroundColor": [level_colors_map[lvl] for lvl, _ in active],
-                "borderColor": "black",
-                "borderWidth": 0.5,
-                "hoverOffset": 8,
-                "data": [cnt for _, cnt in active],
-            }],
-        },
-        "options": {
-            "cutoutPercentage": 45,
-            "layout": {"padding": {"top": 5, "right": 30, "bottom": 0, "left": 30}},
-            "plugins": {
-                "legend": False,
-                "outlabels": {
-                    "text": "%l: %v (%p)",
-                    "color": "white",
-                    "backgroundColor": "rgba(85, 85, 85,1)",
-                    "lineColor": "rgba(85, 85, 85,1)",
-                    "borderRadius": 13,
-                    "padding": 6,
-                    "stretch": 20,
-                    "font": {
-                        "weight": "bold",
-                        "resizable": True,
-                        "minSize": 12,
-                        "maxSize": 22,
-                    },
-                    "formatter": "(value) => value > 0 ? value : null",
-                },
-            },
-        },
-    }
-    chart_json = json.dumps(chart_cfg, separators=(",", ":"))
-    chart_url = "https://quickchart.io/chart?c=" + urllib.parse.quote(chart_json) + "&width=500&height=300&f=svg"
-    lines += ["**Rules by Severity**", f"![Rules by Severity]({chart_url})", ""]
-
-    # --- MITRE ATT&CK tactic bar chart ---
-    if stats["by_tactic"]:
-        tactic_url = tactic_chart_url(stats["by_tactic"])
-        lines += ["**Rules per MITRE ATT&CK Tactic**", f"![Rules per MITRE ATT&CK Tactic]({tactic_url})", ""]
 
     gh_pages = f"https://{repo.split('/')[0]}.github.io/{repo.split('/')[1]}/"
     lines += [
@@ -3756,6 +3593,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
         ${r.author ? `<span class="meta-key">Author</span><span class="meta-val">${escHtml(r.author)}</span>` : ''}
         ${r.date ? `<span class="meta-key">Created</span><span class="meta-val">${escHtml(r.date)}</span>` : ''}
         ${r.modified ? `<span class="meta-key">Modified</span><span class="meta-val">${escHtml(r.modified)}</span>` : ''}
+        ${r.ruleVersion ? `<span class="meta-key">Rule Version</span><span class="meta-val">${escHtml(r.ruleVersion)}</span>` : ''}
         ${r.eventType ? `<span class="meta-key">Event Type</span><span class="meta-val">${escHtml(r.eventType)}</span>` : ''}
       </div>
     </div>`;
@@ -4406,6 +4244,7 @@ def render_html_summary(stats: dict, repo: str) -> str:
             "author": r.get("author", ""),
             "date": r.get("date", ""),
             "modified": r.get("modified", ""),
+            "ruleVersion": r.get("rule_version", ""),
             "references": r.get("references") or [],
             "ruleBody": r.get("rule_body", ""),
             "ruleBodyLang": r.get("rule_body_lang", ""),

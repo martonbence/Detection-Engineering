@@ -14,9 +14,6 @@ Usage:
 Output per rule:
     <output-dir>/<detect_id>/hits.json      — { meta, event_count, events[], error, ... }
 
-Aggregate:
-    <output-dir>/aggregate_summary.json     — list of per-rule summaries (no raw events)
-
 Exit code is always 0 — per-rule errors are captured inside the JSON files.
 """
 
@@ -201,7 +198,9 @@ def main(argv: list[str]) -> int:
         path = Path(spl_path_str.strip())
         if not path.exists():
             print(f"ERROR: file not found: {path}", file=sys.stderr)
-            aggregate.append({
+            rule_out_dir = output_dir / path.stem
+            rule_out_dir.mkdir(parents=True, exist_ok=True)
+            hits = {
                 "detect_id": path.stem,
                 "title": "",
                 "search_name": "",
@@ -212,7 +211,11 @@ def main(argv: list[str]) -> int:
                 "run_timestamp": run_ts,
                 "event_count": 0,
                 "error": "SPL file not found",
-            })
+                "events": [],
+            }
+            (rule_out_dir / "hits.json").write_text(
+                json.dumps(hits, indent=2, ensure_ascii=False), encoding="utf-8"
+            )
             continue
 
         search_name = savedsearch_name_from_file(path)

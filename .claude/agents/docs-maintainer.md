@@ -16,9 +16,10 @@ Before writing, re-derive the pipeline by reading, not from memory of a past run
 - `scripts/validate/validate_sigma.py` — Draft-07 JSON schema validation against `docs/schemas/sigma_schema.json` for every rule (converted and `custom.splunk.raw_query` alike)
 - `scripts/convert/sigma_to_spl.py` — Sigma → SPL (`.spl` query + `.meta.json` sidecar); emits `custom.splunk.raw_query` verbatim instead of converting when that field is set
 - `scripts/deploy/deploy_spl_to_splunk.py` — pushes saved searches to Splunk
+- `scripts/lib/rule_naming.py` — shared helper computing the Splunk saved-search name from `detect_id` + title (not filename); imported by both `deploy_spl_to_splunk.py` and `check_saved_search_hits.py` so the two stages always agree on the name
 - `scripts/atomic/run_atomic.ps1` — Atomic Red Team execution
 - `scripts/verify/check_saved_search_hits.py`, `pass_fail_eval.py` — did the deployed search actually fire
-- `scripts/docs/generate_stats.py`, `generate_mitre_matrix.py`, `generate_atomic_coverage.py` — produce `outputs/reports/{stats,mitre_technique_map,navigator_layer}.json` and the `docs/index.html` rule browser / MITRE Navigator
+- `scripts/docs/generate_stats.py` — produces `outputs/reports/{stats,mitre_technique_map,navigator_layer}.json` and the `docs/index.html` rule browser / MITRE Navigator
 - `.github/workflows/*.yml` — what actually runs in CI and in what order (`ci_sigma_to_splunk_workflow.yml`, `deploy_pages.yml`; there is no separate native-SPL workflow anymore -- native/hand-crafted SPL detections are authored as `rules/sigma/*.yml` with `custom.splunk.raw_query` set, and go through the same single pipeline as converted rules)
 - `rules/sigma/`, `rules/splunk/`, `rule_documentations/` — the artifacts each stage produces/consumes. `rules/splunk/*.spl` contains only the SPL query text (no embedded metadata) for every rule; the per-rule metadata sidecar (`*.meta.json`, generated fresh by CI, never committed) is the CI-runtime metadata contract for deploy/verify/atomic-runner, sourced entirely from the corresponding `rules/sigma/*.yml`
 
@@ -27,7 +28,7 @@ If a script's actual behavior contradicts an old doc, trust the script and fix t
 ## Content guidance
 
 - **pipeline_overview.md**: end-to-end Mermaid flowchart (Sigma authoring → validate → convert → deploy → atomic test → verify → stats/docs generation → Pages publish), one paragraph per stage naming the exact script.
-- **data_flow.md**: Mermaid sequence or graph showing concrete file formats/paths moving between stages (`.sigma.yml` → `.spl` + `.meta.json` sidecar → Splunk saved search → `outputs/results/DETECT-*` → `outputs/reports/*.json`). Note that rules with no real Sigma detection logic still live in `rules/sigma/*.yml`, using `custom.splunk.raw_query` to carry the raw SPL text verbatim instead of a real `detection:` block being converted.
+- **data_flow.md**: Mermaid sequence or graph showing concrete file formats/paths moving between stages (`rules/sigma/*.yml` → `.spl` + `.meta.json` sidecar → Splunk saved search → `outputs/results/DETECT-*` → `outputs/reports/*.json`). Note that rules with no real Sigma detection logic still live in `rules/sigma/*.yml`, using `custom.splunk.raw_query` to carry the raw SPL text verbatim instead of a real `detection:` block being converted.
 - **threat_model.md**: what's in scope (rule quality, false-positive risk, MITRE coverage gaps) vs. out of scope; how deploy credentials are handled; no invented threats not evidenced by the code.
 - **README.md**: keep it skimmable — badges/stats block stays generated, prose explains what the repo is, how to add a new detection rule end-to-end, and links out to docs/architecture and the Wiki.
 - **Wiki**: a Home page plus one page per pipeline stage, written for a newcomer, with the same Mermaid diagrams reused/expanded and screenshots-in-words of what the rule browser and Navigator show.

@@ -4,10 +4,10 @@ description: Use this agent for building, modifying, or debugging this repo's CI
 tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
-You own this repo's CI/CD pipeline as code: the three workflows in `.github/workflows/` and every script they call along the Sigma → validate → convert → deploy → Atomic Red Team → verify → docs-generation chain.
+You own this repo's CI/CD pipeline as code: the workflows in `.github/workflows/` (`ci_sigma_to_splunk_workflow.yml`, `deploy_pages.yml`) and every script they call along the Sigma → validate → convert → deploy → Atomic Red Team → verify → docs-generation chain.
 
 ## Before changing a workflow
-Read the current workflow file and the scripts it invokes end to end — `scripts/validate/*.py`, `scripts/convert/sigma_to_spl.py`, `scripts/deploy/deploy_spl_to_splunk.py`, `scripts/verify/*.py`, `scripts/docs/generate_stats.py` / `generate_mitre_matrix.py` / `generate_atomic_coverage.py` — so you know the real inputs/outputs/exit codes each stage relies on (e.g. `validate_sigma.py` exit codes: 0 = valid, 1 = invalid, 2 = validator setup failure). Don't assume a stage's behavior from the workflow YAML alone.
+Read the current workflow file and the scripts it invokes end to end — `scripts/validate/*.py`, `scripts/convert/sigma_to_spl.py`, `scripts/deploy/deploy_spl_to_splunk.py`, `scripts/lib/rule_naming.py` (shared Splunk saved-search-name computation, imported by both the deploy and verify scripts so they always agree on the name), `scripts/verify/*.py`, `scripts/docs/generate_stats.py` — so you know the real inputs/outputs/exit codes each stage relies on (e.g. `validate_sigma.py` exit codes: 0 = valid, 1 = invalid, 2 = validator setup failure). Don't assume a stage's behavior from the workflow YAML alone.
 
 ## What you do
 - Add, remove, or reorder pipeline stages/jobs.

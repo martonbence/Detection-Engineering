@@ -13,8 +13,7 @@ Fail criteria : event_count < MIN_PASS  (no alerts fired)
 
 Outputs:
   <results-dir>/<detect_id>/result.json   — per-rule verdict
-  <results-dir>/report.json               — aggregate report
-  $GITHUB_STEP_SUMMARY                    — Markdown table (GitHub Actions)
+  $GITHUB_STEP_SUMMARY                    — Markdown table (GitHub Actions), aggregated across this run's rules
 
 Exit code:
   0  All rules PASS
