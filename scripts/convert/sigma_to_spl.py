@@ -48,7 +48,7 @@ def pick_pipeline(rule: dict) -> str:
 
 
 def output_name_for_rule(rule_path: Path) -> str:
-    # rules/sigma/foo.sigma.yml -> foo.spl
+    # rules/sigma/foo.yml -> foo.spl (also handles legacy foo.sigma.yml -> foo.spl)
     name = rule_path.name
     if name.endswith(".yml"):
         name = name[:-4]
@@ -197,20 +197,21 @@ def enforce_index_prefix(out_path: Path, index_value: str) -> None:
 
 def _git_commit_count_for_path(rule_path: Path) -> int:
     """
-    Returns how many commits touched the given file in the current git repo.
-    If git is unavailable (e.g., running outside a repo), returns 0.
+    Returns how many commits touched the given file in the current git repo,
+    following renames (git log --follow) so renaming/restructuring a rule
+    file never resets its version count. If git is unavailable (e.g., running
+    outside a repo), returns 0.
     """
     try:
-        # Use relative path for git, but fall back to absolute if needed.
         rel = str(rule_path)
-        # 'git rev-list --count HEAD -- <path>'
         res = subprocess.run(
-            ["git", "rev-list", "--count", "HEAD", "--", rel],
+            ["git", "log", "--follow", "--format=%H", "--", rel],
             check=True,
             capture_output=True,
             text=True,
         )
-        return int(res.stdout.strip() or "0")
+        lines = [l for l in res.stdout.splitlines() if l.strip()]
+        return len(lines)
     except Exception:
         return 0
 
