@@ -12,8 +12,8 @@ references:
 author: Bence Marton
 date: 2026-05-03
 modified: 2026-07-23
-# retrigger 2: dev/prod pipeline live test, after fixing check_saved_search_hits.py's
-# leftover call to the deleted savedsearch_name_from_file function
+# retrigger 3: dev pipeline live test, after adding GH_PAT_DEV_PUSH to the dev
+# environment so CI's self-commit steps can bypass branch protection
 tags:
   - attack.execution
   - attack.t1059.001
