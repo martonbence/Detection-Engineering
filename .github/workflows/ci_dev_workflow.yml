@@ -514,12 +514,13 @@ jobs:
 
   splunk_verify:
     name: Splunk Verification
-    needs: [ prepare_validate_convert, atomic_verify, atomic_verify_dc, emulation_verify ]
+    needs: [ prepare_validate_convert, deploy_to_splunk, atomic_verify, atomic_verify_dc, emulation_verify ]
     if: |
       always() &&
       github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
       needs.prepare_validate_convert.outputs.has_spl == 'true' &&
       needs.prepare_validate_convert.result == 'success' &&
+      needs.deploy_to_splunk.result == 'success' &&
       (
         needs.atomic_verify.result == 'success' || needs.atomic_verify.result == 'skipped' ||
         needs.atomic_verify_dc.result == 'success' || needs.atomic_verify_dc.result == 'skipped' ||
