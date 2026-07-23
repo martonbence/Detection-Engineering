@@ -12,7 +12,8 @@ references:
 author: Bence Marton
 date: 2026-05-03
 modified: 2026-07-23
-# retrigger: dev/prod pipeline live test (SPLUNK_APP fix + splunk_verify gate fix)
+# retrigger 2: dev/prod pipeline live test, after fixing check_saved_search_hits.py's
+# leftover call to the deleted savedsearch_name_from_file function
 tags:
   - attack.execution
   - attack.t1059.001
