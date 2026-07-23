@@ -1,4 +1,4 @@
-name: CI - Sigma to Splunk Workflow
+name: CI - Dev Pipeline (Sigma to Splunk)
 
 on:
   push:
@@ -10,9 +10,10 @@ on:
       - "scripts/validate/**"
       - "scripts/convert/sigma_to_spl.py"
       - "scripts/deploy/deploy_spl_to_splunk.py"
+      - "scripts/lib/rule_naming.py"
       - "scripts/atomic/run_atomic.ps1"
       - "scripts/verify/**"
-      - ".github/workflows/ci_sigma_to_splunk_workflow.yml"
+      - ".github/workflows/ci_dev_workflow.yml"
   pull_request:
     paths:
       - "rules/sigma/**/*.yml"
@@ -21,9 +22,10 @@ on:
       - "scripts/validate/**"
       - "scripts/convert/sigma_to_spl.py"
       - "scripts/deploy/deploy_spl_to_splunk.py"
+      - "scripts/lib/rule_naming.py"
       - "scripts/atomic/run_atomic.ps1"
       - "scripts/verify/**"
-      - ".github/workflows/ci_sigma_to_splunk_workflow.yml"
+      - ".github/workflows/ci_dev_workflow.yml"
 
 concurrency:
   group: detection-pipeline-${{ github.ref }}
@@ -31,6 +33,7 @@ concurrency:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   prepare_validate_convert:
@@ -250,8 +253,8 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Commit converted SPL outputs to main
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      - name: Commit converted SPL outputs to dev
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
           steps.bundle.outputs.has_spl == 'true'
         shell: bash
         run: |
@@ -271,9 +274,9 @@ jobs:
           git commit -m "chore(splunk): update sigma-converted SPL outputs [skip ci]"
 
           for i in 1 2 3; do
-            git fetch origin main
-            git pull --rebase origin main || true
-            if git push origin HEAD:main; then
+            git fetch origin dev
+            git pull --rebase origin dev || true
+            if git push origin HEAD:dev; then
               echo "Push succeeded."
               exit 0
             fi
@@ -331,9 +334,10 @@ jobs:
   deploy_to_splunk:
     name: Deploy to Splunk
     needs: prepare_validate_convert
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
       needs.prepare_validate_convert.outputs.has_spl == 'true'
     runs-on: [ self-hosted, linux, de-lab ]
+    environment: dev
 
     steps:
       - name: Download pipeline bundle
@@ -389,7 +393,7 @@ jobs:
   atomic_verify:
     name: Atomic Red Team Test
     needs: [ prepare_validate_convert, deploy_to_splunk ]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
       needs.prepare_validate_convert.outputs.has_spl == 'true' &&
       needs.prepare_validate_convert.outputs.has_atomic_tests == 'true'
     continue-on-error: true
@@ -431,7 +435,7 @@ jobs:
   atomic_verify_dc:
     name: Atomic Red Team Test (DC)
     needs: [ prepare_validate_convert, deploy_to_splunk ]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
       needs.prepare_validate_convert.outputs.has_spl == 'true' &&
       needs.prepare_validate_convert.outputs.has_atomic_dc_tests == 'true'
     continue-on-error: true
@@ -473,7 +477,7 @@ jobs:
   emulation_verify:
     name: Script Emulation Test
     needs: [ prepare_validate_convert, deploy_to_splunk ]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
       needs.prepare_validate_convert.outputs.has_spl == 'true' &&
       needs.prepare_validate_convert.outputs.has_emulation_tests == 'true'
     continue-on-error: true
@@ -513,7 +517,7 @@ jobs:
     needs: [ prepare_validate_convert, atomic_verify, atomic_verify_dc, emulation_verify ]
     if: |
       always() &&
-      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
       needs.prepare_validate_convert.outputs.has_spl == 'true' &&
       needs.prepare_validate_convert.result == 'success' &&
       (
@@ -522,6 +526,7 @@ jobs:
         needs.emulation_verify.result == 'success' || needs.emulation_verify.result == 'skipped'
       )
     runs-on: [ self-hosted, linux, de-lab ]
+    environment: dev
 
     steps:
       - name: Checkout
@@ -636,11 +641,11 @@ jobs:
           cp -r outputs/results/. "$tmp/results/"
 
           for i in 1 2 3; do
-            # Reset to latest main — eliminates all merge/rebase conflicts
-            git fetch origin main
-            git reset --hard origin/main
+            # Reset to latest dev — eliminates all merge/rebase conflicts
+            git fetch origin dev
+            git reset --hard origin/dev
 
-            # Overlay our result files (overwrite whatever main already has)
+            # Overlay our result files (overwrite whatever dev already has)
             cp -r "$tmp/results/." outputs/results/
 
             # Re-generate aggregated stats (picks up results from all concurrent runs)
@@ -655,7 +660,7 @@ jobs:
 
             git commit -m "chore(verify): update verification results and stats [skip ci]"
 
-            if git push origin HEAD:main; then
+            if git push origin HEAD:dev; then
               echo "Push succeeded."
               exit 0
             fi
@@ -667,6 +672,25 @@ jobs:
           echo "Push failed after 3 attempts."
           exit 1
 
+      - name: Open promotion PR to main on PASS
+        if: steps.eval.outputs.exit_code == '0'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          existing=$(gh pr list --repo "${{ github.repository }}" --head dev --base main --state open --json number --jq 'length')
+          if [[ "$existing" -gt 0 ]]; then
+            echo "A dev -> main promotion PR is already open. Skipping."
+            exit 0
+          fi
+
+          gh pr create --repo "${{ github.repository }}" \
+            --base main --head dev \
+            --title "Promote verified detections from dev to main" \
+            --body "Automatically opened because the dev pipeline run ${{ github.run_id }} reported PASS. This promotes the already-verified, already-compiled SPL to the prod Splunk App. Review and merge manually to deploy to production -- this PR does not auto-merge."
+
       - name: Report verification verdict
         shell: bash
         run: exit ${{ steps.eval.outputs.exit_code || '0' }}
@@ -676,7 +700,7 @@ jobs:
     needs: [splunk_verify, atomic_verify, atomic_verify_dc, emulation_verify]
     if: |
       always() &&
-      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
       (needs.splunk_verify.result == 'success' || needs.splunk_verify.result == 'failure')
     runs-on: ubuntu-latest
     permissions:
@@ -691,7 +715,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: dev
 
       - uses: actions/configure-pages@v5
 
