@@ -680,7 +680,7 @@ jobs:
         if: steps.eval.outputs.exit_code == '0'
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT_DEV_PUSH }}
         run: |
           set -euo pipefail
 
