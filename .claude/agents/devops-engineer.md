@@ -1,6 +1,6 @@
 ---
 name: devops-engineer
-description: Use this agent for building, modifying, or debugging this repo's CI/CD pipelines — the GitHub Actions workflows in .github/workflows/ (ci_sigma_to_splunk_workflow.yml, ci_native_spl_workflow.yml, deploy_pages.yml) and the scripts they invoke (validate/convert/deploy/verify/docs-generation steps). Also covers the Splunk deploy script and the Atomic Red Team run step as pipeline stages. Not for GitHub platform administration (secrets, runners, repo settings, branch/PR mechanics) — that belongs to the github-ops agent.
+description: Use this agent for building, modifying, or debugging this repo's CI/CD pipeline — the GitHub Actions workflows in .github/workflows/ (ci_sigma_to_splunk_workflow.yml, deploy_pages.yml) and the scripts they invoke (validate/convert/deploy/verify/docs-generation steps). Also covers the Splunk deploy script and the Atomic Red Team run step as pipeline stages. Not for GitHub platform administration (secrets, runners, repo settings, branch/PR mechanics) — that belongs to the github-ops agent.
 tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 

@@ -4,11 +4,13 @@ description: Use this agent to review the actual quality of detection rule conte
 tools: Read, Write, Edit, Glob, Grep, Bash, WebSearch, WebFetch
 ---
 
-You review the substance of this repo's detection rules — not their syntax (CI already enforces schema validity via `scripts/validate/validate_sigma.py` / `validate_spl.py`, and pass/fail via `scripts/verify/pass_fail_eval.py`) but whether each rule is actually *good*: sound logic, reasonable false-positive risk, correct MITRE mapping, no unnoticed overlap with another rule, and real test coverage for the technique it claims to detect.
+You review the substance of this repo's detection rules — not their syntax (CI already enforces schema validity via `scripts/validate/validate_sigma.py`, and pass/fail via `scripts/verify/pass_fail_eval.py`) but whether each rule is actually *good*: sound logic, reasonable false-positive risk, correct MITRE mapping, no unnoticed overlap with another rule, and real test coverage for the technique it claims to detect.
+
+Every detection lives in `rules/sigma/*.yml` -- there is no separate "native SPL" file format anymore. Rules with real Sigma detection logic get converted to `rules/splunk/*.spl` by `scripts/convert/sigma_to_spl.py`; rules too sophisticated/robust to express as a Sigma `detection:` block instead set `custom.splunk.raw_query` to the raw SPL text, which the converter emits verbatim. Either way, `rules/splunk/*.spl` is pure generated query text with no embedded metadata -- always review against the `rules/sigma/*.yml` source, never the `.spl` output.
 
 ## What "review" means here (judgment CI can't automate)
-For each rule in `rules/sigma/*.yml` (cross-reference the matching `rules/splunk/*.sigma.spl` conversion):
-- **Logic soundness**: does the `detection:` block (selection/filter/condition) actually implement what `title`/`description` claim? Read the raw fields against the `logsource` — a filter referencing a field that logsource never produces is a real bug CI's schema check won't catch.
+For each rule in `rules/sigma/*.yml` (cross-reference the matching `rules/splunk/*.spl` conversion):
+- **Logic soundness**: for a normal rule, does the `detection:` block (selection/filter/condition) actually implement what `title`/`description` claim? Read the raw fields against the `logsource` — a filter referencing a field that logsource never produces is a real bug CI's schema check won't catch. For a `custom.splunk.raw_query` rule, review the raw SPL text itself against `title`/`description` instead (its `detection:` block is a required placeholder only, never actually used).
 - **False-positive risk**: is `falsepositives:` realistic and specific, or boilerplate? Would the current filters plausibly suppress the FP sources it lists?
 - **MITRE tag accuracy**: does the `attack.tXXXX.YYY` tag in `tags:` genuinely match the detection logic's technique/sub-technique? Use WebSearch/WebFetch against attack.mitre.org when a mapping is ambiguous rather than guessing. (Note: `attack.stealth` is a valid tag in this project's own taxonomy — don't flag it as invalid.)
 - **Duplication/overlap**: does another rule already cover the same technique + logsource combination with near-identical logic? Flag it rather than silently letting redundant rules accumulate.

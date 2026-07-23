@@ -23,7 +23,6 @@ Exit code is always 0 — per-rule errors are captured inside the JSON files.
 import os
 import sys
 import json
-import re
 import time
 import argparse
 from datetime import datetime, timezone
@@ -31,6 +30,9 @@ from pathlib import Path
 from urllib.parse import quote
 
 import requests
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from lib.rule_naming import saved_search_name
 
 
 def die(msg: str, code: int = 1) -> None:
@@ -54,22 +56,13 @@ def env_bool(name: str, default: bool = True) -> bool:
     return default
 
 
-def savedsearch_name_from_file(path: Path) -> str:
-    """rules/splunk/foo.sigma.spl  →  foo.sigma  (matches deploy logic exactly)"""
-    name = path.name
-    if name.endswith(".spl"):
-        name = name[:-4]
-    return name
-
-
 def extract_meta(path: Path) -> dict:
-    """Read META_START…META_END block for labelling purposes only."""
-    content = path.read_text(encoding="utf-8")
-    m = re.search(r"META_START\s*(\{.*?\})\s*META_END", content, re.DOTALL)
-    if not m:
+    """Read the sidecar <name>.meta.json generated alongside <name>.spl by sigma_to_spl.py."""
+    meta_path = path.parent / (path.stem + ".meta.json")
+    if not meta_path.exists():
         return {}
     try:
-        return json.loads(m.group(1))
+        return json.loads(meta_path.read_text(encoding="utf-8"))
     except ValueError:
         return {}
 
