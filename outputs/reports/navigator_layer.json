@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-07-23T20:50:58 UTC.",
+  "description": "Auto-generated detection coverage. 2026-07-24T16:06:15 UTC.",
   "filters": {
     "platforms": [
       "Windows",
@@ -201,11 +201,15 @@
       "color": "#2EA44F"
     },
     {
+      "label": "NOT VERIFIED",
+      "color": "#d29922"
+    },
+    {
       "label": "FAIL",
       "color": "#CF222E"
     },
     {
-      "label": "Not Verified",
+      "label": "N/A",
       "color": "#6E7681"
     }
   ],
