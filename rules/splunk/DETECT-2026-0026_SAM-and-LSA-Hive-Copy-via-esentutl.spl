@@ -1,0 +1,1 @@
+index=sysmon Image="*\\esentutl.exe" OR OriginalFileName="esentutl.exe" CommandLine="* /y *" CommandLine IN ("*/system32/config/SAM*", "*/system32/config/SECURITY*", "*/system32/config/SYSTEM*") | table _time,ComputerName,User,Image,OriginalFileName,CommandLine,CurrentDirectory,IntegrityLevel,ParentImage,ParentCommandLine,ProcessId,ParentProcessId

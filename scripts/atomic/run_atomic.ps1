@@ -31,14 +31,13 @@ function Read-MetaFromSplFile {
         throw "SPL file not found: $Path"
     }
 
-    $content = Get-Content -LiteralPath $Path -Raw -Encoding UTF8
-    $match = [regex]::Match($content, 'META_START\s*(\{.*?\})\s*META_END', [System.Text.RegularExpressions.RegexOptions]::Singleline)
-
-    if (-not $match.Success) {
-        throw "META block not found in file: $Path"
+    $metaPath = [System.IO.Path]::ChangeExtension($Path, ".meta.json")
+    if (-not (Test-Path -LiteralPath $metaPath)) {
+        throw "Meta sidecar not found: $metaPath"
     }
 
-    return $match.Groups[1].Value | ConvertFrom-Json
+    $content = Get-Content -LiteralPath $metaPath -Raw -Encoding UTF8
+    return $content | ConvertFrom-Json
 }
 
 function ConvertTo-Bool {

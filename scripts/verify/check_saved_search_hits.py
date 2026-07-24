@@ -14,16 +14,12 @@ Usage:
 Output per rule:
     <output-dir>/<detect_id>/hits.json      — { meta, event_count, events[], error, ... }
 
-Aggregate:
-    <output-dir>/aggregate_summary.json     — list of per-rule summaries (no raw events)
-
 Exit code is always 0 — per-rule errors are captured inside the JSON files.
 """
 
 import os
 import sys
 import json
-import re
 import time
 import argparse
 from datetime import datetime, timezone
@@ -31,6 +27,9 @@ from pathlib import Path
 from urllib.parse import quote
 
 import requests
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from lib.rule_naming import saved_search_name
 
 
 def die(msg: str, code: int = 1) -> None:
@@ -54,22 +53,13 @@ def env_bool(name: str, default: bool = True) -> bool:
     return default
 
 
-def savedsearch_name_from_file(path: Path) -> str:
-    """rules/splunk/foo.sigma.spl  →  foo.sigma  (matches deploy logic exactly)"""
-    name = path.name
-    if name.endswith(".spl"):
-        name = name[:-4]
-    return name
-
-
 def extract_meta(path: Path) -> dict:
-    """Read META_START…META_END block for labelling purposes only."""
-    content = path.read_text(encoding="utf-8")
-    m = re.search(r"META_START\s*(\{.*?\})\s*META_END", content, re.DOTALL)
-    if not m:
+    """Read the sidecar <name>.meta.json generated alongside <name>.spl by sigma_to_spl.py."""
+    meta_path = path.parent / (path.stem + ".meta.json")
+    if not meta_path.exists():
         return {}
     try:
-        return json.loads(m.group(1))
+        return json.loads(meta_path.read_text(encoding="utf-8"))
     except ValueError:
         return {}
 
@@ -208,7 +198,9 @@ def main(argv: list[str]) -> int:
         path = Path(spl_path_str.strip())
         if not path.exists():
             print(f"ERROR: file not found: {path}", file=sys.stderr)
-            aggregate.append({
+            rule_out_dir = output_dir / path.stem
+            rule_out_dir.mkdir(parents=True, exist_ok=True)
+            hits = {
                 "detect_id": path.stem,
                 "title": "",
                 "search_name": "",
@@ -219,11 +211,15 @@ def main(argv: list[str]) -> int:
                 "run_timestamp": run_ts,
                 "event_count": 0,
                 "error": "SPL file not found",
-            })
+                "events": [],
+            }
+            (rule_out_dir / "hits.json").write_text(
+                json.dumps(hits, indent=2, ensure_ascii=False), encoding="utf-8"
+            )
             continue
 
-        search_name = savedsearch_name_from_file(path)
         meta = extract_meta(path)
+        search_name = saved_search_name(meta)
         detect_id = (meta.get("detect_id") or "").strip() or path.stem
 
         print(f"\n[{detect_id}] Dispatching '{search_name}' ({args.earliest} → {args.latest})")
