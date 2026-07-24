@@ -206,6 +206,9 @@ def main(argv: list[str]) -> int:
                 "search_name": "",
                 "rule_version": "",
                 "git_sha": "",
+                "tester": "",
+                "runner": "",
+                "testing_enabled": False,
                 "earliest": args.earliest,
                 "latest": args.latest,
                 "run_timestamp": run_ts,
@@ -249,6 +252,13 @@ def main(argv: list[str]) -> int:
             "search_name": search_name,
             "rule_version": meta.get("rule_version", ""),
             "git_sha": meta.get("git_sha", ""),
+            # Carried over from the meta sidecar so downstream evaluation
+            # (pass_fail_eval.py) can tell which rules were *supposed* to have
+            # an Atomic Red Team run associated with them, and correlate that
+            # against run_atomic.ps1's progress markers.
+            "tester": meta.get("tester", ""),
+            "runner": meta.get("runner", ""),
+            "testing_enabled": bool(meta.get("testing enabled", False)),
             "earliest": args.earliest,
             "latest": args.latest,
             "run_timestamp": run_ts,
