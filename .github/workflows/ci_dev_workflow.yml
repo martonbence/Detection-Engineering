@@ -2,7 +2,7 @@ name: CI - Dev Pipeline (Sigma to Splunk)
 
 on:
   push:
-    branches: [ "**" ]
+    branches-ignore: [ "main" ]
     paths:
       - "rules/sigma/**/*.yml"
       - "rules/sigma/**/*.yaml"
