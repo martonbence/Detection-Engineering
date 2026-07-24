@@ -409,6 +409,8 @@ jobs:
           path: pipeline_bundle
 
       - name: Run Atomic Red Team tests embedded in deployed SPL metadata
+        id: run_atomic
+        timeout-minutes: 10
         shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass
           -Command ". '{0}'"
         env:
@@ -434,6 +436,15 @@ jobs:
           .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles -PreflightOnly
           .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles
 
+      - name: Upload atomic progress markers
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomic-progress-victim-${{ github.run_id }}
+          path: outputs/verify/atomic_progress
+          if-no-files-found: ignore
+          retention-days: 7
+
   atomic_verify_dc:
     name: Atomic Red Team Test (DC)
     needs: [ prepare_validate_convert, deploy_to_splunk ]
@@ -451,6 +462,8 @@ jobs:
           path: pipeline_bundle
 
       - name: Run Atomic Red Team tests on Domain Controller
+        id: run_atomic_dc
+        timeout-minutes: 10
         shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass
           -Command ". '{0}'"
         env:
@@ -475,6 +488,15 @@ jobs:
 
           .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles -PreflightOnly
           .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles
+
+      - name: Upload atomic progress markers
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomic-progress-dc-${{ github.run_id }}
+          path: outputs/verify/atomic_progress
+          if-no-files-found: ignore
+          retention-days: 7
 
   emulation_verify:
     name: Script Emulation Test
@@ -544,6 +566,27 @@ jobs:
           name: spl-pipeline-bundle
           path: pipeline_bundle
 
+      # Ground truth for the NOT_VERIFIED gate in pass_fail_eval.py: each atomic
+      # job writes its own <detect_id>.json progress markers and uploads them as
+      # a run-scoped artifact even if the "Run Atomic Red Team tests" step was
+      # killed by its timeout-minutes. Missing/absent here (e.g. the whole job
+      # never got that far) is treated the same as "no marker found" downstream.
+      - name: Download atomic progress markers (victim)
+        if: needs.prepare_validate_convert.outputs.has_atomic_tests == 'true'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: atomic-progress-victim-${{ github.run_id }}
+          path: outputs/verify/atomic_progress
+
+      - name: Download atomic progress markers (DC)
+        if: needs.prepare_validate_convert.outputs.has_atomic_dc_tests == 'true'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: atomic-progress-dc-${{ github.run_id }}
+          path: outputs/verify/atomic_progress
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -610,7 +653,8 @@ jobs:
             --results-dir "outputs/results" \
             --min-pass 1 \
             --max-pass 10 \
-            --run-id "${{ github.run_id }}"
+            --run-id "${{ github.run_id }}" \
+            --progress-dir "outputs/verify/atomic_progress"
           EVAL_EXIT=$?
           echo "exit_code=$EVAL_EXIT" >> "$GITHUB_OUTPUT"
 
@@ -684,16 +728,27 @@ jobs:
         run: |
           set -euo pipefail
 
-          existing=$(gh pr list --repo "${{ github.repository }}" --head dev --base main --state open --json number --jq 'length')
-          if [[ "$existing" -gt 0 ]]; then
-            echo "A dev -> main promotion PR is already open. Skipping."
+          existing_url=$(gh pr list --repo "${{ github.repository }}" --head dev --base main --state open --json url --jq '.[0].url // empty')
+
+          if [[ -n "$existing_url" ]]; then
+            echo "A dev -> main promotion PR is already open: $existing_url"
+            {
+              echo "### Promotion PR"
+              echo "ℹ️ Already open: $existing_url"
+            } >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
-          gh pr create --repo "${{ github.repository }}" \
+          pr_url=$(gh pr create --repo "${{ github.repository }}" \
             --base main --head dev \
             --title "Promote verified detections from dev to main" \
-            --body "Automatically opened because the dev pipeline run ${{ github.run_id }} reported PASS. This promotes the already-verified, already-compiled SPL to the prod Splunk App. Review and merge manually to deploy to production -- this PR does not auto-merge."
+            --body "Automatically opened because the dev pipeline run ${{ github.run_id }} reported PASS. This promotes the already-verified, already-compiled SPL to the prod Splunk App. Review and merge manually to deploy to production -- this PR does not auto-merge.")
+
+          echo "Opened promotion PR: $pr_url"
+          {
+            echo "### Promotion PR"
+            echo "✅ Opened: $pr_url"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Report verification verdict
         shell: bash
