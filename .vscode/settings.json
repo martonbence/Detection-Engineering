@@ -2,16 +2,12 @@
     "files.associations": {
         "**/*.spl": "plaintext",
         "rules/**/*.yml": "yaml",
-        "rules/**/*.yaml": "yaml",
-        "**/*.sigma.yml": "yaml",
-        "**/*.sigma.yaml": "yaml"
+        "rules/**/*.yaml": "yaml"
     },
     "yaml.schemas": {
         "docs/schemas/sigma_schema.json": [
             "rules/**/*.yml",
-            "rules/**/*.yaml",
-            "**/*.sigma.yml",
-            "**/*.sigma.yaml"
+            "rules/**/*.yaml"
         ]
     },
     "[yaml]": {
