@@ -114,9 +114,12 @@ VERDICT_BADGE = {
     # Deployed + attempted this run, but the Atomic Red Team test itself did not
     # complete (e.g. cut off by run_atomic.ps1's step timeout) -- distinct from
     # both FAIL (test ran, no matching Splunk events) and N/A (never tested at
-    # all). Kept visually distinct from PASS/FAIL; dedicated rule-browser
-    # styling is a follow-up for the frontend-engineer agent.
-    "NOT_VERIFIED": "![](https://img.shields.io/badge/NOT%20VERIFIED-6E7681?style=flat-square)",
+    # all). Uses GitHub Primer's "attention" amber (#9A6700, the same emphasis
+    # shade Primer reserves for warning/caution) so it reads as "caution/unknown"
+    # rather than pass (green) or fail (red) -- see docs/index.html's
+    # .verdict-notverified / .tc.notver / Navigator legend for the matching
+    # rule-browser treatment.
+    "NOT_VERIFIED": "![](https://img.shields.io/badge/NOT%20VERIFIED-9A6700?style=flat-square)",
 }
 
 VERDICT_EMOJI = {
@@ -362,6 +365,18 @@ def fetch_mitre_techniques(
         return cached_count or 201, cached_map, False
 
 
+# Precedence used to pick a technique's "best_verdict" when it's covered by
+# several rules with different verdicts. PASS obviously wins (a working,
+# verified detection exists). Below that, NOT_VERIFIED ranks above FAIL: FAIL
+# means the test actually ran to completion and no Splunk alert fired -- a
+# confirmed negative -- whereas NOT_VERIFIED means the run timed out before
+# we found out either way, so it's still "unknown", not "confirmed broken".
+# Surfacing the unknown state ahead of a confirmed failure avoids implying a
+# technique is worse off than it's actually known to be. N/A (never tested)
+# is last since no attempt was even made.
+VERDICT_RANK = {"PASS": 3, "NOT_VERIFIED": 2, "FAIL": 1, "N/A": 0}
+
+
 def build_technique_coverage(rules_detail: list, repo: str) -> dict:
     """Build {tech_id: {best_verdict, rules:[{id,title,verdict,url}]}} from rules."""
     cov: dict = {}
@@ -379,10 +394,8 @@ def build_technique_coverage(rules_detail: list, repo: str) -> dict:
             })
             v = rule["verdict"]
             cur = cov[tech]["best_verdict"]
-            if v == "PASS":
-                cov[tech]["best_verdict"] = "PASS"
-            elif v == "FAIL" and cur not in ("PASS",):
-                cov[tech]["best_verdict"] = "FAIL"
+            if VERDICT_RANK.get(v, 0) > VERDICT_RANK.get(cur, 0):
+                cov[tech]["best_verdict"] = v
     return cov
 
 
@@ -390,8 +403,10 @@ def render_navigator_layer(technique_coverage: dict, stats: dict) -> str:
     techniques_out = []
     for tech_id, cov in technique_coverage.items():
         verdict = cov["best_verdict"]
-        color = {"PASS": "#2EA44F", "FAIL": "#CF222E"}.get(verdict, "#6E7681")
-        score = {"PASS": 100, "FAIL": 50}.get(verdict, 25)
+        color = {
+            "PASS": "#2EA44F", "NOT_VERIFIED": "#d29922", "FAIL": "#CF222E",
+        }.get(verdict, "#6E7681")
+        score = {"PASS": 100, "NOT_VERIFIED": 75, "FAIL": 50}.get(verdict, 25)
         comment = "\n".join(
             f"{r['id']}: {r['title']} ({r['verdict']})" for r in cov["rules"]
         )
@@ -427,8 +442,9 @@ def render_navigator_layer(technique_coverage: dict, stats: dict) -> str:
         "gradient": {"colors": ["#ffffff00", "#2EA44F"], "minValue": 0, "maxValue": 100},
         "legendItems": [
             {"label": "PASS", "color": "#2EA44F"},
+            {"label": "NOT VERIFIED", "color": "#d29922"},
             {"label": "FAIL", "color": "#CF222E"},
-            {"label": "Not Verified", "color": "#6E7681"},
+            {"label": "N/A", "color": "#6E7681"},
         ],
         "metadata": [],
         "links": [],
@@ -460,7 +476,9 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
         c = technique_coverage.get(tid)
         if not c:
             return "uncov"
-        return {"PASS": "pass", "FAIL": "fail"}.get(c["best_verdict"], "nv")
+        return {"PASS": "pass", "NOT_VERIFIED": "notver", "FAIL": "fail"}.get(
+            c["best_verdict"], "nv"
+        )
 
     def rattr(tid: str) -> str:
         c = technique_coverage.get(tid)
@@ -757,7 +775,12 @@ def generate_stats() -> dict:
 
     verified_pass = 0
     verified_fail = 0
-    not_verified = 0
+    # "NOT_VERIFIED" (deployed + attempted, Atomic test didn't complete in
+    # time) is tracked separately from true N/A (never tested at all -- no
+    # result.json) so the rule browser can render them as distinct states
+    # instead of silently folding NOT_VERIFIED into the old N/A bucket.
+    verified_not_verified = 0
+    never_tested = 0
     rules_detail: list[dict] = []
 
     for rule in sigma_rules:
@@ -783,8 +806,10 @@ def generate_stats() -> dict:
             verified_pass += 1
         elif verdict == "FAIL":
             verified_fail += 1
+        elif verdict == "NOT_VERIFIED":
+            verified_not_verified += 1
         else:
-            not_verified += 1
+            never_tested += 1
 
         if source == "native_spl":
             rule_body = get_raw_query(rule)
@@ -855,7 +880,14 @@ def generate_stats() -> dict:
         "total_native_spl_rules": native_spl_count,
         "verified_pass": verified_pass,
         "verified_fail": verified_fail,
-        "not_verified": not_verified,
+        "verified_not_verified": verified_not_verified,
+        "never_tested": never_tested,
+        # Kept as the union of never_tested + verified_not_verified for
+        # backward compatibility -- the README's shields.io badge already
+        # queries stats.json's "not_verified" key by URL, so its scope
+        # (anything not confirmed PASS/FAIL) stays the same; the rule
+        # browser uses the two split counts above for its own chart segment.
+        "not_verified": verified_not_verified + never_tested,
         "pass_rate_pct": pass_rate,
         "pass_rate_color": pass_rate_color(pass_rate),
         "mitre_covered_techniques": covered_count,
@@ -1104,9 +1136,10 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .fc-status-experimental { --fc:#388bfd; --fc-bg:rgba(56,139,253,0.15);--fc-br:rgba(56,139,253,0.4); }
     .fc-status-deprecated   { --fc:#8b949e; --fc-bg:rgba(139,148,158,0.12);--fc-br:rgba(139,148,158,0.35); }
 
-    .fc-verdict-pass { --fc:#3fb950; --fc-bg:rgba(63,185,80,0.13);  --fc-br:rgba(63,185,80,0.38); }
-    .fc-verdict-fail { --fc:#f85149; --fc-bg:rgba(248,81,73,0.13); --fc-br:rgba(248,81,73,0.38); }
-    .fc-verdict-na   { --fc:#8b949e; --fc-bg:rgba(139,148,158,0.12);--fc-br:rgba(139,148,158,0.35); }
+    .fc-verdict-pass         { --fc:#3fb950; --fc-bg:rgba(63,185,80,0.13);  --fc-br:rgba(63,185,80,0.38); }
+    .fc-verdict-notverified  { --fc:#d29922; --fc-bg:rgba(210,153,34,0.13); --fc-br:rgba(210,153,34,0.4); }
+    .fc-verdict-fail         { --fc:#f85149; --fc-bg:rgba(248,81,73,0.13); --fc-br:rgba(248,81,73,0.38); }
+    .fc-verdict-na           { --fc:#8b949e; --fc-bg:rgba(139,148,158,0.12);--fc-br:rgba(139,148,158,0.35); }
 
     .filter-supergroup {
       border: 1px solid var(--border);
@@ -1604,9 +1637,10 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .status-experimental { background: rgba(56,139,253,0.15); color: #388bfd; border: 1px solid rgba(56,139,253,0.4); }
     .status-deprecated   { background: rgba(139,148,158,0.1); color: var(--text3); border: 1px solid var(--border); }
 
-    .verdict-pass { background: var(--green-bg); color: var(--green); border: 1px solid rgba(63,185,80,0.25); }
-    .verdict-fail { background: rgba(248,81,73,0.13); color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
-    .verdict-na   { background: rgba(139,148,158,0.12); color: #8b949e; border: 1px solid var(--border); }
+    .verdict-pass         { background: var(--green-bg); color: var(--green); border: 1px solid rgba(63,185,80,0.25); }
+    .verdict-notverified  { background: rgba(210,153,34,0.15); color: #d29922; border: 1px solid rgba(210,153,34,0.4); }
+    .verdict-fail         { background: rgba(248,81,73,0.13); color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
+    .verdict-na           { background: rgba(139,148,158,0.12); color: #8b949e; border: 1px solid var(--border); }
 
     .no-results { padding: 56px 32px; text-align: center; color: var(--text3); }
     .no-results svg { width: 34px; height: 34px; stroke: var(--text3); opacity: 0.6; margin: 0 auto 14px; display: block; }
@@ -1753,6 +1787,8 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
     .drawer-cta.verify-pass { border-color: var(--green); color: var(--green); }
     .drawer-cta.verify-pass:hover { background: var(--green-bg); }
+    .drawer-cta.verify-notver { border-color: #d29922; color: #d29922; }
+    .drawer-cta.verify-notver:hover { background: rgba(210,153,34,0.13); }
     .drawer-cta.verify-fail { border-color: #f85149; color: #f85149; }
     .drawer-cta.verify-fail:hover { background: rgba(248,81,73,0.13); }
 
@@ -1917,9 +1953,10 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .tc { font-size:12px; padding:5px 6px; border-radius:2px; cursor:default; display:flex; flex-direction:column; min-height:40px; gap:1px; position:relative; }
     .tc.uncov { background:#1c2128; color:#484f58; }
     .tc.uncov.has-cov { background:rgba(255,170,0,.13); color:#545f6e; }
-    .tc.pass  { background:#1a4731; color:#aff3c5; }
-    .tc.fail  { background:#67060c; color:#ffc1c1; }
-    .tc.nv    { background:#2d333b; color:#adbac7; border-left:2px solid rgba(255,170,0,.35); }
+    .tc.pass    { background:#1a4731; color:#aff3c5; }
+    .tc.notver  { background:#4b3400; color:#ffd580; border-left:2px solid #d29922; }
+    .tc.fail    { background:#67060c; color:#ffc1c1; }
+    .tc.nv      { background:#2d333b; color:#adbac7; border-left:2px solid rgba(255,170,0,.35); }
     .tc.sub   { min-height:28px; padding-left:12px; }
     .tc[data-rules] { cursor:pointer; }
     .tc[data-rules]:hover { filter:brightness(1.3); }
@@ -1962,6 +1999,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .detail-noverd { display:flex; align-items:center; gap:6px; margin:6px 0; font-size:12px; color:#8b949e; }
     .detail-vbadge { display:inline-block; padding:1px 7px; border-radius:8px; font-size:10px; font-weight:600; flex-shrink:0; }
     .detail-vbadge.PASS { background:#2EA44F; color:#fff; }
+    .detail-vbadge.NOT_VERIFIED { background:#9A6700; color:#fff; }
     .detail-vbadge.FAIL { background:#CF222E; color:#fff; }
     .detail-vbadge.NA { background:#6E7681; color:#fff; }
     #att-tip {
@@ -1975,6 +2013,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .tip-rule:hover { text-decoration:underline; }
     .tip-vbadge { display:inline-block; padding:1px 7px; border-radius:8px; font-size:10px; font-weight:600; flex-shrink:0; }
     .tip-vbadge.PASS { background:#2EA44F; color:#fff; }
+    .tip-vbadge.NOT_VERIFIED { background:#9A6700; color:#fff; }
     .tip-vbadge.FAIL { background:#CF222E; color:#fff; }
     .tip-vbadge.NA   { background:#6E7681; color:#fff; }
 
@@ -2085,8 +2124,9 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     <div class="nav-wrap">
       <div class="nav-legend">
         <div class="nav-legend-item" data-filter="pass"><div class="nav-legend-dot" style="background:#1a4731;border:1px solid #2EA44F"></div> PASS</div>
-        <div class="nav-legend-item" data-filter="nv"><div class="nav-legend-dot" style="background:#9f9f9f"></div> Not Verified</div>
+        <div class="nav-legend-item" data-filter="notver"><div class="nav-legend-dot" style="background:#4b3400;border:1px solid #d29922"></div> NOT VERIFIED</div>
         <div class="nav-legend-item" data-filter="fail"><div class="nav-legend-dot" style="background:#67060c;border:1px solid #CF222E"></div> FAIL</div>
+        <div class="nav-legend-item" data-filter="nv"><div class="nav-legend-dot" style="background:#9f9f9f"></div> N/A</div>
         <div class="nav-legend-item" data-filter="uncov"><div class="nav-legend-dot" style="background:#1c2128;border:1px solid #30363d"></div> Not covered</div>
         <button id="expand-all-btn">&#9660; Expand All</button>
         <div class="nav-import"><a href="@@LAYER_URL@@" target="_blank">&#8659; Download Navigator layer (.json)</a></div>
@@ -2134,7 +2174,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
           <div class="chart-card-title">Verification</div>
           <div class="verify-card-body">
             <div class="chart-card-canvas-wrap verify-canvas-wrap">
-              <canvas id="chart-verify" aria-label="Doughnut chart showing rule verification breakdown: pass, fail, not verified — overall pass rate @@PASS_RATE@@%" role="img"></canvas>
+              <canvas id="chart-verify" aria-label="Doughnut chart showing rule verification breakdown: pass, not verified, fail, N/A — overall pass rate @@PASS_RATE@@%" role="img"></canvas>
               <div class="verify-overlay">
                 <div class="verify-overlay-pct">@@PASS_RATE@@%</div>
                 <div class="verify-overlay-label">Pass Rate</div>
@@ -2234,7 +2274,12 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   const TOTAL_RULES = @@TOTAL@@;
   const PASS_COUNT = @@PASSED@@;
   const FAIL_COUNT = @@FAILED@@;
+  // Real "NOT_VERIFIED" rules (deployed + attempted, Atomic test timed out)
+  // vs. true N/A (never tested -- no result.json at all). Kept as two
+  // separate chart segments so NOT_VERIFIED isn't silently folded into "no
+  // coverage" nor misrepresented as a pass or a confirmed fail.
   const NOTVER_COUNT = @@NOT_VER@@;
+  const NA_COUNT = @@NEVER_TESTED@@;
   const PASS_RATE = @@PASS_RATE@@;
   const MITRE_COVERED = @@MITRE_COVERED@@;
   const MITRE_TOTAL = @@MITRE_TOTAL@@;
@@ -2622,8 +2667,9 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     // Verification — doughnut with center Pass Rate overlay + side legend (status palette: good/critical/neutral)
     const verifySegs = [
       { label: 'Pass', n: PASS_COUNT, color: '#3fb950' },
+      { label: 'Not Verified', n: NOTVER_COUNT, color: '#d29922' },
       { label: 'Fail', n: FAIL_COUNT, color: '#f85149' },
-      { label: 'Not Verified', n: NOTVER_COUNT, color: '#8b949e' },
+      { label: 'N/A', n: NA_COUNT, color: '#8b949e' },
     ].filter(s => s.n > 0);
     const verifyTotal = verifySegs.reduce((s, x) => s + x.n, 0);
     const verifyChart = new Chart(document.getElementById('chart-verify'), {
@@ -3008,6 +3054,12 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
   function normKey(s) { return (s || '').toLowerCase().replace(/[^a-z0-9]+/g, ''); }
 
+  // Verdict values are stored/exported as e.g. "NOT_VERIFIED" (matching
+  // pass_fail_eval.py) but displayed as "NOT VERIFIED" -- same no-underscore
+  // convention as PASS/FAIL/N-A. CSS class names use normKey() instead, so
+  // this only affects human-visible text, never selectors.
+  function vLabel(v) { return String(v ?? '').replace(/_/g, ' '); }
+
   function emptyCell() { return '<span style="color:var(--text3)">—</span>'; }
 
   function tacticUrl(name) {
@@ -3228,7 +3280,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
         const zero = (n === 0 && !active) ? ' zero' : '';
         const fc = chipFc(key, v);
         return `<div class="chip ${fc}${active ? ' active' : ''}${zero}" onclick="toggleFilter('${key}', ${jsStr(v)})">
-          <span class="chip-dot"></span>${escHtml(v)}<span class="chip-count">${n}</span>
+          <span class="chip-dot"></span>${escHtml(key === 'verdict' ? vLabel(v) : v)}<span class="chip-count">${n}</span>
         </div>`;
       }).join('');
 
@@ -3261,7 +3313,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     const row = document.getElementById('active-filter-row');
     const tags = Object.entries(activeFilters).flatMap(([key, vals]) =>
       vals.map(v => `<span class="active-filter-tag ${chipFc(key, v)}">
-        ${escHtml(FILTER_FIELDS.find(f => f.key === key)?.label || key)}: <strong>${escHtml(v)}</strong>
+        ${escHtml(FILTER_FIELDS.find(f => f.key === key)?.label || key)}: <strong>${escHtml(key === 'verdict' ? vLabel(v) : v)}</strong>
         <button onclick="toggleFilter('${key}', ${jsStr(v)})">&times;</button>
       </span>`)
     );
@@ -3291,7 +3343,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
   function verdictBadge(r) {
     const v = r.verdict || 'N/A';
-    const badge = `<span class="badge verdict-${normKey(v)}">${escHtml(v)}</span>`;
+    const badge = `<span class="badge verdict-${normKey(v)}">${escHtml(vLabel(v))}</span>`;
     if (r.runUrl) return `<a href="${escHtml(r.runUrl)}" target="_blank" title="View Actions run" onclick="event.stopPropagation()">${badge}</a>`;
     return badge;
   }
@@ -3582,7 +3634,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       r.service ? `<span class="badge badge-service">${escHtml(r.service)}</span>` : '',
       r.severity ? sevBadge(r) : '',
       r.status ? statusBadge(r) : '',
-      `<span class="badge verdict-${normKey(r.verdict)}">${escHtml(r.verdict)}</span>`,
+      `<span class="badge verdict-${normKey(r.verdict)}">${escHtml(vLabel(r.verdict))}</span>`,
     ].filter(Boolean);
     document.getElementById('d-badges').innerHTML = badges.join('');
 
@@ -3624,15 +3676,18 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
     if (r.runUrl) {
       const isFail = r.verdict === 'FAIL';
-      const verifyCls = isFail ? 'verify-fail' : 'verify-pass';
+      const isNotVer = r.verdict === 'NOT_VERIFIED';
+      const verifyCls = isFail ? 'verify-fail' : isNotVer ? 'verify-notver' : 'verify-pass';
       const icon = isFail
         ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
+        : isNotVer
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12" y2="16.01"/></svg>'
         : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
       body += `<div>
         <div class="drawer-section-label">Verification</div>
         <a class="drawer-cta ${verifyCls}" href="${escHtml(r.runUrl)}" target="_blank">
           ${icon}
-          View Last Action Run — ${escHtml(r.verdict)}
+          View Last Action Run — ${escHtml(vLabel(r.verdict))}
         </a>
       </div>`;
     }
@@ -4015,7 +4070,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       var html = '<div class="tip-head">' + el.dataset.id + '</div>';
       rules.forEach(function(r) {
         var vc = r.verdict === 'N/A' ? 'NA' : r.verdict;
-        var badge = '<span class="tip-vbadge ' + vc + '">' + r.verdict + '</span>';
+        var badge = '<span class="tip-vbadge ' + vc + '">' + vLabel(r.verdict) + '</span>';
         if (r.url) {
           html += '<a class="tip-rule" href="' + r.url + '" target="_blank">' + badge + ' ' + r.id + ': ' + r.title + '</a>';
         } else {
@@ -4089,9 +4144,10 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   // Legend multi-filter with parent+sub logic
   var navActiveFilters = new Set();
   function tcVerdict(tc) {
-    if (tc.classList.contains('pass')) return 'pass';
-    if (tc.classList.contains('fail')) return 'fail';
-    if (tc.classList.contains('nv'))   return 'nv';
+    if (tc.classList.contains('pass'))   return 'pass';
+    if (tc.classList.contains('notver')) return 'notver';
+    if (tc.classList.contains('fail'))   return 'fail';
+    if (tc.classList.contains('nv'))     return 'nv';
     return 'uncov';
   }
   function applyNavFilters() {
@@ -4187,7 +4243,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       var html = '';
       rules.forEach(function(r) {
         var vc = r.verdict === 'N/A' ? 'NA' : r.verdict;
-        var badge = '<span class="detail-vbadge ' + vc + '">' + r.verdict + '</span>';
+        var badge = '<span class="detail-vbadge ' + vc + '">' + vLabel(r.verdict) + '</span>';
         var label = r.id + ': ' + r.title;
         if (r.url) {
           html += '<a class="detail-rule" href="' + r.url + '" target="_blank">' + badge + label + '</a>';
@@ -4220,7 +4276,8 @@ def render_html_summary(stats: dict, repo: str) -> str:
     total = stats["total_rules"]
     passed = stats["verified_pass"]
     failed = stats["verified_fail"]
-    not_ver = stats["not_verified"]
+    not_ver = stats.get("verified_not_verified", 0)
+    never_tested = stats.get("never_tested", stats.get("not_verified", 0))
     pass_rate = stats["pass_rate_pct"]
     mitre_covered = stats.get("mitre_covered_techniques", 0)
     mitre_total = stats.get("mitre_total_techniques", 0)
@@ -4275,6 +4332,7 @@ def render_html_summary(stats: dict, repo: str) -> str:
     html = html.replace("@@PASSED@@", str(passed))
     html = html.replace("@@FAILED@@", str(failed))
     html = html.replace("@@NOT_VER@@", str(not_ver))
+    html = html.replace("@@NEVER_TESTED@@", str(never_tested))
     html = html.replace("@@PASS_RATE@@", str(pass_rate))
     html = html.replace("@@MITRE_COVERED@@", str(mitre_covered))
     html = html.replace("@@MITRE_TOTAL@@", str(mitre_total))
