@@ -107,7 +107,7 @@ jobs:
           if [[ "$mode" == "all" ]]; then
             while IFS= read -r rf; do
               [[ -n "$rf" ]] && rule_files+=("$rf")
-            done < <(git ls-files "rules/sigma/**/*.yml" "rules/sigma/**/*.yaml" || true)
+            done < <(git ls-files "rules/sigma/*.yml" "rules/sigma/**/*.yml" "rules/sigma/*.yaml" "rules/sigma/**/*.yaml" || true)
           else
             for f in "${files[@]}"; do
               if [[ "$f" =~ ^rules/sigma/.*\.(yml|yaml)$ ]]; then
