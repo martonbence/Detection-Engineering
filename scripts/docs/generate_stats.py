@@ -111,12 +111,19 @@ VERDICT_BADGE = {
     "PASS": "![](https://img.shields.io/badge/PASS-2EA44F?style=flat-square)",
     "FAIL": "![](https://img.shields.io/badge/FAIL-CF222E?style=flat-square)",
     "N/A":  "![](https://img.shields.io/badge/N%2FA-6E7681?style=flat-square)",
+    # Deployed + attempted this run, but the Atomic Red Team test itself did not
+    # complete (e.g. cut off by run_atomic.ps1's step timeout) -- distinct from
+    # both FAIL (test ran, no matching Splunk events) and N/A (never tested at
+    # all). Kept visually distinct from PASS/FAIL; dedicated rule-browser
+    # styling is a follow-up for the frontend-engineer agent.
+    "NOT_VERIFIED": "![](https://img.shields.io/badge/NOT%20VERIFIED-6E7681?style=flat-square)",
 }
 
 VERDICT_EMOJI = {
     "PASS": "✅ PASS",
     "FAIL": "❌ FAIL",
     "N/A": "⬜ N/A",
+    "NOT_VERIFIED": "⚠️ NOT VERIFIED",
 }
 
 

@@ -10,6 +10,12 @@ Pass criteria : MIN_PASS <= event_count <= MAX_PASS
 Fail criteria : event_count < MIN_PASS  (no alerts fired)
               | event_count > MAX_PASS  (too many / noisy)
               | error field is non-null (Splunk query failed)
+Not verified  : rule's tester is "atomic" and its Atomic Red Team test did not
+                reach a "completed" progress marker (see --progress-dir) --
+                e.g. the run_atomic.ps1 step was killed by its 10-minute
+                timeout before getting to this rule. Distinct from FAIL:
+                the detection logic was never actually exercised, so we
+                can't say anything about whether it would have matched.
 
 Outputs:
   <results-dir>/<detect_id>/result.json   — per-rule verdict
@@ -17,9 +23,10 @@ Outputs:
 
 Exit code:
   0  All rules PASS
-  1  One or more rules FAIL
+  1  One or more rules FAIL or NOT_VERIFIED
 """
 
+import re
 import sys
 import json
 import os
@@ -29,8 +36,59 @@ from pathlib import Path
 
 PASS = "PASS"
 FAIL = "FAIL"
+NOT_VERIFIED = "NOT_VERIFIED"
+
+# Internal verdict identifiers above stay underscore-free/underscored to match
+# the PASS/FAIL naming convention. Everything shown to a human (step summary
+# table, printed lines, reasons) uses the display labels below instead.
+DISPLAY_LABEL = {
+    PASS: "PASS",
+    FAIL: "FAIL",
+    NOT_VERIFIED: "NOT VERIFIED",
+}
+
 PASS_EMOJI = "✅"
 FAIL_EMOJI = "❌"
+NOT_VERIFIED_EMOJI = "⚠️"
+
+EMOJI_BY_VERDICT = {
+    PASS: PASS_EMOJI,
+    FAIL: FAIL_EMOJI,
+    NOT_VERIFIED: NOT_VERIFIED_EMOJI,
+}
+
+
+def verdict_label(verdict: str) -> str:
+    """Human-facing display text for a verdict (e.g. 'NOT_VERIFIED' -> 'NOT VERIFIED')."""
+    return DISPLAY_LABEL.get(verdict, verdict)
+
+
+def verdict_emoji(verdict: str) -> str:
+    return EMOJI_BY_VERDICT.get(verdict, FAIL_EMOJI)
+
+
+def _sanitize_marker_name(detect_id: str) -> str:
+    """Mirror run_atomic.ps1's `-replace '[^A-Za-z0-9_.-]', '_'` so marker
+    filenames written on the Windows runner and read back here always match."""
+    return re.sub(r"[^A-Za-z0-9_.-]", "_", detect_id or "")
+
+
+def atomic_test_completed(progress_dir: Path | None, detect_id: str) -> bool:
+    """True only if run_atomic.ps1 flushed a {"status": "completed"} marker
+    for this detect_id. Missing progress_dir, missing marker file, or a
+    marker stuck at "started" all mean the Atomic Red Team test did not
+    finish -- most commonly because the step hit its 10-minute timeout
+    partway through testing multiple rules."""
+    if progress_dir is None:
+        return True  # no progress tracking requested -> don't override anything
+    marker = progress_dir / f"{_sanitize_marker_name(detect_id)}.json"
+    if not marker.is_file():
+        return False
+    try:
+        data = json.loads(marker.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        return False
+    return data.get("status") == "completed"
 
 
 def evaluate(
@@ -51,14 +109,16 @@ def write_github_summary(path: str, report: dict) -> None:
     emoji = PASS_EMOJI if overall == PASS else FAIL_EMOJI
     passed = report["passed"]
     failed = report["failed"]
+    not_verified = report.get("not_verified", 0)
     total = report["total_rules"]
     run_ts = report["run_timestamp"]
 
     lines = [
-        f"# {emoji} Detection Verification — {overall}",
+        f"# {emoji} Detection Verification — {verdict_label(overall)}",
         "",
         f"**{passed} / {total}** rules passed &nbsp;·&nbsp; "
         f"**{failed}** failed &nbsp;·&nbsp; "
+        f"**{not_verified}** not verified &nbsp;·&nbsp; "
         f"threshold: **{report['min_pass']}–{report['max_pass']} events**",
         "",
         f"> Run timestamp: `{run_ts}`",
@@ -68,16 +128,18 @@ def write_github_summary(path: str, report: dict) -> None:
     ]
 
     for r in report["rules"]:
-        v_emoji = PASS_EMOJI if r["verdict"] == PASS else FAIL_EMOJI
+        v_emoji = verdict_emoji(r["verdict"])
         lines.append(
             f"| `{r['detect_id']}` | {r['title']} | {r['event_count']} "
-            f"| {v_emoji} {r['verdict']} | {r['reason']} |"
+            f"| {v_emoji} {verdict_label(r['verdict'])} | {r['reason']} |"
         )
 
     lines += [
         "",
         "---",
         f"Pass criteria: **{report['min_pass']} ≤ events ≤ {report['max_pass']}**  ",
+        f"{NOT_VERIFIED_EMOJI} NOT VERIFIED: Atomic Red Team test did not complete "
+        "before the step timeout -- treated the same as FAIL for gating purposes.  ",
         "Results saved to `outputs/results/`",
     ]
 
@@ -108,20 +170,60 @@ def main(argv: list[str]) -> int:
         "--run-id", default="",
         help="GitHub Actions run ID (${{ github.run_id }})",
     )
+    parser.add_argument(
+        "--progress-dir", default="",
+        help="Directory of <detect_id>.json progress markers written by "
+             "run_atomic.ps1 (merged from atomic_verify + atomic_verify_dc). "
+             "When provided, rules whose tester is 'atomic' but that never "
+             "reached a 'completed' marker are verdict NOT_VERIFIED instead "
+             "of whatever hits.json would otherwise say. Omit to disable "
+             "this check entirely (backward compatible).",
+    )
     args = parser.parse_args(argv)
 
     matched_dir = Path(args.matched_events_dir)
     results_dir = Path(args.results_dir)
     results_dir.mkdir(parents=True, exist_ok=True)
 
+    progress_dir: Path | None = Path(args.progress_dir) if args.progress_dir else None
+
     run_ts = datetime.now(timezone.utc).isoformat()
 
     summaries: list[dict] = []
-    for subdir in sorted(matched_dir.iterdir()):
-        hf = subdir / "hits.json"
-        if hf.is_file():
-            data = json.loads(hf.read_text(encoding="utf-8"))
-            summaries.append({k: v for k, v in data.items() if k != "events"})
+    seen_detect_ids: set[str] = set()
+    if matched_dir.is_dir():
+        for subdir in sorted(matched_dir.iterdir()):
+            hf = subdir / "hits.json"
+            if hf.is_file():
+                data = json.loads(hf.read_text(encoding="utf-8"))
+                summary = {k: v for k, v in data.items() if k != "events"}
+                summaries.append(summary)
+                did = summary.get("detect_id")
+                if did:
+                    seen_detect_ids.add(did)
+
+    # A rule can have a progress marker (its Atomic Red Team test was
+    # scheduled to run) but no hits.json at all -- e.g. check_saved_search_hits.py
+    # never got a chance to dispatch a query for it. Synthesize a minimal
+    # placeholder summary so the NOT_VERIFIED gate below still applies to it
+    # instead of silently dropping it from the report.
+    if progress_dir is not None and progress_dir.is_dir():
+        for marker_file in sorted(progress_dir.glob("*.json")):
+            try:
+                marker_data = json.loads(marker_file.read_text(encoding="utf-8"))
+            except (ValueError, OSError):
+                continue
+            marker_detect_id = str(marker_data.get("detect_id") or marker_file.stem)
+            if marker_detect_id in seen_detect_ids:
+                continue
+            summaries.append({
+                "detect_id": marker_detect_id,
+                "title": "",
+                "event_count": 0,
+                "error": None,
+                "tester": "atomic",
+            })
+            seen_detect_ids.add(marker_detect_id)
 
     if not summaries:
         print("No verification summaries found in matched_events_dir. Nothing to evaluate.")
@@ -137,9 +239,15 @@ def main(argv: list[str]) -> int:
         title = summary.get("title", "")
         event_count = int(summary.get("event_count", 0))
         error = summary.get("error") or None
+        tester = str(summary.get("tester") or "").strip().lower()
 
-        verdict, reason = evaluate(event_count, error, args.min_pass, args.max_pass)
-        if verdict == FAIL:
+        if tester == "atomic" and not atomic_test_completed(progress_dir, detect_id):
+            verdict = NOT_VERIFIED
+            reason = "Atomic Red Team test did not complete before step timeout"
+        else:
+            verdict, reason = evaluate(event_count, error, args.min_pass, args.max_pass)
+
+        if verdict != PASS:
             all_pass = False
 
         result = {
@@ -165,8 +273,8 @@ def main(argv: list[str]) -> int:
         )
 
         report_rows.append(result)
-        v_emoji = PASS_EMOJI if verdict == PASS else FAIL_EMOJI
-        print(f"  {v_emoji}  {detect_id}  →  {verdict}  ({event_count} events)  {reason}")
+        v_emoji = verdict_emoji(verdict)
+        print(f"  {v_emoji}  {detect_id}  →  {verdict_label(verdict)}  ({event_count} events)  {reason}")
 
     overall = PASS if all_pass else FAIL
     aggregate_report = {
@@ -177,6 +285,7 @@ def main(argv: list[str]) -> int:
         "total_rules": len(report_rows),
         "passed": sum(1 for r in report_rows if r["verdict"] == PASS),
         "failed": sum(1 for r in report_rows if r["verdict"] == FAIL),
+        "not_verified": sum(1 for r in report_rows if r["verdict"] == NOT_VERIFIED),
         "rules": report_rows,
     }
 
@@ -187,8 +296,9 @@ def main(argv: list[str]) -> int:
     overall_emoji = PASS_EMOJI if overall == PASS else FAIL_EMOJI
     print(
         f"\n{'─' * 60}"
-        f"\n{overall_emoji}  Overall: {overall}  "
-        f"({aggregate_report['passed']}/{aggregate_report['total_rules']} rules passed)"
+        f"\n{overall_emoji}  Overall: {verdict_label(overall)}  "
+        f"({aggregate_report['passed']}/{aggregate_report['total_rules']} rules passed, "
+        f"{aggregate_report['not_verified']} not verified)"
         f"\n{'─' * 60}"
     )
 
