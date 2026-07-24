@@ -332,6 +332,7 @@ jobs:
           name: spl-pipeline-bundle
           path: pipeline_bundle
           if-no-files-found: error
+          retention-days: 1
 
   deploy_to_splunk:
     name: Deploy to Splunk
@@ -443,7 +444,7 @@ jobs:
           name: atomic-progress-victim-${{ github.run_id }}
           path: outputs/verify/atomic_progress
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 1
 
   atomic_verify_dc:
     name: Atomic Red Team Test (DC)
@@ -496,7 +497,7 @@ jobs:
           name: atomic-progress-dc-${{ github.run_id }}
           path: outputs/verify/atomic_progress
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 1
 
   emulation_verify:
     name: Script Emulation Test
