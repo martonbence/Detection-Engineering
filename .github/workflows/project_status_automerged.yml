@@ -1,0 +1,38 @@
+name: Project - Mark automated promotion PRs Auto-merged
+
+on:
+  pull_request:
+    types: [ closed ]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  set_automerged_status:
+    name: Set Project Status to Auto-merged
+    if: |
+      github.event.pull_request.merged == true &&
+      contains(github.event.pull_request.labels.*.name, 'automated-promotion')
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Add/update project item status
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT_DEV_PUSH }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          set -euo pipefail
+
+          echo "Marking $PR_URL as Auto-merged on Project #3"
+
+          item_id=$(gh project item-add 3 --owner martonbence --url "$PR_URL" --format json --jq '.id')
+
+          gh project item-edit \
+            --id "$item_id" \
+            --project-id "PVT_kwHOA_8eh84BeHTL" \
+            --field-id "PVTSSF_lAHOA_8eh84BeHTLzhYj6O0" \
+            --single-select-option-id "be04d00f"
+
+          echo "Set Project #3 Status=Auto-merged for $PR_URL"
