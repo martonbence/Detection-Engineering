@@ -742,6 +742,7 @@ jobs:
           pr_url=$(gh pr create --repo "${{ github.repository }}" \
             --base main --head dev \
             --title "Promote verified detections from dev to main" \
+            --label "automated-promotion" \
             --body "Automatically opened because the dev pipeline run ${{ github.run_id }} reported PASS. This promotes the already-verified, already-compiled SPL to the prod Splunk App. Review and merge manually to deploy to production -- this PR does not auto-merge.")
 
           echo "Opened promotion PR: $pr_url"
