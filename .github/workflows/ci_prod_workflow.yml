@@ -44,7 +44,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          mapfile -t rule_files < <(git ls-files "rules/sigma/**/*.yml" "rules/sigma/**/*.yaml")
+          mapfile -t rule_files < <(git ls-files "rules/sigma/*.yml" "rules/sigma/**/*.yml" "rules/sigma/*.yaml" "rules/sigma/**/*.yaml")
 
           if [[ "${#rule_files[@]}" -eq 0 ]]; then
             echo "No Sigma rules found."
@@ -74,7 +74,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          mapfile -t spl_files < <(git ls-files "rules/splunk/**/*.spl")
+          mapfile -t spl_files < <(git ls-files "rules/splunk/*.spl" "rules/splunk/**/*.spl")
 
           if [[ "${#spl_files[@]}" -eq 0 ]]; then
             echo "No SPL files to deploy."
