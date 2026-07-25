@@ -167,6 +167,14 @@
       "total_rules": 27,
       "total_sigma_rules": 27,
       "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-07-25",
+      "timestamp": "2026-07-25T06:54:08.564373+00:00",
+      "git_sha": "c23f9e82cef0cf12fc2a2541b60914cb2d60bd97",
+      "total_rules": 27,
+      "total_sigma_rules": 27,
+      "total_native_spl_rules": 1
     }
   ]
 }
