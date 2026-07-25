@@ -5,7 +5,7 @@ description: Detects execution of PowerShell with encoded command flags, a
   common obfuscation technique used to hide malicious payloads. Covers all -ec
   and -en[codedcommand] prefix variants (selection_cmdline_enc), and the -e
   standalone flag when followed by a minimum 80-character Base64 payload
-  (selection_cmdline_e_standalone).
+  (selection_cmdline_e_standalone)
 references:
   - https://attack.mitre.org/techniques/T1059/001/
   - https://attack.mitre.org/techniques/T1027/010/

@@ -19,6 +19,7 @@ jobs:
     steps:
       - name: Add/update project item status
         shell: bash
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GH_PAT_DEV_PUSH }}
           PR_URL: ${{ github.event.pull_request.html_url }}
@@ -36,3 +37,8 @@ jobs:
             --single-select-option-id "be04d00f"
 
           echo "Set Project #3 Status=Auto-merged for $PR_URL"
+        # NOTE: known gap -- fine-grained PATs cannot grant Projects permission for
+        # user-owned (non-org) project boards, so GH_PAT_DEV_PUSH's addProjectV2ItemById
+        # calls currently fail with "Resource not accessible by personal access token".
+        # continue-on-error keeps that failure from showing as a broken workflow run
+        # until the token situation is revisited.
