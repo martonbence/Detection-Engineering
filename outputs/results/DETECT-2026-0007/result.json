@@ -1,15 +1,15 @@
 {
   "detect_id": "DETECT-2026-0007",
-  "title": "",
-  "verdict": "FAIL",
-  "reason": "Too few events: 0 (min expected: 1)",
-  "event_count": 0,
+  "title": "PowerShell Encoded Command Execution",
+  "verdict": "PASS",
+  "reason": "Event count 1 within expected range [1–10]",
+  "event_count": 1,
   "min_pass": 1,
   "max_pass": 10,
-  "earliest": "",
-  "latest": "",
-  "run_timestamp": "2026-07-25T08:09:41.532091+00:00",
-  "rule_version": "",
-  "git_sha": "",
-  "run_id": "30150517868"
+  "earliest": "-5m",
+  "latest": "now",
+  "run_timestamp": "2026-07-25T08:34:17.371363+00:00",
+  "rule_version": "1.18",
+  "git_sha": "d25cfd1988d79b3c0ddfa4e11a2bcd4eda03161c",
+  "run_id": "30151243688"
 }

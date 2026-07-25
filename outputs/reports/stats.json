@@ -1,15 +1,15 @@
 {
-  "generated_at": "2026-07-25T08:09:45.655549+00:00",
+  "generated_at": "2026-07-25T08:34:21.721302+00:00",
   "total_rules": 27,
   "total_sigma_rules": 27,
   "total_splunk_rules": 7,
   "total_native_spl_rules": 1,
-  "verified_pass": 24,
-  "verified_fail": 3,
+  "verified_pass": 25,
+  "verified_fail": 2,
   "verified_not_verified": 0,
   "never_tested": 0,
   "not_verified": 0,
-  "pass_rate_pct": 89,
+  "pass_rate_pct": 93,
   "pass_rate_color": "brightgreen",
   "mitre_covered_techniques": 11,
   "mitre_total_techniques": 222,
@@ -44,7 +44,7 @@
       "status": "test",
       "source": "native_spl",
       "verdict": "PASS",
-      "run_id": "30150517868",
+      "run_id": "30151243688",
       "tactics": [
         "Execution"
       ],
@@ -82,7 +82,7 @@
       },
       "rule_body": "index=sysmon Image=\"*\\\\powershell.exe\" CommandLine IN (\"* -e *\", \"* -enc *\", \"* -encodedcommand *\") | table _time,CommandLine,ParentImage,Image,User,ProcessId",
       "rule_body_lang": "spl",
-      "rule_version": "1.2"
+      "rule_version": "1.3"
     },
     {
       "detect_id": "DETECT-2026-0005",
@@ -92,7 +92,7 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30150517868",
+      "run_id": "30151243688",
       "tactics": [
         "Execution",
         "Persistence",
@@ -138,7 +138,7 @@
       },
       "rule_body": "detection:\n  selection_bitsadmin_image:\n    Image|endswith: \\bitsadmin.exe\n  selection_bitsadmin_flags:\n    CommandLine|contains:\n    - /transfer\n    - /create\n    - /addfile\n  selection_ps_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_ps_cmdlets:\n    CommandLine|contains:\n    - Start-BitsTransfer\n    - Complete-BitsTransfer\n    - Add-BitsFile\n  filter_suspicious_path:\n    CommandLine|contains:\n    - :\\PerfLogs\n    - :\\ProgramData\\\n    - :\\Temp\\\n    - :\\Users\\Public\\\n    - :\\Windows\\Temp\n    - \\$Recycle.Bin\\\n    - \\AppData\\Local\\\n    - \\AppData\\Roaming\\\n    - \\Contacts\\\n    - \\Desktop\\\n    - \\Favorites\\\n    - \\Favourites\\\n    - \\inetpub\\wwwroot\\\n    - \\Music\\\n    - \\Pictures\\\n    - \\Videos\\\n    - \\Start Menu\\Programs\\Startup\\\n    - \\Users\\Default\\\n    - '%ProgramData%'\n    - '%public%'\n    - '%temp%'\n    - '%tmp%'\n  filter_suspicious_extension:\n    CommandLine|contains:\n    - .bat\n    - .cmd\n    - .dll\n    - .exe\n    - .hta\n    - .msi\n    - .ps1\n    - .psm1\n    - .scf\n    - .sct\n    - .vbe\n    - .vbs\n    - .wsf\n    - .wsh\n    - .7z\n    - .chm\n    - .rar\n    - .xll\n    - .zip\n    - .asax\n    - .ashx\n    - .asmx\n    - .asp\n    - .aspx\n    - .cfm\n    - .cgi\n    - .jsp\n    - .jspx\n    - .war\n    - .gif\n    - .jpeg\n    - .jpg\n    - .png\n  filter_legit_user:\n    User|contains:\n    - SYSTEM\n    - NETWORK SERVICE\n  filter_legit_parent:\n    ParentImage|endswith:\n    - \\svchost.exe\n    - \\MsMpEng.exe\n  condition: ( ( selection_bitsadmin_image and selection_bitsadmin_flags ) or ( selection_ps_image and\n    selection_ps_cmdlets ) ) and not ( filter_legit_user and filter_legit_parent )",
       "rule_body_lang": "yaml",
-      "rule_version": "1.5"
+      "rule_version": "1.6"
     },
     {
       "detect_id": "DETECT-2026-0006",
@@ -148,7 +148,7 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30150517868",
+      "run_id": "30151243688",
       "tactics": [
         "Execution",
         "Persistence",
@@ -190,7 +190,7 @@
       },
       "rule_body": "detection:\n  selection_image_commandline:\n    Image|endswith: \\bitsadmin.exe\n    CommandLine|contains: /setnotifycmdline\n  filter_legit_user:\n    User|contains:\n    - SYSTEM\n    - NETWORK SERVICE\n  filter_legit_parent:\n    ParentImage|endswith:\n    - \\svchost.exe\n  condition: selection_image_commandline and not (filter_legit_user and filter_legit_parent)",
       "rule_body_lang": "yaml",
-      "rule_version": "1.6"
+      "rule_version": "1.7"
     },
     {
       "detect_id": "DETECT-2026-0007",
@@ -199,8 +199,8 @@
       "level": "medium",
       "status": "stable",
       "source": "sigma",
-      "verdict": "FAIL",
-      "run_id": "30150517868",
+      "verdict": "PASS",
+      "run_id": "30151243688",
       "tactics": [
         "Execution",
         "Stealth"
@@ -247,7 +247,7 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_cmdline_enc:\n    CommandLine|re: (?i)(?:^|[\\s\\t\"])-e(?:c|n(?:c(?:o(?:d(?:e(?:d(?:c(?:o(?:m(?:m(?:a(?:n(?:d)?)?)?)?)?)?)?)?)?)?)?))(?:[\\s\\t\"=]|$)\n  selection_cmdline_e_standalone:\n    CommandLine|re: (?i)(?:^|[\\s\\t\"])-e[\\s\\t]+(?:[A-Za-z0-9+/]{80,}={0,2})(?:[\\s\\t\"]|$)\n  condition: selection_image and (selection_cmdline_enc or selection_cmdline_e_standalone)",
       "rule_body_lang": "yaml",
-      "rule_version": "1.17"
+      "rule_version": "1.18"
     },
     {
       "detect_id": "DETECT-2026-0008",
@@ -257,7 +257,7 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30150517868",
+      "run_id": "30151243688",
       "tactics": [
         "Execution",
         "Command & Control"
@@ -305,7 +305,7 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_download:\n    CommandLine|contains:\n    - .DownloadString(\n    - .DownloadFile(\n    - .DownloadData(\n    - .OpenRead(\n    - Invoke-WebRequest\n    - 'iwr '\n    - Invoke-RestMethod\n    - 'irm '\n    - '[System.Net.Http.HttpClient]'\n    - Net.WebRequest\n    - Net.WebClient\n    - HttpWebRequest\n  selection_iex:\n    CommandLine|contains:\n    - '| IEX'\n    - '|IEX '\n    - I`E`X\n    - I`EX\n    - IE`X\n    - 'iex '\n    - IEX (\n    - IEX(\n    - iex(\n    - Invoke-Expression\n    - '[scriptblock]::create('\n    - '|iex;'\n    - '| iex}'\n    - $ExecutionContext.InvokeCommand\n    - '&([scriptblock]'\n  condition: all of selection_*",
       "rule_body_lang": "yaml",
-      "rule_version": "1.5"
+      "rule_version": "1.6"
     },
     {
       "detect_id": "DETECT-2026-0009",
@@ -315,7 +315,7 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30150517868",
+      "run_id": "30151243688",
       "tactics": [
         "Execution",
         "Stealth"
@@ -364,7 +364,7 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_decode:\n    CommandLine|contains:\n    - FromBase64String\n    - FromBase64CharArray(\n  selection_iex:\n    CommandLine|contains:\n    - '| IEX'\n    - '|IEX '\n    - I`E`X\n    - I`EX\n    - IE`X\n    - 'iex '\n    - IEX (\n    - IEX(\n    - iex(\n    - Invoke-Expression\n    - '[scriptblock]::create('\n    - '|iex;'\n    - '| iex}'\n    - $ExecutionContext.InvokeCommand\n    - '&([scriptblock]'\n  condition: all of selection_*",
       "rule_body_lang": "yaml",
-      "rule_version": "1.7"
+      "rule_version": "1.8"
     },
     {
       "detect_id": "DETECT-2026-0010",
@@ -374,7 +374,7 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30150517868",
+      "run_id": "30151243688",
       "tactics": [
         "Execution"
       ],
@@ -416,7 +416,7 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_option:\n    CommandLine|contains:\n    - '-executionpolicy '\n    - ' -ep '\n    - ' -exec '\n    - ' -ex '\n  selection_level:\n    CommandLine|contains:\n    - Bypass\n    - Unrestricted\n    - -Scope\n  condition: selection_image and selection_option and selection_level",
       "rule_body_lang": "yaml",
-      "rule_version": "1.5"
+      "rule_version": "1.6"
     },
     {
       "detect_id": "DETECT-2026-0011",
