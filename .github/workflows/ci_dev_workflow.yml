@@ -775,7 +775,18 @@ jobs:
     # outputs from a job whose own `if:` starts with always() (splunk_verify
     # does, to still run when an atomic test job failed/was skipped) have
     # been observed to not propagate reliably to a downstream job's `if:`.
-    if: needs.splunk_verify.result == 'success'
+    #
+    # always() is required here too, not just an explicit result check:
+    # without it, GitHub Actions' implicit success() still applied and this
+    # job stayed skipped even on a confirmed, genuine splunk_verify success
+    # (observed empirically -- run 30154222981, 5/5 PASS, splunk_verify
+    # result=success, open_promotion_pr still skipped with zero steps run).
+    # deploy_pages below uses the same always()-plus-explicit-result pattern
+    # and has run reliably every time, including runs where an upstream
+    # atomic job (e.g. atomic_verify_dc) was skipped -- mirroring it here.
+    if: |
+      always() &&
+      needs.splunk_verify.result == 'success'
     runs-on: ubuntu-latest
     environment: dev
 
