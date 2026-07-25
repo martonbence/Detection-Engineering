@@ -1,6 +1,6 @@
 title: PowerShell Compressed Payload Decompression and Execute
 detect_id: DETECT-2026-0011
-status: stable
+status: test
 description: Detects PowerShell payloads that decompress a GZip- or
   Deflate-compressed blob at runtime and immediately execute the result via IEX
   or equivalent. This is the primary stager pattern used by Empire and
