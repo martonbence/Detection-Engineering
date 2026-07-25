@@ -76,8 +76,7 @@ jobs:
             HEAD_SHA="${{ github.sha }}"
           fi
 
-          echo "BASE_SHA=$BASE_SHA"
-          echo "HEAD_SHA=$HEAD_SHA"
+          echo "Diffing against previous commit: ${BASE_SHA:-<none>} -> ${HEAD_SHA:-<none>}"
 
           git fetch --no-tags --prune --depth=0 origin || true
 
@@ -150,6 +149,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "Installing Python dependencies: pyyaml, jsonschema, sigma-cli, pysigma-backend-splunk"
           python -m pip install --upgrade pip
           python -m pip install pyyaml jsonschema sigma-cli pysigma-backend-splunk
 
@@ -208,6 +208,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          echo "Assembling pipeline bundle (SPL + meta sidecars + deploy/atomic scripts)..."
 
           rm -rf pipeline_bundle
           mkdir -p pipeline_bundle/scripts/atomic pipeline_bundle/scripts/deploy pipeline_bundle/scripts/lib
@@ -335,7 +337,7 @@ jobs:
           echo "has_atomic_tests=$has_atomic" >> "$GITHUB_OUTPUT"
           echo "has_atomic_dc_tests=$has_atomic_dc" >> "$GITHUB_OUTPUT"
           echo "has_emulation_tests=$has_emulation" >> "$GITHUB_OUTPUT"
-          echo "Detected: has_atomic_tests=$has_atomic  has_atomic_dc_tests=$has_atomic_dc  has_emulation_tests=$has_emulation"
+          echo "Test types in this batch: atomic (victim)=$has_atomic, atomic (DC)=$has_atomic_dc, emulation=$has_emulation"
 
       - name: Upload pipeline bundle
         if: steps.bundle.outputs.has_spl == 'true'
@@ -370,6 +372,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "Installing Python dependencies: requests"
           python -m pip install --upgrade pip
           python -m pip install requests
 
@@ -446,6 +449,8 @@ jobs:
 
           $bundleSplFiles = $splFiles | ForEach-Object { Join-Path "pipeline_bundle" $_ }
 
+          Write-Host "Running Atomic Red Team verification (victim host) against $($splFiles.Count) SPL file(s)..."
+
           .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles -PreflightOnly
           .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles
 
@@ -499,6 +504,8 @@ jobs:
 
           $bundleSplFiles = $splFiles | ForEach-Object { Join-Path "pipeline_bundle" $_ }
 
+          Write-Host "Running Atomic Red Team verification (domain controller) against $($splFiles.Count) SPL file(s)..."
+
           .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles -PreflightOnly
           .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles
 
@@ -546,6 +553,8 @@ jobs:
           }
 
           $bundleSplFiles = $splFiles | ForEach-Object { Join-Path "pipeline_bundle" $_ }
+
+          Write-Host "Running script emulation verification against $($splFiles.Count) SPL file(s)..."
 
           .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles
 
@@ -613,6 +622,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "Installing Python dependencies: requests, pyyaml"
           python -m pip install --upgrade pip
           python -m pip install requests pyyaml
 
@@ -709,6 +719,7 @@ jobs:
 
           for i in 1 2 3; do
             # Reset to latest dev — eliminates all merge/rebase conflicts
+            echo "Resetting local checkout to origin/dev's tip and overlaying this run's fresh results (safe -- this is how concurrent pipeline runs avoid clobbering each other, not a discard of anything unpushed)..."
             git fetch origin dev
             git reset --hard origin/dev
 
@@ -741,7 +752,14 @@ jobs:
 
       - name: Report verification verdict
         shell: bash
-        run: exit ${{ steps.eval.outputs.exit_code || '0' }}
+        run: |
+          code="${{ steps.eval.outputs.exit_code || '0' }}"
+          if [[ "$code" == "0" ]]; then
+            echo "Final verdict: PASS -- all rules met their pass criteria this run."
+          else
+            echo "Final verdict: FAIL -- see the 'Evaluate Pass/Fail' step above for the per-rule breakdown."
+          fi
+          exit "$code"
 
   open_promotion_pr:
     name: Open Promotion PR
