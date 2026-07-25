@@ -576,13 +576,20 @@ jobs:
     environment: dev
 
     steps:
-      # Shallow on purpose: this job always resets hard to origin/dev's tip
-      # before committing (see "Commit verification results and stats"
-      # below), so it never needs history older than that tip.
+      # NOT shallow, on purpose (reverted after breaking rule versioning):
+      # "Generate stats and update README" below calls generate_stats.py's
+      # compute_rule_version(), which runs `git log --follow` per rule file
+      # to derive its 1.x version from commit count. On a depth=1 checkout
+      # that always sees exactly one commit per file, so every rule silently
+      # came out "1.0" regardless of its real history -- no error, just
+      # wrong data. The "Commit verification results and stats" step's own
+      # git reset --hard genuinely doesn't need history, but this step,
+      # earlier in the same job on the same checkout, does.
       - name: Checkout
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GH_PAT_DEV_PUSH }}
+          fetch-depth: 0
 
       - name: Download pipeline bundle
         uses: actions/download-artifact@v4
