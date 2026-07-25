@@ -1,6 +1,6 @@
 title: PowerShell AMSI Bypass
 detect_id: DETECT-2026-0012
-status: stable
+status: test
 description: Detects PowerShell commands that attempt to bypass the Antimalware
   Scan Interface (AMSI) by manipulating the AmsiUtils type, patching
   AmsiScanBuffer in memory, or disabling AMSI initialization. Successful AMSI
