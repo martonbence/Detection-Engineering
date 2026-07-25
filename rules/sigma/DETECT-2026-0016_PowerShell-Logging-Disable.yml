@@ -5,7 +5,7 @@ description: Detects PowerShell commands that disable or tamper with ScriptBlock
   or Module logging — either via registry manipulation (Set-ItemProperty on the
   PowerShell policy path) or via in-memory reflection patching of the
   cachedGroupPolicySettings field. Disabling these logs is a common
-  anti-forensics step before executing malicious payloads.
+  anti-forensics step before executing malicious payload(s).
 references:
   - https://attack.mitre.org/techniques/T1059/001/
   - https://attack.mitre.org/techniques/T1562/002/

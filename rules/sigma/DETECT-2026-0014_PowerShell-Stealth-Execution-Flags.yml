@@ -5,7 +5,7 @@ description: Detects PowerShell launched with a combination of stealth flags
   designed to suppress user visibility and logging. Requires at least two of
   four flag groups — hidden window, no profile, non-interactive, and no logo —
   to fire, reducing false positives while catching the typical attacker pattern
-  of combining multiple suppression flags in a single invocation
+  of combining multiple suppression flags in a single invocation.
 references:
   - https://attack.mitre.org/techniques/T1059/001/
   - https://attack.mitre.org/techniques/T1564/003/
