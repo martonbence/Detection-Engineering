@@ -383,6 +383,18 @@ if ($PreflightOnly.IsPresent) {
     exit 0
 }
 
+# Self-hosted runners reuse the same workspace across runs and this job has no
+# checkout/clean step, so $ProgressDir can still hold marker files from an
+# earlier, unrelated run (e.g. a detect_id that isn't even in $SplFiles this
+# time). Left alone, pass_fail_eval.py treats any leftover marker as ground
+# truth for the current run and synthesizes a phantom 0-event verdict for a
+# rule that was never attacked here. Start every real run from a clean
+# directory so it only ever reflects detect_ids actually in scope this time.
+if (Test-Path -LiteralPath $ProgressDir) {
+    Write-Host "Clearing stale progress markers from a previous run in $ProgressDir"
+    Get-ChildItem -LiteralPath $ProgressDir -Filter "*.json" -File | Remove-Item -Force
+}
+
 # Mark every atomic-tested rule as "started" up front, before any test actually
 # runs. This is what makes a rule distinguishable as NOT_VERIFIED (started but
 # never reached "completed") rather than FAIL if the whole step gets killed by
