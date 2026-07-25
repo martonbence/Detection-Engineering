@@ -182,6 +182,9 @@ def set_acl(
     )
 
     payload = {
+        "owner": owner,               # Splunk's ACL endpoint treats this as required --
+                                       # omitting it was read as an implicit (and rejected)
+                                       # ownership change, even when owner wasn't moving.
         "sharing": sharing,          # "app" or "global"
         "perms.read": perms_read,    # "*" or "admin,power"
         "perms.write": perms_write,  # "admin" or "ci_deploy_savedsearches"
