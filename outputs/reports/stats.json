@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-25T06:54:08.564352+00:00",
+  "generated_at": "2026-07-25T07:33:02.694962+00:00",
   "total_rules": 27,
   "total_sigma_rules": 27,
   "total_splunk_rules": 1,
@@ -195,12 +195,12 @@
     {
       "detect_id": "DETECT-2026-0007",
       "title": "PowerShell Encoded Command Execution",
-      "description": "Detects execution of PowerShell with encoded command flags, a common obfuscation technique used to hide malicious payloads. Covers all -ec and -en[codedcommand] prefix variants (selection_cmdline_enc), and the -e standalone flag when followed by a minimum 80-character Base64 payload (selection_cmdline_e_standalone).",
+      "description": "Detects execution of PowerShell with encoded command flags, a common obfuscation technique used to hide malicious payloads. Covers all -ec and -en[codedcommand] prefix variants (selection_cmdline_enc), and the -e standalone flag when followed by a minimum 80-character Base64 payload (selection_cmdline_e_standalone)",
       "level": "medium",
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30148237153",
+      "run_id": "30149433399",
       "tactics": [
         "Execution",
         "Stealth"
@@ -247,7 +247,7 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_cmdline_enc:\n    CommandLine|re: (?i)(?:^|[\\s\\t\"])-e(?:c|n(?:c(?:o(?:d(?:e(?:d(?:c(?:o(?:m(?:m(?:a(?:n(?:d)?)?)?)?)?)?)?)?)?)?)?))(?:[\\s\\t\"=]|$)\n  selection_cmdline_e_standalone:\n    CommandLine|re: (?i)(?:^|[\\s\\t\"])-e[\\s\\t]+(?:[A-Za-z0-9+/]{80,}={0,2})(?:[\\s\\t\"]|$)\n  condition: selection_image and (selection_cmdline_enc or selection_cmdline_e_standalone)",
       "rule_body_lang": "yaml",
-      "rule_version": "1.16"
+      "rule_version": "1.17"
     },
     {
       "detect_id": "DETECT-2026-0008",
