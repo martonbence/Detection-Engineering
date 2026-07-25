@@ -6,7 +6,7 @@ description: Detects PowerShell spawned by processes that rarely have a
   script interpreters, COM/WMI hosts, system utilities, and communication
   clients. This pattern is characteristic of phishing macro execution, malicious
   document droppers, exploit chains (e.g. Follina), and living-off-the-land
-  lateral movement
+  lateral movement.
 references:
   - https://attack.mitre.org/techniques/T1059/001/
   - https://attack.mitre.org/techniques/T1566/001/

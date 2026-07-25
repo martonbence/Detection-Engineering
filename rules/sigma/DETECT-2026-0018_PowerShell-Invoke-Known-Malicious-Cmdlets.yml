@@ -5,7 +5,7 @@ description:
   Detects invocation of known offensive PowerShell cmdlets originating
   from frameworks such as PowerSploit, PowerView, PowerUp, and Nishang. These
   cmdlets cover credential theft, persistence, injection, reconnaissance, and
-  lateral movement — their presence in CommandLine is a strong indicator of
+  lateral movement — their presence in CommandLine is a strong indicator of any
   post-exploitation activity.
 references:
   - https://attack.mitre.org/techniques/T1059/001/
