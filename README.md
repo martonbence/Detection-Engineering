@@ -17,7 +17,7 @@ A CI/CD-driven detection engineering pipeline that treats Sigma/SPL detections a
 
 📋 Full rule index → [GitHub Pages](https://martonbence.github.io/Detection-Engineering/)
 
-*Generated at 2026-07-25T07:33:02 UTC*
+*Generated at 2026-07-25T08:34:21 UTC*
 <!-- STATS_END -->
 
 ## Why this exists
@@ -54,7 +54,7 @@ Detection changes are authored against `dev`, not `main` directly. Two separate 
 |---|---|---|
 | `prepare_validate_convert` | `ubuntu-latest` | Diffs changed Sigma files, validates them, converts them to `.spl` + `.meta.json`, and — on `push` to `dev` only — commits the regenerated `.spl` files back to `dev` and bundles the SPL/meta/scripts into an uploaded artifact (`spl-pipeline-bundle`, 1-day retention) for the self-hosted jobs below to consume without a full checkout. |
 | `deploy_to_splunk` | `self-hosted, linux, de-lab` | Pushes the bundled SPL to the **dev** Splunk instance via `deploy_spl_to_splunk.py` (`environment: dev` secrets). Only on `push` to `dev` with SPL to deploy. |
-| `atomic_verify` / `atomic_verify_dc` | `self-hosted, X64, Windows, victim, atomic, windows-victim` / `self-hosted, X64, Windows, dc, windows-dc` | Run `run_atomic.ps1` (preflight, then real execution) for rules whose testing metadata targets the victim host or the domain controller, respectively. Both are `continue-on-error: true` and upload their own progress markers (`atomic-progress-victim-*` / `atomic-progress-dc-*`, 1-day retention) so a hung/timed-out run still leaves ground truth for the verify step. |
+| `atomic_verify` / `atomic_verify_dc` | `self-hosted, X64, Windows, victim, atomic, windows-victim` / `self-hosted, X64, Windows, dc, windows-dc` | Run `run_atomic.ps1` (preflight, then real execution) for rules whose testing metadata targets the victim host or the domain controller, respectively. Both are `continue-on-error: true` and upload their own progress markers (`atomic-progress-victim-*` / `atomic-progress-dc-*`, 1-day retention) so a hung/timed-out run still leaves ground truth for the verify step. Neither job has a checkout/clean step, so they run directly in the self-hosted Windows runner's own persistent workspace; `run_atomic.ps1` clears any leftover marker files from a previous run out of that workspace before writing this run's markers, so a stale marker for an out-of-scope `detect_id` can never be mistaken for this run's ground truth. |
 | `emulation_verify` | `self-hosted, X64, Windows, victim, windows-victim` | Runs script-emulation-style tests via the same `run_atomic.ps1`, for rules whose testing metadata declares `type: emulation`. |
 | `splunk_verify` | `self-hosted, linux, de-lab` | Waits for Splunk indexing, queries matched events (`check_saved_search_hits.py`), scores Pass/Fail (`pass_fail_eval.py`), uploads matched events as a diagnostic artifact (`matched-events-sigma-*`, 90-day retention), regenerates stats (`generate_stats.py`), commits results/stats/README back to `dev`, and — **only if the overall verdict is PASS** — opens the promotion PR described below. |
 | `deploy_pages` | `ubuntu-latest` | Publishes `docs/` from `dev` to GitHub Pages (see the duplication note above). |

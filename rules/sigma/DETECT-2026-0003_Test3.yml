@@ -4,7 +4,9 @@ status: test
 description: Test Sigma rule for demonstration purposes.
 author: Bence Marton
 date: 2026-04-17
-modified: 2026-04-17
+modified: 2026-07-25
+# retrigger 1: full dev batch re-run to verify the run_atomic.ps1 stale
+# progress-marker cleanup fix (0003-0010 together)
 references:
   - https://example.com
 tags:
@@ -17,10 +19,6 @@ logsource:
   service: security
   event_type: process_creation
 
-# Placeholder detection block: this rule is authored as raw SPL via
-# custom.splunk.raw_query below, so sigma_to_spl.py never runs this through
-# an actual Sigma-to-SPL conversion. It exists only to satisfy the Sigma
-# schema/linter's required detection: block.
 detection:
   selection:
     Image|endswith: "\\powershell.exe"
