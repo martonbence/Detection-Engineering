@@ -182,7 +182,9 @@ def main(argv: list[str]) -> int:
     username = env_required("SPLUNK_USERNAME")
     password = env_required("SPLUNK_PASSWORD")
     app = env_required("SPLUNK_APP")
-    owner = env_required("SPLUNK_OWNER")
+    # See deploy_spl_to_splunk.py's main() for why this mirrors username
+    # rather than reading a separate SPLUNK_OWNER secret.
+    owner = username
     verify_tls = env_bool("SPLUNK_VERIFY_TLS", default=True)
 
     output_dir = Path(args.output_dir)

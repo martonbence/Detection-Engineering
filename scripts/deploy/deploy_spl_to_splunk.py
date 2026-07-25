@@ -200,7 +200,14 @@ def main(argv: list[str]) -> int:
     username = env_required("SPLUNK_USERNAME")
     password = env_required("SPLUNK_PASSWORD")
     app = env_required("SPLUNK_APP")
-    owner = env_required("SPLUNK_OWNER")
+    # Namespace owner deliberately mirrors the authenticating user: Splunk
+    # assigns real object ownership to whoever authenticates the request,
+    # regardless of the {owner} path segment used to address it, so any
+    # divergence here just made every ACL update fail with "You do not have
+    # permission to change the owner of this object." (the service account
+    # doesn't have admin_all_objects). Read/write access is governed by
+    # perms.read/perms.write below, not by who nominally owns the object.
+    owner = username
     verify_tls = env_bool("SPLUNK_VERIFY_TLS", default=True)
 
     sharing = (os.getenv("SPLUNK_SHARING") or "app").strip().lower()
