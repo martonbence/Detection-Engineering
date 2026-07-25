@@ -1,6 +1,6 @@
 # Pipeline Overview
 
-This is the end-to-end path a detection takes from a Sigma YAML file in `rules/sigma/` to a verified, production-deployed Splunk saved search. It is driven entirely by two GitHub Actions workflows (`ci_dev_workflow.yml`, `ci_prod_workflow.yml`) plus one small automation workflow (`project_status_automerged.yml`) — there is no manual deploy step anywhere in the happy path.
+This is the end-to-end path a detection takes from a Sigma YAML file in `rules/sigma/` to a verified, production-deployed Splunk saved search. It is driven entirely by two GitHub Actions workflows (`ci_dev_workflow.yml`, `ci_prod_workflow.yml`) — there is no manual deploy step anywhere in the happy path. (A promotion PR's board item does pick up one further, purely cosmetic transition after merge — Status `In review` → `Auto-merged` — but that's done by Project #3's own native, UI-configured board automation, not by any workflow YAML in this repo; see stage 10 below.)
 
 ## The two-branch model: dev proves it, main ships it
 
@@ -40,11 +40,7 @@ flowchart TD
         M["Regenerate .meta.json only\nsigma_to_spl.py\n(.spl output is byte-identical to dev's)"] --> N["Deploy to prod Splunk\ndeploy_spl_to_splunk.py\nrunner: self-hosted linux de-lab"]
     end
 
-    J -->|pull_request: closed, merged + automated-promotion label| Q
-
-    subgraph PROJ["project_status_automerged.yml -- runs on ubuntu-latest"]
-        Q["gh project item-add\nProject #3\n(idempotent -- item already exists)"] --> R["gh project item-edit\nStatus: In review -> Auto-merged"]
-    end
+    J -.->|PR merged\nnative Project #3 board automation,\nUI-configured, not repo YAML| Q["Project #3 Status:\nIn review -> Auto-merged"]
 ```
 
 **Single Pages publish path (as of commit `84d6588`):** `docs/` is published to GitHub Pages by exactly one job — `deploy_pages`, the last job in `ci_dev_workflow.yml`, `needs: [splunk_verify, atomic_verify, atomic_verify_dc, emulation_verify]` and gated on `splunk_verify`'s result being `success` or `failure` (i.e. it runs whenever `splunk_verify` actually ran, pass or fail, but not when the whole run was skipped for lack of SPL to verify). A previously-existing standalone `deploy_pages.yml` workflow — which fired independently on any push to `dev` touching `docs/**` — was deleted for exactly this reason: it existed to catch docs-only edits that don't match `ci_dev_workflow.yml`'s own trigger paths (`rules/sigma/**`, several `scripts/**` paths, `docs/schemas/sigma_schema.json` — notably *not* `docs/**` broadly), but in practice `splunk_verify`'s own `Commit verification results and stats` step touches `docs/index.html` on every real pipeline run, which re-triggered the standalone workflow independently and made a normal successful run publish Pages twice. The accepted tradeoff: a genuinely docs-only edit (e.g. hand-editing a file under `docs/architecture/`) no longer triggers its own Pages publish on its own — it simply waits for the next real `rules/sigma/**`-triggered pipeline run to publish alongside it.
@@ -77,7 +73,7 @@ The exact GitHub Actions mechanism connecting an upstream-skip several hops back
 
 **9. Ship to prod — `ci_prod_workflow.yml`.** Triggered on `push` to `main` touching `rules/sigma/**` (in practice: merging a promotion PR, though any other direct push to `main` under that path filter also triggers it). Regenerates `.meta.json` sidecars from the Sigma source already on `main` (deterministic — the `.spl` text doesn't change) and deploys every `rules/splunk/*.spl` file to the prod Splunk instance. No validation, testing, or verification runs here — it trusts the `dev`-branch run that already passed.
 
-**10. Track promotion on the project board at merge — `project_status_automerged.yml`.** A separate workflow triggered on `pull_request: closed` (any PR, any branch), independent of both pipeline workflows. Its one job, `set_automerged_status`, only runs when `github.event.pull_request.merged == true` **and** `github.event.pull_request.labels.*.name` contains `automated-promotion`. When that holds, it runs `gh project item-add 3 --owner martonbence --url <PR URL>` again (idempotent — the item was already added in stage 8, above; `item-add` on an existing item is a no-op that just returns its id), then `gh project item-edit --field-id PVTSSF_lAHOA_8eh84BeHTLzhYj6O0 --single-select-option-id be04d00f` to move that item's Status field from `In review` to `Auto-merged`. Together, stages 8 and 10 give a promotion PR's board item a full lifecycle: `In review` the moment it's opened, `Auto-merged` once it's actually merged — there is no `Auto-merged` transition for a promotion PR that gets closed without merging (the job's `if` condition requires `merged == true`).
+**10. Track promotion on the project board at merge — Project #3's native board automation (not repo YAML).** Once the promotion PR is merged, its Project #3 item's Status field moves from `In review` to `Auto-merged` automatically. This is done entirely by Project #3's own built-in "Workflow" automation (GitHub Projects' native, UI-configured rule — set once under the Project's own Settings → Workflows: "Pull request merged" → set Status to `Auto-merged`), not by any GitHub Actions workflow in this repo. A repo workflow (`project_status_automerged.yml`) previously attempted to do this same thing from CI, but its run history (checked via the GitHub API) shows it only ever executed once in the repo's whole history — and that one run was skipped — while every real `dev`→`main` promotion PR since has still correctly landed on `Auto-merged`, because the native Project workflow was doing the job the entire time. The dead workflow file has been removed; nothing in `.github/workflows/` is involved in this transition. Because this is platform-side Project configuration rather than code in this repo, its exact trigger semantics aren't something this document can further describe beyond what's stated on the Project's own Settings page.
 
 **11. Publish — GitHub Pages.** `docs/index.html`, a self-contained rule browser and MITRE ATT&CK Navigator, is published from `dev` by the `deploy_pages` job inside `ci_dev_workflow.yml` — the single publish path (see the note above).
 
@@ -104,17 +100,13 @@ The exact GitHub Actions mechanism connecting an upstream-skip several hops back
 |---|---|---|
 | `deploy_to_prod` | `self-hosted, linux, de-lab` | Checkout, Setup Python, Install deps, **Regenerate SPL + meta sidecars from Sigma source**, **Deploy all SPL files to prod Splunk** |
 
-### `project_status_automerged.yml`
-
-| Job | Runner | Key steps |
-|---|---|---|
-| `set_automerged_status` | `ubuntu-latest` | **Add/update project item status** (a single step running `gh project item-add` then `gh project item-edit`) |
+There is no third workflow file in `.github/workflows/` for the promotion PR's post-merge board transition — see stage 10 above for why (it's Project #3's own native, UI-configured automation, not repo code).
 
 ## Runners, named
 
 | Label set (as written in the YAML) | Role |
 |---|---|
-| `ubuntu-latest` | GitHub-hosted. Used for `prepare_validate_convert`, `open_promotion_pr`, `deploy_pages`, and `project_status_automerged.yml`'s `set_automerged_status` — nothing here needs lab network access. |
+| `ubuntu-latest` | GitHub-hosted. Used for `prepare_validate_convert`, `open_promotion_pr`, and `deploy_pages` — nothing here needs lab network access. |
 | `self-hosted, linux, de-lab` | Self-hosted Linux box with a network path to Splunk. Used by `deploy_to_splunk` and `splunk_verify` (dev) and by `deploy_to_prod` (prod) — the same runner role serves both environments; what differs is the GitHub Actions `environment:` (`dev` vs `prod`) and therefore which `SPLUNK_*` secrets get injected. |
 | `self-hosted, X64, Windows, victim, atomic, windows-victim` | The Windows victim host that executes Atomic Red Team tests, used by `atomic_verify`. |
 | `self-hosted, X64, Windows, victim, windows-victim` | The same physical victim host, used by `emulation_verify` for script-emulation-style tests — note the label set here omits `atomic` compared to `atomic_verify`'s; that's what the workflow file actually specifies, not a documentation inconsistency. |

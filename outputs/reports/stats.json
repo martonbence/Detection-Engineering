@@ -1,15 +1,15 @@
 {
-  "generated_at": "2026-07-25T11:22:30.183191+00:00",
+  "generated_at": "2026-07-25T12:18:46.720919+00:00",
   "total_rules": 27,
   "total_sigma_rules": 27,
-  "total_splunk_rules": 12,
+  "total_splunk_rules": 14,
   "total_native_spl_rules": 1,
-  "verified_pass": 25,
-  "verified_fail": 2,
+  "verified_pass": 26,
+  "verified_fail": 1,
   "verified_not_verified": 0,
   "never_tested": 0,
   "not_verified": 0,
-  "pass_rate_pct": 93,
+  "pass_rate_pct": 96,
   "pass_rate_color": "brightgreen",
   "mitre_covered_techniques": 11,
   "mitre_total_techniques": 222,
@@ -23,8 +23,8 @@
   },
   "by_status": {
     "experimental": 5,
-    "stable": 21,
-    "test": 1
+    "stable": 20,
+    "test": 2
   },
   "by_tactic": {
     "Execution": 14,
@@ -425,8 +425,8 @@
       "level": "high",
       "status": "stable",
       "source": "sigma",
-      "verdict": "FAIL",
-      "run_id": "25961512011",
+      "verdict": "PASS",
+      "run_id": "30157694300",
       "tactics": [
         "Execution",
         "Stealth"
@@ -461,17 +461,17 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_decompress:\n    CommandLine|contains:\n    - DeflateStream\n    - GZipStream\n    - IO.Compression\n  selection_iex:\n    CommandLine|contains:\n    - '| IEX'\n    - '|IEX '\n    - I`E`X\n    - I`EX\n    - IE`X\n    - 'iex '\n    - IEX (\n    - IEX(\n    - iex(\n    - Invoke-Expression\n    - '[scriptblock]::create('\n    - '|iex;'\n    - '| iex}'\n    - $ExecutionContext.InvokeCommand\n    - '&([scriptblock]'\n    - .Invoke(\n    - InvokeCommand.InvokeScript\n  condition: all of selection_*",
       "rule_body_lang": "yaml",
-      "rule_version": "1.4"
+      "rule_version": "1.6"
     },
     {
       "detect_id": "DETECT-2026-0012",
       "title": "PowerShell AMSI Bypass",
       "description": "Detects PowerShell commands that attempt to bypass the Antimalware Scan Interface (AMSI) by manipulating the AmsiUtils type, patching AmsiScanBuffer in memory, or disabling AMSI initialization. Successful AMSI bypass allows subsequent malicious scripts to execute without AV/EDR inspection — making this a critical precursor to many PS-based attacks.",
       "level": "high",
-      "status": "stable",
+      "status": "test",
       "source": "sigma",
       "verdict": "FAIL",
-      "run_id": "25762181179",
+      "run_id": "30156928952",
       "tactics": [
         "Execution",
         "Defense Impairment"
@@ -507,7 +507,7 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_amsi:\n    CommandLine|contains:\n    - AmsiUtils\n    - amsiInitFailed\n    - AmsiScanBuffer\n    - amsi.dll\n    - AmsiOpenSession\n    - AmsiScanString\n    - amsiContext\n    - amsiSession\n    - AmsiInitialize\n    - AmsiCloseSession\n  condition: selection_image and selection_amsi",
       "rule_body_lang": "yaml",
-      "rule_version": "1.14"
+      "rule_version": "1.15"
     },
     {
       "detect_id": "DETECT-2026-0013",

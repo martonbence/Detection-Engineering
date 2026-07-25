@@ -17,7 +17,7 @@ A CI/CD-driven detection engineering pipeline that treats Sigma/SPL detections a
 
 📋 Full rule index → [GitHub Pages](https://martonbence.github.io/Detection-Engineering/)
 
-*Generated at 2026-07-25T11:22:30 UTC*
+*Generated at 2026-07-25T12:18:46 UTC*
 <!-- STATS_END -->
 
 ## Why this exists
@@ -70,7 +70,7 @@ This gate took two fix attempts to get right, and both are worth knowing about b
 
 #### Project board automation on merge
 
-[`project_status_automerged.yml`](.github/workflows/project_status_automerged.yml) is a separate, minimal workflow triggered on `pull_request: closed` (any PR, any branch). Its single job (`set_automerged_status`, on `ubuntu-latest`) only runs `if` the PR was actually merged **and** carries the `automated-promotion` label — i.e. specifically the promotion PRs opened by the step above. When that condition holds, it runs `gh project item-add 3 --owner martonbence --url <PR URL>` (idempotent — the item already exists from the `In review` step above) then `gh project item-edit` to move that item's Status field (`PVTSSF_lAHOA_8eh84BeHTLzhYj6O0`) from `In review` to the `Auto-merged` option (`be04d00f`). Together, the two steps give a promotion PR's board item a full lifecycle: `In review` from the moment it's opened, `Auto-merged` once it's actually merged.
+Once the promotion PR is merged, its Project #3 board item moves from Status `In review` to `Auto-merged` automatically — but not via any workflow in this repo. That transition is done by [Project #3](https://github.com/users/martonbence/projects/3)'s own native "Workflow" automation (GitHub Projects' built-in, UI-configured rule: "Pull request merged" → set Status to `Auto-merged`), configured directly in the Project's Settings, not by any YAML in `.github/workflows/`. A previous repo workflow (`project_status_automerged.yml`) attempted to do this same thing from CI, but was confirmed (via the GitHub API run history) to have only ever executed once in the repo's history — and that single run was skipped — while every real promotion PR since has still landed on `Auto-merged` correctly, because the native Project workflow was doing the job the whole time. The dead workflow file was removed accordingly.
 
 The jobs run on a deliberate mix of runners, each mapped to what it needs physical/network access to. `dev` and `prod` share the same runner labels for the Splunk-side and Windows jobs — what differs between them is the GitHub Actions `environment` (`dev` vs `prod`), which selects a different set of `SPLUNK_*` secrets:
 
@@ -95,7 +95,7 @@ Note: `ci_prod_workflow.yml`'s single job (`deploy_to_prod`) also runs on `self-
 | [`docs/architecture/`](docs/architecture/) | Deeper technical references with Mermaid diagrams: pipeline overview, data flow, threat model |
 | [`outputs/reports/`](outputs/reports/) | Generated aggregate JSON (`stats.json`, `mitre_technique_map.json`, `navigator_layer.json`) |
 | [`outputs/results/`](outputs/results/) | Per-rule `DETECT-*` pass/fail verification results |
-| [`.github/workflows/`](.github/workflows/) | The CI/CD workflows described above (`ci_dev_workflow.yml`, `ci_prod_workflow.yml`, `project_status_automerged.yml`) |
+| [`.github/workflows/`](.github/workflows/) | The CI/CD workflows described above (`ci_dev_workflow.yml`, `ci_prod_workflow.yml`) |
 
 ## Adding a new detection rule, end to end
 
@@ -104,7 +104,7 @@ Note: `ci_prod_workflow.yml`'s single job (`deploy_to_prod`) also runs on `self-
 3. On merge/push to `dev`, the same workflow deploys the saved search to the **dev** Splunk instance, executes the mapped Atomic Red Team test (or DC / emulation variant), and verifies a hit was recorded via `check_saved_search_hits.py` + `pass_fail_eval.py`.
 4. `generate_stats.py` regenerates the stats block in this README and the rule browser; results land in `outputs/results/` and `outputs/reports/`, committed back to `dev`.
 5. If the overall dev-pipeline verdict is PASS, CI automatically opens a **promotion pull request** (`dev` → `main`, titled "Promote verified detections from dev to main", labeled `automated-promotion`) and adds it to [Project #3](https://github.com/users/martonbence/projects/3) with Status `In review`. This does not auto-merge — review it and merge manually to actually ship to prod.
-6. Merging the promotion PR triggers `ci_prod_workflow.yml`, which deploys the same, already-verified SPL to the **prod** Splunk instance (no re-testing). Merging also fires `project_status_automerged.yml`, which moves the board item's Status from `In review` to `Auto-merged`.
+6. Merging the promotion PR triggers `ci_prod_workflow.yml`, which deploys the same, already-verified SPL to the **prod** Splunk instance (no re-testing). Merging also moves the board item's Status from `In review` to `Auto-merged`, via Project #3's own native "Pull request merged" board automation (configured in the Project UI, not a repo workflow — see "Project board automation on merge" above).
 7. Check the [rule browser](https://martonbence.github.io/Detection-Engineering/) or [MITRE Navigator](https://martonbence.github.io/Detection-Engineering/#navigator) (published from `dev`) to confirm the new rule shows up with a Pass verdict and correct technique mapping.
 
 ## Built on the GitHub platform, not just in it
@@ -112,7 +112,7 @@ Note: `ci_prod_workflow.yml`'s single job (`deploy_to_prod`) also runs on `self-
 Part of what this repo demonstrates is disciplined use of GitHub's native collaboration surface for planning and tracking detection engineering work — not just committing YAML:
 
 - **Issues** track planned pipeline enhancements as scoped, evidence-backed proposals rather than TODO comments. For example, [issue #20](https://github.com/martonbence/Detection-Engineering/issues/20) specifies auto-generating audit-ready per-rule documentation once a rule passes CI. The metadata-source question it raised has since been resolved: every rule's metadata now lives solely in `rules/sigma/*.yml` (including hand-crafted SPL rules, via `custom.splunk.raw_query`), so the future automation has one unambiguous source to read from.
-- **[Detection Engineering Platform](https://github.com/users/martonbence/projects/3)** (Project #3) is a private GitHub Project board tracking pipeline and rule-content work through a `Todo` → in-progress → done workflow, with fields for status, labels, linked PRs, and parent/sub-issue relationships — the same mechanism used to plan and sequence the work in this repo, not an ad-hoc backlog. Promotion PRs are automated end-to-end on this board: `ci_dev_workflow.yml` adds the PR to Project #3 with Status `In review` the moment it's auto-opened, then [`project_status_automerged.yml`](.github/workflows/project_status_automerged.yml) moves it to `Auto-merged` once it's actually merged — so these automated items never sit in `Todo`/`Ready` alongside manually-triaged work.
+- **[Detection Engineering Platform](https://github.com/users/martonbence/projects/3)** (Project #3) is a private GitHub Project board tracking pipeline and rule-content work through a `Todo` → in-progress → done workflow, with fields for status, labels, linked PRs, and parent/sub-issue relationships — the same mechanism used to plan and sequence the work in this repo, not an ad-hoc backlog. Promotion PRs are automated end-to-end on this board, split across two different mechanisms: `ci_dev_workflow.yml`'s `open_promotion_pr` job adds the PR to Project #3 with Status `In review` the moment it's auto-opened (repo code), then Project #3's own native "Pull request merged" board Workflow moves it to `Auto-merged` once it's actually merged (platform-side automation configured in the Project's own Settings UI, not a repo workflow) — so these automated items never sit in `Todo`/`Ready` alongside manually-triaged work.
 - **Wiki**: intentionally not oversold — GitHub only provisions the wiki repository once the feature is enabled and a first page exists via the web UI, and that hasn't happened yet for this repo. It's planned as a more narrative, newcomer-facing companion to `docs/architecture/`, but as of now it does not exist as a clonable repo.
 
 ## Further reading
