@@ -266,6 +266,26 @@ def main(argv: list[str]) -> int:
 
         if r.status_code in (200, 201):
             print(f"Created: {search_name}")
+
+            # Splunk's savedsearch creation endpoint doesn't reliably apply
+            # scheduling fields (is_scheduled/cron_schedule) on the same POST
+            # that creates the object -- a brand-new search can come back
+            # with Next scheduled time = None even though the create call
+            # succeeded. A follow-up edit POST with the same runtime payload
+            # forces Splunk to actually persist them, mirroring what already
+            # happens for the "already exists" (update) path below.
+            create_update_url = (
+                f"{base_url}/servicesNS/{quote(owner, safe='')}/{quote(app, safe='')}"
+                f"/saved/searches/{quote(search_name, safe='')}?output_mode=json"
+            )
+            r_reapply = splunk_post(s, create_update_url, runtime_payload)
+            if r_reapply.status_code != 200:
+                print(
+                    f"WARNING: {search_name}: failed to reapply scheduling fields after create "
+                    f"(HTTP {r_reapply.status_code}): {r_reapply.text[:300]}",
+                    file=sys.stderr,
+                )
+
             ok, msg = set_acl(s, base_url, owner, app, search_name, sharing, perms_read, perms_write)
             if not ok:
                 print(f"WARNING: {search_name}: {msg}", file=sys.stderr)
