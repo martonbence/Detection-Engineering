@@ -89,12 +89,10 @@ Note: `ci_prod_workflow.yml`'s single job (`deploy_to_prod`) also runs on `self-
 | [`scripts/validate/`](scripts/validate/), [`convert/`](scripts/convert/), [`deploy/`](scripts/deploy/), [`atomic/`](scripts/atomic/), [`verify/`](scripts/verify/), [`docs/`](scripts/docs/), [`lib/`](scripts/lib/) | The pipeline itself, one directory per stage, plus a small shared library |
 | [`docs/schemas/`](docs/schemas/) | JSON Schema that gates every rule (`sigma_schema.json`) |
 | [`docs/index.html`](docs/index.html) | The rule browser / MITRE Navigator published to GitHub Pages |
-| [`docs/architecture/`](docs/architecture/) | Deeper technical references (pipeline overview, data flow, threat model) — see note below |
+| [`docs/architecture/`](docs/architecture/) | Deeper technical references with Mermaid diagrams: pipeline overview, data flow, threat model |
 | [`outputs/reports/`](outputs/reports/) | Generated aggregate JSON (`stats.json`, `mitre_technique_map.json`, `navigator_layer.json`) |
 | [`outputs/results/`](outputs/results/) | Per-rule `DETECT-*` pass/fail verification results |
-| [`.github/workflows/`](.github/workflows/) | The CI/CD workflow described above |
-
-`docs/architecture/pipeline_overview.md`, `data_flow.md`, and `threat_model.md` are placeholders being actively written up — treat the pipeline description above as the current source of truth until those land.
+| [`.github/workflows/`](.github/workflows/) | The CI/CD workflows described above (`ci_dev_workflow.yml`, `ci_prod_workflow.yml`, `project_status_automerged.yml`, `deploy_pages.yml`) |
 
 ## Adding a new detection rule, end to end
 
@@ -116,5 +114,5 @@ Part of what this repo demonstrates is disciplined use of GitHub's native collab
 
 ## Further reading
 
-- [`docs/architecture/`](docs/architecture/) — planned Mermaid-diagrammed technical deep dives on the pipeline, data flow, and threat model (still placeholders, see [Repository layout](#repository-layout))
+- [`docs/architecture/`](docs/architecture/) — Mermaid-diagrammed technical deep dives: [`pipeline_overview.md`](docs/architecture/pipeline_overview.md), [`data_flow.md`](docs/architecture/data_flow.md), [`threat_model.md`](docs/architecture/threat_model.md)
 - [GitHub Wiki](../../wiki) — planned newcomer-facing walkthrough (not yet initialized, see above)
