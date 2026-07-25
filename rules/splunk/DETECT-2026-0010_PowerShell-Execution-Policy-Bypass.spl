@@ -1,0 +1,1 @@
+index=sysmon Image IN ("*\\powershell.exe", "*\\pwsh.exe") CommandLine IN ("*-executionpolicy *", "* -ep *", "* -exec *", "* -ex *") CommandLine IN ("*Bypass*", "*Unrestricted*", "*-Scope*") | table _time,ComputerName,User,Image,CommandLine,CurrentDirectory,IntegrityLevel,ParentImage,ParentCommandLine,ProcessId,ParentProcessId
