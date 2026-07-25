@@ -752,15 +752,19 @@ jobs:
             echo "✅ Opened: $pr_url"
           } >> "$GITHUB_STEP_SUMMARY"
 
-          item_id=$(gh project item-add 3 --owner martonbence --url "$pr_url" --format json --jq '.id')
-
-          gh project item-edit \
-            --id "$item_id" \
-            --project-id "PVT_kwHOA_8eh84BeHTL" \
-            --field-id "PVTSSF_lAHOA_8eh84BeHTLzhYj6O0" \
-            --single-select-option-id "4fdb6324"
-
-          echo "Set Project #3 Status=In review for $pr_url"
+          if item_id=$(gh project item-add 3 --owner martonbence --url "$pr_url" --format json --jq '.id' 2>&1); then
+            if gh project item-edit \
+              --id "$item_id" \
+              --project-id "PVT_kwHOA_8eh84BeHTL" \
+              --field-id "PVTSSF_lAHOA_8eh84BeHTLzhYj6O0" \
+              --single-select-option-id "4fdb6324" 2>&1; then
+              echo "Set Project #3 Status=In review for $pr_url"
+            else
+              echo "::warning::Opened $pr_url but failed to set its Project #3 status to In review (GH_PAT_DEV_PUSH likely lacks Projects permission -- known gap for fine-grained PATs on user-owned projects)"
+            fi
+          else
+            echo "::warning::Opened $pr_url but failed to add it to Project #3 (GH_PAT_DEV_PUSH likely lacks Projects permission -- known gap for fine-grained PATs on user-owned projects): $item_id"
+          fi
 
       - name: Report verification verdict
         shell: bash
