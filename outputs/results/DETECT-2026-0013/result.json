@@ -2,14 +2,14 @@
   "detect_id": "DETECT-2026-0013",
   "title": "PowerShell Spawned from Suspicious Parent Process",
   "verdict": "PASS",
-  "reason": "Event count 1 within expected range [1–10]",
-  "event_count": 1,
+  "reason": "Event count 3 within expected range [1–10]",
+  "event_count": 3,
   "min_pass": 1,
   "max_pass": 10,
   "earliest": "-5m",
   "latest": "now",
-  "run_timestamp": "2026-05-08T12:43:23.394325+00:00",
-  "rule_version": "1.2",
-  "git_sha": "6fbe1720673c18ed836b5d51ccd6e4660b65853d",
-  "run_id": "25556100045"
+  "run_timestamp": "2026-07-25T11:22:26.048326+00:00",
+  "rule_version": "1.6",
+  "git_sha": "f604231a35fae3c2df2e4fe648ec98c8f95c61b1",
+  "run_id": "30155968878"
 }

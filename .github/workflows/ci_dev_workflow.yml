@@ -76,8 +76,7 @@ jobs:
             HEAD_SHA="${{ github.sha }}"
           fi
 
-          echo "BASE_SHA=$BASE_SHA"
-          echo "HEAD_SHA=$HEAD_SHA"
+          echo "Diffing against previous commit: ${BASE_SHA:-<none>} -> ${HEAD_SHA:-<none>}"
 
           git fetch --no-tags --prune --depth=0 origin || true
 
@@ -136,11 +135,21 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Cache pip packages
+        if: steps.changes.outputs.has_rules == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-prepare-${{ runner.os }}-${{ hashFiles('.github/workflows/ci_dev_workflow.yml') }}
+          restore-keys: |
+            pip-prepare-${{ runner.os }}-
+
       - name: Install Python deps
         if: steps.changes.outputs.has_rules == 'true'
         shell: bash
         run: |
           set -euo pipefail
+          echo "Installing Python dependencies: pyyaml, jsonschema, sigma-cli, pysigma-backend-splunk"
           python -m pip install --upgrade pip
           python -m pip install pyyaml jsonschema sigma-cli pysigma-backend-splunk
 
@@ -188,7 +197,10 @@ jobs:
           fi
 
           mkdir -p rules/splunk
+          echo "Converting ${#rules[@]} rule file(s) to SPL:"
+          printf ' - %s\n' "${rules[@]}"
           python scripts/convert/sigma_to_spl.py --outdir rules/splunk "${rules[@]}"
+          echo "Conversion complete."
 
       - name: Build pipeline bundle
         id: bundle
@@ -196,6 +208,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          echo "Assembling pipeline bundle (SPL + meta sidecars + deploy/atomic scripts)..."
 
           rm -rf pipeline_bundle
           mkdir -p pipeline_bundle/scripts/atomic pipeline_bundle/scripts/deploy pipeline_bundle/scripts/lib
@@ -323,7 +337,7 @@ jobs:
           echo "has_atomic_tests=$has_atomic" >> "$GITHUB_OUTPUT"
           echo "has_atomic_dc_tests=$has_atomic_dc" >> "$GITHUB_OUTPUT"
           echo "has_emulation_tests=$has_emulation" >> "$GITHUB_OUTPUT"
-          echo "Detected: has_atomic_tests=$has_atomic  has_atomic_dc_tests=$has_atomic_dc  has_emulation_tests=$has_emulation"
+          echo "Test types in this batch: atomic (victim)=$has_atomic, atomic (DC)=$has_atomic_dc, emulation=$has_emulation"
 
       - name: Upload pipeline bundle
         if: steps.bundle.outputs.has_spl == 'true'
@@ -358,6 +372,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "Installing Python dependencies: requests"
           python -m pip install --upgrade pip
           python -m pip install requests
 
@@ -434,6 +449,8 @@ jobs:
 
           $bundleSplFiles = $splFiles | ForEach-Object { Join-Path "pipeline_bundle" $_ }
 
+          Write-Host "Running Atomic Red Team verification (victim host) against $($splFiles.Count) SPL file(s)..."
+
           .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles -PreflightOnly
           .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles
 
@@ -487,6 +504,8 @@ jobs:
 
           $bundleSplFiles = $splFiles | ForEach-Object { Join-Path "pipeline_bundle" $_ }
 
+          Write-Host "Running Atomic Red Team verification (domain controller) against $($splFiles.Count) SPL file(s)..."
+
           .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles -PreflightOnly
           .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles
 
@@ -535,6 +554,8 @@ jobs:
 
           $bundleSplFiles = $splFiles | ForEach-Object { Join-Path "pipeline_bundle" $_ }
 
+          Write-Host "Running script emulation verification against $($splFiles.Count) SPL file(s)..."
+
           .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles
 
   splunk_verify:
@@ -555,6 +576,15 @@ jobs:
     environment: dev
 
     steps:
+      # NOT shallow, on purpose (reverted after breaking rule versioning):
+      # "Generate stats and update README" below calls generate_stats.py's
+      # compute_rule_version(), which runs `git log --follow` per rule file
+      # to derive its 1.x version from commit count. On a depth=1 checkout
+      # that always sees exactly one commit per file, so every rule silently
+      # came out "1.0" regardless of its real history -- no error, just
+      # wrong data. The "Commit verification results and stats" step's own
+      # git reset --hard genuinely doesn't need history, but this step,
+      # earlier in the same job on the same checkout, does.
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -597,6 +627,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "Installing Python dependencies: requests, pyyaml"
           python -m pip install --upgrade pip
           python -m pip install requests pyyaml
 
@@ -672,7 +703,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "Regenerating aggregate stats, MITRE coverage map, and rule browser content..."
           python scripts/docs/generate_stats.py
+          echo "Updated: outputs/reports/{stats,mitre_technique_map,navigator_layer}.json, README.md, docs/index.html"
 
       - name: Commit verification results and stats
         shell: bash
@@ -691,6 +724,7 @@ jobs:
 
           for i in 1 2 3; do
             # Reset to latest dev — eliminates all merge/rebase conflicts
+            echo "Resetting local checkout to origin/dev's tip and overlaying this run's fresh results (safe -- this is how concurrent pipeline runs avoid clobbering each other, not a discard of anything unpushed)..."
             git fetch origin dev
             git reset --hard origin/dev
 
@@ -721,8 +755,43 @@ jobs:
           echo "Push failed after 3 attempts."
           exit 1
 
-      - name: Open promotion PR to main on PASS
-        if: steps.eval.outputs.exit_code == '0'
+      - name: Report verification verdict
+        shell: bash
+        run: |
+          code="${{ steps.eval.outputs.exit_code || '0' }}"
+          if [[ "$code" == "0" ]]; then
+            echo "Final verdict: PASS -- all rules met their pass criteria this run."
+          else
+            echo "Final verdict: FAIL -- see the 'Evaluate Pass/Fail' step above for the per-rule breakdown."
+          fi
+          exit "$code"
+
+  open_promotion_pr:
+    name: Open Promotion PR
+    needs: splunk_verify
+    # splunk_verify's last step ("Report verification verdict") re-exits with
+    # the real PASS/FAIL code, so the job's own result IS the verdict --
+    # deliberately not reading needs.splunk_verify.outputs here: cross-job
+    # outputs from a job whose own `if:` starts with always() (splunk_verify
+    # does, to still run when an atomic test job failed/was skipped) have
+    # been observed to not propagate reliably to a downstream job's `if:`.
+    #
+    # always() is required here too, not just an explicit result check:
+    # without it, GitHub Actions' implicit success() still applied and this
+    # job stayed skipped even on a confirmed, genuine splunk_verify success
+    # (observed empirically -- run 30154222981, 5/5 PASS, splunk_verify
+    # result=success, open_promotion_pr still skipped with zero steps run).
+    # deploy_pages below uses the same always()-plus-explicit-result pattern
+    # and has run reliably every time, including runs where an upstream
+    # atomic job (e.g. atomic_verify_dc) was skipped -- mirroring it here.
+    if: |
+      always() &&
+      needs.splunk_verify.result == 'success'
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+      - name: Open promotion PR to main and mark it In review
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GH_PAT_DEV_PUSH }}
@@ -765,10 +834,6 @@ jobs:
           else
             echo "::warning::Opened $pr_url but failed to add it to Project #3 (GH_PAT_DEV_PUSH likely lacks Projects permission -- known gap for fine-grained PATs on user-owned projects): $item_id"
           fi
-
-      - name: Report verification verdict
-        shell: bash
-        run: exit ${{ steps.eval.outputs.exit_code || '0' }}
 
   deploy_pages:
     name: Deploy GitHub Pages

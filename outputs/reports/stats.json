@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-07-25T08:58:43.076195+00:00",
+  "generated_at": "2026-07-25T11:22:30.183191+00:00",
   "total_rules": 27,
   "total_sigma_rules": 27,
-  "total_splunk_rules": 7,
+  "total_splunk_rules": 12,
   "total_native_spl_rules": 1,
   "verified_pass": 25,
   "verified_fail": 2,
@@ -23,8 +23,8 @@
   },
   "by_status": {
     "experimental": 5,
-    "stable": 19,
-    "test": 3
+    "stable": 21,
+    "test": 1
   },
   "by_tactic": {
     "Execution": 14,
@@ -517,7 +517,7 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "25556100045",
+      "run_id": "30155968878",
       "tactics": [
         "Execution",
         "Initial Access"
@@ -535,7 +535,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-05-05",
-      "modified": "2026-05-07",
+      "modified": "2026-07-25",
       "references": [
         "https://attack.mitre.org/techniques/T1059/001/",
         "https://attack.mitre.org/techniques/T1566/001/"
@@ -553,7 +553,7 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_parent:\n    ParentImage|endswith:\n    - \\winword.exe\n    - \\excel.exe\n    - \\outlook.exe\n    - \\powerpnt.exe\n    - \\mspub.exe\n    - \\msaccess.exe\n    - \\visio.exe\n    - \\onenote.exe\n    - \\mshta.exe\n    - \\wscript.exe\n    - \\cscript.exe\n    - \\rundll32.exe\n    - \\regsvr32.exe\n    - \\iexplore.exe\n    - \\firefox.exe\n    - \\chrome.exe\n    - \\msedge.exe\n    - \\acrord32.exe\n    - \\acrobat.exe\n    - \\wmiprvse.exe\n    - \\pcalua.exe\n    - \\searchprotocolhost.exe\n    - \\msdt.exe\n    - \\msiexec.exe\n    - \\wordpad.exe\n    - \\teams.exe\n    - \\msedgewebview2.exe\n  condition: all of selection_*",
       "rule_body_lang": "yaml",
-      "rule_version": "1.3"
+      "rule_version": "1.6"
     },
     {
       "detect_id": "DETECT-2026-0014",
@@ -563,7 +563,7 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "25757237398",
+      "run_id": "30155968878",
       "tactics": [
         "Execution",
         "Stealth"
@@ -581,7 +581,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-05-05",
-      "modified": "2026-05-12",
+      "modified": "2026-07-25",
       "references": [
         "https://attack.mitre.org/techniques/T1059/001/",
         "https://attack.mitre.org/techniques/T1564/003/"
@@ -599,7 +599,7 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_flags_hidden:\n    CommandLine|contains:\n    - -WindowStyle Hidden\n    - -WindowStyle hidden\n    - -W Hidden\n    - -W hidden\n    - -W h\n  selection_flags_noprofile:\n    CommandLine|contains:\n    - -NoProfile\n    - -NoP\n    - -nop\n    - -noprofile\n  selection_flags_noninteractive:\n    CommandLine|contains:\n    - -NonInteractive\n    - -NonI\n    - -noni\n    - -noninteractive\n  selection_flags_nologo:\n    CommandLine|contains:\n    - -NoLogo\n    - -NoL\n    - -nol\n    - -nologo\n  condition: selection_image and ((selection_flags_hidden and selection_flags_noprofile) or (selection_flags_hidden\n    and selection_flags_noninteractive) or (selection_flags_hidden and selection_flags_nologo) or (selection_flags_noprofile\n    and selection_flags_noninteractive) or (selection_flags_noprofile and selection_flags_nologo) or (selection_flags_noninteractive\n    and selection_flags_nologo))",
       "rule_body_lang": "yaml",
-      "rule_version": "1.5"
+      "rule_version": "1.8"
     },
     {
       "detect_id": "DETECT-2026-0015",
@@ -609,7 +609,7 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "25752891371",
+      "run_id": "30155968878",
       "tactics": [
         "Execution",
         "Stealth"
@@ -627,7 +627,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-05-05",
-      "modified": "2026-05-12",
+      "modified": "2026-07-25",
       "references": [
         "https://attack.mitre.org/techniques/T1059/001/",
         "https://attack.mitre.org/techniques/T1620/"
@@ -652,17 +652,17 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_reflect:\n    CommandLine|contains:\n    - Reflection.Assembly]::Load(\n    - Reflection.Assembly]::LoadFile(\n    - Reflection.Assembly]::LoadFrom(\n    - Reflection.Assembly]::LoadWithPartialName(\n    - Reflection.Assembly]::UnsafeLoadFrom(\n    - '[Runtime.InteropServices.Marshal]::Copy('\n    - '[Runtime.InteropServices.Marshal]::AllocHGlobal('\n    - '[AppDomain]::CurrentDomain.Load('\n    - ::Load([Convert]::FromBase64String(\n  filter_legitimate:\n    ParentImage|endswith:\n    - \\devenv.exe\n    - \\msbuild.exe\n  condition: selection_image and selection_reflect and not filter_legitimate",
       "rule_body_lang": "yaml",
-      "rule_version": "1.4"
+      "rule_version": "1.7"
     },
     {
       "detect_id": "DETECT-2026-0016",
       "title": "PowerShell Script Block or Module Logging Disable",
-      "description": "Detects PowerShell commands that disable or tamper with ScriptBlock or Module logging — either via registry manipulation (Set-ItemProperty on the PowerShell policy path) or via in-memory reflection patching of the cachedGroupPolicySettings field. Disabling these logs is a common anti-forensics step before executing malicious payloads.",
+      "description": "Detects PowerShell commands that disable or tamper with ScriptBlock or Module logging — either via registry manipulation (Set-ItemProperty on the PowerShell policy path) or via in-memory reflection patching of the cachedGroupPolicySettings field. Disabling these logs is a common anti-forensics step before executing malicious payload(s).",
       "level": "high",
-      "status": "test",
+      "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "25757983142",
+      "run_id": "30155968878",
       "tactics": [
         "Execution",
         "Defense Impairment"
@@ -681,7 +681,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-05-05",
-      "modified": "2026-05-11",
+      "modified": "2026-07-25",
       "references": [
         "https://attack.mitre.org/techniques/T1059/001/",
         "https://attack.mitre.org/techniques/T1562/002/"
@@ -699,17 +699,17 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_logging:\n    CommandLine|contains:\n    - ScriptBlockLogging\n    - EnableScriptBlockLogging\n    - EnableScriptBlockInvocationLogging\n    - ModuleLogging\n    - EnableModuleLogging\n    - ProtectedEventLogging\n    - cachedGroupPolicySettings\n    - SOFTWARE\\Policies\\Microsoft\\Windows\\PowerShell\n  selection_delete:\n    CommandLine|contains|all:\n    - Remove-Item\n    - Policies\\Microsoft\\Windows\\PowerShell\n  condition: selection_image and (selection_logging or selection_delete)",
       "rule_body_lang": "yaml",
-      "rule_version": "1.3"
+      "rule_version": "1.6"
     },
     {
       "detect_id": "DETECT-2026-0018",
       "title": "PowerShell Known Malicious Cmdlet Invocation",
-      "description": "Detects invocation of known offensive PowerShell cmdlets originating from frameworks such as PowerSploit, PowerView, PowerUp, and Nishang. These cmdlets cover credential theft, persistence, injection, reconnaissance, and lateral movement — their presence in CommandLine is a strong indicator of post-exploitation activity.",
+      "description": "Detects invocation of known offensive PowerShell cmdlets originating from frameworks such as PowerSploit, PowerView, PowerUp, and Nishang. These cmdlets cover credential theft, persistence, injection, reconnaissance, and lateral movement — their presence in CommandLine is a strong indicator of any post-exploitation activity.",
       "level": "high",
-      "status": "test",
+      "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "25762181179",
+      "run_id": "30155968878",
       "tactics": [
         "Execution"
       ],
@@ -725,7 +725,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-05-12",
-      "modified": "2026-05-13",
+      "modified": "2026-07-25",
       "references": [
         "https://attack.mitre.org/techniques/T1059/001/",
         "https://github.com/PowerShellMafia/PowerSploit",
@@ -743,7 +743,7 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_cmdlets:\n    CommandLine|contains:\n    - Add-Persistence\n    - Find-AVSignature\n    - Get-GPPAutologon\n    - Get-GPPPassword\n    - Get-HttpStatus\n    - Get-Keystrokes\n    - Get-SecurityPackages\n    - Get-TimedScreenshot\n    - Get-VaultCredential\n    - Get-VolumeShadowCopy\n    - Install-SSP\n    - Invoke-CredentialInjection\n    - Invoke-DllInjection\n    - Invoke-Mimikatz\n    - Invoke-NinjaCopy\n    - Invoke-Portscan\n    - Invoke-ReflectivePEInjection\n    - Invoke-ReverseDnsLookup\n    - Invoke-Shellcode\n    - Invoke-TokenManipulation\n    - Invoke-WmiCommand\n    - Mount-VolumeShadowCopy\n    - New-ElevatedPersistenceOption\n    - New-UserPersistenceOption\n    - New-VolumeShadowCopy\n    - Out-CompressedDll\n    - Out-EncodedCommand\n    - Out-EncryptedScript\n    - Out-Minidump\n    - PowerUp\n    - PowerView\n    - Remove-Comments\n    - Remove-VolumeShadowCopy\n    - Set-CriticalProcess\n    - Set-MasterBootRecord\n    - Invoke-Kerberoast\n    - Invoke-ASREPRoast\n    - Invoke-DCSync\n    - Invoke-BloodHound\n    - Invoke-TheHash\n    - Invoke-WMIExec\n    - Invoke-SMBExec\n    - Invoke-DCOM\n    - Invoke-PowerShellTcp\n    - Invoke-PowerShellUdp\n    - Invoke-Inveigh\n    - Invoke-InveighRelay\n    - Invoke-EventViewer\n    - Invoke-SilentCleanup\n    - Invoke-Tater\n    - Invoke-Obfuscation\n    - Get-PassHashes\n  condition: selection_image and selection_cmdlets",
       "rule_body_lang": "yaml",
-      "rule_version": "1.6"
+      "rule_version": "1.9"
     },
     {
       "detect_id": "DETECT-2026-0019",

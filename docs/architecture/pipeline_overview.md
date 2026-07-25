@@ -1,6 +1,6 @@
 # Pipeline Overview
 
-This is the end-to-end path a detection takes from a Sigma YAML file in `rules/sigma/` to a verified, production-deployed Splunk saved search. It is driven entirely by two GitHub Actions workflows plus two small automation workflows — there is no manual deploy step anywhere in the happy path.
+This is the end-to-end path a detection takes from a Sigma YAML file in `rules/sigma/` to a verified, production-deployed Splunk saved search. It is driven entirely by two GitHub Actions workflows (`ci_dev_workflow.yml`, `ci_prod_workflow.yml`) plus one small automation workflow (`project_status_automerged.yml`) — there is no manual deploy step anywhere in the happy path.
 
 ## The two-branch model: dev proves it, main ships it
 
@@ -22,10 +22,16 @@ flowchart TD
         E3 --> F
         F --> G["Report\ngenerate_stats.py\nstats.json / mitre_technique_map.json / navigator_layer.json"]
         G --> H["Commit results + stats + README back to dev\n[skip ci]"]
-        H --> I{"Overall verdict\n== PASS?"}
+        H --> H2["Report verification verdict\n(re-exits eval's PASS/FAIL code --\nthis makes the job's own result the verdict)"]
+        H --> P1["deploy_pages job\npublishes docs/ from dev"]
+    end
+
+    H2 --> I
+
+    subgraph OPENPR["open_promotion_pr job -- runs on ubuntu-latest, needs: splunk_verify, no checkout"]
+        I{"always() &&\nneeds.splunk_verify.result\n== success?"}
         I -- yes --> J["Open promotion PR\ndev -> main\nlabel: automated-promotion\n+ add to Project #3, Status = In review"]
         I -- no --> K["No PR opened\n(existing open promotion PR left as-is)"]
-        H --> P1["deploy_pages job\npublishes docs/ from dev"]
     end
 
     J -->|human review + merge| M
@@ -39,13 +45,17 @@ flowchart TD
     subgraph PROJ["project_status_automerged.yml -- runs on ubuntu-latest"]
         Q["gh project item-add\nProject #3\n(idempotent -- item already exists)"] --> R["gh project item-edit\nStatus: In review -> Auto-merged"]
     end
-
-    subgraph PAGES["deploy_pages.yml -- standalone, also runs on ubuntu-latest"]
-        P2["Publishes docs/ from dev\n(triggers independently on any push to dev touching docs/**)"]
-    end
 ```
 
-**Known duplication, not a diagramming simplification:** `docs/` gets published to GitHub Pages by *two* independent triggers — the `deploy_pages` job inside `ci_dev_workflow.yml` (runs after `splunk_verify`, gated on that job's result being `success` or `failure`) and the standalone `deploy_pages.yml` workflow (fires on any push to `dev` touching `docs/**`, independent of the rest of the pipeline). Both check out `dev` and publish the same `docs/` tree to the same Pages site.
+**Single Pages publish path (as of commit `84d6588`):** `docs/` is published to GitHub Pages by exactly one job — `deploy_pages`, the last job in `ci_dev_workflow.yml`, `needs: [splunk_verify, atomic_verify, atomic_verify_dc, emulation_verify]` and gated on `splunk_verify`'s result being `success` or `failure` (i.e. it runs whenever `splunk_verify` actually ran, pass or fail, but not when the whole run was skipped for lack of SPL to verify). A previously-existing standalone `deploy_pages.yml` workflow — which fired independently on any push to `dev` touching `docs/**` — was deleted for exactly this reason: it existed to catch docs-only edits that don't match `ci_dev_workflow.yml`'s own trigger paths (`rules/sigma/**`, several `scripts/**` paths, `docs/schemas/sigma_schema.json` — notably *not* `docs/**` broadly), but in practice `splunk_verify`'s own `Commit verification results and stats` step touches `docs/index.html` on every real pipeline run, which re-triggered the standalone workflow independently and made a normal successful run publish Pages twice. The accepted tradeoff: a genuinely docs-only edit (e.g. hand-editing a file under `docs/architecture/`) no longer triggers its own Pages publish on its own — it simply waits for the next real `rules/sigma/**`-triggered pipeline run to publish alongside it.
+
+**Platform quirk worth knowing before you add another job downstream of `splunk_verify` (two fix attempts, only the second one actually worked):** `open_promotion_pr` currently gates on `always() && needs.splunk_verify.result == 'success'` — both the `always()` and the explicit `result` check are load-bearing, and this took two separate commits to get right.
+
+*First fix attempt (commit `34d7afc`) — necessary but not sufficient.* The original gate read `needs.splunk_verify.result == 'success' && needs.splunk_verify.outputs.exit_code == '0'`. `splunk_verify`'s own `if:` starts with `always()` — it must still run even when an upstream atomic-test job failed or was skipped — and cross-job `outputs:` declared on an `always()`-gated job were observed, empirically, to not reliably propagate into a downstream job's `if:` context: a run with a genuine 5/5 PASS and "Final verdict: PASS" already printed in `splunk_verify`'s own log still had `open_promotion_pr` skip with zero steps recorded when its gate read that `outputs.exit_code` check. Commit `34d7afc` dropped the `outputs.exit_code` clause, leaving just `needs.splunk_verify.result == 'success'`, and removed the now-unread `outputs.exit_code` job-level output from `splunk_verify` entirely. This was a real bug fix — the `outputs.exit_code` read genuinely was unreliable — but it turned out **not** to fully solve the skip.
+
+*Second fix attempt (commit `54a2759`) — the actual fix.* Even after dropping the `outputs:` read, `open_promotion_pr` was *still* observed to skip on a confirmed-good run (run `30154222981`, run_attempt 1: `splunk_verify` had a real 5/5 PASS, `result: success`, and `open_promotion_pr` still recorded zero steps). The remaining cause: `open_promotion_pr`'s `if:` at that point (`needs.splunk_verify.result == 'success'`) contained none of `always()`/`success()`/`failure()`/`cancelled()`, so GitHub Actions auto-added an implicit `success()` check ANDed onto it — and that implicit `success()` was still evaluating false in this scenario, where `atomic_verify_dc` (one of `splunk_verify`'s own upstream `needs`) had been `skipped` because the batch had no DC-targeted tests. `deploy_pages`, later in the same file, has run reliably every single time — including runs with a skipped `atomic_verify_dc` — because it already used an explicit `always() && (needs.splunk_verify.result == 'success' || needs.splunk_verify.result == 'failure')` gate rather than leaning on implicit `success()`. `open_promotion_pr` was changed to mirror that proven pattern: `always() && needs.splunk_verify.result == 'success'`.
+
+The exact GitHub Actions mechanism connecting an upstream-skip several hops back in the DAG to an implicit-`success()` failure several jobs downstream hasn't been independently verified beyond what's observed here — treat this as an empirically-confirmed workaround (matching the uncertainty the workflow's own comments already flag), not a fully-proven platform mechanism. **Forward-looking guidance for any future job you add that depends on `splunk_verify` (or on any job that itself has `always()` and a `needs:` chain containing jobs that can legitimately be `skipped`): always write an explicit `always()` in the job's own `if:` plus an explicit `needs.<job>.result == '...'` check — never rely on GitHub Actions' implicit `success()`, and never read cross-job `outputs:` from a job whose own `if:` starts with `always()`.**
 
 ## Stage by stage
 
@@ -63,13 +73,13 @@ flowchart TD
 
 **7. Report — `scripts/docs/generate_stats.py`.** Aggregates every rule and result into `outputs/reports/stats.json`, `mitre_technique_map.json`, and `navigator_layer.json`. Also regenerates the README stats block and `docs/index.html`.
 
-**8. Promote — the `Open promotion PR to main on PASS` step.** If, and only if, `pass_fail_eval.py`'s exit code was `0`, this step (part of the `splunk_verify` job) checks whether a `dev`→`main` PR is already open and, if not, runs `gh pr create --base main --head dev --title "Promote verified detections from dev to main" --label automated-promotion`. This PR does not auto-merge — a human reviews and merges it, and that merge is what actually ships to prod. The same step then immediately runs `gh project item-add 3 --owner martonbence --url <PR URL>` to add the new PR to [Project #3](https://github.com/users/martonbence/projects/3) (`PVT_kwHOA_8eh84BeHTL`), followed by `gh project item-edit --field-id PVTSSF_lAHOA_8eh84BeHTLzhYj6O0 --single-select-option-id 4fdb6324` to set that item's Status field to `In review` (verified against the live Project #3 schema via `gh project field-list`). So an auto-opened promotion PR is labeled **and** placed on the board pre-triaged, in one step.
+**8. Promote — the `open_promotion_pr` job.** A separate job from `splunk_verify` (not a step inside it), running on plain `ubuntu-latest` with no checkout — pure `gh` CLI. It's gated with `needs: splunk_verify` and `if: always() && needs.splunk_verify.result == 'success'`. When that holds — i.e. `splunk_verify` completed and its last step, `Report verification verdict`, re-exited `pass_fail_eval.py`'s real PASS/FAIL code as `0` — its single step, `Open promotion PR to main and mark it In review`, checks whether a `dev`→`main` PR is already open and, if not, runs `gh pr create --base main --head dev --title "Promote verified detections from dev to main" --label automated-promotion`. This PR does not auto-merge — a human reviews and merges it, and that merge is what actually ships to prod. The same step then immediately runs `gh project item-add 3 --owner martonbence --url <PR URL>` to add the new PR to [Project #3](https://github.com/users/martonbence/projects/3) (`PVT_kwHOA_8eh84BeHTL`), followed by `gh project item-edit --field-id PVTSSF_lAHOA_8eh84BeHTLzhYj6O0 --single-select-option-id 4fdb6324` to set that item's Status field to `In review` (verified against the live Project #3 schema via `gh project field-list`). So an auto-opened promotion PR is labeled **and** placed on the board pre-triaged, in one step. See the "Platform quirk" callout above for why this job was split out of `splunk_verify`, why its gate reads `result` rather than a cross-job `outputs:` value, and why the `always()` in front of that `result` check is not optional.
 
 **9. Ship to prod — `ci_prod_workflow.yml`.** Triggered on `push` to `main` touching `rules/sigma/**` (in practice: merging a promotion PR, though any other direct push to `main` under that path filter also triggers it). Regenerates `.meta.json` sidecars from the Sigma source already on `main` (deterministic — the `.spl` text doesn't change) and deploys every `rules/splunk/*.spl` file to the prod Splunk instance. No validation, testing, or verification runs here — it trusts the `dev`-branch run that already passed.
 
 **10. Track promotion on the project board at merge — `project_status_automerged.yml`.** A separate workflow triggered on `pull_request: closed` (any PR, any branch), independent of both pipeline workflows. Its one job, `set_automerged_status`, only runs when `github.event.pull_request.merged == true` **and** `github.event.pull_request.labels.*.name` contains `automated-promotion`. When that holds, it runs `gh project item-add 3 --owner martonbence --url <PR URL>` again (idempotent — the item was already added in stage 8, above; `item-add` on an existing item is a no-op that just returns its id), then `gh project item-edit --field-id PVTSSF_lAHOA_8eh84BeHTLzhYj6O0 --single-select-option-id be04d00f` to move that item's Status field from `In review` to `Auto-merged`. Together, stages 8 and 10 give a promotion PR's board item a full lifecycle: `In review` the moment it's opened, `Auto-merged` once it's actually merged — there is no `Auto-merged` transition for a promotion PR that gets closed without merging (the job's `if` condition requires `merged == true`).
 
-**11. Publish — GitHub Pages.** `docs/index.html`, a self-contained rule browser and MITRE ATT&CK Navigator, is published from `dev` (see the duplicate-publish note above).
+**11. Publish — GitHub Pages.** `docs/index.html`, a self-contained rule browser and MITRE ATT&CK Navigator, is published from `dev` by the `deploy_pages` job inside `ci_dev_workflow.yml` — the single publish path (see the note above).
 
 ## Named workflow jobs and steps
 
@@ -82,8 +92,9 @@ flowchart TD
 | `atomic_verify` | `self-hosted, X64, Windows, victim, atomic, windows-victim` | Download pipeline bundle, **Run Atomic Red Team tests embedded in deployed SPL metadata**, Upload atomic progress markers |
 | `atomic_verify_dc` | `self-hosted, X64, Windows, dc, windows-dc` | Download pipeline bundle, **Run Atomic Red Team tests on Domain Controller**, Upload atomic progress markers |
 | `emulation_verify` | `self-hosted, X64, Windows, victim, windows-victim` | Download pipeline bundle, **Run Script Emulation tests embedded in deployed SPL metadata** |
-| `splunk_verify` | `self-hosted, linux, de-lab` | Checkout, Download pipeline bundle, Download atomic progress markers (victim), Download atomic progress markers (DC), Setup Python, Install deps, Wait for Splunk indexing, **Query Splunk for matched events**, **Evaluate Pass/Fail**, Upload matched events artifact, **Generate stats and update README**, Commit verification results and stats, **Open promotion PR to main on PASS**, Report verification verdict |
-| `deploy_pages` | `ubuntu-latest` | Checkout (ref: `dev`), configure-pages, upload-pages-artifact, deploy-pages (no explicit step `name:`s — these are third-party actions) |
+| `splunk_verify` | `self-hosted, linux, de-lab` | Checkout (`fetch-depth: 0` — not shallow, on purpose: `generate_stats.py`'s `compute_rule_version()` runs `git log --follow` per rule file later in this same job, and a shallow checkout silently made every rule's version come out `1.0` regardless of real history), Download pipeline bundle, Download atomic progress markers (victim), Download atomic progress markers (DC), Setup Python, Install deps, Wait for Splunk indexing, **Query Splunk for matched events**, **Evaluate Pass/Fail**, Upload matched events artifact, **Generate stats and update README**, Commit verification results and stats, **Report verification verdict** (re-exits `pass_fail_eval.py`'s exit code — makes the job's own `result` the PASS/FAIL verdict) |
+| `open_promotion_pr` | `ubuntu-latest` | `needs: splunk_verify`, `if: always() && needs.splunk_verify.result == 'success'`, no checkout step. **Open promotion PR to main and mark it In review** (single step: `gh pr create` then `gh project item-add`/`item-edit`) |
+| `deploy_pages` | `ubuntu-latest` | `needs: [splunk_verify, atomic_verify, atomic_verify_dc, emulation_verify]`. Checkout (ref: `dev`), configure-pages, upload-pages-artifact, deploy-pages (no explicit step `name:`s — these are third-party actions). The sole GitHub Pages publish path — see the note above. |
 
 `atomic_verify`, `atomic_verify_dc`, and `emulation_verify` each only run if `prepare_validate_convert`'s `has_atomic_tests` / `has_atomic_dc_tests` / `has_emulation_tests` output is `true` for the changed rules, and all three are `continue-on-error: true` so a single flaky test host doesn't block `splunk_verify` from running (it treats `success` or `skipped` as acceptable for each).
 
@@ -99,15 +110,11 @@ flowchart TD
 |---|---|---|
 | `set_automerged_status` | `ubuntu-latest` | **Add/update project item status** (a single step running `gh project item-add` then `gh project item-edit`) |
 
-### `deploy_pages.yml` (standalone)
-
-A single job named `deploy` on `ubuntu-latest`: checkout (ref: `dev`) → configure-pages → upload-pages-artifact → deploy-pages. Functionally near-identical to the `deploy_pages` job embedded in `ci_dev_workflow.yml` — see the duplication note above; this is worth flagging explicitly rather than glossing over, since both workflows can independently republish Pages from the same branch.
-
 ## Runners, named
 
 | Label set (as written in the YAML) | Role |
 |---|---|
-| `ubuntu-latest` | GitHub-hosted. Used for `prepare_validate_convert`, both `deploy_pages` jobs, and `project_status_automerged.yml`'s `set_automerged_status` — nothing here needs lab network access. |
+| `ubuntu-latest` | GitHub-hosted. Used for `prepare_validate_convert`, `open_promotion_pr`, `deploy_pages`, and `project_status_automerged.yml`'s `set_automerged_status` — nothing here needs lab network access. |
 | `self-hosted, linux, de-lab` | Self-hosted Linux box with a network path to Splunk. Used by `deploy_to_splunk` and `splunk_verify` (dev) and by `deploy_to_prod` (prod) — the same runner role serves both environments; what differs is the GitHub Actions `environment:` (`dev` vs `prod`) and therefore which `SPLUNK_*` secrets get injected. |
 | `self-hosted, X64, Windows, victim, atomic, windows-victim` | The Windows victim host that executes Atomic Red Team tests, used by `atomic_verify`. |
 | `self-hosted, X64, Windows, victim, windows-victim` | The same physical victim host, used by `emulation_verify` for script-emulation-style tests — note the label set here omits `atomic` compared to `atomic_verify`'s; that's what the workflow file actually specifies, not a documentation inconsistency. |

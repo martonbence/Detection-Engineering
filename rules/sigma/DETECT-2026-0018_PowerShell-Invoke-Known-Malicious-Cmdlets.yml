@@ -1,11 +1,11 @@
 title: PowerShell Known Malicious Cmdlet Invocation
 detect_id: DETECT-2026-0018
-status: test
+status: stable
 description:
   Detects invocation of known offensive PowerShell cmdlets originating
   from frameworks such as PowerSploit, PowerView, PowerUp, and Nishang. These
   cmdlets cover credential theft, persistence, injection, reconnaissance, and
-  lateral movement — their presence in CommandLine is a strong indicator of
+  lateral movement — their presence in CommandLine is a strong indicator of any
   post-exploitation activity.
 references:
   - https://attack.mitre.org/techniques/T1059/001/
@@ -13,7 +13,7 @@ references:
   - https://github.com/samratashok/nishang
 author: Bence Marton
 date: 2026-05-12
-modified: 2026-05-13
+modified: 2026-07-25
 tags:
   - attack.execution
   - attack.t1059.001
