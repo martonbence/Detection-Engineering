@@ -5,6 +5,8 @@ description: Test Sigma rule for demonstration purposes.
 author: Bence Marton
 date: 2026-04-17
 modified: 2026-07-25
+# retrigger 1: full dev batch re-run to verify the run_atomic.ps1 stale
+# progress-marker cleanup fix (0003-0010 together)
 references:
   - https://example.com
 tags:
