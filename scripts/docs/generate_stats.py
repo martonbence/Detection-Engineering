@@ -847,6 +847,11 @@ def generate_stats() -> dict:
     total_sigma = len(sigma_rules)
     total_rules = total_sigma
     total_verifiable = total_sigma
+    # For the "Sigma Rules" badge specifically: rules with real, compiled
+    # Sigma detection: logic, excluding the raw_query subset -- so that
+    # badge and the "Native SPL" badge next to it are disjoint and sum to
+    # total_rules, instead of visually double-counting the same rules.
+    total_compiled_sigma_rules = total_sigma - native_spl_count
     pass_rate = round(verified_pass / total_verifiable * 100) if total_verifiable > 0 else 0
 
     # Unique parent techniques covered (T1053.005 → T1053)
@@ -876,6 +881,7 @@ def generate_stats() -> dict:
         "generated_at": now_iso,
         "total_rules": total_rules,
         "total_sigma_rules": total_sigma,
+        "total_compiled_sigma_rules": total_compiled_sigma_rules,
         "total_splunk_rules": total_spl_count,
         "total_native_spl_rules": native_spl_count,
         "verified_pass": verified_pass,
@@ -927,7 +933,7 @@ def render_readme_section(stats: dict, repo: str) -> str:
 
     row1 = f"[![Total Rules]({b}&query=%24.total_rules&label=Total%20Rules&color=informational)](https://github.com/martonbence/Detection-Engineering/tree/main/rules)"
     row2 = " ".join([
-        f"[![Sigma Rules]({b}&query=%24.total_sigma_rules&label=Sigma%20Rules&color=00ACD7)](https://github.com/martonbence/Detection-Engineering/tree/main/rules/sigma)",
+        f"[![Sigma Rules]({b}&query=%24.total_compiled_sigma_rules&label=Sigma%20Rules&color=00ACD7)](https://github.com/martonbence/Detection-Engineering/tree/main/rules/sigma)",
         f"[![Native SPL]({b}&query=%24.total_native_spl_rules&label=Native%20SPL&color=FF6600)](https://github.com/martonbence/Detection-Engineering/tree/main/rules/splunk)",
     ])
     row3 = " ".join([
