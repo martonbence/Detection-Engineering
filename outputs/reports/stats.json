@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-25T11:53:05.073303+00:00",
+  "generated_at": "2026-07-25T12:18:46.720919+00:00",
   "total_rules": 27,
   "total_sigma_rules": 27,
   "total_splunk_rules": 14,
@@ -23,8 +23,8 @@
   },
   "by_status": {
     "experimental": 5,
-    "stable": 19,
-    "test": 3
+    "stable": 20,
+    "test": 2
   },
   "by_tactic": {
     "Execution": 14,
@@ -423,10 +423,10 @@
       "title": "PowerShell Compressed Payload Decompression and Execute",
       "description": "Detects PowerShell payloads that decompress a GZip- or Deflate-compressed blob at runtime and immediately execute the result via IEX or equivalent. This is the primary stager pattern used by Empire and PowerSploit — a Base64-encoded, compressed payload is decoded and decompressed in-memory using IO.Compression streams, then executed — evading static analysis and simple string-based detection.",
       "level": "high",
-      "status": "test",
+      "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30156928952",
+      "run_id": "30157694300",
       "tactics": [
         "Execution",
         "Stealth"
@@ -461,7 +461,7 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_decompress:\n    CommandLine|contains:\n    - DeflateStream\n    - GZipStream\n    - IO.Compression\n  selection_iex:\n    CommandLine|contains:\n    - '| IEX'\n    - '|IEX '\n    - I`E`X\n    - I`EX\n    - IE`X\n    - 'iex '\n    - IEX (\n    - IEX(\n    - iex(\n    - Invoke-Expression\n    - '[scriptblock]::create('\n    - '|iex;'\n    - '| iex}'\n    - $ExecutionContext.InvokeCommand\n    - '&([scriptblock]'\n    - .Invoke(\n    - InvokeCommand.InvokeScript\n  condition: all of selection_*",
       "rule_body_lang": "yaml",
-      "rule_version": "1.5"
+      "rule_version": "1.6"
     },
     {
       "detect_id": "DETECT-2026-0012",
