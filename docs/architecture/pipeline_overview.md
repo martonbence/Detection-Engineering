@@ -22,10 +22,16 @@ flowchart TD
         E3 --> F
         F --> G["Report\ngenerate_stats.py\nstats.json / mitre_technique_map.json / navigator_layer.json"]
         G --> H["Commit results + stats + README back to dev\n[skip ci]"]
-        H --> I{"Overall verdict\n== PASS?"}
+        H --> H2["Report verification verdict\n(re-exits eval's PASS/FAIL code --\nthis makes the job's own result the verdict)"]
+        H --> P1["deploy_pages job\npublishes docs/ from dev"]
+    end
+
+    H2 --> I
+
+    subgraph OPENPR["open_promotion_pr job -- runs on ubuntu-latest, needs: splunk_verify, no checkout"]
+        I{"needs.splunk_verify.result\n== success?"}
         I -- yes --> J["Open promotion PR\ndev -> main\nlabel: automated-promotion\n+ add to Project #3, Status = In review"]
         I -- no --> K["No PR opened\n(existing open promotion PR left as-is)"]
-        H --> P1["deploy_pages job\npublishes docs/ from dev"]
     end
 
     J -->|human review + merge| M
@@ -47,6 +53,8 @@ flowchart TD
 
 **Known duplication, not a diagramming simplification:** `docs/` gets published to GitHub Pages by *two* independent triggers — the `deploy_pages` job inside `ci_dev_workflow.yml` (runs after `splunk_verify`, gated on that job's result being `success` or `failure`) and the standalone `deploy_pages.yml` workflow (fires on any push to `dev` touching `docs/**`, independent of the rest of the pipeline). Both check out `dev` and publish the same `docs/` tree to the same Pages site.
 
+**Platform quirk worth knowing before you add another job downstream of `splunk_verify`:** `open_promotion_pr` gates purely on `needs.splunk_verify.result == 'success'`, not on a job-level `outputs.exit_code` read from `splunk_verify`. That's a deliberate fix (commit `34d7afc`), not the original design. `splunk_verify`'s own `if:` starts with `always()` — it must still run even when an upstream atomic-test job failed or was skipped — and cross-job `outputs:` declared on an `always()`-gated job were observed, empirically, to not reliably propagate into a downstream job's `if:` context: a run with a genuine 5/5 PASS and "Final verdict: PASS" already printed in `splunk_verify`'s own log still had `open_promotion_pr` skip with zero steps recorded when its gate read `needs.splunk_verify.outputs.exit_code == '0'`. The fix relies on the fact that `splunk_verify`'s last step, `Report verification verdict`, re-exits with `pass_fail_eval.py`'s real PASS/FAIL code — so the job's own `result` (`success`/`failure`) already *is* the verdict, and no cross-job output is needed. The `outputs.exit_code` job-level output was removed from `splunk_verify` entirely since nothing reads it anymore. If you add a future job that needs to branch on `splunk_verify`'s outcome, prefer `needs.splunk_verify.result` over any `outputs:` value it exposes, for the same reason.
+
 ## Stage by stage
 
 **1. Author.** Detections are written as Sigma YAML under `rules/sigma/`. Most rules have a real `detection:` block Sigma can compile. Rules too sophisticated to express that way still live in `rules/sigma/*.yml` (with a required-but-unused placeholder `detection:` block) and instead set `custom.splunk.raw_query` to the literal SPL text.
@@ -63,7 +71,7 @@ flowchart TD
 
 **7. Report — `scripts/docs/generate_stats.py`.** Aggregates every rule and result into `outputs/reports/stats.json`, `mitre_technique_map.json`, and `navigator_layer.json`. Also regenerates the README stats block and `docs/index.html`.
 
-**8. Promote — the `Open promotion PR to main on PASS` step.** If, and only if, `pass_fail_eval.py`'s exit code was `0`, this step (part of the `splunk_verify` job) checks whether a `dev`→`main` PR is already open and, if not, runs `gh pr create --base main --head dev --title "Promote verified detections from dev to main" --label automated-promotion`. This PR does not auto-merge — a human reviews and merges it, and that merge is what actually ships to prod. The same step then immediately runs `gh project item-add 3 --owner martonbence --url <PR URL>` to add the new PR to [Project #3](https://github.com/users/martonbence/projects/3) (`PVT_kwHOA_8eh84BeHTL`), followed by `gh project item-edit --field-id PVTSSF_lAHOA_8eh84BeHTLzhYj6O0 --single-select-option-id 4fdb6324` to set that item's Status field to `In review` (verified against the live Project #3 schema via `gh project field-list`). So an auto-opened promotion PR is labeled **and** placed on the board pre-triaged, in one step.
+**8. Promote — the `open_promotion_pr` job.** A separate job from `splunk_verify` (not a step inside it), running on plain `ubuntu-latest` with no checkout — pure `gh` CLI. It's gated with `needs: splunk_verify` and `if: needs.splunk_verify.result == 'success'`. When that holds — i.e. `splunk_verify` completed and its last step, `Report verification verdict`, re-exited `pass_fail_eval.py`'s real PASS/FAIL code as `0` — its single step, `Open promotion PR to main and mark it In review`, checks whether a `dev`→`main` PR is already open and, if not, runs `gh pr create --base main --head dev --title "Promote verified detections from dev to main" --label automated-promotion`. This PR does not auto-merge — a human reviews and merges it, and that merge is what actually ships to prod. The same step then immediately runs `gh project item-add 3 --owner martonbence --url <PR URL>` to add the new PR to [Project #3](https://github.com/users/martonbence/projects/3) (`PVT_kwHOA_8eh84BeHTL`), followed by `gh project item-edit --field-id PVTSSF_lAHOA_8eh84BeHTLzhYj6O0 --single-select-option-id 4fdb6324` to set that item's Status field to `In review` (verified against the live Project #3 schema via `gh project field-list`). So an auto-opened promotion PR is labeled **and** placed on the board pre-triaged, in one step. See the "Platform quirk" callout above for why this job was split out of `splunk_verify` and why it gates on `result` rather than a cross-job `outputs:` value.
 
 **9. Ship to prod — `ci_prod_workflow.yml`.** Triggered on `push` to `main` touching `rules/sigma/**` (in practice: merging a promotion PR, though any other direct push to `main` under that path filter also triggers it). Regenerates `.meta.json` sidecars from the Sigma source already on `main` (deterministic — the `.spl` text doesn't change) and deploys every `rules/splunk/*.spl` file to the prod Splunk instance. No validation, testing, or verification runs here — it trusts the `dev`-branch run that already passed.
 
@@ -82,7 +90,8 @@ flowchart TD
 | `atomic_verify` | `self-hosted, X64, Windows, victim, atomic, windows-victim` | Download pipeline bundle, **Run Atomic Red Team tests embedded in deployed SPL metadata**, Upload atomic progress markers |
 | `atomic_verify_dc` | `self-hosted, X64, Windows, dc, windows-dc` | Download pipeline bundle, **Run Atomic Red Team tests on Domain Controller**, Upload atomic progress markers |
 | `emulation_verify` | `self-hosted, X64, Windows, victim, windows-victim` | Download pipeline bundle, **Run Script Emulation tests embedded in deployed SPL metadata** |
-| `splunk_verify` | `self-hosted, linux, de-lab` | Checkout, Download pipeline bundle, Download atomic progress markers (victim), Download atomic progress markers (DC), Setup Python, Install deps, Wait for Splunk indexing, **Query Splunk for matched events**, **Evaluate Pass/Fail**, Upload matched events artifact, **Generate stats and update README**, Commit verification results and stats, **Open promotion PR to main on PASS**, Report verification verdict |
+| `splunk_verify` | `self-hosted, linux, de-lab` | Checkout, Download pipeline bundle, Download atomic progress markers (victim), Download atomic progress markers (DC), Setup Python, Install deps, Wait for Splunk indexing, **Query Splunk for matched events**, **Evaluate Pass/Fail**, Upload matched events artifact, **Generate stats and update README**, Commit verification results and stats, **Report verification verdict** (re-exits `pass_fail_eval.py`'s exit code — makes the job's own `result` the PASS/FAIL verdict) |
+| `open_promotion_pr` | `ubuntu-latest` | `needs: splunk_verify`, `if: needs.splunk_verify.result == 'success'`, no checkout step. **Open promotion PR to main and mark it In review** (single step: `gh pr create` then `gh project item-add`/`item-edit`) |
 | `deploy_pages` | `ubuntu-latest` | Checkout (ref: `dev`), configure-pages, upload-pages-artifact, deploy-pages (no explicit step `name:`s — these are third-party actions) |
 
 `atomic_verify`, `atomic_verify_dc`, and `emulation_verify` each only run if `prepare_validate_convert`'s `has_atomic_tests` / `has_atomic_dc_tests` / `has_emulation_tests` output is `true` for the changed rules, and all three are `continue-on-error: true` so a single flaky test host doesn't block `splunk_verify` from running (it treats `success` or `skipped` as acceptable for each).
@@ -107,7 +116,7 @@ A single job named `deploy` on `ubuntu-latest`: checkout (ref: `dev`) → config
 
 | Label set (as written in the YAML) | Role |
 |---|---|
-| `ubuntu-latest` | GitHub-hosted. Used for `prepare_validate_convert`, both `deploy_pages` jobs, and `project_status_automerged.yml`'s `set_automerged_status` — nothing here needs lab network access. |
+| `ubuntu-latest` | GitHub-hosted. Used for `prepare_validate_convert`, `open_promotion_pr`, both `deploy_pages` jobs, and `project_status_automerged.yml`'s `set_automerged_status` — nothing here needs lab network access. |
 | `self-hosted, linux, de-lab` | Self-hosted Linux box with a network path to Splunk. Used by `deploy_to_splunk` and `splunk_verify` (dev) and by `deploy_to_prod` (prod) — the same runner role serves both environments; what differs is the GitHub Actions `environment:` (`dev` vs `prod`) and therefore which `SPLUNK_*` secrets get injected. |
 | `self-hosted, X64, Windows, victim, atomic, windows-victim` | The Windows victim host that executes Atomic Red Team tests, used by `atomic_verify`. |
 | `self-hosted, X64, Windows, victim, windows-victim` | The same physical victim host, used by `emulation_verify` for script-emulation-style tests — note the label set here omits `atomic` compared to `atomic_verify`'s; that's what the workflow file actually specifies, not a documentation inconsistency. |
