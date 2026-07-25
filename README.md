@@ -94,6 +94,8 @@ Note: `ci_prod_workflow.yml`'s single job (`deploy_to_prod`) also runs on `self-
 | [`outputs/results/`](outputs/results/) | Per-rule `DETECT-*` pass/fail verification results |
 | [`.github/workflows/`](.github/workflows/) | The CI/CD workflow described above |
 
+`docs/architecture/pipeline_overview.md`, `data_flow.md`, and `threat_model.md` are placeholders being actively written up — treat the pipeline description above as the current source of truth until those land.
+
 ## Adding a new detection rule, end to end
 
 1. Write a Sigma rule under `rules/sigma/` following the naming convention `DETECT-YYYY-NNNN_Short-Title.yml`, conforming to `docs/schemas/sigma_schema.json` (including the `custom.splunk` block for index/cron/testing metadata). If the detection is too sophisticated to express as a Sigma `detection:` block, set `custom.splunk.raw_query` to the raw SPL instead — the converter emits it verbatim.
@@ -114,5 +116,5 @@ Part of what this repo demonstrates is disciplined use of GitHub's native collab
 
 ## Further reading
 
-- [`docs/architecture/`](docs/architecture/) — Mermaid-diagrammed technical deep dives on the pipeline, data flow, and threat model (in progress; see note above)
+- [`docs/architecture/`](docs/architecture/) — planned Mermaid-diagrammed technical deep dives on the pipeline, data flow, and threat model (still placeholders, see [Repository layout](#repository-layout))
 - [GitHub Wiki](../../wiki) — planned newcomer-facing walkthrough (not yet initialized, see above)
