@@ -136,6 +136,15 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Cache pip packages
+        if: steps.changes.outputs.has_rules == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-prepare-${{ runner.os }}-${{ hashFiles('.github/workflows/ci_dev_workflow.yml') }}
+          restore-keys: |
+            pip-prepare-${{ runner.os }}-
+
       - name: Install Python deps
         if: steps.changes.outputs.has_rules == 'true'
         shell: bash
@@ -188,7 +197,10 @@ jobs:
           fi
 
           mkdir -p rules/splunk
+          echo "Converting ${#rules[@]} rule file(s) to SPL:"
+          printf ' - %s\n' "${rules[@]}"
           python scripts/convert/sigma_to_spl.py --outdir rules/splunk "${rules[@]}"
+          echo "Conversion complete."
 
       - name: Build pipeline bundle
         id: bundle
@@ -553,13 +565,17 @@ jobs:
       )
     runs-on: [ self-hosted, linux, de-lab ]
     environment: dev
+    outputs:
+      exit_code: ${{ steps.eval.outputs.exit_code }}
 
     steps:
+      # Shallow on purpose: this job always resets hard to origin/dev's tip
+      # before committing (see "Commit verification results and stats"
+      # below), so it never needs history older than that tip.
       - name: Checkout
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GH_PAT_DEV_PUSH }}
-          fetch-depth: 0
 
       - name: Download pipeline bundle
         uses: actions/download-artifact@v4
@@ -672,7 +688,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "Regenerating aggregate stats, MITRE coverage map, and rule browser content..."
           python scripts/docs/generate_stats.py
+          echo "Updated: outputs/reports/{stats,mitre_technique_map,navigator_layer}.json, README.md, docs/index.html"
 
       - name: Commit verification results and stats
         shell: bash
@@ -721,8 +739,19 @@ jobs:
           echo "Push failed after 3 attempts."
           exit 1
 
-      - name: Open promotion PR to main on PASS
-        if: steps.eval.outputs.exit_code == '0'
+      - name: Report verification verdict
+        shell: bash
+        run: exit ${{ steps.eval.outputs.exit_code || '0' }}
+
+  open_promotion_pr:
+    name: Open Promotion PR
+    needs: splunk_verify
+    if: needs.splunk_verify.result == 'success' && needs.splunk_verify.outputs.exit_code == '0'
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+      - name: Open promotion PR to main and mark it In review
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GH_PAT_DEV_PUSH }}
@@ -765,10 +794,6 @@ jobs:
           else
             echo "::warning::Opened $pr_url but failed to add it to Project #3 (GH_PAT_DEV_PUSH likely lacks Projects permission -- known gap for fine-grained PATs on user-owned projects): $item_id"
           fi
-
-      - name: Report verification verdict
-        shell: bash
-        run: exit ${{ steps.eval.outputs.exit_code || '0' }}
 
   deploy_pages:
     name: Deploy GitHub Pages
