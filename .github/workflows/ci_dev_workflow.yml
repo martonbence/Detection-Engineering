@@ -574,8 +574,6 @@ jobs:
       )
     runs-on: [ self-hosted, linux, de-lab ]
     environment: dev
-    outputs:
-      exit_code: ${{ steps.eval.outputs.exit_code }}
 
     steps:
       # Shallow on purpose: this job always resets hard to origin/dev's tip
@@ -764,7 +762,13 @@ jobs:
   open_promotion_pr:
     name: Open Promotion PR
     needs: splunk_verify
-    if: needs.splunk_verify.result == 'success' && needs.splunk_verify.outputs.exit_code == '0'
+    # splunk_verify's last step ("Report verification verdict") re-exits with
+    # the real PASS/FAIL code, so the job's own result IS the verdict --
+    # deliberately not reading needs.splunk_verify.outputs here: cross-job
+    # outputs from a job whose own `if:` starts with always() (splunk_verify
+    # does, to still run when an atomic test job failed/was skipped) have
+    # been observed to not propagate reliably to a downstream job's `if:`.
+    if: needs.splunk_verify.result == 'success'
     runs-on: ubuntu-latest
     environment: dev
 
