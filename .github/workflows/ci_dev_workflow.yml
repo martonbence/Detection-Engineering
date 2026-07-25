@@ -752,6 +752,16 @@ jobs:
             echo "✅ Opened: $pr_url"
           } >> "$GITHUB_STEP_SUMMARY"
 
+          item_id=$(gh project item-add 3 --owner martonbence --url "$pr_url" --format json --jq '.id')
+
+          gh project item-edit \
+            --id "$item_id" \
+            --project-id "PVT_kwHOA_8eh84BeHTL" \
+            --field-id "PVTSSF_lAHOA_8eh84BeHTLzhYj6O0" \
+            --single-select-option-id "4fdb6324"
+
+          echo "Set Project #3 Status=In review for $pr_url"
+
       - name: Report verification verdict
         shell: bash
         run: exit ${{ steps.eval.outputs.exit_code || '0' }}
