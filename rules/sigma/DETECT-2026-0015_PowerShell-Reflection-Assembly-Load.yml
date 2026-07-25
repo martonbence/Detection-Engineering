@@ -6,7 +6,7 @@ description: Detects PowerShell commands that load a .NET assembly directly into
   native memory operations via InteropServices.Marshal that indicate shellcode
   staging. This technique is used by offensive frameworks (Cobalt Strike,
   Metasploit, PowerSploit) to execute credential stealers and
-  post-exploitation modules without writing an executable to disk.
+  post-exploitation modules without writing an executable to disk
 references:
   - https://attack.mitre.org/techniques/T1059/001/
   - https://attack.mitre.org/techniques/T1620/
