@@ -183,7 +183,15 @@ def extract_sigma_body(rule: dict) -> str:
 
 
 def load_verdicts() -> dict[str, dict]:
-    """Returns {detect_id: {verdict, run_id}} from outputs/results/*/result.json."""
+    """Returns {detect_id: {verdict, run_id, run_timestamp, rule_version}}
+    from outputs/results/*/result.json.
+
+    The timestamp and the tested rule_version are carried through so the browser
+    can say WHEN a verdict was measured and WHICH version of the rule it was
+    measured against. A PASS is only evidence about the rule text that was
+    actually fired at -- if the rule changed afterwards, the verdict is a
+    statement about a rule that no longer exists.
+    """
     verdicts: dict[str, dict] = {}
     results_dir = REPO_ROOT / "outputs" / "results"
     if not results_dir.exists():
@@ -197,6 +205,8 @@ def load_verdicts() -> dict[str, dict]:
                 verdicts[detect_id] = {
                     "verdict": verdict,
                     "run_id": data.get("run_id", ""),
+                    "run_timestamp": str(data.get("run_timestamp") or ""),
+                    "rule_version": str(data.get("rule_version") or ""),
                 }
         except Exception:
             pass
@@ -376,14 +386,27 @@ def fetch_mitre_techniques(
 # is last since no attempt was even made.
 VERDICT_RANK = {"PASS": 3, "NOT_VERIFIED": 2, "FAIL": 1, "N/A": 0}
 
+# How long a verdict stays current before the rule is due for re-validation.
+# Injected into the page as @@REVIEW_DAYS@@ and evaluated in the browser, so a
+# rule crosses the line on its own without the pipeline having to re-run.
+REVIEW_INTERVAL_DAYS = 180
+
 
 def build_technique_coverage(rules_detail: list, repo: str) -> dict:
-    """Build {tech_id: {best_verdict, rules:[{id,title,verdict,url}]}} from rules."""
+    """Build {tech_id: {best_verdict, has_fail, rules:[...]}} from rules.
+
+    ``best_verdict`` is the *highest*-ranked verdict of the covering rules, so a
+    technique covered by both a PASS and a FAIL rule reads as PASS — the cell
+    colour answers "is this technique detected", not "is every rule healthy".
+    ``has_fail`` carries the second question separately: it is True when ANY
+    covering rule FAILed, so the matrix can flag a confirmed failure that the
+    roll-up would otherwise hide.
+    """
     cov: dict = {}
     for rule in rules_detail:
         for tech in rule.get("techniques") or []:
             if tech not in cov:
-                cov[tech] = {"best_verdict": "N/A", "rules": []}
+                cov[tech] = {"best_verdict": "N/A", "has_fail": False, "rules": []}
             file_path = rule.get("file_path", "")
             url = f"https://github.com/{repo}/blob/main/{file_path}" if file_path else ""
             cov[tech]["rules"].append({
@@ -393,6 +416,8 @@ def build_technique_coverage(rules_detail: list, repo: str) -> dict:
                 "url": url,
             })
             v = rule["verdict"]
+            if v == "FAIL":
+                cov[tech]["has_fail"] = True
             cur = cov[tech]["best_verdict"]
             if VERDICT_RANK.get(v, 0) > VERDICT_RANK.get(cur, 0):
                 cov[tech]["best_verdict"] = v
@@ -407,22 +432,41 @@ def render_navigator_layer(technique_coverage: dict, stats: dict) -> str:
             "PASS": "#2EA44F", "NOT_VERIFIED": "#d29922", "FAIL": "#CF222E",
         }.get(verdict, "#6E7681")
         score = {"PASS": 100, "NOT_VERIFIED": 75, "FAIL": 50}.get(verdict, 25)
-        comment = "\n".join(
-            f"{r['id']}: {r['title']} ({r['verdict']})" for r in cov["rules"]
-        )
-        techniques_out.append({
+        lines = [f"{r['id']}: {r['title']} ({r['verdict']})" for r in cov["rules"]]
+        # The colour/score stay keyed to best_verdict, so this file agrees with
+        # the in-page matrix — but that roll-up hides a failing rule behind a
+        # passing one. The official Navigator has no per-technique flag, so the
+        # warning goes where it will actually be read: first line of the comment
+        # (shown on hover) plus a metadata row in the technique sidebar.
+        failing = [r["id"] for r in cov["rules"] if r["verdict"] == "FAIL"]
+        if failing:
+            lines.insert(0, (
+                f"⚠ {len(failing)} of {len(cov['rules'])} covering rule(s) "
+                f"FAILED verification"
+            ))
+        entry = {
             "techniqueID": tech_id,
             "color": color,
-            "comment": comment,
+            "comment": "\n".join(lines),
             "enabled": True,
             "score": score,
             "showSubtechniques": True,
-        })
+        }
+        if failing:
+            entry["metadata"] = [
+                {"name": "Failing rules", "value": ", ".join(failing)},
+            ]
+        techniques_out.append(entry)
     layer = {
         "name": "Detection Engineering Coverage",
         "versions": {"attack": "19", "navigator": "4.9.1", "layer": "4.5"},
         "domain": "enterprise-attack",
-        "description": f"Auto-generated detection coverage. {stats['generated_at'][:19]} UTC.",
+        "description": (
+            f"Auto-generated detection coverage. {stats['generated_at'][:19]} UTC. "
+            "Colour is the best verdict among the rules covering a technique; "
+            "a ⚠ in the comment marks techniques where a covering rule failed "
+            "verification despite that."
+        ),
         "filters": {"platforms": [
             "Windows", "Linux", "macOS", "Network", "PRE", "Containers",
             "Office 365", "SaaS", "Google Workspace", "IaaS", "Azure AD",
@@ -480,6 +524,10 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
             c["best_verdict"], "nv"
         )
 
+    def fcls(tid: str) -> str:
+        c = technique_coverage.get(tid)
+        return " fail-flag" if c and c.get("has_fail") else ""
+
     def rattr(tid: str) -> str:
         c = technique_coverage.get(tid)
         if not c:
@@ -527,8 +575,24 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
             badge_div = ("<div class=\"tc-foot\">" + badge + "</div>") if badge else ""
             cls = vcls(tid)
             has_cov = " has-cov" if (cls == "uncov" and sub_covered > 0) else ""
+            # A failing rule usually maps to a SUB-technique, and sub-techniques
+            # are collapsed by default — so the flag has to climb to the parent
+            # or the failure stays invisible on the matrix. Same reasoning as
+            # has-cov above, which surfaces sub-level coverage on the parent.
+            sub_fail = any(
+                technique_coverage.get(s["id"], {}).get("has_fail") for s in subs
+            )
+            fail_cls = " fail-flag" if (fcls(tid) or sub_fail) else ""
+            # Parents that only inherited the flag have no rules of their own,
+            # so the hover tooltip (bound to [data-rules]) never fires for them;
+            # a native title keeps the marker from being unexplained.
+            inherit_tip = (
+                " title=\"A sub-technique rule failed verification\""
+                if sub_fail and tid not in technique_coverage else ""
+            )
             cells.append(
-                "<div class=\"tc " + cls + has_cov + "\" data-id=\"" + tid + "\"" + rattr(tid) + ">"
+                "<div class=\"tc " + cls + has_cov + fail_cls + "\" data-id=\"" + tid + "\""
+                + inherit_tip + rattr(tid) + ">"
                 "<div class=\"tc-row1\">"
                 "<a class=\"ti\" href=\"" + tech_url + "\" target=\"_blank\">" + tid + "</a>"
                 + expand +
@@ -544,7 +608,7 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
                 sname = _html.escape(sub["name"])
                 surl = "https://attack.mitre.org/techniques/" + tid + "/" + suffix + "/"
                 cells.append(
-                    "<div class=\"tc sub " + vcls(sid) + " subs-" + tid + "\""
+                    "<div class=\"tc sub " + vcls(sid) + fcls(sid) + " subs-" + tid + "\""
                     " style=\"display:none\" data-id=\"" + sid + "\"" + rattr(sid) + ">"
                     "<div class=\"tc-row1\">"
                     "<a class=\"ti\" href=\"" + surl + "\" target=\"_blank\">." + suffix + "</a>"
@@ -814,6 +878,8 @@ def generate_stats() -> dict:
         v_data = verdicts.get(detect_id, {})
         verdict = v_data.get("verdict", "N/A")
         run_id = v_data.get("run_id", "")
+        verdict_at = v_data.get("run_timestamp", "")
+        verdict_rule_version = v_data.get("rule_version", "")
         if verdict == "PASS":
             verified_pass += 1
         elif verdict == "FAIL":
@@ -839,6 +905,8 @@ def generate_stats() -> dict:
             "source": source,
             "verdict": verdict,
             "run_id": run_id,
+            "verdict_at": verdict_at,
+            "verdict_rule_version": verdict_rule_version,
             "tactics": tactics,
             "techniques": techniques,
             "file_path": rule.get("_file_path", ""),
@@ -1000,7 +1068,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Detection Engineering Dashboard</title>
+  <title>Detection Engineer Console</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1049,7 +1117,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
     /* Unified heading/title typography — every section header, card title and
        panel title shares the one UI sans family so headings read as a single
-       system across the Rule Tracker, Navigator and Dashboards. Code-like
+       system across the Rule Library, Navigator and Dashboards. Code-like
        identifiers (rule IDs, technique IDs, metadata values) intentionally
        keep the mono --font and are not covered here. */
     .strip-title, .dash-section-title, .chart-card-title, .gauge-overlay-title,
@@ -1152,6 +1220,10 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .fc-severity { --fc:#f778ba; --fc-bg:rgba(247,120,186,0.12); --fc-br:rgba(247,120,186,0.38); }
     .fc-status   { --fc:#e3b341; --fc-bg:rgba(227,179,65,0.12);  --fc-br:rgba(227,179,65,0.38); }
     .fc-verdict  { --fc:#bc8cff; --fc-bg:rgba(188,140,255,0.12); --fc-br:rgba(188,140,255,0.38); }
+    /* Teal is the one hue the facet rail didn't already use — white, red,
+       orange, green, pink, amber, purple and periwinkle are all taken, and an
+       amber Review would have collided with Status and the site accent. */
+    .fc-review   { --fc:#2dd4bf; --fc-bg:rgba(45,212,191,0.12);  --fc-br:rgba(45,212,191,0.38); }
     .fc-mitre    { --fc:#8f95d6; --fc-bg:rgba(143,149,214,0.12); --fc-br:rgba(143,149,214,0.38); }
 
     .fc-sev-critical      { --fc:#e05575; --fc-bg:rgba(128,20,50,0.28);  --fc-br:rgba(164,19,60,0.55); }
@@ -1510,6 +1582,13 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .export-menu-item:hover { background: rgba(233,220,196,0.10); }
     .export-menu-item .ext { font-family: var(--font); font-size: 11px; font-weight: 700; color: #ffaa00; min-width: 34px; }
     .export-menu-item .desc { font-size: 11px; color: var(--text3); }
+    /* The ATT&CK layer entry is a real link (the file is served from the repo,
+       not built in the browser like the exports above it), so it has to opt out
+       of link styling to sit in the same list. */
+    a.export-menu-item { text-decoration: none; color: inherit; }
+    a.export-menu-item:hover { text-decoration: none; }
+    /* A second head mid-list needs its own top rule to read as a divider. */
+    .export-menu-item + .export-menu-head { border-top: 1px solid var(--border); }
 
     .table-wrap {
       background: var(--bg2);
@@ -1675,6 +1754,10 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .no-results svg { width: 34px; height: 34px; stroke: var(--text3); opacity: 0.6; margin: 0 auto 14px; display: block; }
     .no-results-title { font-size: 14px; font-weight: 600; color: var(--text2); margin-bottom: 4px; }
     .no-results-sub { font-size: 12px; color: var(--text3); }
+    /* Navigator's variant adds a way out — with every column hidden there is no
+       longer anything on screen to click to undo the filtering. */
+    .nav-clear-btn { margin-top: 14px; background: none; border: 1px solid var(--border2); color: var(--text2); border-radius: var(--radius); padding: 6px 14px; font-size: 12px; font-weight: 600; font-family: var(--font-ui); cursor: pointer; transition: all 0.12s; }
+    .nav-clear-btn:hover { border-color: #ffaa00; color: var(--text); }
 
     /* ── Resizable columns ── */
     .col-resizer { position: absolute; right: 0; top: 0; bottom: 0; width: 8px; cursor: col-resize; user-select: none; z-index: 10; display: flex; align-items: center; justify-content: center; }
@@ -1821,6 +1904,16 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .drawer-cta.verify-fail { border-color: #f85149; color: #f85149; }
     .drawer-cta.verify-fail:hover { background: rgba(248,81,73,0.13); }
 
+    /* When the verdict was measured, and against which version of the rule. A
+       verdict is evidence about the rule text that was actually fired at, and
+       nothing else — these two lines are what turns the badge above from a
+       claim into a dated measurement. Deliberately muted, not a warning: see
+       the note on version drift where this is built. */
+    .verify-meta { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; font-family: var(--font); font-size: 11px; color: var(--text3); line-height: 1.5; }
+    .verify-meta .warn { color: #d29922; }
+    /* Review-due marker next to a verdict badge in the table. */
+    .review-due { color: #d29922; font-size: 8px; margin-left: 5px; vertical-align: middle; cursor: help; }
+
     .code-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 
     .rule-body-pre {
@@ -1869,6 +1962,27 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     }
     .chart-card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius-lg); padding:20px; display:flex; flex-direction:column; gap:12px; }
     .chart-card-title { font-size:13px; font-weight:700; color:var(--text); letter-spacing:-0.1px; }
+    /* Every other number on this tab is a property of the rules themselves and
+       only moves when the pipeline runs; verification AGE moves on its own. The
+       subtitle says so, because the panel's "Generated …" stamp does not apply
+       to this card. */
+    .chart-card-sub { font-size:11px; color:var(--text3); line-height:1.45; margin-top:-6px; }
+    /* Second row of the Rule Overview section. Its own grid so the four cards
+       above keep exactly the track sizing they had before this card existed.
+       Two fixed tracks, not the auto-fit above: auto-fit COLLAPSES its empty
+       tracks, so a lone card in such a grid stretches to the full row no matter
+       what it spans. Two tracks make this card exactly as wide as Rule Type +
+       Rules by Severity plus the gap between them.
+
+       minmax(0, …) rather than a bare 1fr: a bare 1fr floors at min-content, so
+       the canvas Chart.js sized to the card would hold the track open at its
+       old width instead of shrinking with the viewport. */
+    .dash-section-grid-row2 { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 16px; }
+    @media (max-width: 1100px) { .dash-section-grid-row2 { grid-template-columns: 1fr; } }
+    /* Compound selector on purpose: the generic .chart-card-canvas-wrap 300px
+       rule is declared further down and would otherwise win on source order,
+       leaving four very fat bars. */
+    .chart-card-canvas-wrap.age-canvas-wrap { height:200px; }
     .chart-card-canvas-wrap { position:relative; height:300px; }
     .gauge-canvas-wrap { height:260px; }
     .gauge-overlay { position:absolute; left:50%; top:62%; transform:translate(-50%, -12%); width:70%; text-align:center; pointer-events:none; }
@@ -1943,7 +2057,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
     /* Trend range bar — one shared row above both trend charts (a filter row
        scopes everything below it, never lives per-card/per-chart). Styled to
-       match the Rule Tracker's Export button (.export-btn) exactly — same
+       match the Rule Library's Export button (.export-btn) exactly — same
        chrome family, so it reads as "a control of this dashboard" rather
        than a one-off widget: transparent fill, var(--border2) hairline,
        var(--radius) corners, gold hover/selected state. A year <select>
@@ -1968,8 +2082,9 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
     /* MITRE Navigator */
     .nav-wrap { background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:16px; margin:16px 20px; }
-    .nav-legend { display:flex; gap:16px; margin-bottom:12px; font-size:12px; align-items:center; flex-wrap:wrap; }
-    .nav-legend-item { display:flex; align-items:center; gap:5px; }
+    /* .nav-legend-dot / -count are the Verdict dropdown's swatch and count; the
+       inline legend row they were named for no longer exists (its job is the
+       Legend dialog now). */
     .nav-legend-dot { width:12px; height:12px; border-radius:2px; flex-shrink:0; }
     .nav-legend-count { font-family:var(--font); font-size:11px; font-weight:700; color:var(--text2); }
     .nav-import { margin-left:auto; font-size:12px; }
@@ -1991,6 +2106,11 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .nav-qf:last-child { border-right:none; }
     .nav-qf:hover { color:var(--text); background:rgba(255,170,0,.08); }
     .nav-qf.active { background:#ffaa00; color:#111; }
+    /* Coverage counts live on the buttons themselves — "Not covered" is no
+       longer a Verdict entry, so this is the only place the gap total shows. */
+    .nav-qf-count { font-family:var(--font); font-size:11px; font-weight:700; color:var(--text3); margin-left:6px; }
+    .nav-qf.active .nav-qf-count { color:rgba(17,17,17,0.72); }
+    .nav-qf-count:empty { display:none; }
     #nav-export-wrap { margin-left:auto; }
     /* Verdict filter dropdown */
     .nav-verdict-wrap { position:relative; }
@@ -2052,13 +2172,26 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .tc.sub.notver::after { background:#d29922; }
     .tc.sub.fail::after   { background:#f85149; }
     .tc.sub.nv::after     { background:#6e7681; }
+    /* Confirmed-failure flag. The cell keeps its best-verdict colour (a PASS
+       rule really does cover the technique), but a red corner triangle marks
+       that at least one covering rule FAILed — otherwise the roll-up to the
+       best verdict would hide the failure completely. Cells whose best verdict
+       already IS fail carry the red rail, so they skip the redundant corner. */
+    .tc.fail-flag:not(.fail)::before {
+      content:''; position:absolute; top:0; right:0; width:0; height:0;
+      border-style:solid; border-width:0 8px 8px 0;
+      border-color:transparent #f85149 transparent transparent;
+      pointer-events:none; z-index:2;
+    }
+    .tc.sub.fail-flag:not(.fail)::before { border-width:0 6px 6px 0; }
+    .tc.highlighted.fail-flag:not(.fail)::before { border-right-color:#b62324; }
     /* On hover the detail (hamburger) button occupies the right edge, so fade
        the verdict dot out to avoid the two colliding — the left rail still
        conveys the verdict. */
     .tc.sub[data-rules]:hover::after { opacity:0; }
     .tc.sub   { min-height:28px; padding-left:12px; }
     .tc[data-rules] { cursor:pointer; }
-    /* Hover feedback on any technique/sub-technique mirrors the Rule Tracker's
+    /* Hover feedback on any technique/sub-technique mirrors the Rule Library's
        warm row tint + subtle border (covered or not). */
     .tc[data-id]:hover { box-shadow:inset 0 0 0 1px rgba(233,220,196,0.32), inset 0 0 0 999px rgba(233,220,196,0.10); }
     /* Click cross-highlight paints equivalent cells with the tactic-header amber */
@@ -2087,14 +2220,13 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .sub-group { border:1.5px solid rgba(255,170,0,.65); border-top:none; border-radius:0 0 3px 3px; display:flex; flex-direction:column; gap:1px; padding:0 1px 1px; margin-top:-1px; }
     .tc.tc-hidden { display:none !important; }
     .tc-col.tc-col-hidden { display:none !important; }
-    .nav-legend-item[data-filter] { cursor:pointer; border-radius:4px; padding:2px 6px; transition:background .15s; }
-    .nav-legend-item[data-filter]:hover { background:rgba(255,170,0,.08); }
-    .nav-legend-item.filter-active { background:rgba(255,170,0,.18); outline:1px solid rgba(255,170,0,.55); }
-    .nav-legend-item[data-filter] .nav-legend-dot { position:relative; }
-    .nav-legend-item.filter-active .nav-legend-dot::after { content:'✓'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; font-size:9px; font-weight:900; }
+    /* Empty result set: drop the collapsed matrix and its scroll mirror so the
+       empty state stands alone instead of sitting under two stray slivers. */
+    .nav-wrap.nav-empty .att-matrix,
+    .nav-wrap.nav-empty .nav-scroll-mirror { display:none; }
     #expand-all-btn { background:none; border:1px solid var(--border); color:var(--text2); border-radius:5px; padding:3px 10px; font-size:12px; cursor:pointer; white-space:nowrap; }
     #expand-all-btn:hover { color:var(--text); border-color:#FFAA00; }
-    /* Detail panel — mirrors the Rule Tracker drawer's look (tokens, slide-in,
+    /* Detail panel — mirrors the Rule Library drawer's look (tokens, slide-in,
        card-style rule rows) so the two views feel like one component. */
     #detail-panel { position:fixed; right:0; top:0; bottom:0; width:340px; max-width:92vw; background:var(--bg2); border-left:1px solid var(--border); z-index:202; display:flex; flex-direction:column; box-shadow:-4px 0 24px rgba(0,0,0,.5); transform:translateX(100%); transition:transform 0.2s ease; }
     #detail-panel.open { transform:translateX(0); }
@@ -2152,20 +2284,238 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .trend-tip-primary { font-weight:700; font-size:13px; color:#e6edf3; }
     .trend-tip-secondary { font-size:10px; color:#8b949e; margin-top:2px; }
 
+    /* ── Legend & help ──────────────────────────────────────────────────────
+       One shared dialog for all three tabs. The page carries a fair amount of
+       unlabelled visual language (verdict rails, the amber sub-coverage tint,
+       the red failure corner); rather than fitting a legend into each tab's
+       toolbar, everything lives behind one button that is always in the same
+       place. Swatches below re-declare the matrix colours instead of reusing
+       .tc — a legend that silently drifts from the thing it explains is worse
+       than none, so the two blocks are meant to be edited together. */
+    .info-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: none; border: 1px solid var(--border2); color: var(--text2);
+      border-radius: var(--radius); padding: 5px 11px;
+      font-size: 12px; font-weight: 600; font-family: var(--font-ui);
+      cursor: pointer; flex-shrink: 0; white-space: nowrap; transition: all 0.12s;
+    }
+    .info-btn:hover, .info-btn.active { border-color: #ffaa00; color: var(--text); }
+    .info-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; flex-shrink: 0; }
+
+    .info-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 300; }
+    .info-backdrop.open { display: block; }
+    .info-modal {
+      display: none; position: fixed; z-index: 301;
+      left: 50%; top: 50%; transform: translate(-50%, -50%);
+      width: 780px; max-width: 94vw; max-height: 84vh;
+      background: var(--bg2); border: 1px solid var(--border2);
+      border-radius: var(--radius-lg); box-shadow: 0 18px 50px rgba(0,0,0,0.6);
+      flex-direction: column; overflow: hidden;
+    }
+    .info-modal.open { display: flex; }
+    .info-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 15px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .info-head-title { font-family: var(--font-ui); font-size: 14px; font-weight: 700; color: var(--text); }
+    .info-close { background: none; border: none; color: var(--text3); font-size: 17px; line-height: 1; cursor: pointer; padding: 2px 6px; }
+    .info-close:hover { color: var(--text); }
+    .info-body { padding: 18px 20px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 22px; }
+    .info-sec-title {
+      font-family: var(--font-ui); font-size: 11px; font-weight: 700;
+      letter-spacing: 0.6px; text-transform: uppercase; color: #ffaa00; margin-bottom: 11px;
+    }
+    .info-grid { display: grid; grid-template-columns: 128px 1fr; gap: 9px 14px; align-items: start; font-size: 12px; color: var(--text2); line-height: 1.5; }
+    .info-grid .k { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+    .info-grid .k .badge { margin: 0; }
+    .info-grid .kbd { font-size: 10px; }
+    .info-note { font-size: 12px; color: var(--text2); line-height: 1.6; }
+    .info-note + .info-note { margin-top: 9px; }
+    .info-note code { font-family: var(--font); font-size: 11px; color: var(--text); background: var(--bg3); border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; }
+
+    /* Matrix swatches — mirror of the .tc rules further up. */
+    .sw { display: inline-block; position: relative; width: 40px; height: 17px; border-radius: 2px; background: #21262d; flex-shrink: 0; }
+    .sw-pass   { background: rgba(46,164,79,.11);   border-left: 3px solid #2ea44f; }
+    .sw-notver { background: rgba(210,153,34,.11);  border-left: 3px solid #d29922; }
+    .sw-fail   { background: rgba(248,81,73,.11);   border-left: 3px solid #f85149; }
+    .sw-nv     { background: rgba(110,118,129,.14); border-left: 3px solid #6e7681; }
+    .sw-uncov  { background: #1c2128; border: 1px solid #30363d; }
+    .sw-hascov { background: rgba(255,170,0,.13); border-left: 2px solid rgba(255,170,0,.55); }
+    .sw-flag::before {
+      content: ''; position: absolute; top: 0; right: 0; width: 0; height: 0;
+      border-style: solid; border-width: 0 8px 8px 0;
+      border-color: transparent #f85149 transparent transparent;
+    }
+    .sw-dot::after { content: ''; position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: #2ea44f; }
+
+    /* ── Small screens ──────────────────────────────────────────────────────
+       The desktop layout is a fixed 250px filter rail next to a 10-column
+       table; both have to give way on a phone. The rail collapses behind a
+       toggle that only exists here, and the table sheds columns in order of
+       signal-per-pixel — identity, severity and verdict are the last to go, so
+       the narrowest view still answers "which rule, how bad, does it work".
+       Nothing is hidden that isn't reachable another way: every dropped column
+       is still a filter facet, and the row drawer shows the full record. */
+    .filters-toggle {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      background: none;
+      border: 1px solid var(--border2);
+      color: var(--text2);
+      border-radius: var(--radius);
+      padding: 7px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: var(--font-ui);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .filters-toggle.active { border-color: #ffaa00; color: var(--text); }
+
+    @media (max-width: 900px) {
+      .stats-strip { height:auto; min-height:48px; padding:8px 12px; flex-wrap:wrap; }
+      .strip-brand { flex-wrap:wrap; row-gap:8px; }
+      .strip-sep { display:none; }
+      .tab-bar { flex-wrap:wrap; }
+
+      .main { flex-direction:column; }
+      .filters-panel {
+        display:none;
+        width:100%; min-width:0;
+        flex:0 0 auto;
+        max-height:55vh;
+        border-right:none;
+        border-bottom:1px solid var(--border);
+      }
+      .filters-panel.mobile-open { display:flex; }
+      .filters-toggle { display:inline-flex; }
+
+      .content { padding:0 12px 16px; }
+      .search-row { flex-wrap:wrap; }
+      .kbd-hint { display:none; }
+      .info-btn-label { display:none; }
+      .info-btn { padding:5px 8px; }
+
+      /* Category · Product · Service — all three are filter facets too. */
+      thead th:nth-child(3), tbody td:nth-child(3),
+      thead th:nth-child(4), tbody td:nth-child(4),
+      thead th:nth-child(5), tbody td:nth-child(5) { display:none; }
+
+      .drawer { width:100%; max-width:100%; }
+
+      .nav-toolbar { gap:8px; }
+      #nav-export-wrap { margin-left:0; }
+      .tc-col { flex:0 0 145px; }
+    }
+
+    @media (max-width: 640px) {
+      /* Tactic · Technique · Status — the drawer carries the full ATT&CK map. */
+      thead th:nth-child(6), tbody td:nth-child(6),
+      thead th:nth-child(7), tbody td:nth-child(7),
+      thead th:nth-child(9), tbody td:nth-child(9) { display:none; }
+
+      .dash-section { padding:12px; }
+      .chart-card { padding:14px; }
+      .chart-card-canvas-wrap { height:240px; }
+    }
+
   </style>
 </head>
 <body>
   <div class="stats-strip">
     <div class="strip-brand">
-      <span class="strip-title">Detection Rule Tracker</span>
+      <span class="strip-title">Detection Engineer Console</span>
       <span class="strip-sep"></span>
       <span class="strip-total" id="strip-total"></span>
       <span class="strip-sep"></span>
       <div class="tab-bar">
-        <button class="tab-btn active" data-tab="rules">Rule Tracker</button>
+        <button class="tab-btn active" data-tab="rules">Rule Library</button>
         <button class="tab-btn" data-tab="navigator">MITRE Navigator</button>
         <button class="tab-btn" data-tab="dashboards">Dashboards</button>
       </div>
+    </div>
+    <button class="info-btn" id="info-btn" onclick="toggleInfo()" aria-haspopup="dialog" aria-expanded="false" title="Legend and how this page works">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="11"/><line x1="12" y1="8" x2="12" y2="8.01"/></svg>
+      <span class="info-btn-label">Legend</span>
+    </button>
+  </div>
+
+  <div class="info-backdrop" id="info-backdrop" onclick="closeInfo()"></div>
+  <div class="info-modal" id="info-modal" role="dialog" aria-modal="true" aria-labelledby="info-modal-title">
+    <div class="info-head">
+      <span class="info-head-title" id="info-modal-title">Legend &amp; how this page works</span>
+      <button class="info-close" onclick="closeInfo()" aria-label="Close">&#10005;</button>
+    </div>
+    <div class="info-body">
+
+      <div>
+        <div class="info-sec-title">Verdicts — what the CI pipeline found</div>
+        <div class="info-grid">
+          <span class="k"><span class="badge verdict-pass">PASS</span></span>
+          <span>The Atomic Red Team test ran and the Splunk detection fired.</span>
+          <span class="k"><span class="badge verdict-fail">FAIL</span></span>
+          <span>The test ran to completion and no alert fired — a confirmed negative.</span>
+          <span class="k"><span class="badge verdict-notverified">NOT VERIFIED</span></span>
+          <span>Deployed and attempted, but the test didn't complete in time. Unknown, not broken.</span>
+          <span class="k"><span class="badge verdict-na">N/A</span></span>
+          <span>Never tested — no test result exists for this rule.</span>
+        </div>
+        <div class="info-grid" style="margin-top:9px">
+          <span class="k"><span class="badge verdict-pass">PASS</span><span class="review-due">&#9679;</span></span>
+          <span>The verdict is older than @@REVIEW_DAYS@@ days — the rule is due for re-validation. The age is measured against your clock as you read this, so a rule crosses the line on its own between pipeline runs.</span>
+        </div>
+        <div class="info-note" style="margin-top:11px">A verdict badge links to the GitHub Actions run it came from, and the rule's drawer shows when it was last tested.</div>
+      </div>
+
+      <div>
+        <div class="info-sec-title">Rule Library</div>
+        <div class="info-grid">
+          <span class="k">Severity</span>
+          <span>The Sigma rule's own <code>level</code> — critical, high, medium, low.</span>
+          <span class="k">Status</span>
+          <span>The Sigma <code>status</code> field: stable, test, experimental or deprecated. It describes the rule's maturity, not whether it works — that's the verdict.</span>
+          <span class="k">Row</span>
+          <span>Click any row to open the full record: metadata, ATT&amp;CK mapping, references, the verification run, and the complete Sigma YAML or SPL with a copy button.</span>
+          <span class="k">Review</span>
+          <span>The <strong>Review</strong> filter on the left splits the library into <em>Up to date</em> and <em>Overdue</em> by whether a rule has been verified within the last @@REVIEW_DAYS@@ days. It is evaluated against your clock as you read, not baked in when the page was built.</span>
+          <span class="k">Columns</span>
+          <span>Click a header to sort; drag its right edge to resize.</span>
+          <span class="k">Keyboard</span>
+          <span><span class="kbd">/</span> search &nbsp; <span class="kbd">&uarr;&darr;</span> move &nbsp; <span class="kbd">&crarr;</span> open &nbsp; <span class="kbd">Esc</span> close</span>
+        </div>
+      </div>
+
+      <div>
+        <div class="info-sec-title">MITRE Navigator</div>
+        <div class="info-grid">
+          <span class="k"><span class="sw sw-pass"></span></span>
+          <span>Covered technique. The coloured left rail is the <em>best</em> verdict among the rules mapped to it — green PASS, amber NOT VERIFIED, red FAIL, grey N/A.</span>
+          <span class="k"><span class="sw sw-pass sw-dot"></span></span>
+          <span>A sub-technique carries the same verdict as a dot instead of a tint. Parent techniques get the tint.</span>
+          <span class="k"><span class="sw sw-uncov"></span></span>
+          <span>No rule maps to this technique — a gap.</span>
+          <span class="k"><span class="sw sw-uncov sw-hascov"></span></span>
+          <span>The technique itself has no rule, but one or more of its sub-techniques does. The <code>n/m</code> badge counts them; expand the cell to see which.</span>
+          <span class="k"><span class="sw sw-pass sw-flag"></span></span>
+          <span>At least one rule covering this technique <strong>FAILed</strong>, even though the cell shows a better verdict. On a parent cell the flag can be inherited from a sub-technique. Hover the cell for the rule list.</span>
+        </div>
+        <div class="info-note" style="margin-top:12px"><strong>Verdict</strong> and <strong>Covered / Gaps</strong> answer different questions: Covered/Gaps is whether a detection exists at all, Verdict is how the existing ones performed. They combine, so Gaps plus any verdict is deliberately empty.</div>
+        <div class="info-note">Hover a cell for its rules, click <strong>&#9776;</strong> for the detail panel, and use the tactic header caret to collapse a column. <strong>Export view</strong> writes out exactly what the current filters show.</div>
+        <div class="info-note">The same menu's <strong>ATT&amp;CK Navigator JSON</strong> is a different thing: the full coverage as a standard layer file. Load it into the official MITRE Navigator (<em>Open Existing Layer &rarr; Load from URL</em>) to compare this coverage against another layer — a threat actor's technique set, a red team's results, an earlier snapshot. Techniques whose covering rules include a failure are marked <code>&#9888;</code> there too.</div>
+      </div>
+
+      <div>
+        <div class="info-sec-title">Dashboards</div>
+        <div class="info-note"><strong>Rule Overview</strong> breaks the library down by type, severity, status and verification outcome. <strong>MITRE ATT&amp;CK Alignment</strong> shows overall technique coverage and how the rules spread across tactics. <strong>Trends Over Time</strong> tracks coverage and rule count from the repo's own history — one data point per day the pipeline ran, so gaps in the line are days with no run.</div>
+        <div class="info-note">Legend entries are clickable: they toggle their series in and out of the chart.</div>
+      </div>
+
+      <div>
+        <div class="info-sec-title">Sharing a view</div>
+        <div class="info-note">The address bar tracks the active tab, every filter, the search text, the sort order, the Navigator's own filters and any open technique panel. Copy the URL and whoever opens it lands on exactly what you were looking at.</div>
+      </div>
+
     </div>
   </div>
 
@@ -2175,6 +2525,10 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       <div class="filters-panel" id="filters-panel"></div>
       <div class="content">
         <div class="search-row">
+          <button class="filters-toggle" id="filters-toggle" onclick="toggleFiltersPanel()" aria-expanded="false" aria-controls="filters-panel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            Filters
+          </button>
           <div class="search-input-wrap">
             <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input class="search-input" id="search-input" type="text" placeholder="Search title, description, ID, product…" oninput="onSearchInput()">
@@ -2254,12 +2608,11 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
             <div class="nav-verdict-item" data-filter="notver"><span class="nav-legend-dot" style="background:#21262d;border-left:3px solid #d29922"></span><span class="lbl">NOT VERIFIED</span><span class="nav-legend-count" data-count="notver"></span></div>
             <div class="nav-verdict-item" data-filter="fail"><span class="nav-legend-dot" style="background:#21262d;border-left:3px solid #CF222E"></span><span class="lbl">FAIL</span><span class="nav-legend-count" data-count="fail"></span></div>
             <div class="nav-verdict-item" data-filter="nv"><span class="nav-legend-dot" style="background:#21262d;border-left:3px solid #6e7681"></span><span class="lbl">N/A</span><span class="nav-legend-count" data-count="nv"></span></div>
-            <div class="nav-verdict-item" data-filter="uncov"><span class="nav-legend-dot" style="background:#1c2128;border:1px solid #30363d"></span><span class="lbl">Not covered</span><span class="nav-legend-count" data-count="uncov"></span></div>
           </div>
         </div>
         <div class="nav-quickfilters">
-          <button class="nav-qf" id="nav-qf-covered" onclick="toggleNavScope('covered')">Covered</button>
-          <button class="nav-qf" id="nav-qf-gaps" onclick="toggleNavScope('gaps')">Gaps</button>
+          <button class="nav-qf" id="nav-qf-covered" onclick="toggleNavScope('covered')">Covered<span class="nav-qf-count" data-count="covered"></span></button>
+          <button class="nav-qf" id="nav-qf-gaps" onclick="toggleNavScope('gaps')">Gaps<span class="nav-qf-count" data-count="uncov"></span></button>
         </div>
         <span class="nav-tb-sep"></span>
         <button id="expand-all-btn">&#9660; Expand All</button>
@@ -2273,10 +2626,18 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
             <div class="export-menu-item" onclick="exportNavView('csv')"><span class="ext">CSV</span><span class="desc">Spreadsheet</span></div>
             <div class="export-menu-item" onclick="exportNavView('json')"><span class="ext">JSON</span><span class="desc">Full metadata</span></div>
             <div class="export-menu-item" onclick="exportNavView('md')"><span class="ext">MD</span><span class="desc">Markdown table</span></div>
+            <div class="export-menu-head">Full coverage</div>
+            <a class="export-menu-item" href="@@LAYER_URL@@" target="_blank" rel="noopener" title="Load in the official ATT&amp;CK Navigator via Open Existing Layer &rarr; Load from URL"><span class="ext">LAYER</span><span class="desc">ATT&amp;CK Navigator JSON</span></a>
           </div>
         </div>
       </div>
       @@MATRIX_HTML@@
+      <div id="nav-no-results" class="no-results" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/><line x1="7" y1="10" x2="13" y2="10"/></svg>
+        <div class="no-results-title">No matching techniques</div>
+        <div class="no-results-sub">Every tactic column is filtered out by the current verdict, scope or search.</div>
+        <button class="nav-clear-btn" onclick="clearNavFilters()">Clear Navigator filters</button>
+      </div>
     </div>
   </div>
 
@@ -2326,6 +2687,17 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
               </div>
             </div>
             <div class="verify-legend" id="verify-legend"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Own grid row: dropping this card into the four-up grid above changed
+           the track sizing of the four cards that were already there. -->
+      <div class="dash-section-grid dash-section-grid-4 dash-section-grid-row2">
+        <div class="chart-card">
+          <div class="chart-card-title">Verification Age</div>
+          <div class="chart-card-sub">How long ago each rule was last verified &middot; measured as of now, not at build time</div>
+          <div class="chart-card-canvas-wrap age-canvas-wrap">
+            <canvas id="chart-age" aria-label="Horizontal bar chart showing how many rules fall into each verification-age band, up to and beyond the @@REVIEW_DAYS@@-day review interval" role="img"></canvas>
           </div>
         </div>
       </div>
@@ -2414,7 +2786,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2/dist/chartjs-plugin-datalabels.min.js"></script>
   <script>
   const RULES = @@RULES_JSON@@;
-  // Lookup so the Navigator can open the same in-page drawer the Rule Tracker
+  // Lookup so the Navigator can open the same in-page drawer the Rule Library
   // uses (openDrawer takes a RULES index), instead of linking out to GitHub.
   const RULE_IDX_BY_ID = {};
   RULES.forEach(function(r, i) { RULE_IDX_BY_ID[r.id] = i; });
@@ -2554,7 +2926,11 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
     // Shared hover tooltip for Severity + Tactic charts — same box, same layout:
     // title / "N pcs" (same size as title) / "(pct%)" smaller below.
-    function externalChartTip(ctx, total) {
+    // opts.hideCount drops the "N pcs" line for charts that already print the
+    // count as a datalabel on the mark itself — repeating it in the tooltip is
+    // noise. The percentage then takes over the primary row's styling so the
+    // tooltip doesn't end on a small grey aside.
+    function externalChartTip(ctx, total, opts) {
       const tip = document.getElementById('chart-tip');
       const t = ctx.tooltip;
       if (!t || t.opacity === 0) { tip.style.display = 'none'; return; }
@@ -2562,10 +2938,11 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       if (dp) {
         const value = dp.raw;
         const pct = total > 0 ? Math.round((value / total) * 100) : 0;
-        tip.innerHTML =
-          '<div class="sev-tip-title">' + dp.label + '</div>' +
-          '<div class="sev-tip-count">' + value + ' pcs</div>' +
-          '<div class="sev-tip-pct">(' + pct + '%)</div>';
+        const body = (opts && opts.hideCount)
+          ? '<div class="sev-tip-count">' + pct + '% of all rules</div>'
+          : '<div class="sev-tip-count">' + value + ' pcs</div>' +
+            '<div class="sev-tip-pct">(' + pct + '%)</div>';
+        tip.innerHTML = '<div class="sev-tip-title">' + dp.label + '</div>' + body;
       }
       const rect = ctx.chart.canvas.getBoundingClientRect();
       tip.style.display = 'block';
@@ -2614,6 +2991,71 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
         item.classList.toggle('off', !sevChart.getDataVisibility(i));
       });
       sevLegendEl.appendChild(item);
+    });
+
+    // Verification Age — horizontal bar.
+    //
+    // One flat accent orange for every band, matching the tactic bar chart
+    // below. The bands are ordered (0–45 … 180+), and that order is carried by
+    // the axis alone rather than by a colour ramp. "Never tested" keeps a
+    // neutral grey: it is an absence of data, not a very large age, and only
+    // appears when it is non-empty.
+    //
+    // Every edge is derived from REVIEW_INTERVAL_DAYS. Hard-coding 45/90/180
+    // would leave the chart quietly lying the day that constant changes.
+    const ageQuarter = Math.round(REVIEW_INTERVAL_DAYS / 4);
+    const ageHalf = Math.round(REVIEW_INTERVAL_DAYS / 2);
+    const ageBands = [
+      { label: '0–' + ageQuarter + ' days', max: ageQuarter },
+      { label: ageQuarter + '–' + ageHalf + ' days', max: ageHalf },
+      { label: ageHalf + '–' + REVIEW_INTERVAL_DAYS + ' days', max: REVIEW_INTERVAL_DAYS },
+      { label: REVIEW_INTERVAL_DAYS + '+ days', max: Infinity },
+    ];
+    const ageCounts = ageBands.map(() => 0);
+    let neverTested = 0;
+    RULES.forEach(r => {
+      const days = verdictAgeDays(r.verdictAt);
+      if (days === null) { neverTested++; return; }
+      ageCounts[ageBands.findIndex(b => days < b.max)]++;
+    });
+    const ageRows = ageBands.map((b, i) => ({ label: b.label, count: ageCounts[i], color: '#FFAA00', hover: '#ffc94d' }));
+    if (neverTested > 0) {
+      ageRows.push({ label: 'Never tested', count: neverTested, color: '#6e7681', hover: '#8b949e' });
+    }
+    const ageMax = Math.max.apply(null, ageRows.map(r => r.count));
+
+    new Chart(document.getElementById('chart-age'), {
+      type: 'bar',
+      data: {
+        labels: ageRows.map(r => r.label),
+        datasets: [{
+          data: ageRows.map(r => r.count),
+          backgroundColor: ageRows.map(r => r.color),
+          hoverBackgroundColor: ageRows.map(r => r.hover),
+          borderColor: 'black',
+          borderWidth: 0.5,
+          borderRadius: 4,
+        }],
+      },
+      options: {
+        indexAxis: 'y',
+        maintainAspectRatio: false,
+        animation,
+        layout: { padding: { right: 24 } },
+        // Thinner than the tactic chart's bars: only 4–5 rows share this box,
+        // so the default fill would read as slabs rather than marks.
+        barPercentage: 0.62,
+        categoryPercentage: 0.8,
+        scales: {
+          x: { display: false, grid: { display: false }, suggestedMax: Math.max(ageMax * 1.2, 1) },
+          y: { grid: { display: false }, ticks: { color: '#e6edf3', font: { size: 12 } } },
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: { enabled: false, external: (ctx) => externalChartTip(ctx, TOTAL_RULES, { hideCount: true }) },
+          datalabels: { clip: false, anchor: 'end', align: 'end', color: '#e6edf3', font: { weight: 'bold', size: 11 } },
+        },
+      },
     });
 
     // Rules per MITRE ATT&CK Tactic — horizontal bar
@@ -3165,6 +3607,9 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     { key: 'severity',   label: 'Severity' },
     { key: 'status',     label: 'Status' },
     { key: 'verdict',    label: 'Verdict' },
+    // Derived below from verdictAt rather than shipped in the rule data — see
+    // the note where reviewStatus is assigned.
+    { key: 'reviewStatus', label: 'Review' },
     { key: 'tactics',    label: 'Tactic',    group: 'MITRE ATT&CK' },
     { key: 'techniques', label: 'Technique', group: 'MITRE ATT&CK' },
   ];
@@ -3179,6 +3624,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     severity: 'fc-severity',
     status: 'fc-status',
     verdict: 'fc-verdict',
+    reviewStatus: 'fc-review',
     tactics: 'fc-mitre',
     techniques: 'fc-mitre',
   };
@@ -3208,6 +3654,45 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   // convention as PASS/FAIL/N-A. CSS class names use normKey() instead, so
   // this only affects human-visible text, never selectors.
   function vLabel(v) { return String(v ?? '').replace(/_/g, ' '); }
+
+  // A rule is due for re-validation this many days after its last verified run.
+  // Everything derived from it is computed in the browser against the visitor's
+  // clock, so the page keeps ageing correctly between pipeline runs.
+  const REVIEW_INTERVAL_DAYS = @@REVIEW_DAYS@@;
+
+  function verdictAgeDays(iso) {
+    if (!iso) return null;
+    const t = Date.parse(iso);
+    if (isNaN(t)) return null;
+    return Math.floor((Date.now() - t) / 86400000);
+  }
+
+  function isReviewDue(r) {
+    const days = verdictAgeDays(r && r.verdictAt);
+    return days !== null && days >= REVIEW_INTERVAL_DAYS;
+  }
+
+  // reviewStatus is a facet the pipeline cannot produce: whether a rule is still
+  // inside its review window depends on when the page is READ, not when it was
+  // generated. Deriving it here — once per load, against the reader's clock —
+  // keeps the filter honest, and makes it an ordinary string field so the whole
+  // filter/count/export machinery works on it unchanged.
+  RULES.forEach(r => {
+    r.reviewStatus = !r.verdictAt
+      ? 'Never tested'
+      : (isReviewDue(r) ? 'Overdue' : 'Up to date');
+  });
+
+  // How long ago a verdict was measured, in plain words. Days all the way up —
+  // "200 days ago" carries the point better than "6 months ago" does. Returns
+  // '' for a missing or unparseable timestamp so callers can skip the line.
+  function verdictAge(iso) {
+    const days = verdictAgeDays(iso);
+    if (days === null) return '';
+    if (days <= 0) return 'today';
+    if (days === 1) return 'yesterday';
+    return days + ' days ago';
+  }
 
   function emptyCell() { return '<span style="color:var(--text3)">—</span>'; }
 
@@ -3342,6 +3827,20 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     renderTable();
     clearTimeout(hashDebounce);
     hashDebounce = setTimeout(updateHash, 350);
+  }
+
+  // Mobile-only: the filter rail is display:none below 900px until this opens
+  // it. Deliberately not tied to a resize handler — the class is inert on wide
+  // screens, so a phone→desktop rotation needs no cleanup.
+  function toggleFiltersPanel() {
+    const panel = document.getElementById('filters-panel');
+    const btn = document.getElementById('filters-toggle');
+    if (!panel) return;
+    const open = panel.classList.toggle('mobile-open');
+    if (btn) {
+      btn.classList.toggle('active', open);
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
   }
 
   function clearSearch() {
@@ -3493,8 +3992,14 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   function verdictBadge(r) {
     const v = r.verdict || 'N/A';
     const badge = `<span class="badge verdict-${normKey(v)}">${escHtml(vLabel(v))}</span>`;
-    if (r.runUrl) return `<a href="${escHtml(r.runUrl)}" target="_blank" title="View Actions run" onclick="event.stopPropagation()">${badge}</a>`;
-    return badge;
+    // A review interval nobody can see is a review interval nobody keeps, and
+    // opening 27 drawers to find the stale ones is not a workflow — so the
+    // marker rides next to the verdict in the table itself.
+    const due = isReviewDue(r)
+      ? `<span class="review-due" title="Last tested ${verdictAge(r.verdictAt)} — past the ${REVIEW_INTERVAL_DAYS}-day review interval">&#9679;</span>`
+      : '';
+    if (r.runUrl) return `<a href="${escHtml(r.runUrl)}" target="_blank" title="View Actions run" onclick="event.stopPropagation()">${badge}</a>${due}`;
+    return badge + due;
   }
 
   function mitrePills(list, kind) {
@@ -3823,7 +4328,9 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       </div>`;
     }
 
-    if (r.runUrl) {
+    // Also render for a verdict with no run_id (a handful of older results have
+    // a timestamp but no run to link to) — the age is worth showing on its own.
+    if (r.runUrl || r.verdictAt) {
       const isFail = r.verdict === 'FAIL';
       const isNotVer = r.verdict === 'NOT_VERIFIED';
       const verifyCls = isFail ? 'verify-fail' : isNotVer ? 'verify-notver' : 'verify-pass';
@@ -3832,12 +4339,21 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
         : isNotVer
         ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12" y2="16.01"/></svg>'
         : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
+      const cta = r.runUrl
+        ? `<a class="drawer-cta ${verifyCls}" href="${escHtml(r.runUrl)}" target="_blank">
+             ${icon} View Last Action Run — ${escHtml(vLabel(r.verdict))}
+           </a>`
+        : '';
+      const meta = [];
+      const age = verdictAge(r.verdictAt);
+      if (age) {
+        const due = isReviewDue(r);
+        meta.push(`<span class="${due ? 'warn' : ''}">Tested ${escHtml(age)} · ${escHtml(r.verdictAt.slice(0, 10))}${due ? ` — past the ${REVIEW_INTERVAL_DAYS}-day review interval` : ''}</span>`);
+      }
       body += `<div>
         <div class="drawer-section-label">Verification</div>
-        <a class="drawer-cta ${verifyCls}" href="${escHtml(r.runUrl)}" target="_blank">
-          ${icon}
-          View Last Action Run — ${escHtml(vLabel(r.verdict))}
-        </a>
+        ${cta}
+        ${meta.length ? `<div class="verify-meta">${meta.join('')}</div>` : ''}
       </div>`;
     }
 
@@ -3990,6 +4506,41 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     btn.addEventListener('click', () => setActiveTab(btn.dataset.tab));
   });
 
+  // ── Legend & help dialog ───────────────────────────────────────────────
+  // Lives outside the tab panes, so one dialog serves all three tabs.
+
+  function isInfoOpen() {
+    return document.getElementById('info-modal')?.classList.contains('open');
+  }
+
+  function setInfo(open) {
+    document.getElementById('info-modal')?.classList.toggle('open', open);
+    document.getElementById('info-backdrop')?.classList.toggle('open', open);
+    const btn = document.getElementById('info-btn');
+    if (btn) {
+      btn.classList.toggle('active', open);
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    // Move focus into the dialog and hand it back on close, so Escape and the
+    // close button are reachable without a mouse.
+    if (open) document.querySelector('.info-close')?.focus();
+    else btn?.focus();
+  }
+
+  function openInfo() { setInfo(true); }
+  function closeInfo() { setInfo(false); }
+  function toggleInfo() { setInfo(!isInfoOpen()); }
+
+  // Registered ahead of the Rule Library key handler below, so while the dialog
+  // is open Escape closes it and nothing else — the row drawer underneath stays
+  // put instead of being closed by the same keystroke.
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && isInfoOpen()) {
+      e.stopImmediatePropagation();
+      closeInfo();
+    }
+  });
+
   // ── Deep link (hash state: tab + filters + search + sort) ───────────────
 
   function encodeState() {
@@ -4005,12 +4556,26 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     if (currentTab === 'navigator' && typeof navOpenDetailId !== 'undefined' && navOpenDetailId) {
       parts.push('tech=' + encodeURIComponent(navOpenDetailId));
     }
+    // The Navigator's own narrowing (verdict filters, Covered/Gaps scope,
+    // technique search) rides along too, so "here is the gap list" is a link and
+    // not an instruction. Emitted regardless of the active tab, like the table
+    // filters above, so switching tabs doesn't silently drop the state.
+    if (typeof navActiveFilters !== 'undefined' && navActiveFilters && navActiveFilters.size) {
+      parts.push('navv=' + Array.from(navActiveFilters).join(','));
+    }
+    if (typeof navScope !== 'undefined' && navScope) parts.push('navs=' + navScope);
+    if (typeof navSearchText !== 'undefined' && navSearchText) {
+      parts.push('navq=' + encodeURIComponent(navSearchText));
+    }
     return parts.join('&');
   }
 
   function decodeState(hash) {
     const raw = (hash || '').replace(/^#/, '');
-    const state = { tab: 'rules', filters: {}, q: '', sortCol: 'id', sortAsc: true, tech: '' };
+    const state = {
+      tab: 'rules', filters: {}, q: '', sortCol: 'id', sortAsc: true, tech: '',
+      navFilters: [], navScope: '', navQ: '',
+    };
     if (!raw) return state;
     const validKeys = new Set(FILTER_FIELDS.map(f => f.key));
     raw.split('&').forEach(pair => {
@@ -4027,6 +4592,16 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       } else if (key === 'sort') {
         const [col, dir] = val.split(':');
         if (col) { state.sortCol = col; state.sortAsc = dir !== 'desc'; }
+      } else if (key === 'navv') {
+        // Only the four verdicts the dropdown can toggle: an old link carrying
+        // the retired 'uncov' filter would otherwise leave the matrix in a state
+        // no visible control can undo (coverage now lives on Covered/Gaps).
+        const okVerdicts = new Set(['pass', 'notver', 'fail', 'nv']);
+        state.navFilters = val.split(',').filter(v => okVerdicts.has(v));
+      } else if (key === 'navs') {
+        state.navScope = (val === 'covered' || val === 'gaps') ? val : '';
+      } else if (key === 'navq') {
+        state.navQ = decodeURIComponent(val);
       } else if (validKeys.has(key)) {
         state.filters[key] = val.split(',').map(decodeURIComponent).filter(Boolean);
       }
@@ -4051,6 +4626,9 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     renderFilters();
     renderActiveFilterRow();
     renderTable();
+    // Narrow the matrix first, then open any deep-linked technique panel on top
+    // of the restored view.
+    if (typeof applyNavState === 'function') applyNavState(state);
     // Restore a deep-linked Navigator technique panel (if any).
     if (typeof openNavByTid === 'function') {
       if (state.tab === 'navigator' && state.tech) {
@@ -4114,6 +4692,8 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       'Severity': r.severity,
       'Status': r.status,
       'Verdict': r.verdict,
+      'Last Tested': r.verdictAt ? r.verdictAt.slice(0, 10) : '',
+      'Review Status': r.reviewStatus || '',
       'Author': r.author,
       'Created': r.date,
       'Modified': r.modified,
@@ -4300,6 +4880,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     var matrix = document.querySelector('.att-matrix');
     if (!matrix) return;
     var mirror = document.createElement('div');
+    mirror.className = 'nav-scroll-mirror';
     mirror.style.cssText = 'overflow-x:auto;position:sticky;bottom:0;height:14px;background:#0d1117;z-index:100;';
     var inner = document.createElement('div');
     inner.style.height = '1px';
@@ -4330,19 +4911,32 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     return 'uncov';
   }
   function tcIsCovered(tc) { return tcVerdict(tc) !== 'uncov'; }
+  // A cell counts as FAIL for filtering whenever ANY covering rule failed — not
+  // only when FAIL won the best-verdict roll-up. Without this the FAIL filter is
+  // dead for every technique that also has a passing rule.
+  function tcHasFail(tc) {
+    return tc.classList.contains('fail') || tc.classList.contains('fail-flag');
+  }
   function tcText(tc) {
     var tn = tc.querySelector('.tn');
     return ((tc.dataset.id || '') + ' ' + (tn ? tn.textContent : '')).toLowerCase();
   }
   function tcMatches(tc) {
-    var okLegend = navActiveFilters.size === 0 || navActiveFilters.has(tcVerdict(tc));
+    var okLegend = navActiveFilters.size === 0
+      || navActiveFilters.has(tcVerdict(tc))
+      || (navActiveFilters.has('fail') && tcHasFail(tc));
     var okScope = !navScope || (navScope === 'covered' ? tcIsCovered(tc) : !tcIsCovered(tc));
     var okSearch = !navSearchText || tcText(tc).indexOf(navSearchText) >= 0;
     return okLegend && okScope && okSearch;
   }
   function applyNavVisibility() {
-    // Drop any search-driven auto-expands once the search is cleared.
-    if (!navSearchText && navAutoExpanded.size) {
+    // Filtering for FAIL is a "show me what's broken" request, and what's broken
+    // is usually a sub-technique — collapsed by default, so the answer would be
+    // one click away on every parent. Expand those automatically, exactly like a
+    // search that only matches sub-techniques does.
+    var failFocus = navActiveFilters.has('fail');
+    // Drop auto-expands once neither driver is active any more.
+    if (!navSearchText && !failFocus && navAutoExpanded.size) {
       navAutoExpanded.forEach(function(b) { if (b.classList.contains('open')) navDoExpand(b, false); });
       navAutoExpanded.clear();
     }
@@ -4366,8 +4960,13 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
         } else {
           colVisible++;
           shown++;
-          // When a search only matches sub-techniques, reveal them automatically.
-          if (exBtn && navSearchText && subMatches.length > 0 && !pMatch && !exBtn.classList.contains('open')) {
+          // Reveal sub-techniques the user is implicitly asking about: a search
+          // that only matched below the parent, or a failing sub under a FAIL
+          // filter. The fail case is scoped to subs that actually carry the flag
+          // so a combined PASS+FAIL filter doesn't expand the whole matrix.
+          var revealSubs = (navSearchText && !pMatch)
+            || (failFocus && subMatches.some(tcHasFail));
+          if (exBtn && revealSubs && subMatches.length > 0 && !exBtn.classList.contains('open')) {
             navDoExpand(exBtn, true);
             navAutoExpanded.add(exBtn);
           }
@@ -4376,19 +4975,65 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       // Hide whole columns that have no visible techniques under an active filter.
       col.classList.toggle('tc-col-hidden', active && colVisible === 0);
     });
+    // With every column hidden the matrix collapses to a few pixels of nothing,
+    // and the only feedback left is the small count in the toolbar. Swap in the
+    // same empty state the rule table uses, plus a way back out.
+    var wrap = document.querySelector('.nav-wrap');
+    var empty = document.getElementById('nav-no-results');
+    var isEmpty = active && shown === 0;
+    if (wrap) wrap.classList.toggle('nav-empty', isEmpty);
+    if (empty) empty.style.display = isEmpty ? 'block' : 'none';
     return shown;
+  }
+
+  // Reset every Navigator-side narrowing at once (verdict filters, scope,
+  // search) — reachable from the empty state, where nothing else is left to click.
+  function clearNavFilters() {
+    navActiveFilters.clear();
+    navScope = null;
+    navSearchText = '';
+    var inp = document.getElementById('nav-search');
+    if (inp) inp.value = '';
+    var clr = document.getElementById('nav-search-clear');
+    if (clr) clr.classList.remove('show');
+    document.querySelectorAll('.nav-verdict-item[data-filter]').forEach(function(item) {
+      item.classList.remove('checked');
+    });
+    var cb = document.getElementById('nav-qf-covered');
+    var gb = document.getElementById('nav-qf-gaps');
+    if (cb) cb.classList.remove('active');
+    if (gb) gb.classList.remove('active');
+    refreshVerdictBtn();
+    applyNavVisibility();
+    var cnt = document.getElementById('nav-search-count');
+    if (cnt) cnt.textContent = '';
+    if (typeof updateHash === 'function') updateHash();
   }
   function computeNavLegendCounts() {
     var counts = { pass: 0, notver: 0, fail: 0, nv: 0, uncov: 0 };
-    document.querySelectorAll('.att-matrix .tc[data-id]').forEach(function(tc) { counts[tcVerdict(tc)]++; });
+    // Verdict counts partition the matrix (used for the coverage totals below);
+    // failAny cross-cuts it — a PASS cell hiding a failed rule lands in both.
+    var failAny = 0;
+    document.querySelectorAll('.att-matrix .tc[data-id]').forEach(function(tc) {
+      counts[tcVerdict(tc)]++;
+      if (tcHasFail(tc)) failAny++;
+    });
     Object.keys(counts).forEach(function(k) {
+      var n = (k === 'fail') ? failAny : counts[k];
       var el = document.querySelector('.nav-legend-count[data-count="' + k + '"]');
-      if (el) el.textContent = counts[k];
+      if (el) el.textContent = n;
       // Hide verdict rows that have no cells at all (e.g. N/A when every mapped
       // rule has been validated) so the dropdown only lists states in play.
       var item = el ? el.closest('.nav-verdict-item') : null;
-      if (item) item.style.display = counts[k] === 0 ? 'none' : '';
+      if (item) item.style.display = n === 0 ? 'none' : '';
     });
+    // Coverage is a separate axis from verdict: the Covered/Gaps control owns it,
+    // so its totals are rendered on the buttons rather than in the Verdict menu.
+    var total = counts.pass + counts.notver + counts.fail + counts.nv + counts.uncov;
+    var covEl = document.querySelector('.nav-qf-count[data-count="covered"]');
+    var gapEl = document.querySelector('.nav-qf-count[data-count="uncov"]');
+    if (covEl) covEl.textContent = total - counts.uncov;
+    if (gapEl) gapEl.textContent = counts.uncov;
   }
   function refreshVerdictBtn() {
     var n = navActiveFilters.size;
@@ -4410,8 +5055,30 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       }
       refreshVerdictBtn();
       applyNavVisibility();
+      if (typeof updateHash === 'function') updateHash();
     });
   });
+  // Restore Navigator narrowing from a deep link (counterpart of encodeState).
+  function applyNavState(state) {
+    navActiveFilters = new Set(state.navFilters || []);
+    navScope = state.navScope || null;
+    navSearchText = (state.navQ || '').trim().toLowerCase();
+    document.querySelectorAll('.nav-verdict-item[data-filter]').forEach(function(item) {
+      item.classList.toggle('checked', navActiveFilters.has(item.dataset.filter));
+    });
+    var cb = document.getElementById('nav-qf-covered');
+    var gb = document.getElementById('nav-qf-gaps');
+    if (cb) cb.classList.toggle('active', navScope === 'covered');
+    if (gb) gb.classList.toggle('active', navScope === 'gaps');
+    var inp = document.getElementById('nav-search');
+    if (inp) inp.value = state.navQ || '';
+    var clr = document.getElementById('nav-search-clear');
+    if (clr) clr.classList.toggle('show', !!navSearchText);
+    refreshVerdictBtn();
+    var n = applyNavVisibility();
+    var cnt = document.getElementById('nav-search-count');
+    if (cnt) cnt.textContent = navSearchText ? (n + ' matching') : '';
+  }
   function toggleVerdictMenu(e) {
     e.stopPropagation();
     document.getElementById('nav-export-menu').classList.remove('open');
@@ -4425,6 +5092,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     if (cb) cb.classList.toggle('active', navScope === 'covered');
     if (gb) gb.classList.toggle('active', navScope === 'gaps');
     applyNavVisibility();
+    if (typeof updateHash === 'function') updateHash();
   }
   // Technique search
   function onNavSearch() {
@@ -4438,6 +5106,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       var first = document.querySelector('.att-matrix .tc:not(.sub):not(.tc-hidden)[data-id]');
       if (first) first.scrollIntoView({ inline: 'center', block: 'nearest' });
     }
+    if (typeof updateHash === 'function') updateHash();
   }
   function clearNavSearch() {
     var inp = document.getElementById('nav-search');
@@ -4462,13 +5131,16 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
         Name: tn ? tn.textContent : '',
         Tactic: col ? (col.dataset.tactic || '') : '',
         Coverage: vmap[tcVerdict(tc)],
+        // Same roll-up caveat as the matrix cell: Coverage can read PASS while a
+        // covering rule failed, so the failure is exported as its own column.
+        HasFailingRule: tcHasFail(tc) ? 'yes' : 'no',
         Rules: ruleIds,
       });
     });
     return rows;
   }
   function navToMarkdown(rows) {
-    var cols = ['Technique', 'Name', 'Tactic', 'Coverage', 'Rules'];
+    var cols = ['Technique', 'Name', 'Tactic', 'Coverage', 'HasFailingRule', 'Rules'];
     var esc = function(v) { return String(v == null ? '' : v).replace(/\|/g, '\\|'); };
     var head = '| ' + cols.join(' | ') + ' |';
     var sep = '| ' + cols.map(function() { return '---'; }).join(' | ') + ' |';
@@ -4611,7 +5283,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       }
     });
     navPanelBody.innerHTML = html;
-    // Clicking a rule opens the shared Rule Tracker drawer (not a new page).
+    // Clicking a rule opens the shared Rule Library drawer (not a new page).
     navPanelBody.querySelectorAll('.detail-rule[data-idx]').forEach(function(el, i) {
       el.addEventListener('click', function() { navDetail.sel = i; navOpenSelectedRule(); });
       el.addEventListener('mouseenter', function() { navDetail.sel = i; navPaintDetailSel(); });
@@ -4720,6 +5392,8 @@ def render_html_summary(stats: dict, repo: str) -> str:
             "date": r.get("date", ""),
             "modified": r.get("modified", ""),
             "ruleVersion": r.get("rule_version", ""),
+            "verdictAt": r.get("verdict_at", ""),
+            "verdictRuleVersion": r.get("verdict_rule_version", ""),
             "references": r.get("references") or [],
             "ruleBody": r.get("rule_body", ""),
             "ruleBodyLang": r.get("rule_body_lang", ""),
@@ -4735,7 +5409,12 @@ def render_html_summary(stats: dict, repo: str) -> str:
     rules_detail_inner = stats.get("_rules_detail", stats.get("rules", []))
     technique_coverage = build_technique_coverage(rules_detail_inner, repo)
     matrix_html = _build_matrix_html(technique_map, technique_coverage)
-    layer_url = f"https://github.com/{repo}/blob/main/outputs/reports/navigator_layer.json"
+    # Raw URL, not the blob page: this is what you paste into the official
+    # Navigator's "Open Existing Layer → Load from URL" (raw.githubusercontent
+    # serves it with CORS), and it still saves fine straight from the browser.
+    layer_url = (
+        f"https://raw.githubusercontent.com/{repo}/main/outputs/reports/navigator_layer.json"
+    )
 
     html = _PAGE_TEMPLATE
     html = html.replace("@@TS@@", ts)
@@ -4756,6 +5435,7 @@ def render_html_summary(stats: dict, repo: str) -> str:
     html = html.replace("@@RULE_GROWTH_HISTORY_JSON@@", rule_growth_history_json)
     html = html.replace("@@MATRIX_HTML@@", matrix_html)
     html = html.replace("@@LAYER_URL@@", layer_url)
+    html = html.replace("@@REVIEW_DAYS@@", str(REVIEW_INTERVAL_DAYS))
     return html
 def update_html_summary(content: str) -> None:
     out_path = REPO_ROOT / "docs" / "index.html"
