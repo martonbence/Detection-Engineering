@@ -1,0 +1,15 @@
+{
+  "detect_id": "DETECT-2026-0029",
+  "title": "DCSync via DSInternals Get-ADReplAccount",
+  "verdict": "PASS",
+  "reason": "Event count 1 within expected range [1–10]",
+  "event_count": 1,
+  "min_pass": 1,
+  "max_pass": 10,
+  "earliest": "-5m",
+  "latest": "now",
+  "run_timestamp": "2026-07-11T09:49:01.203132+00:00",
+  "rule_version": "1.1",
+  "git_sha": "0e2c72d69f57f030d2a01cb889586ed23ad8f954",
+  "run_id": "29148278693"
+}

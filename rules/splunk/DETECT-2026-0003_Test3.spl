@@ -1,0 +1,1 @@
+index=sysmon Image="*\\powershell.exe" CommandLine IN ("* -e *", "* -enc *", "* -encodedcommand *") | table _time,CommandLine,ParentImage,Image,User,ProcessId

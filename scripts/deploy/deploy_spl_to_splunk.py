@@ -1,11 +1,13 @@
 import os
 import sys
 import json
-import re
 from pathlib import Path
 from urllib.parse import quote
 
 import requests
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from lib.rule_naming import saved_search_name
 
 
 def die(msg: str, code: int = 1) -> None:
@@ -29,69 +31,31 @@ def env_bool(name: str, default: bool = True) -> bool:
     return default
 
 
-def savedsearch_name_from_file(p: Path) -> str:
-    # Keep ".sigma" in the name to distinguish converted vs native
-    # rules/splunk/foo.sigma.spl -> foo.sigma
-    name = p.name
-    if name.endswith(".spl"):
-        name = name[:-4]
-    return name
-
-
 def read_spl_query(path: Path) -> str:
     """
-    Return only the actual SPL query part (everything after the '---' separator).
-    The META_START/META_END header is CI metadata and must not be deployed as part of the savedsearch 'search'.
+    Return the SPL query. The file contains only the query -- no embedded metadata.
     """
-    content = path.read_text(encoding="utf-8")
-
-    if "---" not in content:
-        die(f"No query separator ('---') found in file: {path}")
-
-    _, query_part = content.split('---', 1)
-    query = query_part.strip()
+    query = path.read_text(encoding="utf-8").strip()
 
     if not query:
-        die(f"No SPL query found after '---' in file: {path}")
+        die(f"No SPL query found in file: {path}")
 
     return query
 
 
 def extract_meta(path: Path) -> dict:
     """
-    Extract and parse META_START ... META_END JSON block from a CI-managed SPL artifact.
+    Read the sidecar <name>.meta.json generated alongside <name>.spl by sigma_to_spl.py.
     """
-    content = path.read_text(encoding="utf-8")
-    m = re.search(r"META_START\s*(\{.*?\})\s*META_END", content, re.DOTALL)
-    if not m:
-        die(f"META block not found in file: {path}")
+    meta_path = path.parent / (path.stem + ".meta.json")
+    if not meta_path.exists():
+        die(f"Meta sidecar not found: {meta_path}")
 
-    meta_str = m.group(1)
     try:
-        meta = json.loads(meta_str)
+        return json.loads(meta_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as e:
-        die(f"Invalid META JSON in {path}: {e}")
+        die(f"Invalid meta JSON in {meta_path}: {e}")
 
-    return meta
-
-
-def extract_ci_header_value(path: Path, key: str) -> str:
-    """
-    Extract a CI header value from leading '#' lines.
-    Example key: "SIGMA_DESCRIPTION"
-    Looks for a line like: "# SIGMA_DESCRIPTION: <value>"
-    Stops parsing when non-comment line is encountered.
-    """
-    prefix = f"# {key}:"
-    try:
-        for line in path.read_text(encoding="utf-8").splitlines():
-            if not line.lstrip().startswith("#"):
-                break
-            if line.startswith(prefix):
-                return line[len(prefix):].strip()
-    except Exception:
-        return ""
-    return ""
 
 def _norm_mode(v: str) -> str:
     v = (v or "").strip().lower()
@@ -218,6 +182,9 @@ def set_acl(
     )
 
     payload = {
+        "owner": owner,               # Splunk's ACL endpoint treats this as required --
+                                       # omitting it was read as an implicit (and rejected)
+                                       # ownership change, even when owner wasn't moving.
         "sharing": sharing,          # "app" or "global"
         "perms.read": perms_read,    # "*" or "admin,power"
         "perms.write": perms_write,  # "admin" or "ci_deploy_savedsearches"
@@ -236,7 +203,14 @@ def main(argv: list[str]) -> int:
     username = env_required("SPLUNK_USERNAME")
     password = env_required("SPLUNK_PASSWORD")
     app = env_required("SPLUNK_APP")
-    owner = env_required("SPLUNK_OWNER")
+    # Namespace owner deliberately mirrors the authenticating user: Splunk
+    # assigns real object ownership to whoever authenticates the request,
+    # regardless of the {owner} path segment used to address it, so any
+    # divergence here just made every ACL update fail with "You do not have
+    # permission to change the owner of this object." (the service account
+    # doesn't have admin_all_objects). Read/write access is governed by
+    # perms.read/perms.write below, not by who nominally owns the object.
+    owner = username
     verify_tls = env_bool("SPLUNK_VERIFY_TLS", default=True)
 
     sharing = (os.getenv("SPLUNK_SHARING") or "app").strip().lower()
@@ -266,7 +240,8 @@ def main(argv: list[str]) -> int:
             failed += 1
             continue
 
-        search_name = savedsearch_name_from_file(f)
+        meta = extract_meta(f)
+        search_name = saved_search_name(meta)
 
         try:
             search_query = read_spl_query(f)
@@ -281,7 +256,6 @@ def main(argv: list[str]) -> int:
             continue
 
         print(f"Deploying savedsearch '{search_name}' from {f}")
-        meta = extract_meta(f)
         final_desc = build_savedsearch_description(
             "Managed by CI/CD (Detection-Engineering repo)",
             str(meta.get("description") or ""),
@@ -302,6 +276,26 @@ def main(argv: list[str]) -> int:
 
         if r.status_code in (200, 201):
             print(f"Created: {search_name}")
+
+            # Splunk's savedsearch creation endpoint doesn't reliably apply
+            # scheduling fields (is_scheduled/cron_schedule) on the same POST
+            # that creates the object -- a brand-new search can come back
+            # with Next scheduled time = None even though the create call
+            # succeeded. A follow-up edit POST with the same runtime payload
+            # forces Splunk to actually persist them, mirroring what already
+            # happens for the "already exists" (update) path below.
+            create_update_url = (
+                f"{base_url}/servicesNS/{quote(owner, safe='')}/{quote(app, safe='')}"
+                f"/saved/searches/{quote(search_name, safe='')}?output_mode=json"
+            )
+            r_reapply = splunk_post(s, create_update_url, runtime_payload)
+            if r_reapply.status_code != 200:
+                print(
+                    f"WARNING: {search_name}: failed to reapply scheduling fields after create "
+                    f"(HTTP {r_reapply.status_code}): {r_reapply.text[:300]}",
+                    file=sys.stderr,
+                )
+
             ok, msg = set_acl(s, base_url, owner, app, search_name, sharing, perms_read, perms_write)
             if not ok:
                 print(f"WARNING: {search_name}: {msg}", file=sys.stderr)

@@ -2,14 +2,14 @@
   "detect_id": "DETECT-2026-0009",
   "title": "PowerShell Inline Base64 Decode and Execute",
   "verdict": "PASS",
-  "reason": "Event count 1 within expected range [1–10]",
-  "event_count": 1,
+  "reason": "Event count 3 within expected range [1–10]",
+  "event_count": 3,
   "min_pass": 1,
   "max_pass": 10,
   "earliest": "-5m",
   "latest": "now",
-  "run_timestamp": "2026-05-11T15:45:29.042855+00:00",
-  "rule_version": "1.5",
-  "git_sha": "46804470ad20be8c35030be7d03d820f0b6ebd2e",
-  "run_id": "25680517513"
+  "run_timestamp": "2026-07-25T08:58:38.914774+00:00",
+  "rule_version": "1.9",
+  "git_sha": "0afb4eabc14c3b63a8767f4a7752f38633f2564c",
+  "run_id": "30151948301"
 }

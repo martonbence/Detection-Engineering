@@ -1,0 +1,1 @@
+index=sysmon Image="*\\bitsadmin.exe" CommandLine="*/setnotifycmdline*" NOT (User IN ("*SYSTEM*", "*NETWORK SERVICE*") ParentImage="*\\svchost.exe") | table _time,ComputerName,User,Image,CommandLine,ParentImage,ParentCommandLine,ProcessId,ParentProcessId

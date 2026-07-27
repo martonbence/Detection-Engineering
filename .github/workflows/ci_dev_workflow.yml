@@ -1,0 +1,865 @@
+name: CI - Dev Pipeline (Sigma to Splunk)
+
+on:
+  push:
+    branches-ignore: [ "main" ]
+    paths:
+      - "rules/sigma/**/*.yml"
+      - "rules/sigma/**/*.yaml"
+      - "docs/schemas/sigma_schema.json"
+      - "scripts/validate/**"
+      - "scripts/convert/sigma_to_spl.py"
+      - "scripts/deploy/deploy_spl_to_splunk.py"
+      - "scripts/lib/rule_naming.py"
+      - "scripts/atomic/run_atomic.ps1"
+      - "scripts/verify/**"
+      - ".github/workflows/ci_dev_workflow.yml"
+  pull_request:
+    paths:
+      - "rules/sigma/**/*.yml"
+      - "rules/sigma/**/*.yaml"
+      - "docs/schemas/sigma_schema.json"
+      - "scripts/validate/**"
+      - "scripts/convert/sigma_to_spl.py"
+      - "scripts/deploy/deploy_spl_to_splunk.py"
+      - "scripts/lib/rule_naming.py"
+      - "scripts/atomic/run_atomic.ps1"
+      - "scripts/verify/**"
+      - ".github/workflows/ci_dev_workflow.yml"
+
+concurrency:
+  group: detection-pipeline-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  prepare_validate_convert:
+    name: Prepare, Validate, Convert
+    runs-on: ubuntu-latest
+    environment: dev
+    outputs:
+      mode: ${{ steps.changes.outputs.mode }}
+      has_rules: ${{ steps.changes.outputs.has_rules }}
+      has_spl: ${{ steps.bundle.outputs.has_spl }}
+      rule_files: ${{ steps.changes.outputs.rule_files }}
+      spl_files: ${{ steps.bundle.outputs.spl_files }}
+      has_atomic_tests: ${{ steps.test_types.outputs.has_atomic_tests }}
+      has_atomic_dc_tests: ${{ steps.test_types.outputs.has_atomic_dc_tests }}
+      has_emulation_tests: ${{ steps.test_types.outputs.has_emulation_tests }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT_DEV_PUSH }}
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Determine changed Sigma files
+        id: changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          else
+            BASE_SHA="${{ github.event.before }}"
+            HEAD_SHA="${{ github.sha }}"
+          fi
+
+          echo "Diffing against previous commit: ${BASE_SHA:-<none>} -> ${HEAD_SHA:-<none>}"
+
+          git fetch --no-tags --prune --depth=0 origin || true
+
+          mode="changed"
+
+          if [[ -z "${BASE_SHA}" || "${BASE_SHA}" =~ ^0+$ ]]; then
+            mode="all"
+          fi
+
+          mapfile -t files < <(git diff --name-only --diff-filter=AMRC "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true)
+
+          if [[ "${#files[@]}" -gt 0 ]]; then
+            echo "Changed files:"
+            printf ' - %s\n' "${files[@]}"
+          fi
+
+          if [[ "$mode" != "all" ]]; then
+            for f in "${files[@]}"; do
+              if [[ "$f" == "docs/schemas/sigma_schema.json" ]] || [[ "$f" == scripts/validate/* ]] || [[ "$f" == "scripts/convert/sigma_to_spl.py" ]]; then
+                mode="all"
+                break
+              fi
+            done
+          fi
+
+          rule_files=()
+          if [[ "$mode" == "all" ]]; then
+            while IFS= read -r rf; do
+              [[ -n "$rf" ]] && rule_files+=("$rf")
+            done < <(git ls-files "rules/sigma/*.yml" "rules/sigma/**/*.yml" "rules/sigma/*.yaml" "rules/sigma/**/*.yaml" || true)
+          else
+            for f in "${files[@]}"; do
+              if [[ "$f" =~ ^rules/sigma/.*\.(yml|yaml)$ ]]; then
+                rule_files+=("$f")
+              fi
+            done
+          fi
+
+          if [[ "${#rule_files[@]}" -eq 0 ]]; then
+            echo "No Sigma rule files to process."
+            echo "mode=none" >> "$GITHUB_OUTPUT"
+            echo "has_rules=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "rule_files<<EOF"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Mode: $mode"
+          echo "has_rules=true" >> "$GITHUB_OUTPUT"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          {
+            echo "rule_files<<EOF"
+            printf '%s\n' "${rule_files[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Cache pip packages
+        if: steps.changes.outputs.has_rules == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-prepare-${{ runner.os }}-${{ hashFiles('.github/workflows/ci_dev_workflow.yml') }}
+          restore-keys: |
+            pip-prepare-${{ runner.os }}-
+
+      - name: Install Python deps
+        if: steps.changes.outputs.has_rules == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Installing Python dependencies: pyyaml, jsonschema, sigma-cli, pysigma-backend-splunk"
+          python -m pip install --upgrade pip
+          python -m pip install pyyaml jsonschema sigma-cli pysigma-backend-splunk
+
+      - name: Validate Sigma rules
+        if: steps.changes.outputs.has_rules == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $schemaPath = "docs/schemas/sigma_schema.json"
+          $maxErrors = 25
+
+          $rules = @'
+          ${{ steps.changes.outputs.rule_files }}
+          '@ -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+          if ($rules.Count -eq 0) {
+            Write-Host "No rule files to validate -> skipping."
+            exit 0
+          }
+
+          Write-Host "Validating $($rules.Count) rule file(s) against schema."
+
+          ./scripts/validate/validate_sigma.ps1 `
+            -SchemaPath $schemaPath `
+            -Files $rules `
+            -MaxErrors $maxErrors
+
+      - name: Convert Sigma rules to Splunk SPL
+        if: steps.changes.outputs.has_rules == 'true'
+        shell: bash
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t rules <<'EOF'
+          ${{ steps.changes.outputs.rule_files }}
+          EOF
+
+          if [[ "${#rules[@]}" -eq 0 ]]; then
+            echo "No rule files to convert -> skipping."
+            exit 0
+          fi
+
+          mkdir -p rules/splunk
+          echo "Converting ${#rules[@]} rule file(s) to SPL:"
+          printf ' - %s\n' "${rules[@]}"
+          python scripts/convert/sigma_to_spl.py --outdir rules/splunk "${rules[@]}"
+          echo "Conversion complete."
+
+      - name: Build pipeline bundle
+        id: bundle
+        if: steps.changes.outputs.has_rules == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Assembling pipeline bundle (SPL + meta sidecars + deploy/atomic scripts)..."
+
+          rm -rf pipeline_bundle
+          mkdir -p pipeline_bundle/scripts/atomic pipeline_bundle/scripts/deploy pipeline_bundle/scripts/lib
+
+          cp scripts/atomic/run_atomic.ps1 pipeline_bundle/scripts/atomic/run_atomic.ps1
+          cp scripts/deploy/deploy_spl_to_splunk.py pipeline_bundle/scripts/deploy/deploy_spl_to_splunk.py
+          cp scripts/lib/rule_naming.py pipeline_bundle/scripts/lib/rule_naming.py
+
+          mapfile -t rules <<'EOF'
+          ${{ steps.changes.outputs.rule_files }}
+          EOF
+
+          spl_files=()
+          for rule in "${rules[@]}"; do
+            [[ -z "$rule" ]] && continue
+
+            name="$(basename "$rule")"
+            name="${name%.yml}"
+            name="${name%.yaml}"
+            name="${name%.sigma}"
+
+            spl_path="rules/splunk/${name}.spl"
+            if [[ ! -f "$spl_path" ]]; then
+              echo "Expected generated SPL file is missing: $spl_path"
+              exit 1
+            fi
+
+            meta_path="rules/splunk/${name}.meta.json"
+            if [[ ! -f "$meta_path" ]]; then
+              echo "Expected generated meta sidecar is missing: $meta_path"
+              exit 1
+            fi
+
+            spl_files+=("$spl_path")
+            mkdir -p "pipeline_bundle/$(dirname "$spl_path")"
+            cp "$spl_path" "pipeline_bundle/$spl_path"
+            cp "$meta_path" "pipeline_bundle/$meta_path"
+          done
+
+          if [[ "${#spl_files[@]}" -eq 0 ]]; then
+            echo "No generated SPL files found."
+            echo "has_spl=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "spl_files<<EOF"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Generated SPL files selected for deploy + atomic verify:"
+          printf ' - %s\n' "${spl_files[@]}"
+
+          echo "has_spl=true" >> "$GITHUB_OUTPUT"
+          {
+            echo "spl_files<<EOF"
+            printf '%s\n' "${spl_files[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Commit converted SPL outputs to dev
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
+          steps.bundle.outputs.has_spl == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git add -A rules/splunk
+          git reset -q -- 'rules/splunk/**/*.meta.json' 2>/dev/null || true
+
+          if git diff --cached --quiet; then
+            echo "No SPL changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git commit -m "chore(splunk): update sigma-converted SPL outputs [skip ci]"
+
+          for i in 1 2 3; do
+            git fetch origin dev
+            git pull --rebase origin dev || true
+            if git push origin HEAD:dev; then
+              echo "Push succeeded."
+              exit 0
+            fi
+            echo "Push failed (attempt $i), retrying..."
+            sleep 2
+          done
+
+          echo "Push failed after 3 attempts."
+          exit 1
+
+      - name: Detect test types in pipeline bundle
+        id: test_types
+        if: steps.bundle.outputs.has_spl == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          has_atomic=false
+          has_atomic_dc=false
+          has_emulation=false
+
+          mapfile -t rules <<'EOF'
+          ${{ steps.changes.outputs.rule_files }}
+          EOF
+
+          for rule in "${rules[@]}"; do
+            [[ -z "$rule" ]] && continue
+            tester=$(python3 -c "import yaml,sys; d=yaml.safe_load(open(sys.argv[1])) or {}; t=(d.get('custom') or {}).get('testing') or {}; print(t.get('type','') if t.get('enabled') else '')" "$rule" 2>/dev/null || true)
+            runner=$(python3 -c "import yaml,sys; d=yaml.safe_load(open(sys.argv[1])) or {}; t=(d.get('custom') or {}).get('testing') or {}; print(t.get('runner','windows-victim') if t.get('enabled') else '')" "$rule" 2>/dev/null || true)
+            case "$tester" in
+              atomic)
+                if [[ "$runner" == "windows-dc" ]]; then
+                  has_atomic_dc=true
+                else
+                  has_atomic=true
+                fi
+                ;;
+              emulation) has_emulation=true ;;
+            esac
+          done
+
+          echo "has_atomic_tests=$has_atomic" >> "$GITHUB_OUTPUT"
+          echo "has_atomic_dc_tests=$has_atomic_dc" >> "$GITHUB_OUTPUT"
+          echo "has_emulation_tests=$has_emulation" >> "$GITHUB_OUTPUT"
+          echo "Test types in this batch: atomic (victim)=$has_atomic, atomic (DC)=$has_atomic_dc, emulation=$has_emulation"
+
+      - name: Upload pipeline bundle
+        if: steps.bundle.outputs.has_spl == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: spl-pipeline-bundle
+          path: pipeline_bundle
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy_to_splunk:
+    name: Deploy to Splunk
+    needs: prepare_validate_convert
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
+      needs.prepare_validate_convert.outputs.has_spl == 'true'
+    runs-on: [ self-hosted, linux, de-lab ]
+    environment: dev
+
+    steps:
+      - name: Download pipeline bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: spl-pipeline-bundle
+          path: pipeline_bundle
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deploy deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Installing Python dependencies: requests"
+          python -m pip install --upgrade pip
+          python -m pip install requests
+
+      - name: Deploy selected SPL files to Splunk
+        shell: bash
+        env:
+          SPLUNK_BASE_URL: ${{ secrets.SPLUNK_BASE_URL }}
+          SPLUNK_USERNAME: ${{ secrets.SPLUNK_USERNAME }}
+          SPLUNK_PASSWORD: ${{ secrets.SPLUNK_PASSWORD }}
+          SPLUNK_APP: ${{ secrets.SPLUNK_APP }}
+          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS || 'false' }}
+          SPLUNK_SHARING: app
+          SPLUNK_PERMS_READ: "*"
+          SPLUNK_PERMS_WRITE: admin,ci_deploy_savedsearches
+        run: |
+          set -euo pipefail
+
+          mapfile -t spl_files <<'EOF'
+          ${{ needs.prepare_validate_convert.outputs.spl_files }}
+          EOF
+
+          bundle_files=()
+          for spl_file in "${spl_files[@]}"; do
+            [[ -z "$spl_file" ]] && continue
+            bundle_files+=("pipeline_bundle/$spl_file")
+          done
+
+          if [[ "${#bundle_files[@]}" -eq 0 ]]; then
+            echo "No SPL files to deploy."
+            exit 0
+          fi
+
+          python pipeline_bundle/scripts/deploy/deploy_spl_to_splunk.py "${bundle_files[@]}"
+
+  atomic_verify:
+    name: Atomic Red Team Test
+    needs: [ prepare_validate_convert, deploy_to_splunk ]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
+      needs.prepare_validate_convert.outputs.has_spl == 'true' &&
+      needs.prepare_validate_convert.outputs.has_atomic_tests == 'true'
+    continue-on-error: true
+    runs-on: [ self-hosted, X64, Windows, victim, atomic, windows-victim ]
+
+    steps:
+      - name: Download pipeline bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: spl-pipeline-bundle
+          path: pipeline_bundle
+
+      - name: Run Atomic Red Team tests embedded in deployed SPL metadata
+        id: run_atomic
+        timeout-minutes: 10
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass
+          -Command ". '{0}'"
+        env:
+          ATOMIC_RUNNER: windows-victim
+          ATOMIC_TESTER_TYPE: atomic
+          ATOMIC_RED_TEAM_MODULE_PATH: ${{ vars.ATOMIC_RED_TEAM_MODULE_PATH }}
+          ATOMIC_RED_TEAM_PATH: ${{ vars.ATOMIC_RED_TEAM_PATH }}
+          ATOMIC_DISABLE_REALTIME_MONITORING: ${{ vars.ATOMIC_DISABLE_REALTIME_MONITORING || 'true' }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $splFiles = @'
+          ${{ needs.prepare_validate_convert.outputs.spl_files }}
+          '@ -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+          if ($splFiles.Count -eq 0) {
+            Write-Host "No SPL files selected for Atomic verification."
+            exit 0
+          }
+
+          $bundleSplFiles = $splFiles | ForEach-Object { Join-Path "pipeline_bundle" $_ }
+
+          Write-Host "Running Atomic Red Team verification (victim host) against $($splFiles.Count) SPL file(s)..."
+
+          .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles -PreflightOnly
+          .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles
+
+      - name: Upload atomic progress markers
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomic-progress-victim-${{ github.run_id }}
+          path: outputs/verify/atomic_progress
+          if-no-files-found: ignore
+          retention-days: 1
+
+  atomic_verify_dc:
+    name: Atomic Red Team Test (DC)
+    needs: [ prepare_validate_convert, deploy_to_splunk ]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
+      needs.prepare_validate_convert.outputs.has_spl == 'true' &&
+      needs.prepare_validate_convert.outputs.has_atomic_dc_tests == 'true'
+    continue-on-error: true
+    runs-on: [ self-hosted, X64, Windows, dc, windows-dc ]
+
+    steps:
+      - name: Download pipeline bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: spl-pipeline-bundle
+          path: pipeline_bundle
+
+      - name: Run Atomic Red Team tests on Domain Controller
+        id: run_atomic_dc
+        timeout-minutes: 10
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass
+          -Command ". '{0}'"
+        env:
+          ATOMIC_RUNNER: windows-dc
+          ATOMIC_TESTER_TYPE: atomic
+          ATOMIC_RED_TEAM_MODULE_PATH: ${{ vars.ATOMIC_RED_TEAM_MODULE_PATH }}
+          ATOMIC_RED_TEAM_PATH: ${{ vars.ATOMIC_RED_TEAM_PATH }}
+          ATOMIC_DISABLE_REALTIME_MONITORING: ${{ vars.ATOMIC_DISABLE_REALTIME_MONITORING || 'true' }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $splFiles = @'
+          ${{ needs.prepare_validate_convert.outputs.spl_files }}
+          '@ -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+          if ($splFiles.Count -eq 0) {
+            Write-Host "No SPL files selected for DC Atomic verification."
+            exit 0
+          }
+
+          $bundleSplFiles = $splFiles | ForEach-Object { Join-Path "pipeline_bundle" $_ }
+
+          Write-Host "Running Atomic Red Team verification (domain controller) against $($splFiles.Count) SPL file(s)..."
+
+          .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles -PreflightOnly
+          .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles
+
+      - name: Upload atomic progress markers
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomic-progress-dc-${{ github.run_id }}
+          path: outputs/verify/atomic_progress
+          if-no-files-found: ignore
+          retention-days: 1
+
+  emulation_verify:
+    name: Script Emulation Test
+    needs: [ prepare_validate_convert, deploy_to_splunk ]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
+      needs.prepare_validate_convert.outputs.has_spl == 'true' &&
+      needs.prepare_validate_convert.outputs.has_emulation_tests == 'true'
+    continue-on-error: true
+    runs-on: [ self-hosted, X64, Windows, victim, windows-victim ]
+
+    steps:
+      - name: Download pipeline bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: spl-pipeline-bundle
+          path: pipeline_bundle
+
+      - name: Run Script Emulation tests embedded in deployed SPL metadata
+        shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass
+          -Command ". '{0}'"
+        env:
+          ATOMIC_RUNNER: windows-victim
+          ATOMIC_TESTER_TYPE: emulation
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $splFiles = @'
+          ${{ needs.prepare_validate_convert.outputs.spl_files }}
+          '@ -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+          if ($splFiles.Count -eq 0) {
+            Write-Host "No SPL files selected for emulation verification."
+            exit 0
+          }
+
+          $bundleSplFiles = $splFiles | ForEach-Object { Join-Path "pipeline_bundle" $_ }
+
+          Write-Host "Running script emulation verification against $($splFiles.Count) SPL file(s)..."
+
+          .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles
+
+  splunk_verify:
+    name: Splunk Verification
+    needs: [ prepare_validate_convert, deploy_to_splunk, atomic_verify, atomic_verify_dc, emulation_verify ]
+    if: |
+      always() &&
+      github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
+      needs.prepare_validate_convert.outputs.has_spl == 'true' &&
+      needs.prepare_validate_convert.result == 'success' &&
+      needs.deploy_to_splunk.result == 'success' &&
+      (
+        needs.atomic_verify.result == 'success' || needs.atomic_verify.result == 'skipped' ||
+        needs.atomic_verify_dc.result == 'success' || needs.atomic_verify_dc.result == 'skipped' ||
+        needs.emulation_verify.result == 'success' || needs.emulation_verify.result == 'skipped'
+      )
+    runs-on: [ self-hosted, linux, de-lab ]
+    environment: dev
+
+    steps:
+      # NOT shallow, on purpose (reverted after breaking rule versioning):
+      # "Generate stats and update README" below calls generate_stats.py's
+      # compute_rule_version(), which runs `git log --follow` per rule file
+      # to derive its 1.x version from commit count. On a depth=1 checkout
+      # that always sees exactly one commit per file, so every rule silently
+      # came out "1.0" regardless of its real history -- no error, just
+      # wrong data. The "Commit verification results and stats" step's own
+      # git reset --hard genuinely doesn't need history, but this step,
+      # earlier in the same job on the same checkout, does.
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT_DEV_PUSH }}
+          fetch-depth: 0
+
+      - name: Download pipeline bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: spl-pipeline-bundle
+          path: pipeline_bundle
+
+      # Ground truth for the NOT_VERIFIED gate in pass_fail_eval.py: each atomic
+      # job writes its own <detect_id>.json progress markers and uploads them as
+      # a run-scoped artifact even if the "Run Atomic Red Team tests" step was
+      # killed by its timeout-minutes. Missing/absent here (e.g. the whole job
+      # never got that far) is treated the same as "no marker found" downstream.
+      - name: Download atomic progress markers (victim)
+        if: needs.prepare_validate_convert.outputs.has_atomic_tests == 'true'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: atomic-progress-victim-${{ github.run_id }}
+          path: outputs/verify/atomic_progress
+
+      - name: Download atomic progress markers (DC)
+        if: needs.prepare_validate_convert.outputs.has_atomic_dc_tests == 'true'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: atomic-progress-dc-${{ github.run_id }}
+          path: outputs/verify/atomic_progress
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Installing Python dependencies: requests, pyyaml"
+          python -m pip install --upgrade pip
+          python -m pip install requests pyyaml
+
+      - name: Wait for Splunk indexing
+        shell: bash
+        run: |
+          WAIT=${SPLUNK_VERIFY_WAIT_SECONDS:-60}
+          echo "Waiting ${WAIT}s for Splunk to index atomic test events..."
+          sleep "$WAIT"
+
+      - name: Query Splunk for matched events
+        id: fetch
+        shell: bash
+        env:
+          SPLUNK_BASE_URL: ${{ secrets.SPLUNK_BASE_URL }}
+          SPLUNK_USERNAME: ${{ secrets.SPLUNK_USERNAME }}
+          SPLUNK_PASSWORD: ${{ secrets.SPLUNK_PASSWORD }}
+          SPLUNK_APP: ${{ secrets.SPLUNK_APP }}
+          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS || 'false' }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t spl_files <<'EOF'
+          ${{ needs.prepare_validate_convert.outputs.spl_files }}
+          EOF
+
+          bundle_files=()
+          for spl_file in "${spl_files[@]}"; do
+            [[ -z "$spl_file" ]] && continue
+            bundle_files+=("pipeline_bundle/$spl_file")
+          done
+
+          if [[ "${#bundle_files[@]}" -eq 0 ]]; then
+            echo "No SPL files to verify."
+            exit 0
+          fi
+
+          MATCHED_EVENTS_DIR=$(mktemp -d)
+          echo "matched_events_dir=$MATCHED_EVENTS_DIR" >> "$GITHUB_ENV"
+
+          python scripts/verify/check_saved_search_hits.py \
+            --earliest="-5m" \
+            --latest="now" \
+            --output-dir "$MATCHED_EVENTS_DIR" \
+            "${bundle_files[@]}"
+
+      - name: Evaluate Pass/Fail
+        id: eval
+        shell: bash
+        run: |
+          set +e
+          python scripts/verify/pass_fail_eval.py \
+            --matched-events-dir "${{ env.matched_events_dir }}" \
+            --results-dir "outputs/results" \
+            --min-pass 1 \
+            --max-pass 10 \
+            --run-id "${{ github.run_id }}" \
+            --progress-dir "outputs/verify/atomic_progress"
+          EVAL_EXIT=$?
+          echo "exit_code=$EVAL_EXIT" >> "$GITHUB_OUTPUT"
+
+      - name: Upload matched events artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: matched-events-sigma-${{ github.run_id }}
+          path: ${{ env.matched_events_dir }}
+          retention-days: 90
+          if-no-files-found: ignore
+
+      - name: Generate stats and update README
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Regenerating aggregate stats, MITRE coverage map, and rule browser content..."
+          python scripts/docs/generate_stats.py
+          echo "Updated: outputs/reports/{stats,mitre_technique_map,navigator_layer}.json, README.md, docs/index.html"
+
+      - name: Commit verification results and stats
+        shell: bash
+        env:
+          GIT_EDITOR: ":"
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Snapshot our freshly generated result files before any git resets
+          tmp=$(mktemp -d)
+          mkdir -p "$tmp/results"
+          cp -r outputs/results/. "$tmp/results/"
+
+          for i in 1 2 3; do
+            # Reset to latest dev — eliminates all merge/rebase conflicts
+            echo "Resetting local checkout to origin/dev's tip and overlaying this run's fresh results (safe -- this is how concurrent pipeline runs avoid clobbering each other, not a discard of anything unpushed)..."
+            git fetch origin dev
+            git reset --hard origin/dev
+
+            # Overlay our result files (overwrite whatever dev already has)
+            cp -r "$tmp/results/." outputs/results/
+
+            # Re-generate aggregated stats (picks up results from all concurrent runs)
+            python scripts/docs/generate_stats.py
+
+            git add outputs/results/ outputs/reports/ README.md docs/index.html
+
+            if git diff --cached --quiet; then
+              echo "No changes to commit."
+              exit 0
+            fi
+
+            git commit -m "chore(verify): update verification results and stats [skip ci]"
+
+            if git push origin HEAD:dev; then
+              echo "Push succeeded."
+              exit 0
+            fi
+
+            echo "Push failed (attempt $i), retrying..."
+            sleep $((i * 2))
+          done
+
+          echo "Push failed after 3 attempts."
+          exit 1
+
+      - name: Report verification verdict
+        shell: bash
+        run: |
+          code="${{ steps.eval.outputs.exit_code || '0' }}"
+          if [[ "$code" == "0" ]]; then
+            echo "Final verdict: PASS -- all rules met their pass criteria this run."
+          else
+            echo "Final verdict: FAIL -- see the 'Evaluate Pass/Fail' step above for the per-rule breakdown."
+          fi
+          exit "$code"
+
+  open_promotion_pr:
+    name: Open Promotion PR
+    needs: splunk_verify
+    # splunk_verify's last step ("Report verification verdict") re-exits with
+    # the real PASS/FAIL code, so the job's own result IS the verdict --
+    # deliberately not reading needs.splunk_verify.outputs here: cross-job
+    # outputs from a job whose own `if:` starts with always() (splunk_verify
+    # does, to still run when an atomic test job failed/was skipped) have
+    # been observed to not propagate reliably to a downstream job's `if:`.
+    #
+    # always() is required here too, not just an explicit result check:
+    # without it, GitHub Actions' implicit success() still applied and this
+    # job stayed skipped even on a confirmed, genuine splunk_verify success
+    # (observed empirically -- run 30154222981, 5/5 PASS, splunk_verify
+    # result=success, open_promotion_pr still skipped with zero steps run).
+    # deploy_pages below uses the same always()-plus-explicit-result pattern
+    # and has run reliably every time, including runs where an upstream
+    # atomic job (e.g. atomic_verify_dc) was skipped -- mirroring it here.
+    if: |
+      always() &&
+      needs.splunk_verify.result == 'success'
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+      - name: Open promotion PR to main and mark it In review
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT_DEV_PUSH }}
+        run: |
+          set -euo pipefail
+
+          existing_url=$(gh pr list --repo "${{ github.repository }}" --head dev --base main --state open --json url --jq '.[0].url // empty')
+
+          if [[ -n "$existing_url" ]]; then
+            echo "A dev -> main promotion PR is already open: $existing_url"
+            {
+              echo "### Promotion PR"
+              echo "ℹ️ Already open: $existing_url"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          pr_url=$(gh pr create --repo "${{ github.repository }}" \
+            --base main --head dev \
+            --title "Promote verified detections from dev to main" \
+            --label "automated-promotion" \
+            --body "Automatically opened because the dev pipeline run ${{ github.run_id }} reported PASS. This promotes the already-verified, already-compiled SPL to the prod Splunk App. Review and merge manually to deploy to production -- this PR does not auto-merge.")
+
+          echo "Opened promotion PR: $pr_url"
+          {
+            echo "### Promotion PR"
+            echo "✅ Opened: $pr_url"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if item_id=$(gh project item-add 3 --owner martonbence --url "$pr_url" --format json --jq '.id' 2>&1); then
+            if gh project item-edit \
+              --id "$item_id" \
+              --project-id "PVT_kwHOA_8eh84BeHTL" \
+              --field-id "PVTSSF_lAHOA_8eh84BeHTLzhYj6O0" \
+              --single-select-option-id "4fdb6324" 2>&1; then
+              echo "Set Project #3 Status=In review for $pr_url"
+            else
+              echo "::warning::Opened $pr_url but failed to set its Project #3 status to In review (GH_PAT_DEV_PUSH likely lacks Projects permission -- known gap for fine-grained PATs on user-owned projects)"
+            fi
+          else
+            echo "::warning::Opened $pr_url but failed to add it to Project #3 (GH_PAT_DEV_PUSH likely lacks Projects permission -- known gap for fine-grained PATs on user-owned projects): $item_id"
+          fi
+
+  deploy_pages:
+    name: Deploy GitHub Pages
+    needs: [splunk_verify, atomic_verify, atomic_verify_dc, emulation_verify]
+    if: |
+      always() &&
+      github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
+      (needs.splunk_verify.result == 'success' || needs.splunk_verify.result == 'failure')
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
