@@ -553,12 +553,24 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
                     + detail_btn_html(sid, sname)
                     + "</div>"
                 )
+        # A technique counts as "covered" for the tactic ratio if it — or any
+        # of its sub-techniques — has at least one mapped rule.
+        covered = sum(
+            1 for t in techs
+            if t["id"] in technique_coverage
+            or any(s["id"] in technique_coverage for s in t.get("subs", []))
+        )
+        total = len(techs)
+        pct = round(covered / total * 100) if total else 0
         cols.append(
-            "<div class=\"tc-col\">"
-            "<div class=\"tc-hdr\"><a href=\"" + tac_url + "\" target=\"_blank\">"
-            + _html.escape(tactic) + "</a>"
-            + "<span class=\"tc-count\">" + str(len(techs)) + " techniques</span>"
-            + "</div>"
+            "<div class=\"tc-col\" data-tactic=\"" + _html.escape(tactic) + "\">"
+            "<div class=\"tc-hdr\">"
+            "<button class=\"tc-col-toggle\" title=\"Collapse column\">&#9662;</button>"
+            "<a href=\"" + tac_url + "\" target=\"_blank\">" + _html.escape(tactic) + "</a>"
+            "<span class=\"tc-count\">" + str(covered) + "/" + str(total) + " covered</span>"
+            "<span class=\"tc-cov-bar\"><span class=\"tc-cov-fill\" style=\"width:"
+            + str(pct) + "%\"></span></span>"
+            "</div>"
             + "".join(cells)
             + "</div>"
         )
@@ -1034,6 +1046,17 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
     a { color: var(--accent); text-decoration: none; }
     a:hover { text-decoration: underline; }
+
+    /* Unified heading/title typography — every section header, card title and
+       panel title shares the one UI sans family so headings read as a single
+       system across the Rule Tracker, Navigator and Dashboards. Code-like
+       identifiers (rule IDs, technique IDs, metadata values) intentionally
+       keep the mono --font and are not covered here. */
+    .strip-title, .dash-section-title, .chart-card-title, .gauge-overlay-title,
+    .drawer-section-label, .drawer-title, #detail-title, .tc-hdr,
+    .no-results-title {
+      font-family: var(--font-ui);
+    }
 
     /* ── Top strip: brand + tab bar ── */
     .stats-strip {
@@ -1948,27 +1971,106 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .nav-legend { display:flex; gap:16px; margin-bottom:12px; font-size:12px; align-items:center; flex-wrap:wrap; }
     .nav-legend-item { display:flex; align-items:center; gap:5px; }
     .nav-legend-dot { width:12px; height:12px; border-radius:2px; flex-shrink:0; }
+    .nav-legend-count { font-family:var(--font); font-size:11px; font-weight:700; color:var(--text2); }
     .nav-import { margin-left:auto; font-size:12px; }
+    /* Navigator toolbar: one unified bar with thin dividers between groups */
+    .nav-toolbar { display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap; }
+    .nav-tb-sep { width:1px; height:22px; background:var(--border2); flex-shrink:0; }
+    .nav-search-wrap { position:relative; display:flex; align-items:center; flex:1; min-width:220px; max-width:420px; }
+    .nav-search-wrap > svg { position:absolute; left:10px; width:15px; height:15px; stroke:var(--text3); fill:none; pointer-events:none; }
+    .nav-search-input { width:100%; height:32px; padding:0 30px 0 32px; background:var(--bg); border:1px solid var(--border2); border-radius:var(--radius); color:var(--text); font-family:var(--font-ui); font-size:13px; }
+    .nav-search-input:focus { outline:none; border-color:#ffaa00; box-shadow:0 0 0 2px rgba(255,170,0,0.14); }
+    .nav-search-clear { position:absolute; right:6px; display:none; align-items:center; justify-content:center; width:20px; height:20px; background:none; border:none; color:var(--text3); cursor:pointer; }
+    .nav-search-clear svg { width:13px; height:13px; }
+    .nav-search-clear:hover { color:var(--text); }
+    .nav-search-clear.show { display:flex; }
+    .nav-search-count { font-family:var(--font); font-size:12px; color:var(--text3); white-space:nowrap; }
+    /* Segmented Covered/Gaps control */
+    .nav-quickfilters { display:inline-flex; border:1px solid var(--border2); border-radius:8px; overflow:hidden; }
+    .nav-qf { background:none; border:none; border-right:1px solid var(--border2); color:var(--text2); padding:5px 13px; font-size:12px; font-weight:600; font-family:var(--font-ui); cursor:pointer; transition:all 0.12s; }
+    .nav-qf:last-child { border-right:none; }
+    .nav-qf:hover { color:var(--text); background:rgba(255,170,0,.08); }
+    .nav-qf.active { background:#ffaa00; color:#111; }
+    #nav-export-wrap { margin-left:auto; }
+    /* Verdict filter dropdown */
+    .nav-verdict-wrap { position:relative; }
+    .nav-verdict-btn { display:inline-flex; align-items:center; gap:6px; background:none; border:1px solid var(--border2); color:var(--text2); border-radius:var(--radius); padding:5px 10px; font-size:12px; font-family:var(--font-ui); font-weight:600; cursor:pointer; white-space:nowrap; transition:all 0.12s; }
+    .nav-verdict-btn svg { width:13px; height:13px; stroke:currentColor; fill:none; }
+    .nav-verdict-btn:hover, .nav-verdict-btn.has-active { border-color:#ffaa00; color:var(--text); }
+    .nav-verdict-active { font-family:var(--font); font-size:11px; font-weight:700; color:#ffaa00; }
+    .nav-verdict-active:empty { display:none; }
+    .nav-verdict-menu { display:none; position:absolute; left:0; top:calc(100% + 5px); min-width:200px; background:var(--bg2); border:1px solid var(--border2); border-radius:var(--radius-lg); box-shadow:0 8px 28px rgba(0,0,0,0.5); z-index:50; overflow:hidden; }
+    .nav-verdict-menu.open { display:block; }
+    .nav-verdict-item { display:flex; align-items:center; gap:8px; padding:8px 12px; cursor:pointer; border-bottom:1px solid var(--border); font-size:12px; color:var(--text2); transition:background 0.08s; }
+    .nav-verdict-item:last-child { border-bottom:none; }
+    .nav-verdict-item:hover { background:rgba(233,220,196,0.10); }
+    .nav-verdict-item .nav-legend-dot { width:12px; height:12px; border-radius:2px; flex-shrink:0; position:relative; }
+    .nav-verdict-item .lbl { flex:1; }
+    .nav-verdict-item.checked { color:var(--text); background:rgba(255,170,0,0.10); }
+    .nav-verdict-item.checked .nav-legend-dot::after { content:'✓'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; font-size:9px; font-weight:900; }
     .att-matrix { display:flex; gap:2px; overflow-x:auto; padding-bottom:4px; scrollbar-width:none; }
     .att-matrix::-webkit-scrollbar { display:none; }
     .tc-col { flex:0 0 175px; display:flex; flex-direction:column; gap:1px; }
-    .tc-hdr { background:#FFAA00; color:#111; font-size:12px; font-weight:700; padding:6px 5px; text-align:center; border-radius:3px 3px 0 0; min-height:44px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; }
+    .tc-hdr { position:relative; background:#FFAA00; color:#111; font-size:12px; font-weight:700; padding:6px 5px; text-align:center; border-radius:3px 3px 0 0; min-height:44px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; }
     .tc-count { font-size:10px; font-weight:400; opacity:.75; }
     .tc-hdr a { color:#111; text-decoration:none; }
+    /* Per-tactic coverage bar (item: column header ratio) */
+    .tc-cov-bar { width:78%; height:3px; background:rgba(0,0,0,.22); border-radius:2px; overflow:hidden; }
+    .tc-cov-fill { display:block; height:100%; background:#111; opacity:.55; border-radius:2px; }
+    /* Column collapse toggle + collapsed state */
+    .tc-col-toggle { position:absolute; top:2px; right:3px; background:none; border:none; color:#111; opacity:.6; cursor:pointer; font-size:11px; line-height:1; padding:1px 3px; }
+    .tc-col-toggle:hover { opacity:1; }
+    .tc-col.collapsed { flex:0 0 40px; }
+    .tc-col.collapsed > *:not(.tc-hdr) { display:none !important; }
+    .tc-col.collapsed .tc-count, .tc-col.collapsed .tc-cov-bar { display:none; }
+    .tc-col.collapsed .tc-hdr { writing-mode:vertical-rl; min-height:150px; justify-content:flex-start; padding:22px 4px 8px; gap:0; }
+    .tc-col.collapsed .tc-col-toggle { writing-mode:horizontal-tb; top:4px; right:auto; left:50%; transform:translateX(-50%); }
     .tc-hdr a:hover { text-decoration:underline; }
     .tc { font-size:12px; padding:5px 6px; border-radius:2px; cursor:default; display:flex; flex-direction:column; min-height:40px; gap:1px; position:relative; }
     .tc.uncov { background:#1c2128; color:#484f58; }
-    .tc.uncov.has-cov { background:rgba(255,170,0,.13); color:#545f6e; }
-    .tc.pass    { background:#1a4731; color:#aff3c5; }
-    .tc.notver  { background:#4b3400; color:#ffd580; border-left:2px solid #d29922; }
-    .tc.fail    { background:#67060c; color:#ffc1c1; }
-    .tc.nv      { background:#2d333b; color:#adbac7; border-left:2px solid rgba(255,170,0,.35); }
+    .tc.uncov.has-cov { background:rgba(255,170,0,.13); color:#545f6e; border-left:2px solid rgba(255,170,0,.55); }
+    /* Covered cells — "accent rail" style: dark base + a coloured left rail in
+       the verdict colour (green/amber/red/grey), instead of a solid fill. */
+    .tc.pass    { background:#21262d; color:var(--text); border-left:3px solid #2ea44f; }
+    .tc.notver  { background:#21262d; color:var(--text); border-left:3px solid #d29922; }
+    .tc.fail    { background:#21262d; color:var(--text); border-left:3px solid #f85149; }
+    .tc.nv      { background:#21262d; color:var(--text); border-left:3px solid #6e7681; }
+    .tc.pass .tn, .tc.notver .tn, .tc.fail .tn, .tc.nv .tn { color:var(--text2); }
+    /* Directly-covered PARENT techniques get an extra soft verdict tint so they
+       stand out from their (rail-only) covered sub-techniques and read as the
+       higher level in the hierarchy. */
+    .tc.pass:not(.sub)   { background:rgba(46,164,79,.11); }
+    .tc.notver:not(.sub) { background:rgba(210,153,34,.11); }
+    .tc.fail:not(.sub)   { background:rgba(248,81,73,.11); }
+    .tc.nv:not(.sub)     { background:rgba(110,118,129,.14); }
+    /* Covered SUB techniques carry a small verdict dot at the top-right (parents
+       show the expand caret there instead, and are distinguished by their tint). */
+    .tc.sub.pass::after, .tc.sub.notver::after, .tc.sub.fail::after, .tc.sub.nv::after {
+      content:''; position:absolute; top:7px; right:7px; width:7px; height:7px; border-radius:50%;
+    }
+    .tc.sub.pass::after   { background:#2ea44f; }
+    .tc.sub.notver::after { background:#d29922; }
+    .tc.sub.fail::after   { background:#f85149; }
+    .tc.sub.nv::after     { background:#6e7681; }
+    /* On hover the detail (hamburger) button occupies the right edge, so fade
+       the verdict dot out to avoid the two colliding — the left rail still
+       conveys the verdict. */
+    .tc.sub[data-rules]:hover::after { opacity:0; }
     .tc.sub   { min-height:28px; padding-left:12px; }
     .tc[data-rules] { cursor:pointer; }
-    .tc[data-rules]:hover { filter:brightness(1.3); }
-    .tc.highlighted { box-shadow:inset 0 0 0 2px #FFAA00; filter:brightness(1.15); }
-    .tc.expanded { box-shadow:inset 0 0 0 1.5px rgba(255,170,0,.55); }
-    .tc.expanded.highlighted { box-shadow:inset 0 0 0 2px #FFAA00; }
+    /* Hover feedback on any technique/sub-technique mirrors the Rule Tracker's
+       warm row tint + subtle border (covered or not). */
+    .tc[data-id]:hover { box-shadow:inset 0 0 0 1px rgba(233,220,196,0.32), inset 0 0 0 999px rgba(233,220,196,0.10); }
+    /* Click cross-highlight paints equivalent cells with the tactic-header amber */
+    .tc.highlighted { background:#FFAA00 !important; color:#111 !important; }
+    .tc.highlighted .ti, .tc.highlighted .tn, .tc.highlighted .sub-badge, .tc.highlighted .sub-badge-cov { color:#111 !important; opacity:1; }
+    .tc.highlighted:hover { box-shadow:none; }
+    /* Expanded parent + its sub-group read as one continuous amber frame */
+    .tc.expanded { border:1.5px solid rgba(255,170,0,.65); border-bottom:none; border-radius:3px 3px 0 0; }
+    /* Cells with a verdict/has-cov left accent have a higher-specificity
+       border-left; re-assert the uniform 1.5px frame width when expanded so it
+       lines up seamlessly with the sub-group's left border (no notch). */
+    .tc.uncov.has-cov.expanded, .tc.notver.expanded, .tc.nv.expanded { border-left:1.5px solid rgba(255,170,0,.65); }
     .ti { font-weight:700; font-size:12px; color:inherit; text-decoration:none; }
     .ti:hover { text-decoration:underline; }
     .tn { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
@@ -1982,8 +2084,9 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .tc-detail:hover { opacity:1 !important; color:#FFAA00; }
     .sub-badge { font-size:9px; opacity:.55; }
     .sub-badge-cov { font-size:9px; color:#FFAA00; font-weight:700; }
-    .sub-group { border:1.5px solid rgba(255,170,0,.5); border-radius:3px; display:flex; flex-direction:column; gap:1px; padding:1px; margin-top:1px; }
+    .sub-group { border:1.5px solid rgba(255,170,0,.65); border-top:none; border-radius:0 0 3px 3px; display:flex; flex-direction:column; gap:1px; padding:0 1px 1px; margin-top:-1px; }
     .tc.tc-hidden { display:none !important; }
+    .tc-col.tc-col-hidden { display:none !important; }
     .nav-legend-item[data-filter] { cursor:pointer; border-radius:4px; padding:2px 6px; transition:background .15s; }
     .nav-legend-item[data-filter]:hover { background:rgba(255,170,0,.08); }
     .nav-legend-item.filter-active { background:rgba(255,170,0,.18); outline:1px solid rgba(255,170,0,.55); }
@@ -1991,18 +2094,21 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .nav-legend-item.filter-active .nav-legend-dot::after { content:'✓'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; font-size:9px; font-weight:900; }
     #expand-all-btn { background:none; border:1px solid var(--border); color:var(--text2); border-radius:5px; padding:3px 10px; font-size:12px; cursor:pointer; white-space:nowrap; }
     #expand-all-btn:hover { color:var(--text); border-color:#FFAA00; }
-    /* Detail panel */
-    #detail-panel { position:fixed; right:0; top:0; bottom:0; width:300px; background:#161b22; border-left:1px solid #30363d; z-index:10000; display:none; flex-direction:column; box-shadow:-4px 0 24px rgba(0,0,0,.6); }
-    #detail-panel.open { display:flex; }
-    #detail-header { display:flex; justify-content:space-between; align-items:flex-start; padding:14px 16px 10px; border-bottom:1px solid #30363d; flex-shrink:0; }
-    #detail-title { font-weight:700; font-size:13px; color:#e6edf3; }
-    #detail-tid { color:#8b949e; font-size:10px; margin-top:2px; }
-    #detail-close { background:none; border:none; color:#8b949e; font-size:20px; cursor:pointer; padding:0; line-height:1; }
-    #detail-close:hover { color:#e6edf3; }
-    #detail-body { padding:12px 16px; overflow-y:auto; flex:1; }
-    .detail-rule { display:flex; align-items:center; gap:6px; margin:6px 0; text-decoration:none; color:#58a6ff; font-size:12px; line-height:1.4; }
-    .detail-rule:hover { text-decoration:underline; }
-    .detail-noverd { display:flex; align-items:center; gap:6px; margin:6px 0; font-size:12px; color:#8b949e; }
+    /* Detail panel — mirrors the Rule Tracker drawer's look (tokens, slide-in,
+       card-style rule rows) so the two views feel like one component. */
+    #detail-panel { position:fixed; right:0; top:0; bottom:0; width:340px; max-width:92vw; background:var(--bg2); border-left:1px solid var(--border); z-index:202; display:flex; flex-direction:column; box-shadow:-4px 0 24px rgba(0,0,0,.5); transform:translateX(100%); transition:transform 0.2s ease; }
+    #detail-panel.open { transform:translateX(0); }
+    #detail-header { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding:18px 20px 14px; border-bottom:1px solid var(--border); flex-shrink:0; }
+    #detail-title { font-weight:700; font-size:14px; color:var(--text); line-height:1.3; }
+    #detail-tid { font-family:var(--font); color:var(--text2); font-size:11px; margin-top:3px; }
+    #detail-close { background:none; border:1px solid var(--border2); border-radius:var(--radius); width:28px; height:28px; display:flex; align-items:center; justify-content:center; color:var(--text2); font-size:18px; line-height:1; cursor:pointer; flex-shrink:0; transition:all 0.1s; }
+    #detail-close:hover { border-color:#ffaa00; color:#ffaa00; box-shadow:0 0 0 2px rgba(255,170,0,0.14); }
+    #detail-body { padding:14px 16px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:7px; }
+    .detail-rule { display:flex; align-items:center; gap:8px; text-decoration:none; color:var(--text); font-size:12px; line-height:1.4; background:var(--bg3); border:1px solid var(--border); border-left:2px solid #ffaa00; border-radius:var(--radius); padding:8px 10px; cursor:pointer; transition:all 0.1s; }
+    .detail-rule:hover { border-color:var(--border2); border-left-color:#ffaa00; background:var(--bg4); text-decoration:none; }
+    .detail-rule:focus-visible { outline:none; border-color:#ffaa00; box-shadow:0 0 0 2px rgba(255,170,0,0.18); }
+    .detail-rule.sel { border-color:#ffaa00; border-left-color:#ffaa00; background:var(--bg4); box-shadow:inset 0 0 0 1px rgba(255,170,0,0.25); }
+    .detail-noverd { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text2); background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); padding:8px 10px; }
     .detail-vbadge { display:inline-block; padding:1px 7px; border-radius:8px; font-size:10px; font-weight:600; flex-shrink:0; }
     .detail-vbadge.PASS { background:#2EA44F; color:#fff; }
     .detail-vbadge.NOT_VERIFIED { background:#9A6700; color:#fff; }
@@ -2015,7 +2121,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       box-shadow:0 8px 24px rgba(0,0,0,.5);
     }
     .tip-head { font-weight:700; font-size:13px; margin-bottom:6px; }
-    .tip-rule { display:flex; align-items:center; gap:6px; margin:3px 0; text-decoration:none; color:#58a6ff; font-size:11px; }
+    .tip-rule { display:flex; align-items:center; gap:6px; margin:3px 0; text-decoration:none; color:var(--text); font-size:11px; }
     .tip-rule:hover { text-decoration:underline; }
     .tip-vbadge { display:inline-block; padding:1px 7px; border-radius:8px; font-size:10px; font-weight:600; flex-shrink:0; }
     .tip-vbadge.PASS { background:#2EA44F; color:#fff; }
@@ -2128,14 +2234,47 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
   <div id="tab-navigator" class="tab-pane">
     <div class="nav-wrap">
-      <div class="nav-legend">
-        <div class="nav-legend-item" data-filter="pass"><div class="nav-legend-dot" style="background:#1a4731;border:1px solid #2EA44F"></div> PASS</div>
-        <div class="nav-legend-item" data-filter="notver"><div class="nav-legend-dot" style="background:#4b3400;border:1px solid #d29922"></div> NOT VERIFIED</div>
-        <div class="nav-legend-item" data-filter="fail"><div class="nav-legend-dot" style="background:#67060c;border:1px solid #CF222E"></div> FAIL</div>
-        <div class="nav-legend-item" data-filter="nv"><div class="nav-legend-dot" style="background:#9f9f9f"></div> N/A</div>
-        <div class="nav-legend-item" data-filter="uncov"><div class="nav-legend-dot" style="background:#1c2128;border:1px solid #30363d"></div> Not covered</div>
+      <div class="nav-toolbar">
+        <div class="nav-search-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="nav-search-input" id="nav-search" type="text" placeholder="Jump to technique — ID or name…" oninput="onNavSearch()">
+          <button class="nav-search-clear" id="nav-search-clear" onclick="clearNavSearch()" title="Clear" aria-label="Clear search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <span class="nav-search-count" id="nav-search-count"></span>
+        <span class="nav-tb-sep"></span>
+        <div class="nav-verdict-wrap">
+          <button class="nav-verdict-btn" id="nav-verdict-btn" onclick="toggleVerdictMenu(event)">
+            <span>Verdict</span><span class="nav-verdict-active" id="nav-verdict-active"></span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="nav-verdict-menu" id="nav-verdict-menu">
+            <div class="nav-verdict-item" data-filter="pass"><span class="nav-legend-dot" style="background:#21262d;border-left:3px solid #2EA44F"></span><span class="lbl">PASS</span><span class="nav-legend-count" data-count="pass"></span></div>
+            <div class="nav-verdict-item" data-filter="notver"><span class="nav-legend-dot" style="background:#21262d;border-left:3px solid #d29922"></span><span class="lbl">NOT VERIFIED</span><span class="nav-legend-count" data-count="notver"></span></div>
+            <div class="nav-verdict-item" data-filter="fail"><span class="nav-legend-dot" style="background:#21262d;border-left:3px solid #CF222E"></span><span class="lbl">FAIL</span><span class="nav-legend-count" data-count="fail"></span></div>
+            <div class="nav-verdict-item" data-filter="nv"><span class="nav-legend-dot" style="background:#21262d;border-left:3px solid #6e7681"></span><span class="lbl">N/A</span><span class="nav-legend-count" data-count="nv"></span></div>
+            <div class="nav-verdict-item" data-filter="uncov"><span class="nav-legend-dot" style="background:#1c2128;border:1px solid #30363d"></span><span class="lbl">Not covered</span><span class="nav-legend-count" data-count="uncov"></span></div>
+          </div>
+        </div>
+        <div class="nav-quickfilters">
+          <button class="nav-qf" id="nav-qf-covered" onclick="toggleNavScope('covered')">Covered</button>
+          <button class="nav-qf" id="nav-qf-gaps" onclick="toggleNavScope('gaps')">Gaps</button>
+        </div>
+        <span class="nav-tb-sep"></span>
         <button id="expand-all-btn">&#9660; Expand All</button>
-        <div class="nav-import"><a href="@@LAYER_URL@@" target="_blank">&#8659; Download Navigator layer (.json)</a></div>
+        <div class="export-wrap" id="nav-export-wrap">
+          <button class="export-btn" onclick="toggleNavExportMenu(event)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export view
+          </button>
+          <div class="export-menu" id="nav-export-menu">
+            <div class="export-menu-head">Current view (<span id="nav-export-count">0</span> techniques)</div>
+            <div class="export-menu-item" onclick="exportNavView('csv')"><span class="ext">CSV</span><span class="desc">Spreadsheet</span></div>
+            <div class="export-menu-item" onclick="exportNavView('json')"><span class="ext">JSON</span><span class="desc">Full metadata</span></div>
+            <div class="export-menu-item" onclick="exportNavView('md')"><span class="ext">MD</span><span class="desc">Markdown table</span></div>
+          </div>
+        </div>
       </div>
       @@MATRIX_HTML@@
     </div>
@@ -2275,6 +2414,10 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2/dist/chartjs-plugin-datalabels.min.js"></script>
   <script>
   const RULES = @@RULES_JSON@@;
+  // Lookup so the Navigator can open the same in-page drawer the Rule Tracker
+  // uses (openDrawer takes a RULES index), instead of linking out to GitHub.
+  const RULE_IDX_BY_ID = {};
+  RULES.forEach(function(r, i) { RULE_IDX_BY_ID[r.id] = i; });
   const TACTIC_IDS = @@TACTIC_IDS_JSON@@;
   const GENERATED_TS = "@@TS@@";
   const TOTAL_RULES = @@TOTAL@@;
@@ -3722,6 +3865,14 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   function closeDrawer() {
     document.getElementById('drawer-overlay').classList.remove('open');
     document.getElementById('drawer').classList.remove('open');
+    // If this drawer was opened from a Navigator technique panel, reopen that
+    // panel (with the same rule still highlighted) so the user lands back in
+    // the rule list they were browsing rather than on a bare matrix.
+    if (typeof navReopenAfterDrawer !== 'undefined' && navReopenAfterDrawer) {
+      var ctx = navReopenAfterDrawer;
+      navReopenAfterDrawer = null;
+      openNavDetail(ctx.bid, ctx.name, ctx.rules, ctx.sel);
+    }
   }
 
   // ── Keyboard navigation ──────────────────────────────────────────────────
@@ -3850,12 +4001,16 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     const q = document.getElementById('search-input')?.value?.trim();
     if (q) parts.push('q=' + encodeURIComponent(q));
     if (sortCol !== 'id' || !sortAsc) parts.push(`sort=${sortCol}:${sortAsc ? 'asc' : 'desc'}`);
+    // Deep-link the open Navigator technique panel so the view is shareable.
+    if (currentTab === 'navigator' && typeof navOpenDetailId !== 'undefined' && navOpenDetailId) {
+      parts.push('tech=' + encodeURIComponent(navOpenDetailId));
+    }
     return parts.join('&');
   }
 
   function decodeState(hash) {
     const raw = (hash || '').replace(/^#/, '');
-    const state = { tab: 'rules', filters: {}, q: '', sortCol: 'id', sortAsc: true };
+    const state = { tab: 'rules', filters: {}, q: '', sortCol: 'id', sortAsc: true, tech: '' };
     if (!raw) return state;
     const validKeys = new Set(FILTER_FIELDS.map(f => f.key));
     raw.split('&').forEach(pair => {
@@ -3867,6 +4022,8 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
         state.tab = (val === 'navigator' || val === 'dashboards') ? val : 'rules';
       } else if (key === 'q') {
         state.q = decodeURIComponent(val);
+      } else if (key === 'tech') {
+        state.tech = decodeURIComponent(val);
       } else if (key === 'sort') {
         const [col, dir] = val.split(':');
         if (col) { state.sortCol = col; state.sortAsc = dir !== 'desc'; }
@@ -3894,6 +4051,14 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     renderFilters();
     renderActiveFilterRow();
     renderTable();
+    // Restore a deep-linked Navigator technique panel (if any).
+    if (typeof openNavByTid === 'function') {
+      if (state.tab === 'navigator' && state.tech) {
+        if (typeof navOpenDetailId === 'undefined' || navOpenDetailId !== state.tech) openNavByTid(state.tech);
+      } else if (typeof navOpenDetailId !== 'undefined' && navOpenDetailId && typeof closeNavDetail === 'function') {
+        closeNavDetail();
+      }
+    }
   }
 
   function updateHash() {
@@ -3913,7 +4078,11 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     document.getElementById('export-menu').classList.toggle('open');
   }
 
-  document.addEventListener('click', () => { document.getElementById('export-menu')?.classList.remove('open'); });
+  document.addEventListener('click', () => {
+    document.getElementById('export-menu')?.classList.remove('open');
+    document.getElementById('nav-export-menu')?.classList.remove('open');
+    document.getElementById('nav-verdict-menu')?.classList.remove('open');
+  });
 
   function flat(v, sep) {
     sep = sep || ' | ';
@@ -4147,8 +4316,12 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     });
     if (window.ResizeObserver) { new ResizeObserver(syncWidth).observe(matrix); }
   })();
-  // Legend multi-filter with parent+sub logic
+  // Combined Navigator visibility: legend verdict filters + Covered/Gaps scope
+  // + technique search all narrow the same matrix.
   var navActiveFilters = new Set();
+  var navScope = null;          // 'covered' | 'gaps' | null
+  var navSearchText = '';
+  var navAutoExpanded = new Set();
   function tcVerdict(tc) {
     if (tc.classList.contains('pass'))   return 'pass';
     if (tc.classList.contains('notver')) return 'notver';
@@ -4156,39 +4329,193 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     if (tc.classList.contains('nv'))     return 'nv';
     return 'uncov';
   }
-  function applyNavFilters() {
+  function tcIsCovered(tc) { return tcVerdict(tc) !== 'uncov'; }
+  function tcText(tc) {
+    var tn = tc.querySelector('.tn');
+    return ((tc.dataset.id || '') + ' ' + (tn ? tn.textContent : '')).toLowerCase();
+  }
+  function tcMatches(tc) {
+    var okLegend = navActiveFilters.size === 0 || navActiveFilters.has(tcVerdict(tc));
+    var okScope = !navScope || (navScope === 'covered' ? tcIsCovered(tc) : !tcIsCovered(tc));
+    var okSearch = !navSearchText || tcText(tc).indexOf(navSearchText) >= 0;
+    return okLegend && okScope && okSearch;
+  }
+  function applyNavVisibility() {
+    // Drop any search-driven auto-expands once the search is cleared.
+    if (!navSearchText && navAutoExpanded.size) {
+      navAutoExpanded.forEach(function(b) { if (b.classList.contains('open')) navDoExpand(b, false); });
+      navAutoExpanded.clear();
+    }
+    var active = navActiveFilters.size > 0 || !!navScope || !!navSearchText;
+    var shown = 0;
     document.querySelectorAll('.tc-col').forEach(function(col) {
+      var colVisible = 0;
       col.querySelectorAll('.tc:not(.sub)').forEach(function(parentTc) {
         var tid = parentTc.dataset.id;
         if (!tid) return;
         var subs = Array.from(col.querySelectorAll('.tc.sub[data-id^="' + tid + '."]'));
-        if (navActiveFilters.size === 0) {
-          parentTc.classList.remove('tc-hidden');
-          subs.forEach(function(s) { s.classList.remove('tc-hidden'); });
-          return;
+        var pMatch = tcMatches(parentTc);
+        var subMatches = subs.filter(tcMatches);
+        var show = pMatch || subMatches.length > 0;
+        parentTc.classList.toggle('tc-hidden', !show);
+        subs.forEach(function(s) { s.classList.toggle('tc-hidden', !tcMatches(s)); });
+        var exBtn = parentTc.querySelector('.tc-expand');
+        if (!show) {
+          // Collapse hidden parents so no orphan sub-group frame is left behind.
+          if (exBtn && exBtn.classList.contains('open')) { navDoExpand(exBtn, false); navAutoExpanded.delete(exBtn); }
+        } else {
+          colVisible++;
+          shown++;
+          // When a search only matches sub-techniques, reveal them automatically.
+          if (exBtn && navSearchText && subMatches.length > 0 && !pMatch && !exBtn.classList.contains('open')) {
+            navDoExpand(exBtn, true);
+            navAutoExpanded.add(exBtn);
+          }
         }
-        var parentMatch = navActiveFilters.has(tcVerdict(parentTc));
-        var subMatch = subs.some(function(s) { return navActiveFilters.has(tcVerdict(s)); });
-        parentTc.classList.toggle('tc-hidden', !parentMatch && !subMatch);
-        subs.forEach(function(s) {
-          s.classList.toggle('tc-hidden', !navActiveFilters.has(tcVerdict(s)));
-        });
       });
+      // Hide whole columns that have no visible techniques under an active filter.
+      col.classList.toggle('tc-col-hidden', active && colVisible === 0);
+    });
+    return shown;
+  }
+  function computeNavLegendCounts() {
+    var counts = { pass: 0, notver: 0, fail: 0, nv: 0, uncov: 0 };
+    document.querySelectorAll('.att-matrix .tc[data-id]').forEach(function(tc) { counts[tcVerdict(tc)]++; });
+    Object.keys(counts).forEach(function(k) {
+      var el = document.querySelector('.nav-legend-count[data-count="' + k + '"]');
+      if (el) el.textContent = counts[k];
+      // Hide verdict rows that have no cells at all (e.g. N/A when every mapped
+      // rule has been validated) so the dropdown only lists states in play.
+      var item = el ? el.closest('.nav-verdict-item') : null;
+      if (item) item.style.display = counts[k] === 0 ? 'none' : '';
     });
   }
-  document.querySelectorAll('.nav-legend-item[data-filter]').forEach(function(item) {
-    item.addEventListener('click', function() {
+  function refreshVerdictBtn() {
+    var n = navActiveFilters.size;
+    var lbl = document.getElementById('nav-verdict-active');
+    var btn = document.getElementById('nav-verdict-btn');
+    if (lbl) lbl.textContent = n ? '(' + n + ')' : '';
+    if (btn) btn.classList.toggle('has-active', n > 0);
+  }
+  document.querySelectorAll('.nav-verdict-item[data-filter]').forEach(function(item) {
+    item.addEventListener('click', function(e) {
+      e.stopPropagation();
       var f = item.dataset.filter;
       if (navActiveFilters.has(f)) {
         navActiveFilters.delete(f);
-        item.classList.remove('filter-active');
+        item.classList.remove('checked');
       } else {
         navActiveFilters.add(f);
-        item.classList.add('filter-active');
+        item.classList.add('checked');
       }
-      applyNavFilters();
+      refreshVerdictBtn();
+      applyNavVisibility();
     });
   });
+  function toggleVerdictMenu(e) {
+    e.stopPropagation();
+    document.getElementById('nav-export-menu').classList.remove('open');
+    document.getElementById('nav-verdict-menu').classList.toggle('open');
+  }
+  // Covered / Gaps quick-scope toggles
+  function toggleNavScope(scope) {
+    navScope = (navScope === scope) ? null : scope;
+    var cb = document.getElementById('nav-qf-covered');
+    var gb = document.getElementById('nav-qf-gaps');
+    if (cb) cb.classList.toggle('active', navScope === 'covered');
+    if (gb) gb.classList.toggle('active', navScope === 'gaps');
+    applyNavVisibility();
+  }
+  // Technique search
+  function onNavSearch() {
+    var inp = document.getElementById('nav-search');
+    navSearchText = (inp.value || '').trim().toLowerCase();
+    document.getElementById('nav-search-clear').classList.toggle('show', !!navSearchText);
+    var n = applyNavVisibility();
+    var cnt = document.getElementById('nav-search-count');
+    if (cnt) cnt.textContent = navSearchText ? (n + ' matching') : '';
+    if (navSearchText) {
+      var first = document.querySelector('.att-matrix .tc:not(.sub):not(.tc-hidden)[data-id]');
+      if (first) first.scrollIntoView({ inline: 'center', block: 'nearest' });
+    }
+  }
+  function clearNavSearch() {
+    var inp = document.getElementById('nav-search');
+    inp.value = '';
+    onNavSearch();
+    inp.focus();
+  }
+  // Export the techniques currently shown (respects filters/search, not collapse)
+  function navViewRows() {
+    var rows = [];
+    var vmap = { pass: 'PASS', notver: 'NOT_VERIFIED', fail: 'FAIL', nv: 'N/A', uncov: 'Not covered' };
+    document.querySelectorAll('.att-matrix .tc[data-id]:not(.tc-hidden)').forEach(function(tc) {
+      var col = tc.closest('.tc-col');
+      if (col && (col.classList.contains('collapsed') || col.classList.contains('tc-col-hidden'))) return;
+      var tn = tc.querySelector('.tn');
+      var ruleIds = '';
+      if (tc.dataset.rules) {
+        try { ruleIds = JSON.parse(tc.dataset.rules).map(function(r) { return r.id; }).join(' | '); } catch (e) {}
+      }
+      rows.push({
+        Technique: tc.dataset.id,
+        Name: tn ? tn.textContent : '',
+        Tactic: col ? (col.dataset.tactic || '') : '',
+        Coverage: vmap[tcVerdict(tc)],
+        Rules: ruleIds,
+      });
+    });
+    return rows;
+  }
+  function navToMarkdown(rows) {
+    var cols = ['Technique', 'Name', 'Tactic', 'Coverage', 'Rules'];
+    var esc = function(v) { return String(v == null ? '' : v).replace(/\|/g, '\\|'); };
+    var head = '| ' + cols.join(' | ') + ' |';
+    var sep = '| ' + cols.map(function() { return '---'; }).join(' | ') + ' |';
+    var body = rows.map(function(r) { return '| ' + cols.map(function(c) { return esc(r[c]); }).join(' | ') + ' |'; });
+    return ['# MITRE ATT&CK Navigator — Current View', '', '**Exported:** ' + todayStamp() + '  ', '**Techniques:** ' + rows.length, '', head, sep].concat(body).join('\n');
+  }
+  function toggleNavExportMenu(e) {
+    e.stopPropagation();
+    document.getElementById('nav-verdict-menu').classList.remove('open');
+    var cnt = document.getElementById('nav-export-count');
+    if (cnt) cnt.textContent = navViewRows().length;
+    document.getElementById('nav-export-menu').classList.toggle('open');
+  }
+  function exportNavView(format) {
+    document.getElementById('nav-export-menu').classList.remove('open');
+    var rows = navViewRows();
+    if (!rows.length) { alert('Nothing to export in the current view.'); return; }
+    var stamp = todayStamp();
+    if (format === 'json') {
+      var payload = { exportedAt: new Date().toISOString(), count: rows.length, techniques: rows };
+      downloadFile(JSON.stringify(payload, null, 2), 'navigator_view_' + stamp + '.json', 'application/json');
+    } else if (format === 'md') {
+      downloadFile(navToMarkdown(rows), 'navigator_view_' + stamp + '.md', 'text/markdown;charset=utf-8');
+    } else {
+      downloadFile(toCSV(rows), 'navigator_view_' + stamp + '.csv', 'text/csv;charset=utf-8');
+    }
+  }
+  // Tactic column collapse/expand
+  document.querySelectorAll('.tc-col-toggle').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      e.preventDefault();
+      var col = btn.closest('.tc-col');
+      var collapsed = col.classList.toggle('collapsed');
+      btn.innerHTML = collapsed ? '&#9656;' : '&#9662;';
+      btn.title = collapsed ? 'Expand column' : 'Collapse column';
+    });
+  });
+  // Open a technique panel by ID (used by deep-link on load)
+  function openNavByTid(tid) {
+    var btn = document.querySelector('.tc-detail[data-id="' + tid + '"]');
+    if (!btn) return;
+    openNavDetail(btn.dataset.id, btn.dataset.name, JSON.parse(btn.dataset.rules), -1);
+    var cell = document.querySelector('.tc[data-id="' + tid + '"]');
+    if (cell) cell.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }
+  computeNavLegendCounts();
   // Expand All / Collapse All button
   (function() {
     var btn = document.getElementById('expand-all-btn');
@@ -4199,7 +4526,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       btn.innerHTML = expanded ? '&#9650; Collapse All' : '&#9660; Expand All';
       document.querySelectorAll('.tc-expand').forEach(function(exBtn) {
         var parentTc = exBtn.closest('.tc');
-        if (navActiveFilters.size > 0 && parentTc.classList.contains('tc-hidden')) return;
+        if (parentTc.classList.contains('tc-hidden')) return;
         var isOpen = exBtn.classList.contains('open');
         if (expanded && !isOpen) navDoExpand(exBtn, true);
         else if (!expanded && isOpen) navDoExpand(exBtn, false);
@@ -4229,37 +4556,115 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   var navPanelTid = document.getElementById('detail-tid');
   var navPanelBody = document.getElementById('detail-body');
   var navOpenDetailId = null;
-  document.getElementById('detail-close').addEventListener('click', function() {
+  // Current technique panel context: { bid, name, rules, sel } — sel is the
+  // index of the arrow-key-highlighted rule (-1 = none). navReopenAfterDrawer
+  // carries the same shape so closeDrawer() can restore the panel afterwards.
+  var navDetail = null;
+  var navReopenAfterDrawer = null;
+
+  function navPaintDetailSel() {
+    if (!navDetail) return;
+    var rows = navPanelBody.querySelectorAll('.detail-rule[data-idx]');
+    rows.forEach(function(row, i) {
+      var on = i === navDetail.sel;
+      row.classList.toggle('sel', on);
+      if (on) row.scrollIntoView({ block: 'nearest' });
+    });
+  }
+
+  function navMoveDetailSel(delta) {
+    if (!navDetail) return;
+    var rows = navPanelBody.querySelectorAll('.detail-rule[data-idx]');
+    if (!rows.length) return;
+    if (navDetail.sel < 0) navDetail.sel = delta > 0 ? 0 : rows.length - 1;
+    else navDetail.sel = Math.min(rows.length - 1, Math.max(0, navDetail.sel + delta));
+    navPaintDetailSel();
+  }
+
+  function navOpenSelectedRule() {
+    if (!navDetail) return;
+    var rows = navPanelBody.querySelectorAll('.detail-rule[data-idx]');
+    var row = rows[navDetail.sel];
+    if (!row) return;
+    // Remember where we came from so closing the drawer reopens this panel.
+    navReopenAfterDrawer = { bid: navDetail.bid, name: navDetail.name, rules: navDetail.rules, sel: navDetail.sel };
+    navPanel.classList.remove('open');
+    openDrawer(parseInt(row.dataset.idx, 10));
+  }
+
+  function openNavDetail(bid, name, rules, selIdx) {
+    navOpenDetailId = bid;
+    navDetail = { bid: bid, name: name, rules: rules, sel: (selIdx == null ? -1 : selIdx) };
+    navPanelTitle.textContent = name;
+    navPanelTid.textContent = bid;
+    if (typeof updateHash === 'function') updateHash();
+    var html = '';
+    rules.forEach(function(r) {
+      var vc = r.verdict === 'N/A' ? 'NA' : r.verdict;
+      var badge = '<span class="detail-vbadge ' + vc + '">' + vLabel(r.verdict) + '</span>';
+      var label = escHtml(r.id + ': ' + r.title);
+      var idx = RULE_IDX_BY_ID[r.id];
+      if (idx !== undefined) {
+        html += '<div class="detail-rule" data-idx="' + idx + '" role="button" tabindex="0">' + badge + label + '</div>';
+      } else {
+        html += '<div class="detail-noverd">' + badge + label + '</div>';
+      }
+    });
+    navPanelBody.innerHTML = html;
+    // Clicking a rule opens the shared Rule Tracker drawer (not a new page).
+    navPanelBody.querySelectorAll('.detail-rule[data-idx]').forEach(function(el, i) {
+      el.addEventListener('click', function() { navDetail.sel = i; navOpenSelectedRule(); });
+      el.addEventListener('mouseenter', function() { navDetail.sel = i; navPaintDetailSel(); });
+    });
+    navPanel.classList.add('open');
+    navPaintDetailSel();
+  }
+
+  function closeNavDetail() {
     navPanel.classList.remove('open');
     navOpenDetailId = null;
-  });
+    navDetail = null;
+    navReopenAfterDrawer = null;
+    if (typeof updateHash === 'function') updateHash();
+  }
+
+  document.getElementById('detail-close').addEventListener('click', closeNavDetail);
+
   document.querySelectorAll('.tc-detail').forEach(function(btn) {
     btn.addEventListener('click', function(e) {
       e.stopPropagation();
       var bid = btn.dataset.id;
       if (navPanel.classList.contains('open') && navOpenDetailId === bid) {
-        navPanel.classList.remove('open');
-        navOpenDetailId = null;
+        closeNavDetail();
         return;
       }
-      navOpenDetailId = bid;
-      var rules = JSON.parse(btn.dataset.rules);
-      navPanelTitle.textContent = btn.dataset.name;
-      navPanelTid.textContent = bid;
-      var html = '';
-      rules.forEach(function(r) {
-        var vc = r.verdict === 'N/A' ? 'NA' : r.verdict;
-        var badge = '<span class="detail-vbadge ' + vc + '">' + vLabel(r.verdict) + '</span>';
-        var label = r.id + ': ' + r.title;
-        if (r.url) {
-          html += '<a class="detail-rule" href="' + r.url + '" target="_blank">' + badge + label + '</a>';
-        } else {
-          html += '<div class="detail-noverd">' + badge + label + '</div>';
-        }
-      });
-      navPanelBody.innerHTML = html;
-      navPanel.classList.add('open');
+      openNavDetail(bid, btn.dataset.name, JSON.parse(btn.dataset.rules), -1);
     });
+  });
+
+  // Arrow-key navigation for the Navigator technique panel: Up/Down move
+  // between the listed rules, Enter opens the highlighted one, Escape closes.
+  // While a rule drawer is open (opened from here), Escape closes it — which
+  // reopens this panel via closeDrawer().
+  document.addEventListener('keydown', function(e) {
+    if (currentTab !== 'navigator') return;
+    var el = document.activeElement;
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
+    if (isDrawerOpen()) {
+      if (e.key === 'Escape') { e.preventDefault(); closeDrawer(); }
+      return;
+    }
+    if (!navPanel.classList.contains('open')) return;
+    switch (e.key) {
+      case 'ArrowDown': e.preventDefault(); navMoveDetailSel(1); break;
+      case 'ArrowUp': e.preventDefault(); navMoveDetailSel(-1); break;
+      case 'Enter':
+        e.preventDefault();
+        if (navDetail && navDetail.sel < 0) navMoveDetailSel(1);
+        navOpenSelectedRule();
+        break;
+      case 'Escape': e.preventDefault(); closeNavDetail(); break;
+    }
   });
 
 
@@ -4339,7 +4744,9 @@ def render_html_summary(stats: dict, repo: str) -> str:
     html = html.replace("@@FAILED@@", str(failed))
     html = html.replace("@@NOT_VER@@", str(not_ver))
     html = html.replace("@@NEVER_TESTED@@", str(never_tested))
-    html = html.replace("@@PASS_RATE@@", str(pass_rate))
+    # Render as a whole number so the Pass Rate overlay matches the Status
+    # chart's Stable % (also integer) — no stray decimal on one but not the other.
+    html = html.replace("@@PASS_RATE@@", str(round(pass_rate)))
     html = html.replace("@@MITRE_COVERED@@", str(mitre_covered))
     html = html.replace("@@MITRE_TOTAL@@", str(mitre_total))
     html = html.replace("@@MITRE_PCT@@", str(mitre_pct))
