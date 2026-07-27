@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-07-27T14:55:41 UTC.",
+  "description": "Auto-generated detection coverage. 2026-07-27T20:32:22 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
   "filters": {
     "platforms": [
       "Windows",
@@ -37,10 +37,16 @@
     {
       "techniqueID": "T1059.001",
       "color": "#2EA44F",
-      "comment": "DETECT-2026-0003: Test3 (PASS)\nDETECT-2026-0007: PowerShell Encoded Command Execution (PASS)\nDETECT-2026-0008: PowerShell Download Cradle Execution (PASS)\nDETECT-2026-0009: PowerShell Inline Base64 Decode and Execute (PASS)\nDETECT-2026-0010: PowerShell Execution Policy Bypass (PASS)\nDETECT-2026-0011: PowerShell Compressed Payload Decompression and Execute (PASS)\nDETECT-2026-0012: PowerShell AMSI Bypass (FAIL)\nDETECT-2026-0013: PowerShell Spawned from Suspicious Parent Process (PASS)\nDETECT-2026-0014: PowerShell Stealth Execution Flags Combination (PASS)\nDETECT-2026-0015: PowerShell Reflection-Based Assembly Load (PASS)\nDETECT-2026-0016: PowerShell Script Block or Module Logging Disable (PASS)\nDETECT-2026-0018: PowerShell Known Malicious Cmdlet Invocation (PASS)",
+      "comment": "⚠ 1 of 12 covering rule(s) FAILED verification\nDETECT-2026-0003: Test3 (PASS)\nDETECT-2026-0007: PowerShell Encoded Command Execution (PASS)\nDETECT-2026-0008: PowerShell Download Cradle Execution (PASS)\nDETECT-2026-0009: PowerShell Inline Base64 Decode and Execute (PASS)\nDETECT-2026-0010: PowerShell Execution Policy Bypass (PASS)\nDETECT-2026-0011: PowerShell Compressed Payload Decompression and Execute (PASS)\nDETECT-2026-0012: PowerShell AMSI Bypass (FAIL)\nDETECT-2026-0013: PowerShell Spawned from Suspicious Parent Process (PASS)\nDETECT-2026-0014: PowerShell Stealth Execution Flags Combination (PASS)\nDETECT-2026-0015: PowerShell Reflection-Based Assembly Load (PASS)\nDETECT-2026-0016: PowerShell Script Block or Module Logging Disable (PASS)\nDETECT-2026-0018: PowerShell Known Malicious Cmdlet Invocation (PASS)",
       "enabled": true,
       "score": 100,
-      "showSubtechniques": true
+      "showSubtechniques": true,
+      "metadata": [
+        {
+          "name": "Failing rules",
+          "value": "DETECT-2026-0012"
+        }
+      ]
     },
     {
       "techniqueID": "T1197",
@@ -69,10 +75,16 @@
     {
       "techniqueID": "T1685.001",
       "color": "#2EA44F",
-      "comment": "DETECT-2026-0012: PowerShell AMSI Bypass (FAIL)\nDETECT-2026-0016: PowerShell Script Block or Module Logging Disable (PASS)",
+      "comment": "⚠ 1 of 2 covering rule(s) FAILED verification\nDETECT-2026-0012: PowerShell AMSI Bypass (FAIL)\nDETECT-2026-0016: PowerShell Script Block or Module Logging Disable (PASS)",
       "enabled": true,
       "score": 100,
-      "showSubtechniques": true
+      "showSubtechniques": true,
+      "metadata": [
+        {
+          "name": "Failing rules",
+          "value": "DETECT-2026-0012"
+        }
+      ]
     },
     {
       "techniqueID": "T1566.001",
