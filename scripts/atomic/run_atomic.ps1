@@ -12,6 +12,8 @@ param(
 
     [string]$TesterType = $(if ($env:ATOMIC_TESTER_TYPE) { $env:ATOMIC_TESTER_TYPE } else { "" }),
 
+    [string]$ProgressDir = $(if ($env:ATOMIC_PROGRESS_DIR) { $env:ATOMIC_PROGRESS_DIR } else { "outputs/verify/atomic_progress" }),
+
     [switch]$PreflightOnly,
 
     [switch]$ShowDetails,
@@ -31,14 +33,13 @@ function Read-MetaFromSplFile {
         throw "SPL file not found: $Path"
     }
 
-    $content = Get-Content -LiteralPath $Path -Raw -Encoding UTF8
-    $match = [regex]::Match($content, 'META_START\s*(\{.*?\})\s*META_END', [System.Text.RegularExpressions.RegexOptions]::Singleline)
-
-    if (-not $match.Success) {
-        throw "META block not found in file: $Path"
+    $metaPath = [System.IO.Path]::ChangeExtension($Path, ".meta.json")
+    if (-not (Test-Path -LiteralPath $metaPath)) {
+        throw "Meta sidecar not found: $metaPath"
     }
 
-    return $match.Groups[1].Value | ConvertFrom-Json
+    $content = Get-Content -LiteralPath $metaPath -Raw -Encoding UTF8
+    return $content | ConvertFrom-Json
 }
 
 function ConvertTo-Bool {
@@ -53,6 +54,59 @@ function ConvertTo-Bool {
     }
 
     return @("true", "1", "yes", "y", "on") -contains $Value.ToString().Trim().ToLowerInvariant()
+}
+
+function ConvertTo-SafeMarkerName {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$DetectId
+    )
+
+    return [regex]::Replace($DetectId, '[^A-Za-z0-9_.-]', '_')
+}
+
+function Write-AtomicProgressMarker {
+    <#
+    .SYNOPSIS
+        Immediately flushes a {"detect_id","status","updated_at"} JSON marker to
+        $ProgressDir for one detect_id.
+
+    .DESCRIPTION
+        This is the ground truth read by pass_fail_eval.py to distinguish
+        "Atomic Red Team test completed but Splunk saw nothing" (FAIL) from
+        "the whole step got killed by its 10-minute GitHub Actions timeout
+        before this rule's test ran" (NOT_VERIFIED). Because a hard
+        timeout-minutes kill can happen at any point, this must be written
+        synchronously with no buffering -- [System.IO.File]::WriteAllText is
+        used instead of Out-File/Set-Content so nothing is left sitting in a
+        stream buffer when the process is torn down.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProgressDir,
+
+        [Parameter(Mandatory = $true)]
+        [string]$DetectId,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("started", "completed")]
+        [string]$Status
+    )
+
+    if (-not (Test-Path -LiteralPath $ProgressDir)) {
+        New-Item -ItemType Directory -Path $ProgressDir -Force | Out-Null
+    }
+
+    $safeName = ConvertTo-SafeMarkerName -DetectId $DetectId
+    $markerPath = Join-Path $ProgressDir "$safeName.json"
+
+    $payload = [ordered]@{
+        detect_id  = $DetectId
+        status     = $Status
+        updated_at = (Get-Date).ToUniversalTime().ToString("o")
+    } | ConvertTo-Json -Compress
+
+    [System.IO.File]::WriteAllText($markerPath, $payload)
 }
 
 function Import-AtomicModule {
@@ -221,8 +275,21 @@ $collected = [ordered]@{}
 $collectedCustom = [System.Collections.Generic.List[pscustomobject]]::new()
 $matchedFiles = 0
 
+# detect_id -> HashSet[string] of "TECHNIQUE|TESTNUM" keys required for that rule
+# to be considered "completed" (only populated for tester == atomic; emulation
+# tests are not part of the NOT_VERIFIED progress-marker mechanism).
+$detectIdTestKeys = @{}
+# "TECHNIQUE|TESTNUM" -> HashSet[string] of detect_ids that key belongs to
+# (a technique/test can be shared by more than one rule).
+$testKeyToDetectIds = @{}
+
 foreach ($splFile in $SplFiles) {
     $meta = Read-MetaFromSplFile -Path $splFile
+
+    $detectId = [string]$meta.detect_id
+    if ([string]::IsNullOrWhiteSpace($detectId)) {
+        $detectId = [System.IO.Path]::GetFileNameWithoutExtension($splFile)
+    }
 
     if (-not (ConvertTo-Bool $meta.'testing enabled')) {
         Write-Host "Skipping $splFile : testing is disabled"
@@ -274,6 +341,10 @@ foreach ($splFile in $SplFiles) {
     $matchedFiles++
     Write-Host "Collected atomic mappings from $splFile"
 
+    if (-not $detectIdTestKeys.Contains($detectId)) {
+        $detectIdTestKeys[$detectId] = New-Object System.Collections.Generic.HashSet[string]
+    }
+
     foreach ($atomic in $meta.'atomic tests') {
         $technique = ([string]$atomic.technique).Trim().ToUpperInvariant()
         if ([string]::IsNullOrWhiteSpace($technique)) {
@@ -286,6 +357,14 @@ foreach ($splFile in $SplFiles) {
 
         foreach ($testNumber in $atomic.test_numbers) {
             [void]$collected[$technique].Add([int]$testNumber)
+
+            $testKey = "$technique|$testNumber"
+            [void]$detectIdTestKeys[$detectId].Add($testKey)
+
+            if (-not $testKeyToDetectIds.Contains($testKey)) {
+                $testKeyToDetectIds[$testKey] = New-Object System.Collections.Generic.HashSet[string]
+            }
+            [void]$testKeyToDetectIds[$testKey].Add($detectId)
         }
     }
 }
@@ -302,6 +381,36 @@ if ($collected.Count -gt 0) {
 if ($PreflightOnly.IsPresent) {
     Write-Host "Preflight completed successfully."
     exit 0
+}
+
+# Self-hosted runners reuse the same workspace across runs and this job has no
+# checkout/clean step, so $ProgressDir can still hold marker files from an
+# earlier, unrelated run (e.g. a detect_id that isn't even in $SplFiles this
+# time). Left alone, pass_fail_eval.py treats any leftover marker as ground
+# truth for the current run and synthesizes a phantom 0-event verdict for a
+# rule that was never attacked here. Start every real run from a clean
+# directory so it only ever reflects detect_ids actually in scope this time.
+if (Test-Path -LiteralPath $ProgressDir) {
+    Write-Host "Clearing stale progress markers from a previous run in $ProgressDir"
+    Get-ChildItem -LiteralPath $ProgressDir -Filter "*.json" -File | Remove-Item -Force
+}
+
+# Mark every atomic-tested rule as "started" up front, before any test actually
+# runs. This is what makes a rule distinguishable as NOT_VERIFIED (started but
+# never reached "completed") rather than FAIL if the whole step gets killed by
+# GitHub Actions' timeout-minutes partway through. Written synchronously so
+# whatever is on disk at the moment of a hard kill is the ground truth.
+Write-Host "Writing 'started' progress markers for $($detectIdTestKeys.Count) atomic-tested rule(s) to $ProgressDir"
+foreach ($dId in $detectIdTestKeys.Keys) {
+    Write-AtomicProgressMarker -ProgressDir $ProgressDir -DetectId $dId -Status "started"
+}
+
+# Remaining required "TECHNIQUE|TESTNUM" keys per detect_id -- a rule is
+# flipped to "completed" the moment its set empties out, regardless of
+# whether the individual atomic test invocations succeeded or threw.
+$remainingTestKeys = @{}
+foreach ($dId in $detectIdTestKeys.Keys) {
+    $remainingTestKeys[$dId] = [System.Collections.Generic.HashSet[string]]::new($detectIdTestKeys[$dId])
 }
 
 $failures = 0
@@ -327,6 +436,21 @@ try {
             catch {
                 $failures++
                 Write-Warning "Atomic execution failed for $technique test $testNum : $($_.Exception.Message)"
+            }
+
+            # The atomic execution itself ran to completion for this test
+            # (pass/fail of the technique doesn't matter here) -- update
+            # progress for every rule that references this technique/test.
+            $testKey = "$technique|$testNum"
+            if ($testKeyToDetectIds.Contains($testKey)) {
+                foreach ($dId in $testKeyToDetectIds[$testKey]) {
+                    if ($remainingTestKeys.Contains($dId)) {
+                        [void]$remainingTestKeys[$dId].Remove($testKey)
+                        if ($remainingTestKeys[$dId].Count -eq 0) {
+                            Write-AtomicProgressMarker -ProgressDir $ProgressDir -DetectId $dId -Status "completed"
+                        }
+                    }
+                }
             }
         }
     }

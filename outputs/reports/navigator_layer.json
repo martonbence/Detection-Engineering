@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-06-27T12:02:25 UTC.",
+  "description": "Auto-generated detection coverage. 2026-07-25T12:38:53 UTC.",
   "filters": {
     "platforms": [
       "Windows",
@@ -35,6 +35,14 @@
   "hideDisabled": false,
   "techniques": [
     {
+      "techniqueID": "T1059.001",
+      "color": "#2EA44F",
+      "comment": "DETECT-2026-0003: Test3 (PASS)\nDETECT-2026-0007: PowerShell Encoded Command Execution (PASS)\nDETECT-2026-0008: PowerShell Download Cradle Execution (PASS)\nDETECT-2026-0009: PowerShell Inline Base64 Decode and Execute (PASS)\nDETECT-2026-0010: PowerShell Execution Policy Bypass (PASS)\nDETECT-2026-0011: PowerShell Compressed Payload Decompression and Execute (PASS)\nDETECT-2026-0012: PowerShell AMSI Bypass (FAIL)\nDETECT-2026-0013: PowerShell Spawned from Suspicious Parent Process (PASS)\nDETECT-2026-0014: PowerShell Stealth Execution Flags Combination (PASS)\nDETECT-2026-0015: PowerShell Reflection-Based Assembly Load (PASS)\nDETECT-2026-0016: PowerShell Script Block or Module Logging Disable (PASS)\nDETECT-2026-0018: PowerShell Known Malicious Cmdlet Invocation (PASS)",
+      "enabled": true,
+      "score": 100,
+      "showSubtechniques": true
+    },
+    {
       "techniqueID": "T1197",
       "color": "#2EA44F",
       "comment": "DETECT-2026-0005: BITS Job abuse via BITSAdmin or PowerShell (PASS)\nDETECT-2026-0006: BITS Persistence via SetNotifyCmdLine (PASS)",
@@ -43,17 +51,9 @@
       "showSubtechniques": true
     },
     {
-      "techniqueID": "T1059.001",
-      "color": "#2EA44F",
-      "comment": "DETECT-2026-0007: PowerShell Encoded Command Execution (PASS)\nDETECT-2026-0008: PowerShell Download Cradle Execution (PASS)\nDETECT-2026-0009: PowerShell Inline Base64 Decode and Execute (PASS)\nDETECT-2026-0010: PowerShell Execution Policy Bypass (PASS)\nDETECT-2026-0011: PowerShell Compressed Payload Decompression and Execute (FAIL)\nDETECT-2026-0012: PowerShell AMSI Bypass (FAIL)\nDETECT-2026-0013: PowerShell Spawned from Suspicious Parent Process (PASS)\nDETECT-2026-0014: PowerShell Stealth Execution Flags Combination (PASS)\nDETECT-2026-0015: PowerShell Reflection-Based Assembly Load (PASS)\nDETECT-2026-0016: PowerShell Script Block or Module Logging Disable (PASS)\nDETECT-2026-0018: PowerShell Known Malicious Cmdlet Invocation (PASS)\nDETECT-2026-0003: Test3 (PASS)",
-      "enabled": true,
-      "score": 100,
-      "showSubtechniques": true
-    },
-    {
       "techniqueID": "T1027.010",
       "color": "#2EA44F",
-      "comment": "DETECT-2026-0007: PowerShell Encoded Command Execution (PASS)\nDETECT-2026-0009: PowerShell Inline Base64 Decode and Execute (PASS)\nDETECT-2026-0011: PowerShell Compressed Payload Decompression and Execute (FAIL)",
+      "comment": "DETECT-2026-0007: PowerShell Encoded Command Execution (PASS)\nDETECT-2026-0009: PowerShell Inline Base64 Decode and Execute (PASS)\nDETECT-2026-0011: PowerShell Compressed Payload Decompression and Execute (PASS)",
       "enabled": true,
       "score": 100,
       "showSubtechniques": true
@@ -109,7 +109,7 @@
     {
       "techniqueID": "T1003.001",
       "color": "#2EA44F",
-      "comment": "DETECT-2026-0019: LSASS Memory Access by Non-Standard Process (PASS)\nDETECT-2026-0020: LSASS Credential Dump via comsvcs.dll MiniDump (PASS)\nDETECT-2026-0021: LSASS Dump via ProcDump (PASS)\nDETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)",
+      "comment": "DETECT-2026-0019: LSASS Memory Access by Non-Standard Process (PASS)\nDETECT-2026-0020: LSASS Credential Dump via comsvcs.dll MiniDump (PASS)\nDETECT-2026-0021: LSASS Dump via ProcDump (PASS)\nDETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)\nDETECT-2026-0025: LSASS Memory Dump via Task Manager or Suspicious File Creation (PASS)",
       "enabled": true,
       "score": 100,
       "showSubtechniques": true
@@ -125,7 +125,7 @@
     {
       "techniqueID": "T1003.002",
       "color": "#2EA44F",
-      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)\nDETECT-2026-0023: SAM and LSA Secrets Dump via Registry Hive Export (PASS)",
+      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)\nDETECT-2026-0023: SAM and LSA Secrets Dump via Registry Hive Export (PASS)\nDETECT-2026-0026: SAM and LSA Credential Hive Copy via esentutl (PASS)\nDETECT-2026-0027: Credential Hive Access via Volume Shadow Copy (PASS)",
       "enabled": true,
       "score": 100,
       "showSubtechniques": true
@@ -133,7 +133,7 @@
     {
       "techniqueID": "T1003.004",
       "color": "#2EA44F",
-      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)\nDETECT-2026-0023: SAM and LSA Secrets Dump via Registry Hive Export (PASS)",
+      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)\nDETECT-2026-0023: SAM and LSA Secrets Dump via Registry Hive Export (PASS)\nDETECT-2026-0026: SAM and LSA Credential Hive Copy via esentutl (PASS)",
       "enabled": true,
       "score": 100,
       "showSubtechniques": true
@@ -141,7 +141,7 @@
     {
       "techniqueID": "T1003.005",
       "color": "#2EA44F",
-      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)\nDETECT-2026-0023: SAM and LSA Secrets Dump via Registry Hive Export (PASS)",
+      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)\nDETECT-2026-0028: Cached Credential Enumeration via Cmdkey (PASS)",
       "enabled": true,
       "score": 100,
       "showSubtechniques": true
@@ -149,7 +149,7 @@
     {
       "techniqueID": "T1003.006",
       "color": "#2EA44F",
-      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)",
+      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)\nDETECT-2026-0029: DCSync via DSInternals Get-ADReplAccount (PASS)",
       "enabled": true,
       "score": 100,
       "showSubtechniques": true
@@ -180,10 +180,10 @@
     },
     {
       "techniqueID": "T1003.003",
-      "color": "#CF222E",
-      "comment": "DETECT-2026-0024: NTDS.dit Credential Dump Attempt (FAIL)",
+      "color": "#2EA44F",
+      "comment": "DETECT-2026-0024: NTDS.dit Credential Dump Attempt (PASS)\nDETECT-2026-0030: Symlink Creation to Volume Shadow Copy Device Path (PASS)\nDETECT-2026-0031: Credential Hive Access via Low-Level NTFS Acquisition (PASS)",
       "enabled": true,
-      "score": 50,
+      "score": 100,
       "showSubtechniques": true
     }
   ],
@@ -201,11 +201,15 @@
       "color": "#2EA44F"
     },
     {
+      "label": "NOT VERIFIED",
+      "color": "#d29922"
+    },
+    {
       "label": "FAIL",
       "color": "#CF222E"
     },
     {
-      "label": "Not Verified",
+      "label": "N/A",
       "color": "#6E7681"
     }
   ],
