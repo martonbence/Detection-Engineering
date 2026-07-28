@@ -481,6 +481,29 @@
 
   .tag.verified { color: var(--crit); border-color: var(--crit); }
   .tag.new { color: var(--accent); border-color: var(--accent); }
+  /* Részben elvégzett tétel. Szándékosan NEM pipa: a checkbox a súlyozott
+     pontszámot hajtja, és egy félkész tétel teljes súlyt kapna tőle. */
+  .tag.progress { color: var(--minor); border-color: var(--minor); background: var(--minor-soft); }
+
+  /* Ugyanaz a hasáb, mint a .row-fix, csak borostyán vezérvonallal — így egy
+     lapozásnál rögtön látszik, melyik tételen történt már munka. */
+  .row-note {
+    margin: 9px 0 0;
+    max-width: 74ch;
+    font-size: 15px;
+    color: var(--ink-2);
+    padding-left: 13px;
+    border-left: 2px solid var(--minor);
+  }
+
+  .row-note .note-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--minor);
+    margin-right: 7px;
+  }
 
   .row-body {
     margin: 6px 0 0;
@@ -729,6 +752,7 @@
           <span class="id">1.2</span>
           <span class="row-title" id="t-1-2">A PASS verdiktek elévülnek, de a dashboard friss igazságként mutatja őket</span>
           <span class="tag verified">mérve</span>
+          <span class="tag progress">folyamatban</span>
         </div>
         <p class="row-body">
           12 szabály <code>result.json</code>-jában a <code>rule_version</code> régebbi, mint a
@@ -737,7 +761,8 @@
           <code>verdict</code> mezőt olvassa. Így a 96%-os pass rate részben nem mért, hanem örökölt.
         </p>
         <p class="row-fix"><span class="fix-label">javítás</span><code>STALE</code> állapot bevezetése a <code>NOT_VERIFIED</code> mintájára (a badge- és legend-infrastruktúra már megvan); a pass rate csak friss verdiktekből számoljon.</p>
-        <div class="refs"><span class="ref">generate_stats.py:802</span><span class="ref">pass_fail_eval.py:264</span><span class="ref">12 elévült verdikt</span></div>
+        <p class="row-note"><span class="note-label">2026-07-28</span>A <b>láthatóság kész</b>: a stats-generátor kiviszi a <code>verdict_rule_version</code>-t a rule browserbe, a lap pedig <code>Verdict&nbsp;→&nbsp;Sync</code> facetet (Current&nbsp;/&nbsp;Outdated), <code>Δ</code> sorjelölést, drawer-mondatot és export-oszlopokat épít rá. <b>Nincs meg</b>: a <code>pass_rate_pct</code> változatlanul minden PASS-t beszámol (<code>generate_stats.py:890</code>), és a <code>pass_fail_eval.py</code>-ban nincs <code>STALE</code> állapot — a 96% továbbra is részben örökölt, ezért a tétel nincs kipipálva. A drift az audit óta nőtt: a fenti 12 helyett ma <b>15 elévült a 27-ből</b>, a <code>0022</code> ma v1.6/v1.8.</p>
+        <div class="refs"><span class="ref">generate_stats.py:802</span><span class="ref">pass_fail_eval.py:264</span><span class="ref">12 elévült verdikt → ma 15</span></div>
       </div>
     </div>
 

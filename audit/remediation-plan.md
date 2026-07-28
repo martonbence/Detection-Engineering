@@ -43,7 +43,7 @@ A 3.3 (reconcile) egyben lezárja az 1.1-et, az 1.7-et és az 1.8-at — ha van 
 ## 1 · Kritikus hibák (12) — a repo jelenlegi állapotán bizonyítva
 
 - [ ] **1.1** 13 szabály soha nem kerül ki prodba (27 sigma / 14 spl, `main`-en is) · `ci_prod_workflow.yml:76` · fix: reconcile-gate a prod és a dev jobban
-- [ ] **1.2** A PASS verdiktek elévülnek, a dashboard friss igazságként mutatja (12 elévült) · `generate_stats.py:802`, `pass_fail_eval.py:264` · fix: `STALE` állapot, pass rate csak friss verdiktből
+- [ ] **1.2** A PASS verdiktek elévülnek, a dashboard friss igazságként mutatja (12 elévült — ma már 15) · `generate_stats.py:802`, `pass_fail_eval.py:264` · fix: `STALE` állapot, pass rate csak friss verdiktből ⟶ folyamatban — a **láthatóság kész** (`Verdict → Sync` facet, `Δ` sorjelölés, drawer-mondat, export-oszlopok), a **pass rate még mindig minden verdiktből számol**
 - [ ] **1.3** A prod nem azt deployolja, amit jóváhagytak (re-konverzió + pin nélküli deps) · `ci_prod_workflow.yml:42-60,40`, `ci_dev_workflow.yml:154` · fix: pinelt `requirements.txt` + `git diff --exit-code -- rules/splunk`
 - [ ] **1.4** Az `-5m` verify-ablak rövidebb az atomic tesztek futásidejénél · `ci_dev_workflow.yml:428,670` · fix: run-start timestamp job outputként, abból `--earliest`
 - [ ] **1.5** A Splunk-lekérdezés timeoutja hamis FAIL-ként jelenik meg (+ `FINALIZING` részleges eredmény) · `check_saved_search_hits.py:120-164,138` · fix: explicit timeout-error, olvasás csak `DONE`-nál
@@ -139,3 +139,18 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
 - **2026-07-26** — Korrekció: az 5. szakasz eredetileg azt állította, hogy a korábbi
   Playwright-megállapítás („a Navigator elrejti a FAIL-t") nem igazolható. Téves volt — méréssel
   megerősítve, hogy él, felvéve **1.12**-ként. Így 48 tétel, 12 kritikus, 85 súlypont.
+- **2026-07-28** — **1.2 félig kész.** A stats-generátor mostantól kiviszi a
+  `verdict_rule_version`-t a rule browserbe, a lap pedig `verdictSync` állapotot származtat
+  belőle: `Verdict → Sync` facet (Current / Outdated), `Δ` jelölés a Verdict oszlopban,
+  provenance-mondat a drawerben („Measured via … on …, against rule v1.3 — but the rule is now
+  v1.5"), és `Rule Version` / `Tested Version` / `Verdict Sync` oszlopok az exportban. Az
+  elévülés tehát látható, szűrhető és exportálható. **Ami nincs meg:** a `pass_rate_pct`
+  változatlanul minden PASS-t számol (`generate_stats.py:890`), és a `pass_fail_eval.py`-ban
+  nincs `STALE` állapot — a 96% továbbra is részben örökölt. A drift mértéke az audit óta nőtt:
+  12 → **15 elévült a 27-ből**; a `0022` az auditban v1.6/v1.7 volt, ma v1.6/v1.8.
+- **2026-07-28** — Nem audit-tételek, de ugyanezen a napon a rule browserbe került: naptári napos
+  korszámítás (a „2 days ago · 2026-07-25" eltérés javítása), rangsor szerinti rendezés a
+  Severity / Status / Verdict oszlopokon, `Verification` szűrőcsoport (Method + Runner a
+  `testing` blokkból — ez teszi egy kattintással láthatóvá a **2.8**-ban említett 8 emulation
+  szabályt, de magát a kaput nem javítja), „generated file" banner és meta/OG tagek.
+  Mellékhatás **3.4**-re: a `generate_stats.py` ~360 sorral hosszabb lett, a monolit tehát nőtt.
