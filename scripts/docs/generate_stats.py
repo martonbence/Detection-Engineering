@@ -386,6 +386,13 @@ def fetch_mitre_techniques(
 # is last since no attempt was even made.
 VERDICT_RANK = {"PASS": 3, "NOT_VERIFIED": 2, "FAIL": 1, "N/A": 0}
 
+# How a verdict was produced, as the rule's `testing.type` calls it. Spelled out
+# for the page because "atomic" is an in-house shorthand while "Atomic Red Team"
+# names a tool the reader can go and check -- and the distinction matters: an
+# emulation-backed PASS and an ART-backed PASS are not equal evidence, even
+# though the badge is the same green.
+VERIFY_METHOD_LABELS = {"atomic": "Atomic Red Team", "emulation": "Emulation"}
+
 # How long a verdict stays current before the rule is due for re-validation.
 # Injected into the page as @@REVIEW_DAYS@@ and evaluated in the browser, so a
 # rule crosses the line on its own without the pipeline having to re-run.
@@ -1064,11 +1071,31 @@ def update_readme(section_content: str) -> None:
 
 
 _PAGE_TEMPLATE = r"""<!DOCTYPE html>
+<!--
+  GENERATED FILE — DO NOT EDIT.
+  Written by scripts/docs/generate_stats.py (see _PAGE_TEMPLATE) on every
+  pipeline run; anything changed here is silently overwritten the next time
+  the workflow runs. Edit the template in that script instead.
+-->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Detection Engineer Console</title>
+  <!-- Link previews: this page's whole job is to be shared with people who
+       then decide whether to open it, and an unfurled card with no text is a
+       worse pitch than one sentence of it. Counts are baked in at generation
+       time — a preview is a snapshot by nature, so a stale number here is not
+       the problem it would be in the page body. -->
+  <meta name="description" content="@@META_DESC@@">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Detection Engineering">
+  <meta property="og:title" content="Detection Engineer Console">
+  <meta property="og:description" content="@@META_DESC@@">
+  <meta property="og:url" content="@@PAGE_URL@@">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Detection Engineer Console">
+  <meta name="twitter:description" content="@@META_DESC@@">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1224,6 +1251,12 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
        orange, green, pink, amber, purple and periwinkle are all taken, and an
        amber Review would have collided with Status and the site accent. */
     .fc-review   { --fc:#2dd4bf; --fc-bg:rgba(45,212,191,0.12);  --fc-br:rgba(45,212,191,0.38); }
+    /* Method and Runner share one chip colour: they are two readings of the
+       same fact (how the verdict was produced), and giving them separate hues
+       would imply a distinction that isn't there. Cyan is close to Review's
+       teal, which is why the rail orders them Verification, Verdict, Review —
+       the purple group sits between the two blue-greens so they never touch. */
+    .fc-verify   { --fc:#39c5cf; --fc-bg:rgba(57,197,207,0.12);  --fc-br:rgba(57,197,207,0.38); }
     .fc-mitre    { --fc:#8f95d6; --fc-bg:rgba(143,149,214,0.12); --fc-br:rgba(143,149,214,0.38); }
 
     .fc-sev-critical      { --fc:#e05575; --fc-bg:rgba(128,20,50,0.28);  --fc-br:rgba(164,19,60,0.55); }
@@ -1911,8 +1944,20 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
        the note on version drift where this is built. */
     .verify-meta { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; font-family: var(--font); font-size: 11px; color: var(--text3); line-height: 1.5; }
     .verify-meta .warn { color: #d29922; }
-    /* Review-due marker next to a verdict badge in the table. */
+    .verify-meta .drift { color: #bc8cff; }
+    /* Verdict markers next to a badge in the table. Amber ● = the verdict is
+       old; purple Δ = the verdict was measured on a different version of the
+       rule. Two independent states, so two glyphs — a rule can carry either,
+       both, or neither, and collapsing them into one marker would lose the
+       distinction between "nobody has re-run this" and "this no longer
+       describes the rule". */
     .review-due { color: #d29922; font-size: 8px; margin-left: 5px; vertical-align: middle; cursor: help; }
+    /* A drawn delta rather than the &#916; character: at 10px the glyph picks
+       up whatever weight and baseline the row's font feels like giving it and
+       sits a shade too low next to the badge, where a stroked path keeps an
+       even line and the same round joins as every other icon on the page. */
+    .verdict-drift { color: #bc8cff; margin-left: 5px; cursor: help; display: inline-flex; align-items: center; vertical-align: middle; }
+    .verdict-drift svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 2.4; stroke-linejoin: round; }
 
     .code-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 
@@ -2464,6 +2509,8 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
         <div class="info-grid" style="margin-top:9px">
           <span class="k"><span class="badge verdict-pass">PASS</span><span class="review-due">&#9679;</span></span>
           <span>The verdict is older than @@REVIEW_DAYS@@ days — the rule is due for re-validation. The age is measured against your clock as you read this, so a rule crosses the line on its own between pipeline runs.</span>
+          <span class="k"><span class="badge verdict-pass">PASS</span><span class="verdict-drift"><svg viewBox="0 0 24 24"><path d="M12 5 L20.5 19 H3.5 Z"/></svg></span></span>
+          <span>The verdict was measured on an <em>earlier version</em> of the rule — the logic has changed since it was last tested, so the badge describes text that is no longer there. Independent of age: a rule edited today is outdated even if it passed yesterday. The <strong>Verdict &rarr; Sync</strong> filter splits the library the same way, into <em>Current</em> and <em>Outdated</em>.</span>
         </div>
         <div class="info-note" style="margin-top:11px">A verdict badge links to the GitHub Actions run it came from, and the rule's drawer shows when it was last tested.</div>
       </div>
@@ -2479,6 +2526,8 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
           <span>Click any row to open the full record: metadata, ATT&amp;CK mapping, references, the verification run, and the complete Sigma YAML or SPL with a copy button.</span>
           <span class="k">Review</span>
           <span>The <strong>Review</strong> filter on the left splits the library into <em>Up to date</em> and <em>Overdue</em> by whether a rule has been verified within the last @@REVIEW_DAYS@@ days. It is evaluated against your clock as you read, not baked in when the page was built.</span>
+          <span class="k">Verification</span>
+          <span>Not what the verdict said, but how it was reached: <strong>Method</strong> is Atomic Red Team or Emulation, <strong>Runner</strong> the host the test ran on. Filter-only, no column — an emulation-backed PASS and an ATT&amp;CK-test-backed PASS carry the same green badge but not the same weight, and this is how you separate them. The rule's drawer spells the same thing out in a sentence.</span>
           <span class="k">Columns</span>
           <span>Click a header to sort; drag its right edge to resize.</span>
           <span class="k">Keyboard</span>
@@ -3606,7 +3655,27 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     { key: 'service',    label: 'Service' },
     { key: 'severity',   label: 'Severity' },
     { key: 'status',     label: 'Status' },
-    { key: 'verdict',    label: 'Verdict' },
+    // The three testing facets run in the order the questions get asked: how
+    // was it tested, what did it say, is it still current. renderFilters()
+    // builds a supergroup out of any RUN OF ADJACENT fields sharing a group
+    // name, so each group's members must stay next to each other — inserting
+    // anything between them silently splits the group into two headers with
+    // the same title.
+    //
+    // Shipped from the pipeline's `testing` block: not what the verdict said,
+    // but how it was arrived at. Deliberately filter-only, no column — the
+    // answer is the same for most of the library, so a column would spend real
+    // width repeating "Atomic Red Team / windows-victim" down the page, while
+    // as a facet it does the one job worth doing: isolating the rules verified
+    // some other way.
+    { key: 'verifyMethod', label: 'Method', group: 'Verification' },
+    { key: 'verifyRunner', label: 'Runner', group: 'Verification' },
+    // Grouped the way MITRE's Tactic/Technique are: the verdict and whether
+    // that verdict still describes the current rule are two halves of one
+    // question, and neither is much use read alone. verdictSync is derived in
+    // the browser; see isVerdictStale.
+    { key: 'verdict',     label: 'Result', group: 'Verdict' },
+    { key: 'verdictSync', label: 'Sync',   group: 'Verdict' },
     // Derived below from verdictAt rather than shipped in the rule data — see
     // the note where reviewStatus is assigned.
     { key: 'reviewStatus', label: 'Review' },
@@ -3614,7 +3683,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     { key: 'techniques', label: 'Technique', group: 'MITRE ATT&CK' },
   ];
 
-  const GROUP_ACCENT = { 'MITRE ATT&CK': '#8f95d6' };
+  const GROUP_ACCENT = { 'MITRE ATT&CK': '#8f95d6', 'Verdict': '#bc8cff', 'Verification': '#39c5cf' };
 
   const FIELD_FC = {
     source: 'fc-source',
@@ -3625,6 +3694,9 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     status: 'fc-status',
     verdict: 'fc-verdict',
     reviewStatus: 'fc-review',
+    verdictSync: 'fc-verdict',
+    verifyMethod: 'fc-verify',
+    verifyRunner: 'fc-verify',
     tactics: 'fc-mitre',
     techniques: 'fc-mitre',
   };
@@ -3660,16 +3732,39 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   // clock, so the page keeps ageing correctly between pipeline runs.
   const REVIEW_INTERVAL_DAYS = @@REVIEW_DAYS@@;
 
+  // Calendar days, not elapsed 24h blocks. verdictAt is a full timestamp, but
+  // every place that shows an age also shows the UTC date beside it, so the two
+  // have to agree: a run at 08:58Z read three calendar days later is "3 days
+  // ago", not the "2" that floor((now - then) / 86400000) would give until the
+  // clock passes 08:58Z. Both sides are normalised to UTC midnight — matching
+  // the .slice(0, 10) date the UI prints — so the subtraction is whole days and
+  // DST never enters into it.
   function verdictAgeDays(iso) {
     if (!iso) return null;
-    const t = Date.parse(iso);
-    if (isNaN(t)) return null;
-    return Math.floor((Date.now() - t) / 86400000);
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    const then = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    const now = new Date();
+    const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    return Math.round((today - then) / 86400000);
   }
 
   function isReviewDue(r) {
     const days = verdictAgeDays(r && r.verdictAt);
     return days !== null && days >= REVIEW_INTERVAL_DAYS;
+  }
+
+  // A verdict is only as current as the rule it was measured on. The pipeline
+  // records verdictRuleVersion — the rule version that actually ran — beside
+  // the rule's present ruleVersion; when the two diverge the badge is still
+  // green, but it is green for text that no longer exists. Kept separate from
+  // the review interval because age and drift are independent questions: a
+  // rule edited this morning is stale despite yesterday's PASS, and one
+  // untouched for a year is still an honest measurement of itself.
+  function isVerdictStale(r) {
+    if (!r || !r.verdict || r.verdict === 'N/A') return false;
+    if (!r.ruleVersion || !r.verdictRuleVersion) return false;
+    return String(r.ruleVersion) !== String(r.verdictRuleVersion);
   }
 
   // reviewStatus is a facet the pipeline cannot produce: whether a rule is still
@@ -3681,6 +3776,16 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     r.reviewStatus = !r.verdictAt
       ? 'Never tested'
       : (isReviewDue(r) ? 'Overdue' : 'Up to date');
+    // '' — not a placeholder label — for rules the question cannot be asked
+    // about (no verdict, or a version missing on either side). allVals() drops
+    // empties, so those rules simply never offer a chip, rather than pooling
+    // under an "unknown" bucket that would filter to a meaningless set.
+    // "Outdated", not "Stale": the Status facet one row up already shows a
+    // "stable" chip, and two near-identical words meaning unrelated things in
+    // the same rail is a misread waiting to happen.
+    r.verdictSync = (!r.verdict || r.verdict === 'N/A' || !r.ruleVersion || !r.verdictRuleVersion)
+      ? ''
+      : (isVerdictStale(r) ? 'Outdated' : 'Current');
   });
 
   // How long ago a verdict was measured, in plain words. Days all the way up —
@@ -3998,8 +4103,11 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     const due = isReviewDue(r)
       ? `<span class="review-due" title="Last tested ${verdictAge(r.verdictAt)} — past the ${REVIEW_INTERVAL_DAYS}-day review interval">&#9679;</span>`
       : '';
-    if (r.runUrl) return `<a href="${escHtml(r.runUrl)}" target="_blank" title="View Actions run" onclick="event.stopPropagation()">${badge}</a>${due}`;
-    return badge + due;
+    const drift = isVerdictStale(r)
+      ? `<span class="verdict-drift" title="${escHtml(vLabel(v))} measured on rule v${escHtml(r.verdictRuleVersion)} — but the rule is now v${escHtml(r.ruleVersion)}"><svg viewBox="0 0 24 24"><path d="M12 5 L20.5 19 H3.5 Z"/></svg></span>`
+      : '';
+    if (r.runUrl) return `<a href="${escHtml(r.runUrl)}" target="_blank" title="View Actions run" onclick="event.stopPropagation()">${badge}</a>${due}${drift}`;
+    return badge + due + drift;
   }
 
   function mitrePills(list, kind) {
@@ -4019,20 +4127,52 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     updateHash();
   }
 
+  // Three columns hold an ordered vocabulary that alphabetising destroys: it
+  // files "low" above "medium" and scatters the verdicts. Rank them by meaning
+  // instead, ascending = whatever most wants attention, so one click on the
+  // header is the triage order. Anything outside a list sorts after it, and
+  // every other column still falls through to the string compare.
+  //
+  // severity and status reuse the orders the dashboard charts already sort by
+  // (LEVEL_ORDER, statusOrder) so the table and the doughnuts agree. verdict is
+  // generate_stats.py's VERDICT_RANK read backwards — least evidence first:
+  // never attempted, then confirmed broken, then unknown, then working. One
+  // ranking of the same vocabulary for the whole repo, not a competing one.
+  const SORT_RANK = {
+    severity: LEVEL_ORDER,
+    status: ['stable', 'test', 'experimental', 'deprecated', 'unsupported'],
+    verdict: ['na', 'fail', 'notverified', 'pass'],
+  };
+
+  function rankOf(col, val) {
+    const order = SORT_RANK[col];
+    const i = order.indexOf(normKey(val));
+    return i < 0 ? order.length : i;
+  }
+
   function renderTable() {
     const q = document.getElementById('search-input').value;
     let filtered = RULES.filter(r => matchesFilters(r) && matchesSearch(r, q));
 
     filtered.sort((a, b) => {
-      let va, vb;
-      if (sortCol === 'tactics' || sortCol === 'techniques') {
-        va = (a[sortCol] && a[sortCol][0]) || '';
-        vb = (b[sortCol] && b[sortCol][0]) || '';
+      let cmp;
+      if (SORT_RANK[sortCol]) {
+        cmp = rankOf(sortCol, a[sortCol]) - rankOf(sortCol, b[sortCol]);
+        // Within a rank the rows would otherwise keep whatever order the
+        // previous sort left them in, which makes the table look unstable
+        // while you flip between columns. Fall back to the rule ID.
+        if (cmp === 0) cmp = String(a.id).localeCompare(String(b.id), undefined, { numeric: true });
       } else {
-        va = String(a[sortCol] ?? '');
-        vb = String(b[sortCol] ?? '');
+        let va, vb;
+        if (sortCol === 'tactics' || sortCol === 'techniques') {
+          va = (a[sortCol] && a[sortCol][0]) || '';
+          vb = (b[sortCol] && b[sortCol][0]) || '';
+        } else {
+          va = String(a[sortCol] ?? '');
+          vb = String(b[sortCol] ?? '');
+        }
+        cmp = va.localeCompare(vb, undefined, { numeric: true, sensitivity: 'base' });
       }
-      const cmp = va.localeCompare(vb, undefined, { numeric: true, sensitivity: 'base' });
       return sortAsc ? cmp : -cmp;
     });
 
@@ -4349,6 +4489,21 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       if (age) {
         const due = isReviewDue(r);
         meta.push(`<span class="${due ? 'warn' : ''}">Tested ${escHtml(age)} · ${escHtml(r.verdictAt.slice(0, 10))}${due ? ` — past the ${REVIEW_INTERVAL_DAYS}-day review interval` : ''}</span>`);
+      }
+      // One sentence for the whole provenance of the verdict: by what means, on
+      // which runner, against which version of the rule. Only the drift clause
+      // is coloured — method and runner are not warnings, and painting the
+      // whole line purple would say they were.
+      if (r.verdictRuleVersion || r.verifyMethod) {
+        const via = r.verifyMethod ? `Measured via ${escHtml(r.verifyMethod)}` : 'Measured';
+        const on = r.verifyRunner ? ` on ${escHtml(r.verifyRunner)}` : '';
+        // "against rule v1.3", not "on rule v1.3": the runner already claimed
+        // the "on", and two of them in one clause read as a typo.
+        const ver = r.verdictRuleVersion ? `, against rule v${escHtml(r.verdictRuleVersion)}` : '';
+        const drifted = isVerdictStale(r)
+          ? `<span class="drift"> — but the rule is now v${escHtml(r.ruleVersion)}</span>`
+          : '';
+        meta.push(`<span>${via}${on}${ver}${drifted}</span>`);
       }
       body += `<div>
         <div class="drawer-section-label">Verification</div>
@@ -4694,6 +4849,11 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       'Verdict': r.verdict,
       'Last Tested': r.verdictAt ? r.verdictAt.slice(0, 10) : '',
       'Review Status': r.reviewStatus || '',
+      'Rule Version': r.ruleVersion,
+      'Tested Version': r.verdictRuleVersion,
+      'Verdict Sync': r.verdictSync || '',
+      'Verification Method': r.verifyMethod,
+      'Verification Runner': r.verifyRunner,
       'Author': r.author,
       'Created': r.date,
       'Modified': r.modified,
@@ -5369,6 +5529,7 @@ def render_html_summary(stats: dict, repo: str) -> str:
     rules_js = []
     for r in stats["rules"]:
         ls = r.get("logsource") or {}
+        testing = r.get("testing") or {}
         rules_js.append({
             "id": r.get("detect_id", ""),
             "title": r.get("title", ""),
@@ -5394,6 +5555,10 @@ def render_html_summary(stats: dict, repo: str) -> str:
             "ruleVersion": r.get("rule_version", ""),
             "verdictAt": r.get("verdict_at", ""),
             "verdictRuleVersion": r.get("verdict_rule_version", ""),
+            "verifyMethod": VERIFY_METHOD_LABELS.get(
+                testing.get("type", ""), testing.get("type", "")
+            ),
+            "verifyRunner": testing.get("runner", ""),
             "references": r.get("references") or [],
             "ruleBody": r.get("rule_body", ""),
             "ruleBodyLang": r.get("rule_body_lang", ""),
@@ -5436,6 +5601,17 @@ def render_html_summary(stats: dict, repo: str) -> str:
     html = html.replace("@@MATRIX_HTML@@", matrix_html)
     html = html.replace("@@LAYER_URL@@", layer_url)
     html = html.replace("@@REVIEW_DAYS@@", str(REVIEW_INTERVAL_DAYS))
+    owner, name = repo.split("/", 1)
+    html = html.replace("@@PAGE_URL@@", f"https://{owner}.github.io/{name}/")
+    # Plain text, no markup: this lands inside a double-quoted meta attribute,
+    # so a stray quote would end the attribute early. Nothing here is
+    # user-supplied, but the escape keeps that true if the wording ever is.
+    meta_desc = (
+        f"Searchable index of {total} Sigma and native SPL detection rules with "
+        f"MITRE ATT&amp;CK mapping, Atomic Red Team verification verdicts "
+        f"({pass_rate:.0f}% pass rate) and {mitre_covered} techniques covered."
+    ).replace('"', "&quot;")
+    html = html.replace("@@META_DESC@@", meta_desc)
     return html
 def update_html_summary(content: str) -> None:
     out_path = REPO_ROOT / "docs" / "index.html"
