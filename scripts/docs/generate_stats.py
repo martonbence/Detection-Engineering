@@ -399,6 +399,25 @@ VERIFY_METHOD_LABELS = {"atomic": "Atomic Red Team", "emulation": "Emulation"}
 REVIEW_INTERVAL_DAYS = 180
 
 
+def _verdict_age_days(iso: str) -> int | None:
+    """Whole days between a verdict's timestamp and now, or None if unusable.
+
+    Calendar days in UTC, matching the page's verdictAgeDays() so the build-time
+    figure and the browser's live one can only differ by the time between the
+    two, never by how the arithmetic is done.
+    """
+    if not iso:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(iso))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    then = parsed.astimezone(timezone.utc).date()
+    return (datetime.now(timezone.utc).date() - then).days
+
+
 def build_technique_coverage(rules_detail: list, repo: str) -> dict:
     """Build {tech_id: {best_verdict, has_fail, rules:[...]}} from rules.
 
@@ -864,6 +883,24 @@ def generate_stats() -> dict:
     # instead of silently folding NOT_VERIFIED into the old N/A bucket.
     verified_not_verified = 0
     never_tested = 0
+    # Verdicts measured against a rule version that no longer exists, and the
+    # subset of PASSes that still describe the rule as it stands today. These
+    # two drive the pass rate; the four counters above keep their original
+    # meaning so the README badges that already query them don't shift under
+    # anyone's feet.
+    verified_stale = 0
+    verified_pass_current = 0
+    # Its FAIL counterpart, so the two badges are drawn from the same
+    # population. A stale FAIL is no more current evidence than a stale PASS,
+    # and a Pass badge on fresh counts beside a Fail badge on all-time counts
+    # would quietly imply a worse ratio than the data supports.
+    verified_fail_current = 0
+    # The two ways verified_stale is reached, reported separately because they
+    # call for different reading: superseded is certain (the tested logic is
+    # provably not the deployed logic), expired is probabilistic (same logic,
+    # older than the review interval).
+    verified_superseded = 0
+    verified_expired = 0
     rules_detail: list[dict] = []
 
     for rule in sigma_rules:
@@ -887,6 +924,51 @@ def generate_stats() -> dict:
         run_id = v_data.get("run_id", "")
         verdict_at = v_data.get("run_timestamp", "")
         verdict_rule_version = v_data.get("rule_version", "")
+        rule_version = compute_rule_version(rule.get("_file_path", ""))
+
+        # A verdict is only as current as the rule it was measured on. Staleness
+        # is derived HERE, at render time, and deliberately not in
+        # pass_fail_eval.py: at the moment of measurement every verdict is fresh
+        # by definition -- a verdict goes stale later, when someone edits the
+        # rule out from under it. Same comparison the browser makes in
+        # isVerdictSuperseded() / isVerdictLapsed(), kept in sync so the chart
+        # and the table agree.
+        # Known limitation: compute_rule_version() derives the version from git
+        # history, so a typo fix bumps it exactly like a logic change does. That
+        # is why staleness costs a rule its segment in the chart but is NOT
+        # counted as a failure -- see the pass-rate denominator below.
+        verdict_is_superseded = bool(
+            verdict not in ("N/A", "")
+            and rule_version
+            and verdict_rule_version
+            and str(rule_version) != str(verdict_rule_version)
+        )
+        # The second way a verdict stops being evidence: it simply got old. Same
+        # standing as superseded, same remedy, so the same bucket -- what differs
+        # is only the diagnosis, and the page labels those separately.
+        #
+        # Measured against generation time, which is the only clock this script
+        # has. The page recomputes it against the reader's clock (see
+        # isVerdictLapsed there), so a page left open for months keeps telling
+        # the truth while this build-time figure stays a snapshot -- which is
+        # exactly what a badge in a README is.
+        #
+        # This is also what stops the pass rate from freezing: with only the
+        # version check, a pipeline that stopped running and a library nobody
+        # edited would report the same green number forever.
+        # An undateable verdict counts as expired, not as current -- same call
+        # the page's isVerdictExpired() makes, and the two have to agree or the
+        # chart and the badge would tell different stories. Treating "we cannot
+        # tell when this was measured" as current would be an unfalsifiable
+        # green, which is the shape of claim this whole mechanism removes.
+        _age = _verdict_age_days(verdict_at)
+        verdict_is_expired = bool(
+            verdict not in ("N/A", "")
+            and not verdict_is_superseded
+            and (_age is None or _age >= REVIEW_INTERVAL_DAYS)
+        )
+        verdict_is_stale = verdict_is_superseded or verdict_is_expired
+
         if verdict == "PASS":
             verified_pass += 1
         elif verdict == "FAIL":
@@ -895,6 +977,17 @@ def generate_stats() -> dict:
             verified_not_verified += 1
         else:
             never_tested += 1
+
+        if verdict_is_stale:
+            verified_stale += 1
+            if verdict_is_superseded:
+                verified_superseded += 1
+            else:
+                verified_expired += 1
+        elif verdict == "PASS":
+            verified_pass_current += 1
+        elif verdict == "FAIL":
+            verified_fail_current += 1
 
         if source == "native_spl":
             rule_body = get_raw_query(rule)
@@ -926,7 +1019,7 @@ def generate_stats() -> dict:
             "testing": extract_testing(rule),
             "rule_body": rule_body,
             "rule_body_lang": rule_body_lang if rule_body else "",
-            "rule_version": compute_rule_version(rule.get("_file_path", "")),
+            "rule_version": rule_version,
         })
 
     # native_spl_count is a subset of sigma_rules (raw_query rules), not a
@@ -939,7 +1032,29 @@ def generate_stats() -> dict:
     # badge and the "Native SPL" badge next to it are disjoint and sum to
     # total_rules, instead of visually double-counting the same rules.
     total_compiled_sigma_rules = total_sigma - native_spl_count
-    pass_rate = round(verified_pass / total_verifiable * 100) if total_verifiable > 0 else 0
+
+    # Rules whose verdict still describes the rule as it is today. This is the
+    # pass rate's denominator, and the choice matters: counting stale verdicts
+    # as failures would be the mirror image of the bug being fixed here (they
+    # aren't broken, they're unmeasured), and it would make the headline number
+    # get *worse* every time someone tidies a rule -- a metric that punishes
+    # maintenance is a metric people learn to ignore. So the pass rate answers
+    # "of what we actually measured against the current rule, how much works",
+    # and verification_current_pct carries the other half of the truth: how
+    # much of the library that measurement covers. The two are published, and
+    # rendered, as a pair -- neither is honest read alone.
+    verified_current = total_verifiable - verified_stale - never_tested
+    pass_rate = round(verified_pass_current / verified_current * 100) if verified_current > 0 else 0
+    verification_current_pct = (
+        round(verified_current / total_verifiable * 100) if total_verifiable > 0 else 0
+    )
+    # The product of the two above: rules confirmed working against their
+    # present-day logic, as a share of the whole library. Deliberately not the
+    # headline -- it's derived, and a single number that fuses "does it work"
+    # with "did we check recently" is exactly the conflation this fixes.
+    confirmed_working_pct = (
+        round(verified_pass_current / total_verifiable * 100) if total_verifiable > 0 else 0
+    )
 
     # Unique parent techniques covered (T1053.005 → T1053)
     covered_techniques = {
@@ -981,8 +1096,27 @@ def generate_stats() -> dict:
         # (anything not confirmed PASS/FAIL) stays the same; the rule
         # browser uses the two split counts above for its own chart segment.
         "not_verified": verified_not_verified + never_tested,
+        # Verdicts measured on a rule version that has since changed, and the
+        # PASS/current-coverage figures derived from excluding them. Added
+        # alongside the counters above rather than replacing them: the shields
+        # badges query stats.json by key over a raw URL, so a removed key is a
+        # broken badge on every README revision that ever pointed at it.
+        "verified_stale": verified_stale,
+        "verified_superseded": verified_superseded,
+        "verified_expired": verified_expired,
+        "verified_pass_current": verified_pass_current,
+        "verified_fail_current": verified_fail_current,
+        "verified_current": verified_current,
+        # NOTE: pass_rate_pct changed meaning in the 1.2 remediation. It was
+        # verified_pass / total_rules (every PASS ever recorded, however old);
+        # it is now verified_pass_current / verified_current -- of the rules we
+        # measured against their present-day logic, how many work. Read it
+        # together with verification_current_pct, never on its own.
         "pass_rate_pct": pass_rate,
         "pass_rate_color": pass_rate_color(pass_rate),
+        "verification_current_pct": verification_current_pct,
+        "verification_current_color": pass_rate_color(verification_current_pct),
+        "confirmed_working_pct": confirmed_working_pct,
         "mitre_covered_techniques": covered_count,
         "mitre_total_techniques": mitre_total,
         "mitre_total_fetched_at": now_iso if was_fetched else (cached_at or now_iso),
@@ -1023,10 +1157,23 @@ def render_readme_section(stats: dict, repo: str) -> str:
         f"[![Sigma Rules]({b}&query=%24.total_compiled_sigma_rules&label=Sigma%20Rules&color=00ACD7)](https://github.com/martonbence/Detection-Engineering/tree/main/rules/sigma)",
         f"[![Native SPL]({b}&query=%24.total_native_spl_rules&label=Native%20SPL&color=FF6600)](https://github.com/martonbence/Detection-Engineering/tree/main/rules/splunk)",
     ])
+    # Pass Rate and Verified Current ship as a pair, in that order and adjacent.
+    # Pass Rate is now measured only against rules whose verdict still matches
+    # their current version, so on its own it says nothing about how much of the
+    # library that covers -- and a lone badge is exactly what gets quoted. The
+    # second badge makes the coverage impossible to drop.
     row3 = " ".join([
-        f"![Pass]({b}&query=%24.verified_pass&label=Pass&color=brightgreen)",
-        f"![Fail]({b}&query=%24.verified_fail&label=Fail&color=red)",
+        f"![Pass]({b}&query=%24.verified_pass_current&label=Pass&color=brightgreen)",
+        f"![Fail]({b}&query=%24.verified_fail_current&label=Fail&color=red)",
         f"![Pass Rate]({b}&query=%24.pass_rate_pct&label=Pass%20Rate%20%25&color={stats['pass_rate_color']})",
+        f"![Verified Current]({b}&query=%24.verification_current_pct&label=Verified%20Current%20%25&color={stats['verification_current_color']})",
+        # verified_stale is the union of superseded and expired, and the page
+        # deliberately never coined an umbrella word for that pair -- it names
+        # both plainly instead. A badge has room for one word, so it takes the
+        # one thing the two cases share that a reader can act on: they need
+        # measuring again. Naming the remedy also beats naming the state here,
+        # where there is no space to explain which state it was.
+        f"![Needs Re-run]({b}&query=%24.verified_stale&label=Needs%20Re-run&color=BC8CFF)",
         f"![Not Verified]({b}&query=%24.not_verified&label=Not%20Verified&color=lightgrey)",
     ])
     for row in [row1, "", row2, "", row3]:
@@ -1782,6 +1929,17 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .verdict-notverified  { background: rgba(210,153,34,0.15); color: #d29922; border: 1px solid rgba(210,153,34,0.4); }
     .verdict-fail         { background: rgba(248,81,73,0.13); color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
     .verdict-na           { background: rgba(139,148,158,0.12); color: #8b949e; border: 1px solid var(--border); }
+    /* A verdict that has stopped being evidence, by either route — superseded
+       or expired. One rule for both, because the badge is saying the same thing
+       in both cases (this is a record, not a current claim); which route it was
+       is what the △ / ● markers beside it distinguish. The fill is dropped and
+       the border switched to the drift purple shared with the marker and the
+       Superseded chart segment. "lapsed" is an internal name only: no label in
+       the UI uses it, precisely because the page names both cases plainly
+       rather than coining an umbrella term. Listed after the four verdict rules
+       above so it wins on the shared properties without needing !important; the
+       text colour is left to whichever verdict class it is paired with. */
+    .badge.verdict-lapsed { background: transparent; border: 1px dashed rgba(188,140,255,0.65); }
 
     .no-results { padding: 56px 32px; text-align: center; color: var(--text3); }
     .no-results svg { width: 34px; height: 34px; stroke: var(--text3); opacity: 0.6; margin: 0 auto 14px; display: block; }
@@ -2022,8 +2180,23 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
        minmax(0, …) rather than a bare 1fr: a bare 1fr floors at min-content, so
        the canvas Chart.js sized to the card would hold the track open at its
        old width instead of shrinking with the viewport. */
-    .dash-section-grid-row2 { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 16px; }
-    @media (max-width: 1100px) { .dash-section-grid-row2 { grid-template-columns: 1fr; } }
+    /* Four explicit tracks, matching the row above, so a card down here is
+       exactly as wide as one up there. Explicit rather than the row above's
+       auto-fit precisely because this row holds two cards, not four: auto-fit
+       would stretch them across the full width and they would read as a
+       different, more important kind of card than the four above them. The row
+       just ends early instead. Steps down in the same places the top row's
+       auto-fit does, so the two never disagree about how many fit. */
+    .dash-section-grid-row2 { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 16px; }
+    /* Two tracks wide. Dropped back to a single track once the grid itself is
+       down to two columns, so the card never becomes the whole row while the
+       one beside it gets pushed onto a line of its own. */
+    .chart-card-wide2 { grid-column: span 2; }
+    @media (max-width: 1100px) {
+      .dash-section-grid-row2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .chart-card-wide2 { grid-column: auto; }
+    }
+    @media (max-width: 560px) { .dash-section-grid-row2 { grid-template-columns: 1fr; } }
     /* Compound selector on purpose: the generic .chart-card-canvas-wrap 300px
        rule is declared further down and would otherwise win on source order,
        leaving four very fat bars. */
@@ -2086,9 +2259,20 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .verify-overlay { position:absolute; left:50%; top:50%; transform:translate(-50%, -50%); width:68%; text-align:center; pointer-events:none; }
     .verify-overlay-pct { font-size:24px; font-weight:800; color:var(--text); line-height:1.1; }
     .verify-overlay-label { font-size:8px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:var(--text3); margin-top:2px; }
-    .verify-legend { display:flex; flex-direction:column; gap:9px; flex-shrink:0; }
-    .verify-legend-item { display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; color:#e6edf3; user-select:none; }
+    /* Allowed to shrink, unlike the flex-shrink:0 this carried while its only
+       user was Verification's three short labels. Evidence's are "Superseded"
+       and "Never tested", which at max-content pushed the legend straight out
+       past the card edge. Now the ring gives up width first (it already has
+       min-width:0), and a label that still doesn't fit wraps to a second line
+       rather than being clipped -- truncating "Never tested" to "Never…" would
+       turn a state into a different, wrong-looking word. */
+    .verify-legend { display:flex; flex-direction:column; gap:9px; flex-shrink:1; min-width:0; }
+    .verify-legend-item { display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; color:#e6edf3; user-select:none; min-width:0; }
     .verify-legend-item .vdot { width:10px; height:10px; border-radius:50%; flex-shrink:0; transition:opacity .15s; }
+    /* The label needs to be a real element, not the bare text node it used to
+       be: an anonymous flex item has min-width:auto and refuses to wrap below
+       max-content, which is what made the shrink above insufficient on its own. */
+    .verify-legend-item .vlabel { min-width:0; overflow-wrap:break-word; line-height:1.25; }
     .verify-legend-item.off .vdot { opacity:0.25; }
 
     /* Trends Over Time — line/area/bar tiles, plain (non-flex-body) canvas
@@ -2502,17 +2686,25 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
           <span class="k"><span class="badge verdict-fail">FAIL</span></span>
           <span>The test ran to completion and no alert fired — a confirmed negative.</span>
           <span class="k"><span class="badge verdict-notverified">NOT VERIFIED</span></span>
-          <span>Deployed and attempted, but the test didn't complete in time. Unknown, not broken.</span>
+          <span>Deployed and attempted, but the test didn't complete in time. Unknown, not broken. This state only reaches rules tested by Atomic Red Team — for an <strong>Emulation</strong>-verified rule (see <em>Verification</em> below) a test that never started reads as a FAIL, because all the pipeline sees is an absence of events.</span>
           <span class="k"><span class="badge verdict-na">N/A</span></span>
           <span>Never tested — no test result exists for this rule.</span>
         </div>
-        <div class="info-grid" style="margin-top:9px">
-          <span class="k"><span class="badge verdict-pass">PASS</span><span class="review-due">&#9679;</span></span>
-          <span>The verdict is older than @@REVIEW_DAYS@@ days — the rule is due for re-validation. The age is measured against your clock as you read this, so a rule crosses the line on its own between pipeline runs.</span>
-          <span class="k"><span class="badge verdict-pass">PASS</span><span class="verdict-drift"><svg viewBox="0 0 24 24"><path d="M12 5 L20.5 19 H3.5 Z"/></svg></span></span>
-          <span>The verdict was measured on an <em>earlier version</em> of the rule — the logic has changed since it was last tested, so the badge describes text that is no longer there. Independent of age: a rule edited today is outdated even if it passed yesterday. The <strong>Verdict &rarr; Sync</strong> filter splits the library the same way, into <em>Current</em> and <em>Outdated</em>.</span>
-        </div>
         <div class="info-note" style="margin-top:11px">A verdict badge links to the GitHub Actions run it came from, and the rule's drawer shows when it was last tested.</div>
+      </div>
+
+      <div>
+        <div class="info-sec-title">Evidence — whether that verdict still holds</div>
+        <div class="info-note" style="margin-top:0">A verdict is a certificate: it stops being evidence about the rule as it stands either because the rule changed underneath it, or because it simply got old. Both mean the same thing — we do not know today — and both are fixed by the same thing, a re-run. So neither counts toward the Pass Rate, and a badge in either state is drawn <em>hollow</em>. The marker beside it says which happened.</div>
+        <div class="info-grid" style="margin-top:11px">
+          <span class="k"><span class="badge verdict-pass verdict-lapsed">PASS</span><span class="verdict-drift"><svg viewBox="0 0 24 24"><path d="M12 5 L20.5 19 H3.5 Z"/></svg></span></span>
+          <span><strong>Superseded.</strong> Measured on an <em>earlier version</em> of the rule — the logic has changed since, so the badge describes text that is no longer there. The certain case: what was tested is provably not what is deployed. Independent of age, a rule edited this morning is superseded even if it passed yesterday.</span>
+          <span class="k"><span class="badge verdict-pass verdict-lapsed">PASS</span><span class="review-due">&#9679;</span></span>
+          <span><strong>Expired.</strong> Same logic as when it was tested, but the verdict is older than @@REVIEW_DAYS@@ days. The probabilistic case: nothing in the rule moved, but telemetry, Splunk config and attacker tooling may have. The age is measured against <em>your</em> clock as you read this, so a rule crosses the line on its own between pipeline runs — and the Pass Rate above the chart is recomputed with it.</span>
+        </div>
+        <div class="info-note" style="margin-top:11px">The <strong>Verdict &rarr; Evidence</strong> filter splits the library on exactly this: <em>Current</em>, <em>Superseded</em>, <em>Expired</em>, <em>Never tested</em> — and the <strong>Evidence</strong> chart on the Dashboards tab is the same four values as a ring. <em>Expired</em> is simply not drawn while nothing has expired.</div>
+        <div class="info-note">A rule's version comes from its commit history, so any edit to the file supersedes its verdict — a re-worded description counts the same as re-written logic. That is deliberately blunt: it can only ever overstate how much needs re-testing, never understate it.</div>
+        <div class="info-note">Lapsing is a correction to the numbers, not a gate. Nothing in the pipeline blocks a rule from staying in production on a verdict that no longer holds; this page is where you find out.</div>
       </div>
 
       <div>
@@ -2524,8 +2716,6 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
           <span>The Sigma <code>status</code> field: stable, test, experimental or deprecated. It describes the rule's maturity, not whether it works — that's the verdict.</span>
           <span class="k">Row</span>
           <span>Click any row to open the full record: metadata, ATT&amp;CK mapping, references, the verification run, and the complete Sigma YAML or SPL with a copy button.</span>
-          <span class="k">Review</span>
-          <span>The <strong>Review</strong> filter on the left splits the library into <em>Up to date</em> and <em>Overdue</em> by whether a rule has been verified within the last @@REVIEW_DAYS@@ days. It is evaluated against your clock as you read, not baked in when the page was built.</span>
           <span class="k">Verification</span>
           <span>Not what the verdict said, but how it was reached: <strong>Method</strong> is Atomic Red Team or Emulation, <strong>Runner</strong> the host the test ran on. Filter-only, no column — an emulation-backed PASS and an ATT&amp;CK-test-backed PASS carry the same green badge but not the same weight, and this is how you separate them. The rule's drawer spells the same thing out in a sentence.</span>
           <span class="k">Columns</span>
@@ -2557,6 +2747,8 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       <div>
         <div class="info-sec-title">Dashboards</div>
         <div class="info-note"><strong>Rule Overview</strong> breaks the library down by type, severity, status and verification outcome. <strong>MITRE ATT&amp;CK Alignment</strong> shows overall technique coverage and how the rules spread across tactics. <strong>Trends Over Time</strong> tracks coverage and rule count from the repo's own history — one data point per day the pipeline ran, so gaps in the line are days with no run.</div>
+        <div class="info-note"><strong>Evidence</strong> and <strong>Verification</strong> are two rings because they are two questions, and a slice can only carry one name. Evidence asks how much of the library has a verdict worth reading — all @@TOTAL@@ rules, split into Current / Superseded / Expired / Never tested. Verification asks what those readable verdicts actually say, and counts <em>only</em> the current ones, so its ring is the Current slice of the one beside it, not the whole library. A lapsed PASS is not a pass that happens to be old — it is an absence of present-tense evidence, so it is counted once, on the left, and never as a pass on the right.</div>
+        <div class="info-note">Read the two together: <strong>Pass Rate</strong> says how much of what was measured works, <strong>Current</strong> how much of the library was measured. Alone, either one flatters. Both are recomputed in your browser on every load, so they stay true as verdicts age past the review interval after this page was built — and <strong>Verification Age</strong> is the distribution behind Evidence's <em>Expired</em> slice.</div>
         <div class="info-note">Legend entries are clickable: they toggle their series in and out of the chart.</div>
       </div>
 
@@ -2729,7 +2921,12 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
           <div class="chart-card-title">Verification</div>
           <div class="verify-card-body">
             <div class="chart-card-canvas-wrap verify-canvas-wrap">
-              <canvas id="chart-verify" aria-label="Doughnut chart showing rule verification breakdown: pass, not verified, fail, N/A — overall pass rate @@PASS_RATE@@%" role="img"></canvas>
+              <!-- The denominator this ring stands on is not spelled out under
+                   the percentage: Evidence, the very next card in reading order
+                   once the row wraps, carries that whole story, and saying it
+                   twice made two cards answer the same question. It stays in
+                   the aria-label, where there is no neighbour to lean on. -->
+              <canvas id="chart-verify" aria-label="Doughnut chart showing what the current verdicts say: pass, fail, not verified — pass rate @@PASS_RATE@@% across the @@VERIFIED_CURRENT@@ of @@TOTAL@@ rules whose verdict is still current evidence" role="img"></canvas>
               <div class="verify-overlay">
                 <div class="verify-overlay-pct">@@PASS_RATE@@%</div>
                 <div class="verify-overlay-label">Pass Rate</div>
@@ -2739,10 +2936,28 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
           </div>
         </div>
       </div>
-      <!-- Own grid row: dropping this card into the four-up grid above changed
-           the track sizing of the four cards that were already there. -->
-      <div class="dash-section-grid dash-section-grid-4 dash-section-grid-row2">
+      <!-- Second row on the same four-track grid, so a card here is exactly as
+           wide as one above. Evidence opens it directly after Verification in
+           reading order, which is the pairing that matters: Verification's ring
+           is literally Evidence's Current slice. Verification Age then takes two
+           tracks — it is the only horizontal bar chart here, and four labelled
+           age bands in a quarter-width card would angle their labels while the
+           doughnuts beside them breathe. -->
+      <div class="dash-section-grid dash-section-grid-row2">
         <div class="chart-card">
+          <div class="chart-card-title">Evidence</div>
+          <div class="verify-card-body">
+            <div class="chart-card-canvas-wrap verify-canvas-wrap">
+              <canvas id="chart-evidence" aria-label="Doughnut chart showing how many rules have a current verdict versus one that has been superseded by a rule change, has expired, or was never measured" role="img"></canvas>
+              <div class="verify-overlay">
+                <div class="verify-overlay-pct" id="evidence-overlay-pct">—</div>
+                <div class="verify-overlay-label">Current</div>
+              </div>
+            </div>
+            <div class="verify-legend" id="evidence-legend"></div>
+          </div>
+        </div>
+        <div class="chart-card chart-card-wide2">
           <div class="chart-card-title">Verification Age</div>
           <div class="chart-card-sub">How long ago each rule was last verified &middot; measured as of now, not at build time</div>
           <div class="chart-card-canvas-wrap age-canvas-wrap">
@@ -2842,7 +3057,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   const TACTIC_IDS = @@TACTIC_IDS_JSON@@;
   const GENERATED_TS = "@@TS@@";
   const TOTAL_RULES = @@TOTAL@@;
-  const PASS_COUNT = @@PASSED@@;
+  const PASS_COUNT = @@PASSED@@;   // every PASS on record, stale ones included
   const FAIL_COUNT = @@FAILED@@;
   // Real "NOT_VERIFIED" rules (deployed + attempted, Atomic test timed out)
   // vs. true N/A (never tested -- no result.json at all). Kept as two
@@ -2850,6 +3065,11 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   // coverage" nor misrepresented as a pass or a confirmed fail.
   const NOTVER_COUNT = @@NOT_VER@@;
   const NA_COUNT = @@NEVER_TESTED@@;
+  // PASS_RATE is measured over the rules whose verdict is still current
+  // evidence, not over the whole library (see generate_stats.py) -- the
+  // Evidence card beside the Verification ring is what names that population.
+  // The four counters above stay whole-library totals; both charts classify
+  // from RULES themselves, so neither can disagree with the table.
   const PASS_RATE = @@PASS_RATE@@;
   const MITRE_COVERED = @@MITRE_COVERED@@;
   const MITRE_TOTAL = @@MITRE_TOTAL@@;
@@ -2890,7 +3110,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   // recomputes the main-axis size regardless of any width set on the item.
   // Disabling grow/shrink and fixing the flex-basis to the rounded width is
   // what actually makes the rendered width an integer.
-  const ROW_FLEX_CANVAS_IDS = ['chart-severity', 'chart-status', 'chart-verify', 'chart-source'];
+  const ROW_FLEX_CANVAS_IDS = ['chart-severity', 'chart-status', 'chart-verify', 'chart-evidence', 'chart-source'];
 
   // Ids whose canvas-wrap (.chart-card-canvas-wrap, no row-flex modifier
   // class) sits directly in a COLUMN flex container (.chart-card) — main
@@ -2900,21 +3120,45 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   // fought by flex-grow on this axis, so it's enough to pin it directly.
   const COLUMN_FLEX_CANVAS_IDS = ['chart-coverage-trend', 'chart-rule-growth'];
 
+  function wrapOf(id) {
+    const canvas = document.getElementById(id);
+    return canvas ? canvas.parentElement : null;
+  }
+
+  // Two passes on purpose. Every previous pin is released first, then every
+  // width is measured, then every pin is written — so each measurement sees the
+  // natural flex layout instead of the pin this function left behind last time.
+  // Measuring while still pinned made the very first value permanent: the
+  // resize handler re-measured its own `flex: 0 0 Npx` and wrote it straight
+  // back, so these tiles never actually re-fitted. It also made the first
+  // measurement the wrong one, because it happens before the legends are
+  // populated: with an empty legend beside it the ring measures the full card
+  // width, gets pinned there, and the legend items appended a moment later have
+  // nowhere to go but past the card's edge. That is exactly what Evidence's
+  // longer labels ("Superseded", "Never tested") made visible.
   function snapCanvasWrapsToIntegerSize() {
-    ROW_FLEX_CANVAS_IDS.forEach(id => {
-      const canvas = document.getElementById(id);
-      const wrap = canvas && canvas.parentElement;
+    const ids = [...ROW_FLEX_CANVAS_IDS, ...COLUMN_FLEX_CANVAS_IDS];
+    ids.forEach(id => {
+      const wrap = wrapOf(id);
       if (!wrap) return;
-      const rect = wrap.getBoundingClientRect();
-      if (rect.width > 0) wrap.style.flex = '0 0 ' + Math.round(rect.width) + 'px';
-      if (rect.height > 0) wrap.style.height = Math.round(rect.height) + 'px';
+      wrap.style.flex = '';
+      wrap.style.width = '';
+      wrap.style.height = '';
     });
-    COLUMN_FLEX_CANVAS_IDS.forEach(id => {
-      const canvas = document.getElementById(id);
-      const wrap = canvas && canvas.parentElement;
-      if (!wrap) return;
-      const rect = wrap.getBoundingClientRect();
-      if (rect.width > 0) wrap.style.width = Math.round(rect.width) + 'px';
+    const measured = ids.map(id => {
+      const wrap = wrapOf(id);
+      return wrap ? wrap.getBoundingClientRect() : null;
+    });
+    ids.forEach((id, i) => {
+      const wrap = wrapOf(id);
+      const rect = measured[i];
+      if (!wrap || !rect) return;
+      if (rect.width > 0) {
+        // Row-flex wraps need the basis fixed as well as grow/shrink disabled;
+        // plain width is ignored on a flex container's main axis.
+        if (ROW_FLEX_CANVAS_IDS.includes(id)) wrap.style.flex = '0 0 ' + Math.round(rect.width) + 'px';
+        else wrap.style.width = Math.round(rect.width) + 'px';
+      }
       if (rect.height > 0) wrap.style.height = Math.round(rect.height) + 'px';
     });
   }
@@ -3304,13 +3548,118 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       statusLegendEl.appendChild(item);
     });
 
-    // Verification — doughnut with center Pass Rate overlay + side legend (status palette: good/critical/neutral)
-    const verifySegs = [
-      { label: 'Pass', n: PASS_COUNT, color: '#3fb950' },
-      { label: 'Not Verified', n: NOTVER_COUNT, color: '#d29922' },
-      { label: 'Fail', n: FAIL_COUNT, color: '#f85149' },
-      { label: 'N/A', n: NA_COUNT, color: '#8b949e' },
+    // Evidence and Verification are two cards because they are two questions,
+    // and a doughnut can only answer one — a slice gets exactly one name.
+    // Evidence asks how much of the library has a verdict worth reading (all
+    // rules); Verification asks what those readable verdicts say (only the
+    // current ones). The denominators differ on purpose, which is why
+    // Verification's overlay spells its own out underneath the percentage.
+    //
+    // Both are counted from RULES with the same predicates the table and the
+    // Evidence facet use, rather than from separate @@ placeholders, so neither
+    // ring can drift out of agreement with the rows underneath it. (Those
+    // predicates are hoisted function declarations in this same scope, defined
+    // further down.)
+    const evidenceCount = { current: 0, superseded: 0, expired: 0, never: 0 };
+    const verifyCount = { pass: 0, notver: 0, fail: 0 };
+    RULES.forEach(r => {
+      const v = r.verdict || 'N/A';
+      if (v === 'N/A' || !v) { evidenceCount.never++; return; }
+      if (isVerdictSuperseded(r)) { evidenceCount.superseded++; return; }
+      if (isVerdictExpired(r)) { evidenceCount.expired++; return; }
+      evidenceCount.current++;
+      // Only current verdicts reach the verdict tally. A lapsed PASS is not a
+      // pass that happens to be old, it is an absence of present-tense
+      // evidence — and it is already accounted for one card to the left.
+      if (v === 'PASS') verifyCount.pass++;
+      else if (v === 'FAIL') verifyCount.fail++;
+      else if (v === 'NOT_VERIFIED') verifyCount.notver++;
+    });
+
+    // Evidence — doughnut with center Current % overlay + side legend.
+    //
+    // Superseded and Expired get a segment each rather than sharing one under
+    // some umbrella word: same standing, different diagnoses, and naming both
+    // plainly beats coining a term a reader has to look up. Superseded keeps the
+    // drift purple worn by the row marker and the Evidence facet so the three
+    // tell one story in one hue; Expired takes the teal the retired Review facet
+    // used to carry. Empty segments are filtered out, so Expired is simply not
+    // drawn until a verdict actually crosses the review interval.
+    const evidenceSegs = [
+      { label: 'Current', n: evidenceCount.current, color: '#3fb950' },
+      { label: 'Superseded', n: evidenceCount.superseded, color: '#bc8cff' },
+      { label: 'Expired', n: evidenceCount.expired, color: '#2dd4bf' },
+      { label: 'Never tested', n: evidenceCount.never, color: '#8b949e' },
     ].filter(s => s.n > 0);
+    const evidenceTotal = evidenceSegs.reduce((s, x) => s + x.n, 0);
+    const evidencePct = evidenceTotal > 0 ? Math.round(evidenceCount.current / evidenceTotal * 100) : 0;
+    const evidencePctEl = document.getElementById('evidence-overlay-pct');
+    if (evidencePctEl) evidencePctEl.textContent = evidencePct + '%';
+    const evidenceChart = new Chart(document.getElementById('chart-evidence'), {
+      type: 'doughnut',
+      data: {
+        labels: evidenceSegs.map(s => s.label),
+        datasets: [{
+          data: evidenceSegs.map(s => s.n),
+          backgroundColor: evidenceSegs.map(s => s.color),
+          borderColor: '#0d1117',
+          borderWidth: 1,
+          hoverOffset: 8,
+        }],
+      },
+      options: {
+        maintainAspectRatio: false,
+        cutout: '55%',
+        radius: '85%',
+        animation: doughnutAnimation,
+        plugins: {
+          legend: { display: false },
+          tooltip: { enabled: false, external: (ctx) => externalChartTip(ctx, evidenceTotal) },
+          datalabels: { display: false },
+        },
+      },
+    });
+
+    const evidenceLegendEl = document.getElementById('evidence-legend');
+    evidenceSegs.forEach((s, i) => {
+      const item = document.createElement('div');
+      item.className = 'verify-legend-item';
+      item.innerHTML = '<span class="vdot" style="background:' + s.color + '"></span><span class="vlabel">' + escHtml(s.label) + '</span>';
+      item.addEventListener('click', () => {
+        evidenceChart.toggleDataVisibility(i);
+        evidenceChart.update();
+        item.classList.toggle('off', !evidenceChart.getDataVisibility(i));
+      });
+      evidenceLegendEl.appendChild(item);
+    });
+
+    // Verification — one dimension again: of the verdicts that still count,
+    // what did they say.
+    const verifySegs = [
+      { label: 'Pass', n: verifyCount.pass, color: '#3fb950' },
+      { label: 'Not Verified', n: verifyCount.notver, color: '#d29922' },
+      { label: 'Fail', n: verifyCount.fail, color: '#f85149' },
+    ].filter(s => s.n > 0);
+
+    // The overlay is recomputed here rather than left as the @@PASS_RATE@@ the
+    // template was built with. Expiry moves with the reader's clock, so a page
+    // opened six months after it was generated would otherwise show a headline
+    // that its own ring below contradicts. stats.json and the README badges keep
+    // the build-time figure -- a badge is a snapshot by definition -- but what
+    // is on screen agrees with what is on screen.
+    const liveCurrent = verifyCount.pass + verifyCount.fail + verifyCount.notver;
+    const livePassRate = liveCurrent > 0 ? Math.round(verifyCount.pass / liveCurrent * 100) : 0;
+    // Scoped through this chart's own canvas, not a bare
+    // '.verify-canvas-wrap .verify-overlay-pct': Evidence reuses the same
+    // wrapper class and now sits first in the DOM, so a document-wide
+    // querySelector would quietly write the pass rate into Evidence's ring.
+    const verifyWrap = document.getElementById('chart-verify').parentElement;
+    const overlayPct = verifyWrap.querySelector('.verify-overlay-pct');
+    if (overlayPct) overlayPct.textContent = livePassRate + '%';
+    document.getElementById('chart-verify').setAttribute('aria-label',
+      'Doughnut chart showing rule verification breakdown — pass rate ' + livePassRate +
+      '% across the ' + liveCurrent + ' of ' + RULES.length +
+      ' rules whose verdict is still current evidence');
     const verifyTotal = verifySegs.reduce((s, x) => s + x.n, 0);
     const verifyChart = new Chart(document.getElementById('chart-verify'), {
       type: 'doughnut',
@@ -3341,7 +3690,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     verifySegs.forEach((s, i) => {
       const item = document.createElement('div');
       item.className = 'verify-legend-item';
-      item.innerHTML = '<span class="vdot" style="background:' + s.color + '"></span>' + escHtml(s.label);
+      item.innerHTML = '<span class="vdot" style="background:' + s.color + '"></span><span class="vlabel">' + escHtml(s.label) + '</span>';
       item.addEventListener('click', () => {
         verifyChart.toggleDataVisibility(i);
         verifyChart.update();
@@ -3646,6 +3995,17 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     });
 
     applyTrendRange();
+
+    // Re-snap now that every legend has been populated. The first snap at the
+    // top of this function measured cards whose legends were still empty, so
+    // the rings were pinned to a width that left the labels nowhere to sit.
+    // Doing it once here, rather than after each individual chart, keeps it to
+    // a single layout pass for the whole section.
+    snapCanvasWrapsToIntegerSize();
+    [...ROW_FLEX_CANVAS_IDS, ...COLUMN_FLEX_CANVAS_IDS].forEach(id => {
+      const c = Chart.getChart(id);
+      if (c) c.resize();
+    });
   }
 
   const FILTER_FIELDS = [
@@ -3671,14 +4031,20 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     { key: 'verifyMethod', label: 'Method', group: 'Verification' },
     { key: 'verifyRunner', label: 'Runner', group: 'Verification' },
     // Grouped the way MITRE's Tactic/Technique are: the verdict and whether
-    // that verdict still describes the current rule are two halves of one
-    // question, and neither is much use read alone. verdictSync is derived in
-    // the browser; see isVerdictStale.
-    { key: 'verdict',     label: 'Result', group: 'Verdict' },
-    { key: 'verdictSync', label: 'Sync',   group: 'Verdict' },
-    // Derived below from verdictAt rather than shipped in the rule data — see
-    // the note where reviewStatus is assigned.
-    { key: 'reviewStatus', label: 'Review' },
+    // that verdict is still evidence about the rule as it stands are two halves
+    // of one question, and neither is much use read alone.
+    //
+    // Evidence replaces what used to be two separate facets, Sync (Current /
+    // Outdated, by rule version) and Review (Up to date / Overdue, by age).
+    // They were one concept wearing two names, and the names ran backwards
+    // against the intuition: "Outdated" meant "the rule changed", while the
+    // verdicts that were literally old were filed under "Overdue". A verdict is
+    // a certificate — it stops being evidence either because it expired or
+    // because the thing it certifies changed underneath it — so both live on
+    // one axis now, and the values say which of the two happened. Derived in the
+    // browser; see verdictEvidence.
+    { key: 'verdict',  label: 'Result',   group: 'Verdict' },
+    { key: 'evidence', label: 'Evidence', group: 'Verdict' },
     { key: 'tactics',    label: 'Tactic',    group: 'MITRE ATT&CK' },
     { key: 'techniques', label: 'Technique', group: 'MITRE ATT&CK' },
   ];
@@ -3693,8 +4059,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     severity: 'fc-severity',
     status: 'fc-status',
     verdict: 'fc-verdict',
-    reviewStatus: 'fc-review',
-    verdictSync: 'fc-verdict',
+    evidence: 'fc-verdict',
     verifyMethod: 'fc-verify',
     verifyRunner: 'fc-verify',
     tactics: 'fc-mitre',
@@ -3757,35 +4122,65 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   // A verdict is only as current as the rule it was measured on. The pipeline
   // records verdictRuleVersion — the rule version that actually ran — beside
   // the rule's present ruleVersion; when the two diverge the badge is still
-  // green, but it is green for text that no longer exists. Kept separate from
-  // the review interval because age and drift are independent questions: a
-  // rule edited this morning is stale despite yesterday's PASS, and one
-  // untouched for a year is still an honest measurement of itself.
-  function isVerdictStale(r) {
+  // green, but it is green for text that no longer exists.
+  function isVerdictSuperseded(r) {
     if (!r || !r.verdict || r.verdict === 'N/A') return false;
     if (!r.ruleVersion || !r.verdictRuleVersion) return false;
     return String(r.ruleVersion) !== String(r.verdictRuleVersion);
   }
 
-  // reviewStatus is a facet the pipeline cannot produce: whether a rule is still
-  // inside its review window depends on when the page is READ, not when it was
-  // generated. Deriving it here — once per load, against the reader's clock —
-  // keeps the filter honest, and makes it an ordinary string field so the whole
+  // A verdict we cannot place inside the review window counts as expired, not
+  // as current. A missing or unparseable verdictAt is the only way that
+  // happens; the pipeline always writes one, so this is a guard rather than a
+  // case, but the direction matters. Treating "we don't know when this was
+  // measured" as current would be an unfalsifiable green — precisely the shape
+  // of claim this whole mechanism exists to remove.
+  function isVerdictExpired(r) {
+    if (!r || !r.verdict || r.verdict === 'N/A') return false;
+    // Deliberately not isReviewDue(), which answers false for an undateable
+    // verdict because "is it past the interval" genuinely has no answer there.
+    // This asks the other question -- can we show it is still inside the
+    // window -- and an unreadable timestamp answers that no, exactly as a
+    // missing one does. Python's verdict_is_expired makes the same call on the
+    // same two cases (_age is None), and the two must not drift apart.
+    const days = verdictAgeDays(r.verdictAt);
+    return days === null || days >= REVIEW_INTERVAL_DAYS;
+  }
+
+  // The two ways a verdict stops being evidence about the rule as it stands
+  // today, in one predicate. Superseded is the certain one -- the logic that
+  // was tested is demonstrably not the logic that is deployed. Expired is the
+  // probabilistic one -- same logic, but @@REVIEW_DAYS@@ days of telemetry
+  // changes, Splunk config and attacker tooling sit between the measurement and
+  // now. Different diagnoses, but the same standing (not evidence) and the same
+  // remedy (re-run the workflow), which is why they share a bucket everywhere a
+  // number is computed, and stay separate only where a label is shown.
+  function isVerdictLapsed(r) {
+    return isVerdictSuperseded(r) || isVerdictExpired(r);
+  }
+
+  // Evidence is a facet the pipeline cannot fully produce: whether a verdict has
+  // expired depends on when the page is READ, not when it was generated.
+  // Deriving it here — once per load, against the reader's clock — keeps the
+  // filter honest, and makes it an ordinary string field so the whole
   // filter/count/export machinery works on it unchanged.
+  //
+  // Superseded wins over Expired when a rule is both, because it is the
+  // stronger claim: an expired verdict might still describe the rule, a
+  // superseded one provably does not.
   RULES.forEach(r => {
-    r.reviewStatus = !r.verdictAt
-      ? 'Never tested'
-      : (isReviewDue(r) ? 'Overdue' : 'Up to date');
     // '' — not a placeholder label — for rules the question cannot be asked
-    // about (no verdict, or a version missing on either side). allVals() drops
+    // about (a verdict with no version on either side). allVals() drops
     // empties, so those rules simply never offer a chip, rather than pooling
     // under an "unknown" bucket that would filter to a meaningless set.
-    // "Outdated", not "Stale": the Status facet one row up already shows a
-    // "stable" chip, and two near-identical words meaning unrelated things in
-    // the same rail is a misread waiting to happen.
-    r.verdictSync = (!r.verdict || r.verdict === 'N/A' || !r.ruleVersion || !r.verdictRuleVersion)
-      ? ''
-      : (isVerdictStale(r) ? 'Outdated' : 'Current');
+    // "Never tested" means no verdict at all. A verdict that exists but cannot
+    // be dated is Expired, not Never tested -- the measurement did happen, we
+    // just cannot show it still counts.
+    r.evidence = (!r.verdict || r.verdict === 'N/A')
+      ? 'Never tested'
+      : isVerdictSuperseded(r) ? 'Superseded'
+      : isVerdictExpired(r) ? 'Expired'
+      : 'Current';
   });
 
   // How long ago a verdict was measured, in plain words. Days all the way up —
@@ -4096,15 +4491,26 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
   function verdictBadge(r) {
     const v = r.verdict || 'N/A';
-    const badge = `<span class="badge verdict-${normKey(v)}">${escHtml(vLabel(v))}</span>`;
+    // A stale verdict is drawn hollow: same word, same hue, but outlined
+    // instead of filled, so an outdated PASS never reads as a solid green chip
+    // at a glance down the column. The badge keeps its verdict colour rather
+    // than turning purple -- what the run found is still what it found; only
+    // its standing has changed, and the drift marker beside it names that.
+    // Hollowing costs no column width, which a second text pill would.
+    // Hollow for either kind of lapse, since either one means the same thing
+    // about the badge: it is a record, not a current claim. Which kind it was is
+    // what the two markers beside it distinguish.
+    const superseded = isVerdictSuperseded(r);
+    const expired = !superseded && isVerdictExpired(r);
+    const badge = `<span class="badge verdict-${normKey(v)}${(superseded || expired) ? ' verdict-lapsed' : ''}">${escHtml(vLabel(v))}</span>`;
     // A review interval nobody can see is a review interval nobody keeps, and
-    // opening 27 drawers to find the stale ones is not a workflow — so the
-    // marker rides next to the verdict in the table itself.
-    const due = isReviewDue(r)
-      ? `<span class="review-due" title="Last tested ${verdictAge(r.verdictAt)} — past the ${REVIEW_INTERVAL_DAYS}-day review interval">&#9679;</span>`
+    // opening 27 drawers to find the lapsed ones is not a workflow — so the
+    // markers ride next to the verdict in the table itself.
+    const due = expired
+      ? `<span class="review-due" title="Expired — last tested ${verdictAge(r.verdictAt)}, past the ${REVIEW_INTERVAL_DAYS}-day review interval. Not counted in the pass rate.">&#9679;</span>`
       : '';
-    const drift = isVerdictStale(r)
-      ? `<span class="verdict-drift" title="${escHtml(vLabel(v))} measured on rule v${escHtml(r.verdictRuleVersion)} — but the rule is now v${escHtml(r.ruleVersion)}"><svg viewBox="0 0 24 24"><path d="M12 5 L20.5 19 H3.5 Z"/></svg></span>`
+    const drift = superseded
+      ? `<span class="verdict-drift" title="Superseded — ${escHtml(vLabel(v))} measured on rule v${escHtml(r.verdictRuleVersion)}, but the rule is now v${escHtml(r.ruleVersion)}. Not counted in the pass rate."><svg viewBox="0 0 24 24"><path d="M12 5 L20.5 19 H3.5 Z"/></svg></span>`
       : '';
     if (r.runUrl) return `<a href="${escHtml(r.runUrl)}" target="_blank" title="View Actions run" onclick="event.stopPropagation()">${badge}</a>${due}${drift}`;
     return badge + due + drift;
@@ -4500,7 +4906,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
         // "against rule v1.3", not "on rule v1.3": the runner already claimed
         // the "on", and two of them in one clause read as a typo.
         const ver = r.verdictRuleVersion ? `, against rule v${escHtml(r.verdictRuleVersion)}` : '';
-        const drifted = isVerdictStale(r)
+        const drifted = isVerdictSuperseded(r)
           ? `<span class="drift"> — but the rule is now v${escHtml(r.ruleVersion)}</span>`
           : '';
         meta.push(`<span>${via}${on}${ver}${drifted}</span>`);
@@ -4848,10 +5254,11 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       'Status': r.status,
       'Verdict': r.verdict,
       'Last Tested': r.verdictAt ? r.verdictAt.slice(0, 10) : '',
-      'Review Status': r.reviewStatus || '',
       'Rule Version': r.ruleVersion,
       'Tested Version': r.verdictRuleVersion,
-      'Verdict Sync': r.verdictSync || '',
+      // Replaces the former 'Review Status' + 'Verdict Sync' pair: one column
+      // with Current / Superseded / Expired / Never tested, matching the facet.
+      'Evidence': r.evidence || '',
       'Verification Method': r.verifyMethod,
       'Verification Runner': r.verifyRunner,
       'Author': r.author,
@@ -5522,6 +5929,7 @@ def render_html_summary(stats: dict, repo: str) -> str:
     not_ver = stats.get("verified_not_verified", 0)
     never_tested = stats.get("never_tested", stats.get("not_verified", 0))
     pass_rate = stats["pass_rate_pct"]
+    verified_current = stats.get("verified_current", total)
     mitre_covered = stats.get("mitre_covered_techniques", 0)
     mitre_total = stats.get("mitre_total_techniques", 0)
     mitre_pct = stats.get("mitre_coverage_pct", 0.0)
@@ -5591,6 +5999,7 @@ def render_html_summary(stats: dict, repo: str) -> str:
     # Render as a whole number so the Pass Rate overlay matches the Status
     # chart's Stable % (also integer) — no stray decimal on one but not the other.
     html = html.replace("@@PASS_RATE@@", str(round(pass_rate)))
+    html = html.replace("@@VERIFIED_CURRENT@@", str(verified_current))
     html = html.replace("@@MITRE_COVERED@@", str(mitre_covered))
     html = html.replace("@@MITRE_TOTAL@@", str(mitre_total))
     html = html.replace("@@MITRE_PCT@@", str(mitre_pct))
@@ -5609,7 +6018,8 @@ def render_html_summary(stats: dict, repo: str) -> str:
     meta_desc = (
         f"Searchable index of {total} Sigma and native SPL detection rules with "
         f"MITRE ATT&amp;CK mapping, Atomic Red Team verification verdicts "
-        f"({pass_rate:.0f}% pass rate) and {mitre_covered} techniques covered."
+        f"({pass_rate:.0f}% pass rate across the {verified_current} of {total} rules "
+        f"verified against their current version) and {mitre_covered} techniques covered."
     ).replace('"', "&quot;")
     html = html.replace("@@META_DESC@@", meta_desc)
     return html
@@ -5633,7 +6043,10 @@ def main() -> int:
     print(
         f"Stats: {stats['total_sigma_rules']} sigma + {stats['total_native_spl_rules']} native SPL rules — "
         f"{stats['verified_pass']} pass / {stats['verified_fail']} fail / "
-        f"{stats['not_verified']} not verified — pass rate: {stats['pass_rate_pct']}%"
+        f"{stats['not_verified']} not verified / {stats['verified_stale']} outdated — "
+        f"pass rate: {stats['pass_rate_pct']}% of the {stats['verified_current']} "
+        f"rule(s) verified against their current version "
+        f"({stats['verification_current_pct']}% of the library)"
     )
 
     section = render_readme_section(stats, repo)
