@@ -484,6 +484,9 @@
   /* Részben elvégzett tétel. Szándékosan NEM pipa: a checkbox a súlyozott
      pontszámot hajtja, és egy félkész tétel teljes súlyt kapna tőle. */
   .tag.progress { color: var(--minor); border-color: var(--minor); background: var(--minor-soft); }
+  /* Lezárt tétel — vagy javítva lett, vagy (mint az 1.1) kivizsgálás után
+     kiderült, hogy nem kódhiba. Mindkét esetben teljes súllyal pipálható. */
+  .tag.done { color: var(--enh); border-color: var(--enh); background: var(--enh-soft); }
 
   /* Ugyanaz a hasáb, mint a .row-fix, csak borostyán vezérvonallal — így egy
      lapozásnál rögtön látszik, melyik tételen történt már munka. */
@@ -671,7 +674,7 @@
         <span>kritikus <b><span id="cCrit">0</span>/12</b></span>
         <span>kisebb <b><span id="cMinor">0</span>/18</b></span>
         <span>architektúra <b><span id="cArch">0</span>/8</b></span>
-        <span>feature <b><span id="cEnh">0</span>/10</b></span>
+        <span>feature <b><span id="cEnh">0</span>/11</b></span>
       </p>
     </div>
   </section>
@@ -708,7 +711,7 @@
     <button class="chip" type="button" data-filter="crit" aria-pressed="true">kritikus · 12</button>
     <button class="chip" type="button" data-filter="minor" aria-pressed="true">kisebb · 18</button>
     <button class="chip" type="button" data-filter="arch" aria-pressed="true">architektúra · 8</button>
-    <button class="chip" type="button" data-filter="enh" aria-pressed="true">feature · 10</button>
+    <button class="chip" type="button" data-filter="enh" aria-pressed="true">feature · 11</button>
     <button class="chip ghost" type="button" id="hideDone" aria-pressed="false">kész elrejtése</button>
     <button class="chip ghost" type="button" id="resetAll" style="margin-left:0">nullázás</button>
   </nav>
@@ -724,12 +727,13 @@
   <div class="register" data-sev="crit">
 
     <div class="row sev-crit" data-sev="crit" data-weight="3">
-      <input class="row-check" type="checkbox" id="i-1-1" aria-labelledby="t-1-1">
+      <input class="row-check" type="checkbox" id="i-1-1" aria-labelledby="t-1-1" checked>
       <div class="row-main">
         <div class="row-head">
           <span class="id">1.1</span>
           <span class="row-title" id="t-1-1">13 szabály soha nem kerül ki prodba — és erről semmi nem szól</span>
           <span class="tag verified">mérve</span>
+          <span class="tag done">lezárva</span>
         </div>
         <p class="row-body">
           A <code>main</code> és a <code>dev</code> is 27 Sigma szabályt tartalmaz, de csak 14
@@ -741,18 +745,19 @@
           halmaz össze lenne vetve.
         </p>
         <p class="row-fix"><span class="fix-label">javítás</span>Reconcile-gate a prod job első lépéseként (és a dev oldalon is): minden Sigma szabályhoz létezzen committolt SPL, különben <code>exit 1</code>.</p>
-        <div class="refs"><span class="ref">ci_prod_workflow.yml:76</span><span class="ref">27 sigma / 14 spl</span></div>
+        <p class="row-note"><span class="note-label">2026-07-30</span><b>Lezárva — nem kódhiba, hanem a repo pillanatnyi állapota.</b> A hiányzó 13 <code>.spl</code> azért nincs committolva, mert az érintett szabályokra a <b>teljes dev workflow még nem futott le</b>: a dev job szándékosan csak a <em>változott</em> szabályokat konvertálja és committolja, tehát a <code>git ls-files</code>-alapú prod deploy pontosan azt a halmazt telepíti, ami már átment a pipeline-on. Amint a 13 szabály végigmegy a dev futáson, az <code>.spl</code>-jük bekerül a repóba, és a prod magától kiviszi őket. A tétel maradék, valós része — hogy a hiányról <em>semmi nem szól</em> — nem itt, hanem a <b>3.3</b> reconcile-ban és a <b>4.7</b> deployment inventoryban lesz kezelve.</p>
+        <div class="refs"><span class="ref">ci_prod_workflow.yml:76</span><span class="ref">27 sigma / 14 spl</span><span class="ref">lezárva: nem defekt</span></div>
       </div>
     </div>
 
     <div class="row sev-crit" data-sev="crit" data-weight="3">
-      <input class="row-check" type="checkbox" id="i-1-2" aria-labelledby="t-1-2">
+      <input class="row-check" type="checkbox" id="i-1-2" aria-labelledby="t-1-2" checked>
       <div class="row-main">
         <div class="row-head">
           <span class="id">1.2</span>
           <span class="row-title" id="t-1-2">A PASS verdiktek elévülnek, de a dashboard friss igazságként mutatja őket</span>
           <span class="tag verified">mérve</span>
-          <span class="tag progress">folyamatban</span>
+          <span class="tag done">kész</span>
         </div>
         <p class="row-body">
           12 szabály <code>result.json</code>-jában a <code>rule_version</code> régebbi, mint a
@@ -760,9 +765,11 @@
           <code>result.json</code> tartalmazza a verziót és a SHA-t, a stats-generátor viszont csak a
           <code>verdict</code> mezőt olvassa. Így a 96%-os pass rate részben nem mért, hanem örökölt.
         </p>
-        <p class="row-fix"><span class="fix-label">javítás</span><code>STALE</code> állapot bevezetése a <code>NOT_VERIFIED</code> mintájára (a badge- és legend-infrastruktúra már megvan); a pass rate csak friss verdiktekből számoljon.</p>
-        <p class="row-note"><span class="note-label">2026-07-28</span>A <b>láthatóság kész</b>: a stats-generátor kiviszi a <code>verdict_rule_version</code>-t a rule browserbe, a lap pedig <code>Verdict&nbsp;→&nbsp;Sync</code> facetet (Current&nbsp;/&nbsp;Outdated), <code>Δ</code> sorjelölést, drawer-mondatot és export-oszlopokat épít rá. <b>Nincs meg</b>: a <code>pass_rate_pct</code> változatlanul minden PASS-t beszámol (<code>generate_stats.py:890</code>), és a <code>pass_fail_eval.py</code>-ban nincs <code>STALE</code> állapot — a 96% továbbra is részben örökölt, ezért a tétel nincs kipipálva. A drift az audit óta nőtt: a fenti 12 helyett ma <b>15 elévült a 27-ből</b>, a <code>0022</code> ma v1.6/v1.8.</p>
-        <div class="refs"><span class="ref">generate_stats.py:802</span><span class="ref">pass_fail_eval.py:264</span><span class="ref">12 elévült verdikt → ma 15</span></div>
+        <p class="row-fix"><span class="fix-label">javítás</span>Elévültség-állapot bevezetése a <code>NOT_VERIFIED</code> mintájára (a badge- és legend-infrastruktúra már megvan); a pass rate csak friss verdiktekből számoljon.</p>
+        <p class="row-note"><span class="note-label">2026-07-28</span>A <b>láthatóság kész</b>: a stats-generátor kiviszi a <code>verdict_rule_version</code>-t a rule browserbe, a lap pedig <code>Verdict&nbsp;→&nbsp;Sync</code> facetet (Current&nbsp;/&nbsp;Outdated), <code>Δ</code> sorjelölést, drawer-mondatot és export-oszlopokat épít rá. <b>Nincs meg</b>: a <code>pass_rate_pct</code> változatlanul minden PASS-t beszámol, a 96% továbbra is részben örökölt. A drift az audit óta nőtt: a fenti 12 helyett ma <b>15 elévült a 27-ből</b>.</p>
+        <p class="row-note"><span class="note-label">2026-07-30</span><b>Kész.</b> A <code>pass_rate_pct</code> mostantól <code>friss&nbsp;PASS / friss&nbsp;verdikt</code> — <b>92%</b> (11/12) a korábbi 96% (26/27) helyett —, és soha nem jelenik meg egyedül: a <code>verification_current_pct</code> (<b>44%</b>, 12/27) ott áll mellette a doughnut overlayben egy vizuális egységként („92% Pass Rate · 12 of 27 current"), a README-n szomszédos badge-ként, és a meta descriptionben egy mondatban. A Verification chart kapott egy <b>Outdated</b> szegmenst a drift-lilával, a szegmensek pedig a böngészőben, ugyanabból az <code>isVerdictStale()</code>-ből számolódnak, amit a tábla is használ — a chart nem tud eltérni a soroktól. Az elévült verdikt-badge a táblában kontúros, nem tömör zöld. A <code>pass_fail_eval.py</code> <b>szándékosan érintetlen</b>: a mérés pillanatában minden verdikt friss, az elévülés utólag áll be — a fenti „javítás" szövege ennyiben téves volt.</p>
+        <p class="row-note"><span class="note-label">2026-07-30</span><b>Kiterjesztve: az elévülés két feltétele egy fogalom.</b> Egy verdikt tanúsítvány — vagy <b>lejár</b> (&gt;180 nap), vagy <b>felülíródik</b> (változott a szabály). Azonos a következmény és azonos a teendő, tehát azonos vödör minden számításban; csak a címke más. A korábbi két facet (<code>Verdict&nbsp;→&nbsp;Sync</code>: Current/Outdated, és <code>Review</code>: Up&nbsp;to&nbsp;date/Overdue) egyesítve <code>Verdict&nbsp;→&nbsp;Evidence</code>-szé: <b>Current / Superseded / Expired / Never tested</b>. A régi szóhasználat fordítva állt az intuícióhoz képest: az „Outdated" a verzióváltozást jelentette, miközben a ténylegesen régi verdiktek „Overdue" néven futottak. A dashboardon a két dimenzió <b>két külön diagramra</b> vált szét: az új <b>Evidence</b> gyűrű a teljes könyvtárat bontja (Current&nbsp;12 / Superseded&nbsp;15 / Expired&nbsp;0 / Never&nbsp;tested&nbsp;0), a <b>Verification</b> pedig visszakapta az egydimenziós szerepét, és már csak a friss verdikteket mutatja — így a <code>92%</code> overlay pontosan a saját gyűrűjét írja le. Az üres szegmenseket a meglévő <code>n&nbsp;&gt;&nbsp;0</code> szűrő elrejti, tehát az <em>Expired</em> csak akkor bukkan fel, amikor tényleg van ilyen — nem kellett gyűjtőfogalmat kitalálni. A pass rate mostantól a <b>böngészőben számolódik újra</b> az olvasó órája szerint, mert a lejárat a megnyitás idejétől függ; a <code>stats.json</code> és a badge marad build-idejű pillanatkép. Ma egyik szám sem mozdult (a legrégebbi verdikt 54 napos), <em>szándékosan most, amíg ingyen van</em>. Ezzel a pass rate többé nem tud befagyni: egy leállt pipeline 180 nap alatt magától lenullázza. Ára: a <code>verdictSync</code> / <code>reviewStatus</code> szűrőkulcsok megszűntek, régi megosztott linkek nem találnak.</p>
+        <div class="refs"><span class="ref">96% → 92% + 44%</span><span class="ref">superseded 15 / expired 0</span><span class="ref">stats.json: 8 új mező</span><span class="ref">→ 4.11</span></div>
       </div>
     </div>
 
@@ -1342,6 +1349,27 @@
       </div>
     </div>
 
+    <div class="row sev-enh" data-sev="enh" data-weight="1.5">
+      <input class="row-check" type="checkbox" id="i-4-11" aria-labelledby="t-4-11">
+      <div class="row-main">
+        <div class="row-head">
+          <span class="id">4.11</span>
+          <span class="row-title" id="t-4-11">Az elévülés riportálási korrekció, nem kapu</span>
+          <span class="tag new">új</span>
+        </div>
+        <p class="row-body">
+          Az 1.2 óta a dashboard megmondja, hogy egy verdikt lejárt (&gt;180 nap) vagy felülíródott
+          (a szabály változott azóta) — ma <b>15 ilyen a 27-ből</b>. A pipeline viszont nem tesz vele
+          semmit: a <code>splunk_verify</code> exit kódja és a promotion PR gate csak az <em>adott
+          futás</em> szabályait látja, azok verdiktje pedig definíció szerint friss. Egy elévült
+          verdiktű szabály tehát soha nem blokkolja a promóciót, és mérés nélkül ülhet prodban
+          akármeddig. A hitelesség így a riportban helyreállt, a folyamatban nem.
+        </p>
+        <p class="row-fix"><span class="fix-label">javítás</span>Re-validation gate a promóció előtt (elévült verdikttel nem mehet ki), vagy — enyhébben — ütemezett újramérés az elévült halmazra, ami magától visszahozza őket frissbe.</p>
+        <div class="refs"><span class="ref">ci_dev_workflow.yml: promotion gate</span><span class="ref">ma 15 elévült</span><span class="ref">docs-maintainer észrevétele</span></div>
+      </div>
+    </div>
+
   </div>
 
   <!-- ============ 5. NEM AUDITÁLT ============ -->
@@ -1371,9 +1399,9 @@
   </div>
 
   <footer>
-    <span>48 tétel · 12 kritikus</span>
+    <span>49 tétel · 12 kritikus · 2 kész</span>
     <span>statikus audit, futtatás nélkül</span>
-    <span>az állapot lokálisan tárolódik</span>
+    <span>az állapot a repo remediation-plan.md-jében</span>
   </footer>
 
 </div>

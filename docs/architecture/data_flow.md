@@ -9,7 +9,8 @@ flowchart LR
     subgraph repo["Git repo (dev branch)"]
         sigma["rules/sigma/DETECT-*.yml\n(source of truth: detection logic OR\ncustom.splunk.raw_query, MITRE tags,\nseverity, custom.testing config)"]
         spl["rules/splunk/DETECT-*.spl\n(pure SPL query text,\nno embedded metadata,\ncommitted)"]
-        results["outputs/results/DETECT-*.json\n(per-rule pass/fail verdicts,\ncommitted)"]
+        results["outputs/results/DETECT-*/result.json\n(per-rule PASS / FAIL / NOT_VERIFIED verdict\n+ the rule_version it was measured on,\ncommitted)"]
+        gitlog["git history of rules/sigma/*.yml\n(git log --follow -> current rule_version)"]
         reports["outputs/reports/{stats,mitre_technique_map,navigator_layer}.json\n(committed)"]
         pages["docs/index.html\n(generated rule browser + Navigator)"]
     end
@@ -36,14 +37,56 @@ flowchart LR
     savedsearch -->|check_saved_search_hits.py\n+ rule_naming.py| events
     events --> matched
     matched -->|pass_fail_eval.py| results
-    progress -->|ground truth for\nNOT_VERIFIED gate| results
+    progress -->|ground truth for\nNOT_VERIFIED gate\n(atomic testers only)| results
     results -->|generate_stats.py| reports
+    gitlog -->|generate_stats.py\ncurrent version vs. the version in result.json\n= Superseded; run_timestamp vs. now\n= Expired -- both derived at render time| reports
     reports -->|generate_stats.py| pages
 ```
 
 ## Rules with no compiled Sigma logic still live in `rules/sigma/*.yml`
 
 There is one authoring format, not two. A rule whose detection logic can't be expressed as a Sigma `detection:` block still gets a `rules/sigma/DETECT-*.yml` file — the `detection:` key is present (the schema requires it) but is a never-evaluated placeholder. What actually carries the query is `custom.splunk.raw_query`, a literal SPL string. `sigma_to_spl.py` checks for that field and, when present, emits it into the `.spl` file **verbatim** instead of running the Sigma→SPL compiler. Every other field — `title`, `severity`, `tags` (MITRE), `falsepositives`, `custom.testing` — is read from the same YAML the same way regardless of which path was taken. Downstream, `validate_sigma.py`, the `.meta.json` sidecar, deploy, and verify all treat converted and raw-query rules identically; there is no separate "native SPL" file format or pipeline branch left in the current workflows (both `ci_dev_workflow.yml` and `ci_prod_workflow.yml` only ever glob `rules/sigma/**/*.yml`).
+
+## `rule_version`: the one field that travels the whole chain
+
+Most metadata is read once, used by one stage, and dropped. `rule_version` is the exception — it is copied verbatim through four files so that a verdict recorded today can be checked against the rule tomorrow. (Its companion for the *other* lapse condition is `run_timestamp`, stamped by `pass_fail_eval.py` into the same `result.json` and compared against the clock by `_verdict_age_days()` at render time; the version answers "is this still the same rule?", the timestamp answers "is this still recent?")
+
+| Step | File | What happens to `rule_version` |
+|---|---|---|
+| Convert | `rules/splunk/DETECT-*.meta.json` (CI-runtime only) | `sigma_to_spl.py::_compute_rule_version()` counts commits touching the rule's YAML with `git log --follow` and writes `1.<count-1>` (plus `git_sha`) into the sidecar. |
+| Verify (query) | `outputs/verify/matched_events/<detect_id>/hits.json` | `check_saved_search_hits.py` copies `rule_version`/`git_sha` straight out of the sidecar into the hits summary (`""` when there's no sidecar to read). |
+| Verify (score) | `outputs/results/<detect_id>/result.json` | `pass_fail_eval.py` copies them again into the committed result, alongside `verdict`, `reason`, `event_count`, `run_timestamp`, `run_id`. This is the durable record of *which version of the rule the verdict is about*. |
+| Report | `outputs/reports/stats.json`, `docs/index.html` | `generate_stats.py::compute_rule_version()` recomputes the version **from git at render time** and compares it with the one stored in `result.json`. A mismatch = the verdict is **superseded**. The rule browser exports both values per rule (`ruleVersion`, `verdictRuleVersion`) so `isVerdictSuperseded()` can make the identical comparison client-side. |
+
+Note the asymmetry: the version in `result.json` is frozen at measurement time, while the version it is compared against is recomputed on every stats run. That's what makes superseding a *render-time* derivation rather than a stored flag — a verdict doesn't change when it lapses, the repo around it does. The age check works the same way against a moving clock instead of a moving repo. `pass_fail_eval.py` implements neither, by design.
+
+Because both implementations count commits rather than reading a declared field, any commit touching a rule's YAML bumps its version — a typo fix supersedes a verdict exactly like a logic rewrite. `pipeline_overview.md` covers the consequences; the fix (an explicit `version:` in the Sigma YAML) is audit item 3.5.
+
+## Aggregate verdict fields in `outputs/reports/stats.json`
+
+`stats.json` is a public contract — shields.io badges in the README fetch individual keys out of it by URL from `main`, so key *meanings* can't be repurposed in place (a badge can be repointed to a different key; a key can't quietly change what it counts). The verdict-related keys therefore split into "raw counts, meaning frozen" and "lapse-aware counts, added alongside":
+
+| Layer | Key | Notes |
+|---|---|---|
+| 1 — whole library, lapsing ignored | `verified_pass` / `verified_fail` | Every PASS / FAIL on record. Meanings frozen; no badge queries them anymore, but external references may. |
+| 1 | `verified_not_verified` | NOT_VERIFIED verdicts only (attempted, test didn't complete). |
+| 1 | `never_tested` | No `result.json` at all. |
+| 1 | `not_verified` | Union of `verified_not_verified + never_tested`, kept for the existing "Not Verified" badge's URL query. |
+| 2 — current verdicts only | `verified_pass_current` | PASS verdicts that are neither superseded nor expired. Backs the "Pass" badge. |
+| 2 | `verified_fail_current` | FAIL verdicts that are neither superseded nor expired. Backs the "Fail" badge. Same exclusion rule as its PASS counterpart, applied uniformly. |
+| 2 | `verified_superseded` | Verdicts whose stored `rule_version` ≠ the current one — the rule was edited under the verdict. |
+| 2 | `verified_expired` | Verdicts not superseded but ≥ `REVIEW_INTERVAL_DAYS` (180) old at generation time. |
+| 2 | `verified_stale` | `verified_superseded + verified_expired`. Backs the "Needs Re-run" badge (`BC8CFF`) — named for the shared consequence, since the two lapse kinds have no umbrella term. |
+| 2 | `verified_current` | `total − verified_stale − never_tested` — rules holding a current verdict of any kind. The pass rate's denominator. |
+| 3 — derived percentages | `pass_rate_pct` | `verified_pass_current ÷ verified_current`. This denominator changed — it used to be every rule. |
+| 3 | `verification_current_pct` | `verified_current ÷ total` — how much of the library `pass_rate_pct` actually speaks for. Backs the "Verified Current %" badge; `verification_current_color` accompanies it. |
+| 3 | `confirmed_working_pct` | `verified_pass_current ÷ total`. Not badged — see `pipeline_overview.md` for why. |
+
+The layer boundary is the contract: layer-1 keys are append-only history whose meaning can never be repurposed in place, layer-2 keys apply the lapse exclusion (superseded **or** expired) uniformly across every verdict type, and layer-3 keys are pure functions of layer 2. A badge may be repointed from one layer to another (as Pass and Fail both were, together); a key may not quietly change what it counts.
+
+**These are build-time values by design.** `verified_expired` and everything derived from it are evaluated against `generate_stats.py`'s own clock at generation time, so `stats.json` — and the README badges reading it — are a snapshot that ages after it's written. `docs/index.html` re-derives the same classification in the reader's browser on every load, which is why the published page's Pass Rate can be lower than the badge produced in the same run. The divergence is intended: a badge is a snapshot, a page is a view.
+
+Per-rule, `stats.json`'s `rules[]` entries carry `verdict`, `run_id`, `verdict_at`, `rule_version` (current) and `verdict_rule_version` (as measured), which — together with `verdict_at` — is everything the rule browser needs to re-derive the Evidence classification without a second data source.
 
 ## GitHub Actions artifacts: what crosses the job boundary, and why retention differs
 

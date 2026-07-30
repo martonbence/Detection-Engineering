@@ -4,7 +4,7 @@ pass_fail_eval.py — Evaluate Pass/Fail for each rule based on Splunk matched e
 Usage:
     python pass_fail_eval.py [--matched-events-dir outputs/verify/matched_events]
                              [--results-dir outputs/results]
-                             [--min-pass 1] [--max-pass 20]
+                             [--min-pass 1] [--max-pass 10]
 
 Pass criteria : MIN_PASS <= event_count <= MAX_PASS
 Fail criteria : event_count < MIN_PASS  (no alerts fired)
