@@ -2276,6 +2276,17 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .verify-legend-item .vlabel { min-width:0; overflow-wrap:break-word; line-height:1.25; }
     .verify-legend-item.off .vdot { opacity:0.25; }
 
+    /* Evidence carries the longest labels of any doughnut legend on this page
+       ("Superseded", "Never tested") in a quarter-width card, so the wrap
+       allowed above was firing on it in normal use -- correct as a fallback,
+       ugly as the steady state. Give the column the width one line of "Never
+       tested" actually needs and take it out of the 14px body gap first: the
+       labels start nearer the ring rather than the ring being squeezed for the
+       whole difference. Scoped to Evidence so Verification's short labels keep
+       the roomier gap. */
+    .verify-card-body-evidence { gap:6px; }
+    #evidence-legend { width:104px; flex-shrink:0; }
+
     /* Trends Over Time — line/area/bar tiles, plain (non-flex-body) canvas
        wraps like Rules per Tactic / Coverage gauge above, no snap-to-integer
        fix needed (that bug is specific to the doughnut controller). */
@@ -2947,7 +2958,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       <div class="dash-section-grid dash-section-grid-row2">
         <div class="chart-card">
           <div class="chart-card-title">Evidence</div>
-          <div class="verify-card-body">
+          <div class="verify-card-body verify-card-body-evidence">
             <div class="chart-card-canvas-wrap verify-canvas-wrap">
               <canvas id="chart-evidence" aria-label="Doughnut chart showing how many rules have a current verdict versus one that has been superseded by a rule change, has expired, or was never measured" role="img"></canvas>
               <div class="verify-overlay">
