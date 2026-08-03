@@ -21,7 +21,8 @@ Nincs menetrend — a tempó ad-hoc, tételenként.
 
 ## Pontszám
 
-Jelenlegi: **6,5 / 10**. Minden tétel elvégzése után: **9,0 / 10**.
+Jelenlegi: **6,5 / 10** (kiindulás). Mai állás: **7,4 / 10**, kész súly 30/86,5.
+Minden tétel elvégzése után: **9,0 / 10**.
 A register meterének súlyozása: kritikus ×3, architektúra ×2, feature ×1,5, kisebb ×1
 (összesen **88** súlypont a 4.11 felvétele óta; korábban 85).
 Projektált pontszám = `6,5 + 2,5 × (kész súly / 88)`.
@@ -32,17 +33,22 @@ hitelesség 4→9 · karbantarthatóság 5→8 · biztonság 6→8.
 
 ## Javasolt sorrend
 
-~~1.1~~ → ~~1.2~~ → ~~1.3~~ → ~~1.4~~ → ~~1.5~~ → ~~1.6~~ → **1.7.** Az 1.1 lezárva (nem defekt), az
-1.2–1.6 kész. A prod trust boundary bizonyított (pinelt konverter + drift-gate), a verify-ablak a
-valós tesztfázishoz horgonyzott, a mérés-oldali bizonytalanság már nem FAIL-nek álcázza magát, és
-a pipeline saját kódjára is fut végre CI (**4.10** részben kész).
-**A verdiktek megbízhatóságát rontó kritikus hibák elfogytak** — a maradék kritikus tételek
-(1.7–1.12) láthatósági és lefedettségi jellegűek. Következik az **1.7**, de érdemes mérlegelni a
-**3.3** reconcile-t is, ami egyszerre zárja az 1.7-et és az 1.8-at.
+~~1.1~~ → ~~1.2~~ → ~~1.3~~ → ~~1.4~~ → ~~1.5~~ → ~~1.6~~ → ~~1.12~~ → ~~1.11~~ → ~~1.10~~ →
+~~1.9~~ → **3.3 (= 1.7 + 1.8).**
+A 12 kritikus tételből **tíz kész**, és a maradék kettő ugyanannak az egy hiánynak a két tünete.
+A prod trust boundary bizonyított (pinelt konverter + drift-gate), a verify-ablak a valós
+tesztfázishoz horgonyzott, a mérés-oldali bizonytalanság már nem FAIL-nek álcázza magát, a
+pipeline saját kódjára is fut végre CI (**4.10** részben kész), a hőtérkép nem rejti el a
+megerősített hibát, és a runner oldalán sem egy hibás szabály, sem egy megölt step nem visz
+magával mást (**1.9–1.11**).
 
-A 3.3 (reconcile) lefedi az 1.7-et és az 1.8-at, és az 1.1 lezárása után megmaradt
-*láthatósági* igényt is (melyik szabály él ténylegesen prodban) — ha van rá idő, érdemes az
-egyedi javítások helyett rögtön azt megcsinálni.
+Következik a **3.3** reconcile, ami lefedi az 1.7-et és az 1.8-at, és az 1.1 lezárása után megmaradt
+*láthatósági* igényt is (melyik szabály él ténylegesen prodban) — az egyedi javítások helyett
+érdemes rögtön azt megcsinálni. A 2026-08-03-i teljes workflow-futás után az 1.7 **tünetei
+pillanatnyilag nullák** (27 sigma / 27 spl / 27 result, nincs árva `.spl`, nincs árva result,
+nincs `status: deprecated`), tehát a reconcile tiszta állapotból indulhat — nincs mögötte
+felhalmozódott szemét, amit előbb ki kellene takarítani. A defekt maga viszont megvan: az első
+átnevezés vagy törlés újratermeli.
 
 ---
 
@@ -56,10 +62,10 @@ egyedi javítások helyett rögtön azt megcsinálni.
 - [x] **1.6** A `scripts/docs/**` nincs a trigger-path-ok között · `ci_dev_workflow.yml:7-28` · **kész 2026-08-03:** a 4.10 útján, mert a path felvétele önmagában nem működött volna (a run elindulna, majd `has_rules=false` miatt mindent átugrana). Új `ci_code_checks.yml`: ruff + pytest minden kód-változásra, plusz `regenerate_docs` és `deploy_pages` job — a Pages ugyanis artifactból publikál, nem a branchről, tehát a commit önmagában nem frissítette volna az élő oldalt
 - [ ] **1.7** Nincs törlés/kivezetés: `--diff-filter=AMRC`, árva `.spl`, árva saved search, 3 árva result, holt `status: deprecated` · `ci_dev_workflow.yml:89` · fix: 3.3 reconcile; addig min. a deprecated kizárása a deployból
 - [ ] **1.8** A title átírása árva saved search-öt hagy a Splunkban · `rule_naming.py:10` · fix: objektumnév csak `detect_id`-ból, title a description-be
-- [ ] **1.9** Egy hibás szabály `throw`-ja megbuktatja az egész batch tesztelését · `run_atomic.ps1:313,338`, `sigma_schema.json` · fix: séma `if/then` a `type`↔`atomics`/`custom` párra + `Write-Warning` + `continue`
-- [ ] **1.10** Atomic higiénia: nincs `-GetPrereqs` és nincs `-Cleanup` · `run_atomic.ps1:178-242` · fix: mindkettő hozzáadása
-- [ ] **1.11** A Defender kikapcsolva maradhat, ha a stepet a timeout hard-kill-eli · `run_atomic.ps1:496-498` · fix: független visszaállítás (scheduled task / runner startup)
-- [ ] **1.12** A MITRE hőtérkép soha nem mutat FAIL-t: `best_verdict` a legjobb verdiktet választja, így a FAIL `DETECT-2026-0012` zöld cellák alá bújik (19 zöld / 0 vörös, a FAIL legend-szűrő halott) · `generate_stats.py:368-399,475-481` · fix: cella színe maradhat best-verdict, de jelölés kell, ha bármelyik fedő szabály FAIL — a szűrő ezt izolálja. Ma dokumentált döntés, nem elírás; a következmény viszont az, hogy a hőtérkép elrejti a megerősített hibát
+- [x] **1.9** Egy hibás szabály `throw`-ja megbuktatja az egész batch tesztelését · `run_atomic.ps1:313,338`, `sigma_schema.json` · **kész 2026-08-03:** séma `allOf`+`if/then` (`enabled: true`-ra szűkítve), és mind a négy `throw` → `Write-Warning` + `continue` `$malformed` számlálóval; új `exit 1` ág, ha a batch minden szabálya hibás
+- [x] **1.10** Atomic higiénia: nincs `-GetPrereqs` és nincs `-Cleanup` · `run_atomic.ps1:178-242` · **kész 2026-08-03:** `Invoke-AtomicTestCompat -Mode GetPrereqs|Run|Cleanup` (egymást kizáró kapcsolók, tehát három invokáció), cleanup `finally`-ben, egyik segédfázis hibája sem számít `$failures`-nek; `ATOMIC_SKIP_PREREQS` / `ATOMIC_SKIP_CLEANUP`
+- [x] **1.11** A Defender kikapcsolva maradhat, ha a stepet a timeout hard-kill-eli · `run_atomic.ps1:496-498` · **kész 2026-08-03:** scheduled task deadman (Once +20p **és** AtStartup), a kikapcsolás *előtt* regisztrálva, fail-closed (`ATOMIC_ALLOW_UNPROTECTED_DISABLE` a felmentés), leftover task `::warning`-gal jelezve
+- [x] **1.12** A MITRE hőtérkép soha nem mutat FAIL-t: `best_verdict` a legjobb verdiktet választja, így a FAIL `DETECT-2026-0012` zöld cellák alá bújik (19 zöld / 0 vörös, a FAIL legend-szűrő halott) · `generate_stats.py:368-399,475-481` · **kész 2026-08-03 (a rule browser átdolgozásában, utólag beazonosítva):** `fail-flag` osztály a cellán (`:556,612`), piros sarok-háromszög (`:2421-2428`), és `tcHasFail()`/`failAny` (`:5497,5506,5601`), amitől a FAIL legend-szűrő keresztbe vág a best-verdict csoportosításon. A cella színe szándékosan maradt best-verdict
 
 ## 2 · Kisebb hibák és optimalizálás (18)
 
@@ -118,7 +124,8 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
 - **A `docs/index.html` 3287 sora front-endként.** Csak szerkezetileg; nem futott Playwright,
   nincs accessibility/perf audit. *Korrekció:* az első kiadásban itt az állt, hogy a korábbi
   „a Navigator elrejti a FAIL verdikteket" jegyzet nem igazolható — ez téves volt. A `.tc.fail`
-  stílus létezik, de elérhetetlen; a megállapítás igaz és ma is él → **1.12** tétel.
+  stílus létezett, de elérhetetlen volt; a megállapítás igaznak bizonyult → **1.12** tétel,
+  ami 2026-08-03-ra lezárult.
 - **A tábla sormagasság-hibája sok technika-badge esetén** (korábbi Playwright-megfigyelés:
   `vertical-align: middle`, ~183px-es sor a `DETECT-2026-0022`-nél). Ebben a körben nem lett
   újraellenőrizve — vagy javítva lett a rule browser átdolgozásakor, vagy még él.
@@ -331,3 +338,84 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   nem fedi egymást — a nyolc trigger-útvonalból öt üres futást produkál (zöld pipa, nulla munka).
   Érdemes felvenni tételként.
   Kész súly: 18/86,5, projektált pontszám **7,0 / 10**.
+- **2026-08-03** — **1.12 kész, de nem ebben a körben** — a tétel a következő elem kiválasztásakor
+  derült ki késznek, ezért itt lezárás, nem javítás. A rule browser átdolgozása közben oldódott
+  meg, csak nem került be a naplóba, így a register egy már nem létező hibát mutatott.
+  **Ami él:** a cellák `has_fail` alapján `fail-flag` osztályt kapnak (`generate_stats.py:556,612`),
+  amit piros sarok-háromszögként rajzol a CSS (`:2421-2428`); a már eleve FAIL cellák kihagyják,
+  mert a saját bal oldali railjük ugyanezt mondja. A legend-szűrő pedig nem halott többé: a
+  `tcHasFail()` / `failAny` páros (`:5497,5506,5601`) **keresztbe vág** a best-verdict
+  csoportosításon, tehát a FAIL szűrő megtalálja azokat a cellákat is, amiket a roll-up zöldre
+  színez. A cella színe szándékosan maradt best-verdict — a hőtérkép elsődleges kérdése továbbra
+  is „van működő lefedettség?", a jelölés csak nem hagyja elveszni a másik választ.
+  **Élesben igazolva a mai kimeneten**, nem csak kódolvasással: a `docs/index.html`-ben 5 cella
+  visel `fail-flag`-et, köztük a `T1685.001` és a `T1059.001` a `DETECT-2026-0012` (AMSI Bypass,
+  FAIL) miatt, és a szülő `T1685` / `T1059` is megkapja a
+  `title="A sub-technique rule failed verification"` tooltipet. A `navigator_layer.json` exportban
+  ugyanez `⚠ 1 of N covering rule(s) FAILED verification` megjegyzésként szerepel.
+  **Tanulság a munkamenetre:** a register `dev @ 22799a5` (2026-07-26) állapotára készült, és a
+  rule browser azóta jelentősen átalakult — a további tételeknél érdemes az aktuális kódon
+  ellenőrizni, mielőtt nekiállunk. Ez az egy tétel 3 súlypont munka nélkül.
+  Kész súly: 21/86,5, projektált pontszám **7,1 / 10**.
+- **2026-08-03** — **1.11, 1.10, 1.9 kész**, egy blokkban, mert mindhárom a `run_atomic.ps1`-ben
+  van, és a runner oldali teszt-higiéniáról szól.
+
+  **1.11 — a Defender-visszaállítás.** Először is kiderült, hogy ez nem elméleti kitettség volt:
+  az `ATOMIC_DISABLE_REALTIME_MONITORING` alapértelmezése **mindkét** atomic stepen `'true'`
+  (`ci_dev_workflow.yml:461,533`), tehát a real-time monitoring *minden* futáskor ki volt
+  kapcsolva, és minden `timeout-minutes: 10`-be futó step védtelenül hagyta a hostot.
+  A `finally` blokk elvi okból nem tudta megoldani: a folyamatfa lebontásakor nem fut le. Ezért a
+  garancia mostantól a folyamaton kívül él, egy `DetectionEngineering-RestoreDefenderRealtime`
+  nevű scheduled taskban, ami SYSTEM-ként visszakapcsolja a monitoringot. **Két trigger**, mert
+  kétféleképpen lehet beragadni: `Once` most + 20 percre (a folyamatot megölték, a gép megy
+  tovább) és `AtStartup` (a gépet újraindították, amíg a védelem ki volt kapcsolva, így az
+  egyszeri trigger sosem sült el). A 20 perc szándékosan jóval a step saját 10 perces timeoutja
+  fölött van: így fogalmilag csak azután süthet el, hogy a script már halott — teszt közben soha,
+  mert az visszakapcsolná a Defendert a mérés alatt, és pont hamis FAIL-eket gyártana.
+  A task a kikapcsolás **előtt** kerül regisztrálásra, hogy ne legyen olyan pillanat, amikor a
+  védelem már le van véve, de még semmi nem hozza vissza. **Fail-closed:** ha a task nem
+  regisztrálható, a script nem kapcsolja ki a Defendert, hanem hibával megáll — felmentés
+  `ATOMIC_ALLOW_UNPROTECTED_DISABLE=true`. Ez tudatos szigorítás: enélkül pont abba az állapotba
+  kerülnénk, ami miatt a tétel egyáltalán létezik. Tiszta lefutásnál a `finally` visszakapcsol és
+  leszedi a taskot; ha maga a visszakapcsolás hibázik, a task **szándékosan marad**, mert onnantól
+  ő az egyetlen, ami visszahozza a védelmet. Induláskor egy ottfelejtett task `::warning`-ot kap:
+  a puszta jelenléte bizonyíték arra, hogy az előző futás nem állt le rendesen, és a
+  `Register-ScheduledTask -Force` különben némán felülírná ezt a nyomot.
+
+  **1.10 — `-GetPrereqs` és `-Cleanup`.** Az `Invoke-AtomicTestCompat` kapott egy `-Mode`
+  paramétert (`GetPrereqs` / `Run` / `Cleanup`). Azért mód és nem két új kapcsoló: ezek az
+  `Invoke-AtomicTest`-en **egymást kizáró** kapcsolók, nem összeadódó flagek, tehát tesztenként
+  három külön invokáció fut, nem egy bővebb. A cleanup `finally`-ben van, tehát akkor is lefut,
+  ha a teszt dobott, és sem a prereq-, sem a cleanup-hiba nem növeli a `$failures`-t — a verdikt
+  a detekcióról szól, nem a háztartásról. A meglévő compat-minta megtartva: ha a telepített modul
+  nem ismeri a kapcsolót, warning és kihagyás, nem hiba. A `-ShowDetails` logika a `Run` módra
+  szűkült, különben a prereq- és cleanup-passzok megháromszoroznák a logot információ nélkül.
+  **A verifikációra gyakorolt hatást külön végiggondoltam:** a cleanup nem ronthatja el a mérést,
+  mert a Splunk a forwarder által már kiküldött eventekből dolgozik, az artifact utólagos törlése
+  nem szedi vissza őket. A valódi kompromisszum az, hogy egy cleanup-parancs maga is üthet
+  szabályt (kulcstörlés, fájltörlés) — ez az Atomic Red Team cleanup-modelljéből következik, nem
+  ebből a változtatásból, és `ATOMIC_SKIP_CLEANUP` a kiút, ha előjön.
+
+  **1.9 — egy hibás szabály ne vigye el a batch-et.** Két rétegben. A sémában `allOf` + `if/then`
+  köti a `custom.testing.type`-ot ahhoz a tömbhöz, amire szüksége van (`atomic` → `atomics`,
+  `emulation` → `custom`), **`enabled: true`-ra szűkítve**, hogy egy leparkolt szabály ne
+  kényszerüljön teszt-listát fenntartani. A `runner`-t a register javasolta kötelezőnek, de
+  **szándékosan nem tettük azzá**: a script az üres runner-mezőt „minden runnerre érvényes"-ként
+  kezeli, ez működő eset, nem hibaállapot.
+  A scriptben mind a **négy** `throw` (hiányzó `.spl`, hiányzó meta sidecar, üres
+  `atomics`/`custom`, hiányzó `technique`) `Write-Warning` + `continue` lett — a register kettőt
+  nevezett meg, de a `Read-MetaFromSplFile` két dobása ugyanígy megölte a batch-et. `$malformed`
+  számláló és `::warning` annotáció, hogy a degradálás ne legyen csendes. Az érintett szabály
+  progress-marker nélkül marad, amit a `pass_fail_eval.py` már ma is „meg sem kíséreltük"-ként
+  olvas: a verdikt őszinte marad, nem találunk ki helyette semmit.
+  Új ág a végén: ha a batch **összes** szabálya hibás metaadatú, `exit 1`. A „nincs mit futtatni"
+  és a „minden elromlott" egyaránt nulla teszt, de csak az egyik érdemel zöld pipát.
+
+  **Tesztelés — és ami hiányzik belőle.** A séma oldala mérve: önmagában érvényes, mind a 27
+  szabály átmegy rajta, és három szintetikus eset a várt módon viselkedik (`type: atomic` tömb
+  nélkül → INVALID, `type: emulation` `custom` nélkül → INVALID, `enabled: false` tömb nélkül →
+  OK). A PowerShell oldala **nincs gépi ellenőrzéssel megerősítve**: nincs `pwsh` ezen a gépen,
+  úgyhogy csak struktúra-ellenőrzés futott (kiegyensúlyozott blokkok, `try`/`catch`/`finally`
+  párok) plusz kézi átolvasás. A `PSScriptAnalyzer` a **4.10** hátralévő részének darabja, és
+  pont ezt zárná le — érdemes előrevenni.
+  Kész súly: 30/86,5, projektált pontszám **7,4 / 10**.

@@ -320,6 +320,51 @@
                         "enabled",
                         "type"
                     ],
+                    "$comment": "The allOf below pairs `type` with the array that type actually needs. Without it a rule can declare `type: atomic` and carry no `atomics`, pass validation, and only blow up later on the Windows runner inside run_atomic.ps1 -- where it used to abort collection for the whole batch. Enforcing it here means the failure lands in CI validation, on the one rule responsible, with the file name attached. Gated on `enabled: true` so a rule can be parked with testing switched off without having to keep a test list around.",
+                    "allOf": [
+                        {
+                            "if": {
+                                "properties": {
+                                    "enabled": {
+                                        "const": true
+                                    },
+                                    "type": {
+                                        "const": "atomic"
+                                    }
+                                },
+                                "required": [
+                                    "enabled",
+                                    "type"
+                                ]
+                            },
+                            "then": {
+                                "required": [
+                                    "atomics"
+                                ]
+                            }
+                        },
+                        {
+                            "if": {
+                                "properties": {
+                                    "enabled": {
+                                        "const": true
+                                    },
+                                    "type": {
+                                        "const": "emulation"
+                                    }
+                                },
+                                "required": [
+                                    "enabled",
+                                    "type"
+                                ]
+                            },
+                            "then": {
+                                "required": [
+                                    "custom"
+                                ]
+                            }
+                        }
+                    ],
                     "properties": {
                         "enabled": {
                             "type": "boolean"
