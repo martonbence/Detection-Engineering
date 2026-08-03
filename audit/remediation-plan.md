@@ -32,8 +32,13 @@ hitelesség 4→9 · karbantarthatóság 5→8 · biztonság 6→8.
 
 ## Javasolt sorrend
 
-~~1.1~~ → ~~1.2~~ → **1.3.** Az 1.1 lezárva (nem defekt), az 1.2 kész. Következik az 1.3:
-négy sor YAML, és utána a prod trust boundary bizonyított, nem remélt.
+~~1.1~~ → ~~1.2~~ → ~~1.3~~ → ~~1.4~~ → ~~1.5~~ → ~~1.6~~ → **1.7.** Az 1.1 lezárva (nem defekt), az
+1.2–1.6 kész. A prod trust boundary bizonyított (pinelt konverter + drift-gate), a verify-ablak a
+valós tesztfázishoz horgonyzott, a mérés-oldali bizonytalanság már nem FAIL-nek álcázza magát, és
+a pipeline saját kódjára is fut végre CI (**4.10** részben kész).
+**A verdiktek megbízhatóságát rontó kritikus hibák elfogytak** — a maradék kritikus tételek
+(1.7–1.12) láthatósági és lefedettségi jellegűek. Következik az **1.7**, de érdemes mérlegelni a
+**3.3** reconcile-t is, ami egyszerre zárja az 1.7-et és az 1.8-at.
 
 A 3.3 (reconcile) lefedi az 1.7-et és az 1.8-at, és az 1.1 lezárása után megmaradt
 *láthatósági* igényt is (melyik szabály él ténylegesen prodban) — ha van rá idő, érdemes az
@@ -45,10 +50,10 @@ egyedi javítások helyett rögtön azt megcsinálni.
 
 - [x] **1.1** 13 szabály soha nem kerül ki prodba (27 sigma / 14 spl, `main`-en is) · `ci_prod_workflow.yml:76` · **lezárva 2026-07-30: nem kódhiba.** A 13 szabályra a teljes dev workflow még nem futott le, ezért nincs committolt `.spl`-jük; a `git ls-files`-alapú prod deploy pontosan a pipeline-on átment halmazt telepíti. Amint végigmennek a dev futáson, a prod magától kiviszi őket. A „semmi nem szól róla" rész a **3.3** + **4.7** alá kerül
 - [x] **1.2** A PASS verdiktek elévülnek, a dashboard friss igazságként mutatja (12 → 15 elévült) · `generate_stats.py` · **kész 2026-07-30:** a `pass_rate_pct` már csak a friss verdiktekből számol (96% → **92%**, 11/12), mellé `verification_current_pct` (**44%**, 12/27) és `confirmed_working_pct` (41%); `Outdated` szegmens a Verification doughnutban, `n of m current` alsor az overlayben, kontúros verdikt-badge a táblában, Legend-bejegyzések. A `pass_fail_eval.py` szándékosan érintetlen — az elévülés render-időben származtatott
-- [ ] **1.3** A prod nem azt deployolja, amit jóváhagytak (re-konverzió + pin nélküli deps) · `ci_prod_workflow.yml:42-60,40`, `ci_dev_workflow.yml:154` · fix: pinelt `requirements.txt` + `git diff --exit-code -- rules/splunk`
-- [ ] **1.4** Az `-5m` verify-ablak rövidebb az atomic tesztek futásidejénél · `ci_dev_workflow.yml:428,670` · fix: run-start timestamp job outputként, abból `--earliest`
-- [ ] **1.5** A Splunk-lekérdezés timeoutja hamis FAIL-ként jelenik meg (+ `FINALIZING` részleges eredmény) · `check_saved_search_hits.py:120-164,138` · fix: explicit timeout-error, olvasás csak `DONE`-nál
-- [ ] **1.6** A `scripts/docs/**` nincs a trigger-path-ok között · `ci_dev_workflow.yml:7-28` · fix: path felvétele, vagy inkább a 4.10 saját CI
+- [x] **1.3** A prod nem azt deployolja, amit jóváhagytak (re-konverzió + pin nélküli deps) · `ci_prod_workflow.yml:42-60,40`, `ci_dev_workflow.yml:154` · **kész 2026-08-03:** pinelt `.github/requirements.txt` (a `pySigma` külön is, mert ő szerializál) mindkét workflow-nak, drift-gate a re-konverzió és a deploy közé, dev pip-cache kulcs a `requirements.txt`-re állítva, a `pipeline_overview.md` hamis „byte-identical" állítása javítva. A **3.2** (artifact-promóció) a gyökér — az teszi majd feleslegessé a gate-et
+- [x] **1.4** Az `-5m` verify-ablak rövidebb az atomic tesztek futásidejénél · `ci_dev_workflow.yml:428,670` · **kész 2026-08-03:** mindhárom teszt-job első stepként lebélyegzi az indulását (epoch), a `splunk_verify` a minimumukat veszi −60s margóval `--earliest`-nek; fallback `-15m` + warning. A `check_saved_search_hits.py` érintetlen (a Splunk elfogadja az epochot). A szabályok `custom.splunk.earliest` mezője más dolog — a prod saved search ütemezési ablaka —, nem változott
+- [x] **1.5** A Splunk-lekérdezés timeoutja hamis FAIL-ként jelenik meg (+ `FINALIZING` részleges eredmény) · `check_saved_search_hits.py:120-164,138` · **kész 2026-08-03:** explicit timeout-error, olvasás csak `DONE`-nál, plusz a hibák `error_kind`-ot kapnak (`unmeasured` → NOT_VERIFIED, `rule_error` → FAIL) — a script javítása önmagában kevés lett volna, mert az `evaluate()` minden hibát FAIL-re képezett. A legend és a `VERDICT_RANK` komment is átírva
+- [x] **1.6** A `scripts/docs/**` nincs a trigger-path-ok között · `ci_dev_workflow.yml:7-28` · **kész 2026-08-03:** a 4.10 útján, mert a path felvétele önmagában nem működött volna (a run elindulna, majd `has_rules=false` miatt mindent átugrana). Új `ci_code_checks.yml`: ruff + pytest minden kód-változásra, plusz `regenerate_docs` és `deploy_pages` job — a Pages ugyanis artifactból publikál, nem a branchről, tehát a commit önmagában nem frissítette volna az élő oldalt
 - [ ] **1.7** Nincs törlés/kivezetés: `--diff-filter=AMRC`, árva `.spl`, árva saved search, 3 árva result, holt `status: deprecated` · `ci_dev_workflow.yml:89` · fix: 3.3 reconcile; addig min. a deprecated kizárása a deployból
 - [ ] **1.8** A title átírása árva saved search-öt hagy a Splunkban · `rule_naming.py:10` · fix: objektumnév csak `detect_id`-ból, title a description-be
 - [ ] **1.9** Egy hibás szabály `throw`-ja megbuktatja az egész batch tesztelését · `run_atomic.ps1:313,338`, `sigma_schema.json` · fix: séma `if/then` a `type`↔`atomics`/`custom` párra + `Write-Warning` + `continue`
@@ -69,7 +74,7 @@ egyedi javítások helyett rögtön azt megcsinálni.
 - [ ] **2.9** Az index-prefix beszúrása elhasal pipe-pal kezdődő queryn · `sigma_to_spl.py:162-185`
 - [ ] **2.10** Szabályonként két Python-process egy mező kiolvasásához · `ci_dev_workflow.yml:323-324` · fix: 3.1 manifest
 - [ ] **2.11** Hiányzó repo-higiénia: requirements/pyproject/Makefile/pre-commit/CODEOWNERS/PR template/dependabot, actions csak major taggel pinelve
-- [ ] **2.12** Nulla teszt és nulla linter · fix: 4.10
+- [~] **2.12** Nulla teszt és nulla linter · fix: 4.10 · **részben kész 2026-08-03:** már nem nulla — 25 teszt a `tests/` alatt és ruff a CI-ban. A ruff viszont szűkre van állítva (`F` + `E9`), a teljes szabálykészlet bekapcsolása és a lefedettség bővítése ide tartozik
 - [ ] **2.13** A `rule_documentations/` üres könyvtár · fix: 4.8 vagy törlés
 - [ ] **2.14** A TLS-verifikáció csendben kikapcsol, ha a secret nincs beállítva · `ci_dev_workflow.yml:386`, `ci_prod_workflow.yml:69` · fix: fail-closed
 - [ ] **2.15** A `fields:` metaadat halott (séma kötelezi, converter kidobja, SPL nem használja) · `sigma_to_spl.py:255` · fix: `| table` vagy kivenni a sémából
@@ -99,7 +104,7 @@ egyedi javítások helyett rögtön azt megcsinálni.
 - [ ] **4.7** Deployment inventory a dashboardon (dev/prod hol él, milyen verzióval) — a 3.3 kimenetéből
 - [ ] **4.8** A `rule_documentations/` generálása a `stats.json`-ból (runbook-oldal szabályonként)
 - [ ] **4.9** A promotion PR body-ja legyen érdemi: per-szabály breakdown · `ci_dev_workflow.yml:814`
-- [ ] **4.10** Saját CI a pipeline-ra: ruff, pytest, actionlint, PSScriptAnalyzer, shellcheck, pip-audit
+- [~] **4.10** Saját CI a pipeline-ra: ruff, pytest, actionlint, PSScriptAnalyzer, shellcheck, pip-audit · **részben kész 2026-08-03:** `ci_code_checks.yml` megvan ruff + pytest-tel (pinelve a `.github/requirements-dev.txt`-ben), és az 1.6-ot lezárja. Hátra: actionlint, shellcheck, PSScriptAnalyzer, pip-audit. Szándékosan nincs kipipálva — a súlyozott pontszámot a checkbox hajtja, egy félkész tétel nem kaphat teljes súlyt
 - [ ] **4.11** Az elévülés riportálási korrekció, nem kapu — a `splunk_verify` exit kódja és a promotion PR gate csak az adott futás szabályait látja, azok verdiktje pedig definíció szerint friss, így egy lejárt vagy felülírt verdiktű szabály **soha nem blokkolja a promóciót**, és mérés nélkül ülhet prodban akármeddig (ma 15 ilyen). A dashboard 2026-07-30 óta megmondja, a pipeline nem tesz vele semmit · fix: re-validation gate a promotion előtt, vagy ütemezett újramérés az elévült halmazra · a `docs-maintainer` észrevétele az 1.2 dokumentálása közben
 
 ---
@@ -175,7 +180,7 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   első körben csak a Pass állt át).
   A Verification doughnut kapott egy **Outdated** szegmenst (drift-lila `#bc8cff`, ugyanaz a szín,
   mint a sorjelölő háromszögé és a `Verdict → Sync` faceté), és a szegmensek mostantól a
-  böngészőben, a `RULES`-ból számolódnak ugyanazzal az `isVerdictStale()`-lel, amit a tábla használ
+  böngészőben, a `RULES`-ból számolódnak ugyanazzal az `isVerdictLapsed()`-del, amit a tábla használ
   — így a chart nem tud eltérni a soroktól. A táblában az elévült verdikt-badge kontúros
   (szaggatott lila keret, nincs kitöltés), nem tömör zöld. Legend: az Outdated-sor átírva, a
   `NOT VERIFIED` mellé bekerült a **2.8** korlát (emulation szabályoknál FAIL-ként jelenik meg),
@@ -219,3 +224,110 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   frissesség nem igazolható; egy datálhatatlan verdiktet frissnek venni cáfolhatatlan zöld lenne).
   Mind a 7 határeset egyezése Python és JS oldalon egyenként ellenőrizve.
   Kész súly: 6/88, projektált pontszám **6,67 / 10** (a nevező 85 → 88 a 4.11-gyel).
+- **2026-08-03** — **1.3 kész.** Új `.github/requirements.txt` (nem a gyökérben: CI az egyetlen
+  fogyasztója, és a telepítő workflow-k ugyanabban a könyvtárban vannak), `pyyaml==6.0.3`,
+  `jsonschema==4.26.0`, `sigma-cli==3.1.0`, `pySigma==1.5.0`, `pysigma-backend-splunk==2.1.0`,
+  `requests==2.34.2`. Mindkét workflow abból telepít, tehát a „dev és prod ugyanazt a konvertert
+  futtatta" mostantól a repo állítása, nem a PyPI napi kedve. A `pySigma` azért van külön
+  pinelve, mert csak tranzitív függőség, viszont **ő szerializálja ténylegesen a lekérdezést** —
+  lebegve hagyva pont a másik két pin értelmét vinné el. A dev pip-cache kulcsa a workflow-fájl
+  hash-éről a `.github/requirements.txt`-ére állt át (különben egy pin-módosítás nem ürítené a
+  cache-t).
+  Drift-gate új stepként a prod re-konverzió és a deploy **közé**: `git diff --exit-code --
+  rules/splunk`. Izolált repóban négy esetre letesztelve: tiszta fa → átenged; módosított `.spl`
+  → bukik és kiírja a diffet; törölt `.spl` → bukik; **új, untracked `.spl` → átenged**. Az
+  utolsó szándékos és a step kommentjében is rögzítve: a gate a *felülírt* review-tartalmat őrzi,
+  a *hiányzó* SPL az **1.1**/**3.3** hatóköre. A hamis „byte-identical" állítás nem csak a
+  workflow kommentjében élt — a `pipeline_overview.md` mermaid-node-ja (`:40`) és a stage 9
+  szövege is ezt ismételte; mindkettő átírva, a diagram külön node-ként mutatja a gate-et.
+  Ez a tétel **tüneti kezelés**: a gyökér a **3.2** (a prod azért épít újra, mert nincs
+  digest-címzett artifact). Ha a 3.2 megvalósul, a prod nem konvertál, és ez a gate törölhető —
+  a pin akkor is kell. A `.github/requirements.txt` a **2.11** egy darabját is teljesíti, de *nem* teljes
+  lock: a tranzitív függőségek lebegnek és hash sincs, a `pip-compile` / `--require-hashes` ott
+  marad a 2.11 alatt.
+  Kész súly: 9/86,5, projektált pontszám **6,8 / 10**.
+  (Megjegyzés: a fenti bejegyzések 85, majd 88 összsúllyal számoltak, a `register.html` viszont
+  ma 86,5-öt ad ki a `data-weight` mezők összegeként — a korábbi nevezők nem stimmelnek. A régi
+  bejegyzéseket meghagytam, ahogy voltak; ez a sor a register tényleges számításából jön.)
+- **2026-08-03** — **1.4 kész.** A verify-ablak mostantól a *valós* tesztfázishoz van horgonyozva.
+  Mindhárom teszt-job (atomic victim, atomic DC, emulation) **első stepként** lebélyegzi a saját
+  indulását epoch-másodpercben és job outputként adja tovább; a `splunk_verify` új
+  `Compute verification time window` stepje ezek **minimumát** veszi, mínusz 60s óracsúszás-margó,
+  és ez megy `--earliest`-ként. Miért három bélyeg és nem egy: a DC külön hoszton fut saját órával,
+  az emulation pedig **osztozik a victim runneren** az atomickal, tehát sorosan futnak — pont ez
+  növeli a tesztfázist a fix ablak fölé. Miért az első step: egy `timeout-minutes` által megölt
+  job is meg tudja mondani, mikor kezdett.
+  A `check_saved_search_hits.py` **érintetlen** — a Splunk `dispatch.earliest_time`-ja elfogadja
+  az epochot, tehát csak az argumentum értéke változott, a script nem.
+  **Az ablak szélesítése nem lett volna jó megoldás:** az a fordított hibát hozza be — egy pár
+  perccel későbbi re-run az *előző* futás eventjeire ülne rá, és nem mért PASS-t adna. A valós
+  kezdethez horgonyzás mindkét irányú hibát elkerüli.
+  Fallback, ha egyik job sem adott timestampet: `-15m` + `::warning`, hogy a gyanús verdikt ne
+  csendben keletkezzen. A bash-logikát öt határesetre leteszteltem, köztük arra, amikor az *első*
+  érték a legkisebb: a kézenfekvő `(( a < b )) && x=y` forma ott `set -e` alatt megölte volna a
+  stepet, ezért `if`-ben van.
+  **Ami szándékosan nem változott:** a szabályok `custom.splunk.earliest: "-5m"` mezője mind a
+  27-ben a *deployolt saved search ütemezési ablaka* prodban (`deploy_spl_to_splunk.py:111`),
+  aminek semmi köze a verifikációhoz — azt a `dispatch.earliest_time` futásidőben felülírja.
+  Két különböző `-5m`, csak az egyik volt hibás.
+  Kész súly: 12/86,5, projektált pontszám **6,8 / 10**.
+- **2026-08-03** — **1.5 kész**, és a javítás egy réteggel mélyebbre nyúlt, mint a terv szövege.
+  A `check_saved_search_hits.py` mostantól explicit hibát ad, ha a keresés nem ér el `DONE`-t a
+  120s alatt (eddig ilyenkor **mégis lekérte az eredményeket** és `error=None`-nal 0 eventet írt —
+  megkülönböztethetetlenül attól, hogy „a detektálás nem tüzelt"), és a `FINALIZING` már nem
+  szakítja meg a poll-ciklust. Ez utóbbi nem szigorítás, hanem pontosítás: a mockolt teszt szerint
+  a „FINALIZING majd DONE" eset eddig **1 eventet** olvasott volna a valós **3** helyett.
+  **Amiért a script javítása önmagában kevés lett volna:** az `evaluate()` *minden* hibát FAIL-re
+  képezett le (`if error: return FAIL`), tehát a timeout explicitté tétele csak az indoklást tette
+  volna őszintébbé — a verdikt ugyanaz maradt volna. Ezért a hibák mostantól **típussal**
+  érkeznek: minden hibaág kap egy `error_kind`-ot, `unmeasured` (nem tudtuk megmérni: nincs
+  `DONE`, hálózati hiba, értelmezhetetlen válasz, HTTP 5xx) vagy `rule_error` (tényleg baj van:
+  nincs ilyen saved search, vagy a search job hibázott Splunk-oldalon). Az előbbi **NOT_VERIFIED**,
+  az utóbbi marad **FAIL**. A szétválasztás azért kellett, mert a `NOT_VERIFIED`-be terelt
+  *minden* hiba elrejtette volna a valódi defekteket (ki nem deployolt szabály, hibás SPL).
+  **Konzervatív és visszafelé kompatibilis:** csak a pontosan `unmeasured` kind lágyít; a hiányzó
+  vagy ismeretlen `error_kind` (a mező bevezetése előtt írt fájlok) a régi FAIL-viselkedést tartja.
+  Tesztelve: 9 verdikt-eset + 8 poll-eset mockolt Splunkkal.
+  **A legend átírva** — a felhasználó kérdése nyomán, aki jogosan vette észre, hogy a
+  `NOT VERIFIED` leírása mintha már fedné ezt az esetet. A régi szöveg azt állította, hogy ez az
+  állapot „only reaches rules tested by Atomic Red Team"; a mérés-oldali útvonallal ez **már nem
+  igaz**, az minden szabályt elér. Az új szöveg a két útvonalat külön nevezi meg, a FAIL leírása
+  megkapta a `rule_error` eseteket, és a `VERDICT_RANK` kommentje is pontosítva.
+  Ezzel a *verdiktek megbízhatóságát* rontó kritikus hibák elfogytak.
+  Kész súly: 15/86,5, projektált pontszám **6,9 / 10**.
+- **2026-08-03** — **1.6 kész, 4.10 részben.** Új `ci_code_checks.yml`, a pipeline saját CI-ja.
+  **Amiért nem a register javaslatát követtük:** a `scripts/docs/**` felvétele a `paths:` listára
+  nem működött volna. A `changes` step (`ci_dev_workflow.yml:96-127`) csak akkor eszkalál
+  `mode=all`-ra, ha a `sigma_schema.json`, a `scripts/validate/*` vagy a `sigma_to_spl.py`
+  változott; egyébként a `rule_files` a változott `rules/sigma/` fájlokból áll, és ha az üres,
+  `has_rules=false` → minden job kimarad. A run tehát elindult volna, azonnal átugrik mindent, és
+  zölden végez — a stats sem generálódik újra.
+  **A tétel két problémát takart, mindkettő rendezve:** (a) semmi nem ellenőrizte a pipeline saját
+  kódját → `checks` job (ruff + pytest) `ubuntu-latest`-en, Splunk és éles támadás nélkül;
+  (b) egy generátor-változás nem generálta újra a publikált oldalt → `regenerate_docs` job.
+  **A (b)-hez kellett egy harmadik job is:** a Pages **artifactból** publikál, nem a branchről
+  (`ci_dev_workflow.yml` `deploy_pages`), tehát a commit a repót frissítette volna, az élő oldalt
+  nem. Az új `deploy_pages` ugyanazt a `pages` concurrency-csoportot használja, mint a devé, hogy
+  a két publikálás sorba álljon.
+  **Tartalom:** ruff `F` + `E9` szabályokkal (a teljes készlet egy sosem lintelt, ~6000 soros
+  fájlon formázási véleményekbe fojtaná a valódi hibákat — a bővítés a **2.12** alatt marad; a
+  szűk beállítás így is talált egy használatlan `sys` importot), 25 pytest teszt a mai 1.4-es és
+  1.5-ös munkából (mockolt Splunk, ezredmásodpercek), `pyproject.toml` a gyökérben (ruff és pytest
+  onnan találja meg magától), `__pycache__` a `.gitignore`-ba, a teszt-eszközök pinelve a
+  `.github/requirements-dev.txt`-ben.
+  **Hátra a 4.10-ből:** actionlint, shellcheck, PSScriptAnalyzer, pip-audit — ezért `[~]` és nem
+  `[x]`, a registerben `részben kész` taggel, pipa nélkül.
+  **Az „újragenerálva" ≠ „változott" csapda, menet közben javítva:** a generátor minden futásnál
+  időbélyeget és HEAD-sha-t stempel a kimenetbe, tehát két azonos forrású futás sem byte-azonos.
+  Egy sima `git diff --quiet` így soha nem adna igazat — minden dev-push után keletkezne egy
+  „regenerálás" commit, és a `published` jelzés értelmét vesztené. A job ezért **normalizálja** az
+  időbélyegeket és a sha-t, és csak akkor committol, ha ezeken túl is eltér valami. Szándékosan
+  **nem** diff-sorok szűrésével: az `index.html` a `COVERAGE_HISTORY`-t és a `RULE_GROWTH_HISTORY`-t
+  egy-egy hatalmas sorban tartalmazza, amiben a valódi adat *és* egy időbélyeg is ott van — egy
+  sorszintű szűrő némán eldobná a valódi lefedettség-változást. Öt esetre letesztelve a workflow
+  tényleges kódjával (byte-azonos / csak időbélyeg / `pass_rate` változás / a hosszú history-soron
+  belüli érték-változás / új napi pont).
+  **Új megfigyelés, ami nincs külön tételként:** a `paths:` lista és a `mode=all` eszkalációs lista
+  nem fedi egymást — a nyolc trigger-útvonalból öt üres futást produkál (zöld pipa, nulla munka).
+  Érdemes felvenni tételként.
+  Kész súly: 18/86,5, projektált pontszám **7,0 / 10**.
