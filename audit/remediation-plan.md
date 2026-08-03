@@ -110,7 +110,7 @@ felhalmozódott szemét, amit előbb ki kellene takarítani. A defekt maga viszo
 - [ ] **4.7** Deployment inventory a dashboardon (dev/prod hol él, milyen verzióval) — a 3.3 kimenetéből
 - [ ] **4.8** A `rule_documentations/` generálása a `stats.json`-ból (runbook-oldal szabályonként)
 - [ ] **4.9** A promotion PR body-ja legyen érdemi: per-szabály breakdown · `ci_dev_workflow.yml:814`
-- [~] **4.10** Saját CI a pipeline-ra: ruff, pytest, actionlint, PSScriptAnalyzer, shellcheck, pip-audit · **részben kész 2026-08-03:** `ci_code_checks.yml` megvan ruff + pytest-tel (pinelve a `.github/requirements-dev.txt`-ben), és az 1.6-ot lezárja. Hátra: actionlint, shellcheck, PSScriptAnalyzer, pip-audit. Szándékosan nincs kipipálva — a súlyozott pontszámot a checkbox hajtja, egy félkész tétel nem kaphat teljes súlyt
+- [~] **4.10** Saját CI a pipeline-ra: ruff, pytest, actionlint, PSScriptAnalyzer, shellcheck, pip-audit · **részben kész 2026-08-03:** `ci_code_checks.yml` megvan ruff + pytest-tel (pinelve a `.github/requirements-dev.txt`-ben), és az 1.6-ot lezárja. **PSScriptAnalyzer is bekötve** (külön `powershell_analysis` job, parse check + analyzer, pin 1.25.0, `Error`/`ParseError` buktat). Hátra: actionlint, shellcheck, pip-audit. Szándékosan nincs kipipálva — a súlyozott pontszámot a checkbox hajtja, egy félkész tétel nem kaphat teljes súlyt
 - [ ] **4.11** Az elévülés riportálási korrekció, nem kapu — a `splunk_verify` exit kódja és a promotion PR gate csak az adott futás szabályait látja, azok verdiktje pedig definíció szerint friss, így egy lejárt vagy felülírt verdiktű szabály **soha nem blokkolja a promóciót**, és mérés nélkül ülhet prodban akármeddig (ma 15 ilyen). A dashboard 2026-07-30 óta megmondja, a pipeline nem tesz vele semmit · fix: re-validation gate a promotion előtt, vagy ütemezett újramérés az elévült halmazra · a `docs-maintainer` észrevétele az 1.2 dokumentálása közben
 
 ---
@@ -419,3 +419,35 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   párok) plusz kézi átolvasás. A `PSScriptAnalyzer` a **4.10** hátralévő részének darabja, és
   pont ezt zárná le — érdemes előrevenni.
   Kész súly: 30/86,5, projektált pontszám **7,4 / 10**.
+- **2026-08-03** — **PSScriptAnalyzer bekötve** (a **4.10** négy maradékából az első). Nem terv
+  szerinti sorrend: az előző bejegyzés végén jelzett vakfolt zárása, mielőtt a 3.3-ra lépnénk.
+  Az 1.9–1.11 blokk 326 sornyi PowerShellt módosított, amit semmi nem ellenőrzött — ruff és
+  pytest Python-only, lokálisan nincs `pwsh` —, tehát a `run_atomic.ps1`-et először a Windows
+  runner parse-olta volna egy élő atomic futás közben, a repo leglassabb visszacsatolási
+  hurkában.
+  **Külön `powershell_analysis` job, nem két új step a meglévőben:** a stepek sorban futnak, tehát
+  egy ruff-hiba elfedné a PowerShell-hibát a következő pushig, és egy `.ps1` parse-hibának semmi
+  keresnivalója egy Python-tesztekről elnevezett job alatt. Párhuzamosan fut, tehát nem kerül
+  falióra-időbe; `ubuntu-latest`, Windows nem kell hozzá. A `regenerate_console` mostantól
+  `needs: [static_analysis, powershell_analysis]`.
+  **Két lépcső, szándékosan.** Előbb egy *parse check* a PowerShell saját parserével
+  (`[System.Management.Automation.Language.Parser]::ParseFile`): ez független attól, hogy melyik
+  analyzer-szabály van bekapcsolva, és pont az a hibaosztály a célpontja, amit egy `pwsh` nélküli
+  gépen írt szerkesztés hoz be. Utána a `PSScriptAnalyzer`, **1.25.0-ra pinelve** — a Gallery API
+  szerint ez a legfrissebb stabil (2026-03-20, nem prerelease), és ugyanaz a logika, mint az
+  **1.3** Python-pinjeinél: egy lebegő linter más kiadási ütemterve szerint pirosít be egy nem
+  kapcsolódó PR-t.
+  **A kapu szűk, a ruff-precedenst követve:** `Error` és `ParseError` buktat, a `Warning` csak
+  annotáció. Három szabály kizárva a `.github/PSScriptAnalyzerSettings.psd1`-ben, mindegyik
+  indoklással a fájlban: `PSAvoidUsingWriteHost` (a scriptek szándékosan a CI-logba írnak, a
+  `Write-Output` a pipeline-ra tenné a szöveget, ahol a hívók visszatérési értékként kapnák meg),
+  `PSAvoidUsingInvokeExpression` (az emulation-executor lényege, hogy a szabály saját, sémával
+  validált parancsát futtatja — állandó riasztás arra tanítana, hogy a szabályt hagyjuk figyelmen
+  kívül), `PSUseShouldProcessForStateChangingFunctions` (belső, nem exportált, sosem interaktív
+  függvényekre ceremónia lenne). Külön `.psd1` és nem inline `-ExcludeRule`, hogy a kizárások
+  megtalálhatók és szerkeszthetők legyenek, ne a workflow közepén ülve.
+  **Amit ez nem old meg:** a job maga sincs lefuttatva — a YAML szerkezete ellenőrizve
+  (`yaml.safe_load`, 4 job, helyes `needs`-lánc, `shell: pwsh` a három stepen), de a `pwsh`-kód
+  és a `.psd1` érvényessége csak az első CI-futáson derül ki. A `.psd1` szintaxisát sem tudtam
+  lokálisan parse-olni, ugyanabból az okból, amiért az egész job létrejött.
+  **Hátra a 4.10-ből:** actionlint, shellcheck, pip-audit.
