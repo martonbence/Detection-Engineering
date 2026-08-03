@@ -18,7 +18,6 @@ import html as _html
 import json
 import re
 import subprocess
-import sys
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -183,7 +182,15 @@ def extract_sigma_body(rule: dict) -> str:
 
 
 def load_verdicts() -> dict[str, dict]:
-    """Returns {detect_id: {verdict, run_id}} from outputs/results/*/result.json."""
+    """Returns {detect_id: {verdict, run_id, run_timestamp, rule_version}}
+    from outputs/results/*/result.json.
+
+    The timestamp and the tested rule_version are carried through so the browser
+    can say WHEN a verdict was measured and WHICH version of the rule it was
+    measured against. A PASS is only evidence about the rule text that was
+    actually fired at -- if the rule changed afterwards, the verdict is a
+    statement about a rule that no longer exists.
+    """
     verdicts: dict[str, dict] = {}
     results_dir = REPO_ROOT / "outputs" / "results"
     if not results_dir.exists():
@@ -197,6 +204,8 @@ def load_verdicts() -> dict[str, dict]:
                 verdicts[detect_id] = {
                     "verdict": verdict,
                     "run_id": data.get("run_id", ""),
+                    "run_timestamp": str(data.get("run_timestamp") or ""),
+                    "rule_version": str(data.get("rule_version") or ""),
                 }
         except Exception:
             pass
@@ -368,22 +377,63 @@ def fetch_mitre_techniques(
 # Precedence used to pick a technique's "best_verdict" when it's covered by
 # several rules with different verdicts. PASS obviously wins (a working,
 # verified detection exists). Below that, NOT_VERIFIED ranks above FAIL: FAIL
-# means the test actually ran to completion and no Splunk alert fired -- a
-# confirmed negative -- whereas NOT_VERIFIED means the run timed out before
-# we found out either way, so it's still "unknown", not "confirmed broken".
+# means we found out and the answer was bad -- the test ran to completion and
+# no Splunk alert fired, or the rule is not deployed / its search errored --
+# whereas NOT_VERIFIED means either the attack or the measurement stopped
+# before we found out either way, so it's still "unknown", not "confirmed
+# broken".
 # Surfacing the unknown state ahead of a confirmed failure avoids implying a
 # technique is worse off than it's actually known to be. N/A (never tested)
 # is last since no attempt was even made.
 VERDICT_RANK = {"PASS": 3, "NOT_VERIFIED": 2, "FAIL": 1, "N/A": 0}
 
+# How a verdict was produced, as the rule's `testing.type` calls it. Spelled out
+# for the page because "atomic" is an in-house shorthand while "Atomic Red Team"
+# names a tool the reader can go and check -- and the distinction matters: an
+# emulation-backed PASS and an ART-backed PASS are not equal evidence, even
+# though the badge is the same green.
+VERIFY_METHOD_LABELS = {"atomic": "Atomic Red Team", "emulation": "Emulation"}
+
+# How long a verdict stays current before the rule is due for re-validation.
+# Injected into the page as @@REVIEW_DAYS@@ and evaluated in the browser, so a
+# rule crosses the line on its own without the pipeline having to re-run.
+REVIEW_INTERVAL_DAYS = 180
+
+
+def _verdict_age_days(iso: str) -> int | None:
+    """Whole days between a verdict's timestamp and now, or None if unusable.
+
+    Calendar days in UTC, matching the page's verdictAgeDays() so the build-time
+    figure and the browser's live one can only differ by the time between the
+    two, never by how the arithmetic is done.
+    """
+    if not iso:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(iso))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    then = parsed.astimezone(timezone.utc).date()
+    return (datetime.now(timezone.utc).date() - then).days
+
 
 def build_technique_coverage(rules_detail: list, repo: str) -> dict:
-    """Build {tech_id: {best_verdict, rules:[{id,title,verdict,url}]}} from rules."""
+    """Build {tech_id: {best_verdict, has_fail, rules:[...]}} from rules.
+
+    ``best_verdict`` is the *highest*-ranked verdict of the covering rules, so a
+    technique covered by both a PASS and a FAIL rule reads as PASS — the cell
+    colour answers "is this technique detected", not "is every rule healthy".
+    ``has_fail`` carries the second question separately: it is True when ANY
+    covering rule FAILed, so the matrix can flag a confirmed failure that the
+    roll-up would otherwise hide.
+    """
     cov: dict = {}
     for rule in rules_detail:
         for tech in rule.get("techniques") or []:
             if tech not in cov:
-                cov[tech] = {"best_verdict": "N/A", "rules": []}
+                cov[tech] = {"best_verdict": "N/A", "has_fail": False, "rules": []}
             file_path = rule.get("file_path", "")
             url = f"https://github.com/{repo}/blob/main/{file_path}" if file_path else ""
             cov[tech]["rules"].append({
@@ -393,6 +443,8 @@ def build_technique_coverage(rules_detail: list, repo: str) -> dict:
                 "url": url,
             })
             v = rule["verdict"]
+            if v == "FAIL":
+                cov[tech]["has_fail"] = True
             cur = cov[tech]["best_verdict"]
             if VERDICT_RANK.get(v, 0) > VERDICT_RANK.get(cur, 0):
                 cov[tech]["best_verdict"] = v
@@ -407,22 +459,41 @@ def render_navigator_layer(technique_coverage: dict, stats: dict) -> str:
             "PASS": "#2EA44F", "NOT_VERIFIED": "#d29922", "FAIL": "#CF222E",
         }.get(verdict, "#6E7681")
         score = {"PASS": 100, "NOT_VERIFIED": 75, "FAIL": 50}.get(verdict, 25)
-        comment = "\n".join(
-            f"{r['id']}: {r['title']} ({r['verdict']})" for r in cov["rules"]
-        )
-        techniques_out.append({
+        lines = [f"{r['id']}: {r['title']} ({r['verdict']})" for r in cov["rules"]]
+        # The colour/score stay keyed to best_verdict, so this file agrees with
+        # the in-page matrix — but that roll-up hides a failing rule behind a
+        # passing one. The official Navigator has no per-technique flag, so the
+        # warning goes where it will actually be read: first line of the comment
+        # (shown on hover) plus a metadata row in the technique sidebar.
+        failing = [r["id"] for r in cov["rules"] if r["verdict"] == "FAIL"]
+        if failing:
+            lines.insert(0, (
+                f"⚠ {len(failing)} of {len(cov['rules'])} covering rule(s) "
+                f"FAILED verification"
+            ))
+        entry = {
             "techniqueID": tech_id,
             "color": color,
-            "comment": comment,
+            "comment": "\n".join(lines),
             "enabled": True,
             "score": score,
             "showSubtechniques": True,
-        })
+        }
+        if failing:
+            entry["metadata"] = [
+                {"name": "Failing rules", "value": ", ".join(failing)},
+            ]
+        techniques_out.append(entry)
     layer = {
         "name": "Detection Engineering Coverage",
         "versions": {"attack": "19", "navigator": "4.9.1", "layer": "4.5"},
         "domain": "enterprise-attack",
-        "description": f"Auto-generated detection coverage. {stats['generated_at'][:19]} UTC.",
+        "description": (
+            f"Auto-generated detection coverage. {stats['generated_at'][:19]} UTC. "
+            "Colour is the best verdict among the rules covering a technique; "
+            "a ⚠ in the comment marks techniques where a covering rule failed "
+            "verification despite that."
+        ),
         "filters": {"platforms": [
             "Windows", "Linux", "macOS", "Network", "PRE", "Containers",
             "Office 365", "SaaS", "Google Workspace", "IaaS", "Azure AD",
@@ -480,6 +551,10 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
             c["best_verdict"], "nv"
         )
 
+    def fcls(tid: str) -> str:
+        c = technique_coverage.get(tid)
+        return " fail-flag" if c and c.get("has_fail") else ""
+
     def rattr(tid: str) -> str:
         c = technique_coverage.get(tid)
         if not c:
@@ -527,8 +602,24 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
             badge_div = ("<div class=\"tc-foot\">" + badge + "</div>") if badge else ""
             cls = vcls(tid)
             has_cov = " has-cov" if (cls == "uncov" and sub_covered > 0) else ""
+            # A failing rule usually maps to a SUB-technique, and sub-techniques
+            # are collapsed by default — so the flag has to climb to the parent
+            # or the failure stays invisible on the matrix. Same reasoning as
+            # has-cov above, which surfaces sub-level coverage on the parent.
+            sub_fail = any(
+                technique_coverage.get(s["id"], {}).get("has_fail") for s in subs
+            )
+            fail_cls = " fail-flag" if (fcls(tid) or sub_fail) else ""
+            # Parents that only inherited the flag have no rules of their own,
+            # so the hover tooltip (bound to [data-rules]) never fires for them;
+            # a native title keeps the marker from being unexplained.
+            inherit_tip = (
+                " title=\"A sub-technique rule failed verification\""
+                if sub_fail and tid not in technique_coverage else ""
+            )
             cells.append(
-                "<div class=\"tc " + cls + has_cov + "\" data-id=\"" + tid + "\"" + rattr(tid) + ">"
+                "<div class=\"tc " + cls + has_cov + fail_cls + "\" data-id=\"" + tid + "\""
+                + inherit_tip + rattr(tid) + ">"
                 "<div class=\"tc-row1\">"
                 "<a class=\"ti\" href=\"" + tech_url + "\" target=\"_blank\">" + tid + "</a>"
                 + expand +
@@ -544,7 +635,7 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
                 sname = _html.escape(sub["name"])
                 surl = "https://attack.mitre.org/techniques/" + tid + "/" + suffix + "/"
                 cells.append(
-                    "<div class=\"tc sub " + vcls(sid) + " subs-" + tid + "\""
+                    "<div class=\"tc sub " + vcls(sid) + fcls(sid) + " subs-" + tid + "\""
                     " style=\"display:none\" data-id=\"" + sid + "\"" + rattr(sid) + ">"
                     "<div class=\"tc-row1\">"
                     "<a class=\"ti\" href=\"" + surl + "\" target=\"_blank\">." + suffix + "</a>"
@@ -553,12 +644,24 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
                     + detail_btn_html(sid, sname)
                     + "</div>"
                 )
+        # A technique counts as "covered" for the tactic ratio if it — or any
+        # of its sub-techniques — has at least one mapped rule.
+        covered = sum(
+            1 for t in techs
+            if t["id"] in technique_coverage
+            or any(s["id"] in technique_coverage for s in t.get("subs", []))
+        )
+        total = len(techs)
+        pct = round(covered / total * 100) if total else 0
         cols.append(
-            "<div class=\"tc-col\">"
-            "<div class=\"tc-hdr\"><a href=\"" + tac_url + "\" target=\"_blank\">"
-            + _html.escape(tactic) + "</a>"
-            + "<span class=\"tc-count\">" + str(len(techs)) + " techniques</span>"
-            + "</div>"
+            "<div class=\"tc-col\" data-tactic=\"" + _html.escape(tactic) + "\">"
+            "<div class=\"tc-hdr\">"
+            "<button class=\"tc-col-toggle\" title=\"Collapse column\">&#9662;</button>"
+            "<a href=\"" + tac_url + "\" target=\"_blank\">" + _html.escape(tactic) + "</a>"
+            "<span class=\"tc-count\">" + str(covered) + "/" + str(total) + " covered</span>"
+            "<span class=\"tc-cov-bar\"><span class=\"tc-cov-fill\" style=\"width:"
+            + str(pct) + "%\"></span></span>"
+            "</div>"
             + "".join(cells)
             + "</div>"
         )
@@ -781,6 +884,24 @@ def generate_stats() -> dict:
     # instead of silently folding NOT_VERIFIED into the old N/A bucket.
     verified_not_verified = 0
     never_tested = 0
+    # Verdicts measured against a rule version that no longer exists, and the
+    # subset of PASSes that still describe the rule as it stands today. These
+    # two drive the pass rate; the four counters above keep their original
+    # meaning so the README badges that already query them don't shift under
+    # anyone's feet.
+    verified_stale = 0
+    verified_pass_current = 0
+    # Its FAIL counterpart, so the two badges are drawn from the same
+    # population. A stale FAIL is no more current evidence than a stale PASS,
+    # and a Pass badge on fresh counts beside a Fail badge on all-time counts
+    # would quietly imply a worse ratio than the data supports.
+    verified_fail_current = 0
+    # The two ways verified_stale is reached, reported separately because they
+    # call for different reading: superseded is certain (the tested logic is
+    # provably not the deployed logic), expired is probabilistic (same logic,
+    # older than the review interval).
+    verified_superseded = 0
+    verified_expired = 0
     rules_detail: list[dict] = []
 
     for rule in sigma_rules:
@@ -802,6 +923,53 @@ def generate_stats() -> dict:
         v_data = verdicts.get(detect_id, {})
         verdict = v_data.get("verdict", "N/A")
         run_id = v_data.get("run_id", "")
+        verdict_at = v_data.get("run_timestamp", "")
+        verdict_rule_version = v_data.get("rule_version", "")
+        rule_version = compute_rule_version(rule.get("_file_path", ""))
+
+        # A verdict is only as current as the rule it was measured on. Staleness
+        # is derived HERE, at render time, and deliberately not in
+        # pass_fail_eval.py: at the moment of measurement every verdict is fresh
+        # by definition -- a verdict goes stale later, when someone edits the
+        # rule out from under it. Same comparison the browser makes in
+        # isVerdictSuperseded() / isVerdictLapsed(), kept in sync so the chart
+        # and the table agree.
+        # Known limitation: compute_rule_version() derives the version from git
+        # history, so a typo fix bumps it exactly like a logic change does. That
+        # is why staleness costs a rule its segment in the chart but is NOT
+        # counted as a failure -- see the pass-rate denominator below.
+        verdict_is_superseded = bool(
+            verdict not in ("N/A", "")
+            and rule_version
+            and verdict_rule_version
+            and str(rule_version) != str(verdict_rule_version)
+        )
+        # The second way a verdict stops being evidence: it simply got old. Same
+        # standing as superseded, same remedy, so the same bucket -- what differs
+        # is only the diagnosis, and the page labels those separately.
+        #
+        # Measured against generation time, which is the only clock this script
+        # has. The page recomputes it against the reader's clock (see
+        # isVerdictLapsed there), so a page left open for months keeps telling
+        # the truth while this build-time figure stays a snapshot -- which is
+        # exactly what a badge in a README is.
+        #
+        # This is also what stops the pass rate from freezing: with only the
+        # version check, a pipeline that stopped running and a library nobody
+        # edited would report the same green number forever.
+        # An undateable verdict counts as expired, not as current -- same call
+        # the page's isVerdictExpired() makes, and the two have to agree or the
+        # chart and the badge would tell different stories. Treating "we cannot
+        # tell when this was measured" as current would be an unfalsifiable
+        # green, which is the shape of claim this whole mechanism removes.
+        _age = _verdict_age_days(verdict_at)
+        verdict_is_expired = bool(
+            verdict not in ("N/A", "")
+            and not verdict_is_superseded
+            and (_age is None or _age >= REVIEW_INTERVAL_DAYS)
+        )
+        verdict_is_stale = verdict_is_superseded or verdict_is_expired
+
         if verdict == "PASS":
             verified_pass += 1
         elif verdict == "FAIL":
@@ -810,6 +978,17 @@ def generate_stats() -> dict:
             verified_not_verified += 1
         else:
             never_tested += 1
+
+        if verdict_is_stale:
+            verified_stale += 1
+            if verdict_is_superseded:
+                verified_superseded += 1
+            else:
+                verified_expired += 1
+        elif verdict == "PASS":
+            verified_pass_current += 1
+        elif verdict == "FAIL":
+            verified_fail_current += 1
 
         if source == "native_spl":
             rule_body = get_raw_query(rule)
@@ -827,6 +1006,8 @@ def generate_stats() -> dict:
             "source": source,
             "verdict": verdict,
             "run_id": run_id,
+            "verdict_at": verdict_at,
+            "verdict_rule_version": verdict_rule_version,
             "tactics": tactics,
             "techniques": techniques,
             "file_path": rule.get("_file_path", ""),
@@ -839,7 +1020,7 @@ def generate_stats() -> dict:
             "testing": extract_testing(rule),
             "rule_body": rule_body,
             "rule_body_lang": rule_body_lang if rule_body else "",
-            "rule_version": compute_rule_version(rule.get("_file_path", "")),
+            "rule_version": rule_version,
         })
 
     # native_spl_count is a subset of sigma_rules (raw_query rules), not a
@@ -847,7 +1028,34 @@ def generate_stats() -> dict:
     total_sigma = len(sigma_rules)
     total_rules = total_sigma
     total_verifiable = total_sigma
-    pass_rate = round(verified_pass / total_verifiable * 100) if total_verifiable > 0 else 0
+    # For the "Sigma Rules" badge specifically: rules with real, compiled
+    # Sigma detection: logic, excluding the raw_query subset -- so that
+    # badge and the "Native SPL" badge next to it are disjoint and sum to
+    # total_rules, instead of visually double-counting the same rules.
+    total_compiled_sigma_rules = total_sigma - native_spl_count
+
+    # Rules whose verdict still describes the rule as it is today. This is the
+    # pass rate's denominator, and the choice matters: counting stale verdicts
+    # as failures would be the mirror image of the bug being fixed here (they
+    # aren't broken, they're unmeasured), and it would make the headline number
+    # get *worse* every time someone tidies a rule -- a metric that punishes
+    # maintenance is a metric people learn to ignore. So the pass rate answers
+    # "of what we actually measured against the current rule, how much works",
+    # and verification_current_pct carries the other half of the truth: how
+    # much of the library that measurement covers. The two are published, and
+    # rendered, as a pair -- neither is honest read alone.
+    verified_current = total_verifiable - verified_stale - never_tested
+    pass_rate = round(verified_pass_current / verified_current * 100) if verified_current > 0 else 0
+    verification_current_pct = (
+        round(verified_current / total_verifiable * 100) if total_verifiable > 0 else 0
+    )
+    # The product of the two above: rules confirmed working against their
+    # present-day logic, as a share of the whole library. Deliberately not the
+    # headline -- it's derived, and a single number that fuses "does it work"
+    # with "did we check recently" is exactly the conflation this fixes.
+    confirmed_working_pct = (
+        round(verified_pass_current / total_verifiable * 100) if total_verifiable > 0 else 0
+    )
 
     # Unique parent techniques covered (T1053.005 → T1053)
     covered_techniques = {
@@ -876,6 +1084,7 @@ def generate_stats() -> dict:
         "generated_at": now_iso,
         "total_rules": total_rules,
         "total_sigma_rules": total_sigma,
+        "total_compiled_sigma_rules": total_compiled_sigma_rules,
         "total_splunk_rules": total_spl_count,
         "total_native_spl_rules": native_spl_count,
         "verified_pass": verified_pass,
@@ -888,8 +1097,27 @@ def generate_stats() -> dict:
         # (anything not confirmed PASS/FAIL) stays the same; the rule
         # browser uses the two split counts above for its own chart segment.
         "not_verified": verified_not_verified + never_tested,
+        # Verdicts measured on a rule version that has since changed, and the
+        # PASS/current-coverage figures derived from excluding them. Added
+        # alongside the counters above rather than replacing them: the shields
+        # badges query stats.json by key over a raw URL, so a removed key is a
+        # broken badge on every README revision that ever pointed at it.
+        "verified_stale": verified_stale,
+        "verified_superseded": verified_superseded,
+        "verified_expired": verified_expired,
+        "verified_pass_current": verified_pass_current,
+        "verified_fail_current": verified_fail_current,
+        "verified_current": verified_current,
+        # NOTE: pass_rate_pct changed meaning in the 1.2 remediation. It was
+        # verified_pass / total_rules (every PASS ever recorded, however old);
+        # it is now verified_pass_current / verified_current -- of the rules we
+        # measured against their present-day logic, how many work. Read it
+        # together with verification_current_pct, never on its own.
         "pass_rate_pct": pass_rate,
         "pass_rate_color": pass_rate_color(pass_rate),
+        "verification_current_pct": verification_current_pct,
+        "verification_current_color": pass_rate_color(verification_current_pct),
+        "confirmed_working_pct": confirmed_working_pct,
         "mitre_covered_techniques": covered_count,
         "mitre_total_techniques": mitre_total,
         "mitre_total_fetched_at": now_iso if was_fetched else (cached_at or now_iso),
@@ -927,13 +1155,26 @@ def render_readme_section(stats: dict, repo: str) -> str:
 
     row1 = f"[![Total Rules]({b}&query=%24.total_rules&label=Total%20Rules&color=informational)](https://github.com/martonbence/Detection-Engineering/tree/main/rules)"
     row2 = " ".join([
-        f"[![Sigma Rules]({b}&query=%24.total_sigma_rules&label=Sigma%20Rules&color=00ACD7)](https://github.com/martonbence/Detection-Engineering/tree/main/rules/sigma)",
+        f"[![Sigma Rules]({b}&query=%24.total_compiled_sigma_rules&label=Sigma%20Rules&color=00ACD7)](https://github.com/martonbence/Detection-Engineering/tree/main/rules/sigma)",
         f"[![Native SPL]({b}&query=%24.total_native_spl_rules&label=Native%20SPL&color=FF6600)](https://github.com/martonbence/Detection-Engineering/tree/main/rules/splunk)",
     ])
+    # Pass Rate and Verified Current ship as a pair, in that order and adjacent.
+    # Pass Rate is now measured only against rules whose verdict still matches
+    # their current version, so on its own it says nothing about how much of the
+    # library that covers -- and a lone badge is exactly what gets quoted. The
+    # second badge makes the coverage impossible to drop.
     row3 = " ".join([
-        f"![Pass]({b}&query=%24.verified_pass&label=Pass&color=brightgreen)",
-        f"![Fail]({b}&query=%24.verified_fail&label=Fail&color=red)",
+        f"![Pass]({b}&query=%24.verified_pass_current&label=Pass&color=brightgreen)",
+        f"![Fail]({b}&query=%24.verified_fail_current&label=Fail&color=red)",
         f"![Pass Rate]({b}&query=%24.pass_rate_pct&label=Pass%20Rate%20%25&color={stats['pass_rate_color']})",
+        f"![Verified Current]({b}&query=%24.verification_current_pct&label=Verified%20Current%20%25&color={stats['verification_current_color']})",
+        # verified_stale is the union of superseded and expired, and the page
+        # deliberately never coined an umbrella word for that pair -- it names
+        # both plainly instead. A badge has room for one word, so it takes the
+        # one thing the two cases share that a reader can act on: they need
+        # measuring again. Naming the remedy also beats naming the state here,
+        # where there is no space to explain which state it was.
+        f"![Needs Re-run]({b}&query=%24.verified_stale&label=Needs%20Re-run&color=BC8CFF)",
         f"![Not Verified]({b}&query=%24.not_verified&label=Not%20Verified&color=lightgrey)",
     ])
     for row in [row1, "", row2, "", row3]:
@@ -978,11 +1219,31 @@ def update_readme(section_content: str) -> None:
 
 
 _PAGE_TEMPLATE = r"""<!DOCTYPE html>
+<!--
+  GENERATED FILE — DO NOT EDIT.
+  Written by scripts/docs/generate_stats.py (see _PAGE_TEMPLATE) on every
+  pipeline run; anything changed here is silently overwritten the next time
+  the workflow runs. Edit the template in that script instead.
+-->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Detection Engineering Dashboard</title>
+  <title>Detection Engineer Console</title>
+  <!-- Link previews: this page's whole job is to be shared with people who
+       then decide whether to open it, and an unfurled card with no text is a
+       worse pitch than one sentence of it. Counts are baked in at generation
+       time — a preview is a snapshot by nature, so a stale number here is not
+       the problem it would be in the page body. -->
+  <meta name="description" content="@@META_DESC@@">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Detection Engineering">
+  <meta property="og:title" content="Detection Engineer Console">
+  <meta property="og:description" content="@@META_DESC@@">
+  <meta property="og:url" content="@@PAGE_URL@@">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Detection Engineer Console">
+  <meta name="twitter:description" content="@@META_DESC@@">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1028,6 +1289,17 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
     a { color: var(--accent); text-decoration: none; }
     a:hover { text-decoration: underline; }
+
+    /* Unified heading/title typography — every section header, card title and
+       panel title shares the one UI sans family so headings read as a single
+       system across the Rule Library, Navigator and Dashboards. Code-like
+       identifiers (rule IDs, technique IDs, metadata values) intentionally
+       keep the mono --font and are not covered here. */
+    .strip-title, .dash-section-title, .chart-card-title, .gauge-overlay-title,
+    .drawer-section-label, .drawer-title, #detail-title, .tc-hdr,
+    .no-results-title {
+      font-family: var(--font-ui);
+    }
 
     /* ── Top strip: brand + tab bar ── */
     .stats-strip {
@@ -1123,6 +1395,16 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .fc-severity { --fc:#f778ba; --fc-bg:rgba(247,120,186,0.12); --fc-br:rgba(247,120,186,0.38); }
     .fc-status   { --fc:#e3b341; --fc-bg:rgba(227,179,65,0.12);  --fc-br:rgba(227,179,65,0.38); }
     .fc-verdict  { --fc:#bc8cff; --fc-bg:rgba(188,140,255,0.12); --fc-br:rgba(188,140,255,0.38); }
+    /* Teal is the one hue the facet rail didn't already use — white, red,
+       orange, green, pink, amber, purple and periwinkle are all taken, and an
+       amber Review would have collided with Status and the site accent. */
+    .fc-review   { --fc:#2dd4bf; --fc-bg:rgba(45,212,191,0.12);  --fc-br:rgba(45,212,191,0.38); }
+    /* Method and Runner share one chip colour: they are two readings of the
+       same fact (how the verdict was produced), and giving them separate hues
+       would imply a distinction that isn't there. Cyan is close to Review's
+       teal, which is why the rail orders them Verification, Verdict, Review —
+       the purple group sits between the two blue-greens so they never touch. */
+    .fc-verify   { --fc:#39c5cf; --fc-bg:rgba(57,197,207,0.12);  --fc-br:rgba(57,197,207,0.38); }
     .fc-mitre    { --fc:#8f95d6; --fc-bg:rgba(143,149,214,0.12); --fc-br:rgba(143,149,214,0.38); }
 
     .fc-sev-critical      { --fc:#e05575; --fc-bg:rgba(128,20,50,0.28);  --fc-br:rgba(164,19,60,0.55); }
@@ -1481,6 +1763,13 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .export-menu-item:hover { background: rgba(233,220,196,0.10); }
     .export-menu-item .ext { font-family: var(--font); font-size: 11px; font-weight: 700; color: #ffaa00; min-width: 34px; }
     .export-menu-item .desc { font-size: 11px; color: var(--text3); }
+    /* The ATT&CK layer entry is a real link (the file is served from the repo,
+       not built in the browser like the exports above it), so it has to opt out
+       of link styling to sit in the same list. */
+    a.export-menu-item { text-decoration: none; color: inherit; }
+    a.export-menu-item:hover { text-decoration: none; }
+    /* A second head mid-list needs its own top rule to read as a divider. */
+    .export-menu-item + .export-menu-head { border-top: 1px solid var(--border); }
 
     .table-wrap {
       background: var(--bg2);
@@ -1641,11 +1930,26 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .verdict-notverified  { background: rgba(210,153,34,0.15); color: #d29922; border: 1px solid rgba(210,153,34,0.4); }
     .verdict-fail         { background: rgba(248,81,73,0.13); color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
     .verdict-na           { background: rgba(139,148,158,0.12); color: #8b949e; border: 1px solid var(--border); }
+    /* A verdict that has stopped being evidence, by either route — superseded
+       or expired. One rule for both, because the badge is saying the same thing
+       in both cases (this is a record, not a current claim); which route it was
+       is what the △ / ● markers beside it distinguish. The fill is dropped and
+       the border switched to the drift purple shared with the marker and the
+       Superseded chart segment. "lapsed" is an internal name only: no label in
+       the UI uses it, precisely because the page names both cases plainly
+       rather than coining an umbrella term. Listed after the four verdict rules
+       above so it wins on the shared properties without needing !important; the
+       text colour is left to whichever verdict class it is paired with. */
+    .badge.verdict-lapsed { background: transparent; border: 1px dashed rgba(188,140,255,0.65); }
 
     .no-results { padding: 56px 32px; text-align: center; color: var(--text3); }
     .no-results svg { width: 34px; height: 34px; stroke: var(--text3); opacity: 0.6; margin: 0 auto 14px; display: block; }
     .no-results-title { font-size: 14px; font-weight: 600; color: var(--text2); margin-bottom: 4px; }
     .no-results-sub { font-size: 12px; color: var(--text3); }
+    /* Navigator's variant adds a way out — with every column hidden there is no
+       longer anything on screen to click to undo the filtering. */
+    .nav-clear-btn { margin-top: 14px; background: none; border: 1px solid var(--border2); color: var(--text2); border-radius: var(--radius); padding: 6px 14px; font-size: 12px; font-weight: 600; font-family: var(--font-ui); cursor: pointer; transition: all 0.12s; }
+    .nav-clear-btn:hover { border-color: #ffaa00; color: var(--text); }
 
     /* ── Resizable columns ── */
     .col-resizer { position: absolute; right: 0; top: 0; bottom: 0; width: 8px; cursor: col-resize; user-select: none; z-index: 10; display: flex; align-items: center; justify-content: center; }
@@ -1792,6 +2096,28 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .drawer-cta.verify-fail { border-color: #f85149; color: #f85149; }
     .drawer-cta.verify-fail:hover { background: rgba(248,81,73,0.13); }
 
+    /* When the verdict was measured, and against which version of the rule. A
+       verdict is evidence about the rule text that was actually fired at, and
+       nothing else — these two lines are what turns the badge above from a
+       claim into a dated measurement. Deliberately muted, not a warning: see
+       the note on version drift where this is built. */
+    .verify-meta { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; font-family: var(--font); font-size: 11px; color: var(--text3); line-height: 1.5; }
+    .verify-meta .warn { color: #d29922; }
+    .verify-meta .drift { color: #bc8cff; }
+    /* Verdict markers next to a badge in the table. Amber ● = the verdict is
+       old; purple Δ = the verdict was measured on a different version of the
+       rule. Two independent states, so two glyphs — a rule can carry either,
+       both, or neither, and collapsing them into one marker would lose the
+       distinction between "nobody has re-run this" and "this no longer
+       describes the rule". */
+    .review-due { color: #d29922; font-size: 8px; margin-left: 5px; vertical-align: middle; cursor: help; }
+    /* A drawn delta rather than the &#916; character: at 10px the glyph picks
+       up whatever weight and baseline the row's font feels like giving it and
+       sits a shade too low next to the badge, where a stroked path keeps an
+       even line and the same round joins as every other icon on the page. */
+    .verdict-drift { color: #bc8cff; margin-left: 5px; cursor: help; display: inline-flex; align-items: center; vertical-align: middle; }
+    .verdict-drift svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 2.4; stroke-linejoin: round; }
+
     .code-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 
     .rule-body-pre {
@@ -1840,6 +2166,42 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     }
     .chart-card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius-lg); padding:20px; display:flex; flex-direction:column; gap:12px; }
     .chart-card-title { font-size:13px; font-weight:700; color:var(--text); letter-spacing:-0.1px; }
+    /* Every other number on this tab is a property of the rules themselves and
+       only moves when the pipeline runs; verification AGE moves on its own. The
+       subtitle says so, because the panel's "Generated …" stamp does not apply
+       to this card. */
+    .chart-card-sub { font-size:11px; color:var(--text3); line-height:1.45; margin-top:-6px; }
+    /* Second row of the Rule Overview section. Its own grid so the four cards
+       above keep exactly the track sizing they had before this card existed.
+       Two fixed tracks, not the auto-fit above: auto-fit COLLAPSES its empty
+       tracks, so a lone card in such a grid stretches to the full row no matter
+       what it spans. Two tracks make this card exactly as wide as Rule Type +
+       Rules by Severity plus the gap between them.
+
+       minmax(0, …) rather than a bare 1fr: a bare 1fr floors at min-content, so
+       the canvas Chart.js sized to the card would hold the track open at its
+       old width instead of shrinking with the viewport. */
+    /* Four explicit tracks, matching the row above, so a card down here is
+       exactly as wide as one up there. Explicit rather than the row above's
+       auto-fit precisely because this row holds two cards, not four: auto-fit
+       would stretch them across the full width and they would read as a
+       different, more important kind of card than the four above them. The row
+       just ends early instead. Steps down in the same places the top row's
+       auto-fit does, so the two never disagree about how many fit. */
+    .dash-section-grid-row2 { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 16px; }
+    /* Two tracks wide. Dropped back to a single track once the grid itself is
+       down to two columns, so the card never becomes the whole row while the
+       one beside it gets pushed onto a line of its own. */
+    .chart-card-wide2 { grid-column: span 2; }
+    @media (max-width: 1100px) {
+      .dash-section-grid-row2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .chart-card-wide2 { grid-column: auto; }
+    }
+    @media (max-width: 560px) { .dash-section-grid-row2 { grid-template-columns: 1fr; } }
+    /* Compound selector on purpose: the generic .chart-card-canvas-wrap 300px
+       rule is declared further down and would otherwise win on source order,
+       leaving four very fat bars. */
+    .chart-card-canvas-wrap.age-canvas-wrap { height:200px; }
     .chart-card-canvas-wrap { position:relative; height:300px; }
     .gauge-canvas-wrap { height:260px; }
     .gauge-overlay { position:absolute; left:50%; top:62%; transform:translate(-50%, -12%); width:70%; text-align:center; pointer-events:none; }
@@ -1898,9 +2260,20 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .verify-overlay { position:absolute; left:50%; top:50%; transform:translate(-50%, -50%); width:68%; text-align:center; pointer-events:none; }
     .verify-overlay-pct { font-size:24px; font-weight:800; color:var(--text); line-height:1.1; }
     .verify-overlay-label { font-size:8px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:var(--text3); margin-top:2px; }
-    .verify-legend { display:flex; flex-direction:column; gap:9px; flex-shrink:0; }
-    .verify-legend-item { display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; color:#e6edf3; user-select:none; }
+    /* Allowed to shrink, unlike the flex-shrink:0 this carried while its only
+       user was Verification's three short labels. Evidence's are "Superseded"
+       and "Never tested", which at max-content pushed the legend straight out
+       past the card edge. Now the ring gives up width first (it already has
+       min-width:0), and a label that still doesn't fit wraps to a second line
+       rather than being clipped -- truncating "Never tested" to "Never…" would
+       turn a state into a different, wrong-looking word. */
+    .verify-legend { display:flex; flex-direction:column; gap:9px; flex-shrink:1; min-width:0; }
+    .verify-legend-item { display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; color:#e6edf3; user-select:none; min-width:0; }
     .verify-legend-item .vdot { width:10px; height:10px; border-radius:50%; flex-shrink:0; transition:opacity .15s; }
+    /* The label needs to be a real element, not the bare text node it used to
+       be: an anonymous flex item has min-width:auto and refuses to wrap below
+       max-content, which is what made the shrink above insufficient on its own. */
+    .verify-legend-item .vlabel { min-width:0; overflow-wrap:break-word; line-height:1.25; }
     .verify-legend-item.off .vdot { opacity:0.25; }
 
     /* Trends Over Time — line/area/bar tiles, plain (non-flex-body) canvas
@@ -1914,7 +2287,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
     /* Trend range bar — one shared row above both trend charts (a filter row
        scopes everything below it, never lives per-card/per-chart). Styled to
-       match the Rule Tracker's Export button (.export-btn) exactly — same
+       match the Rule Library's Export button (.export-btn) exactly — same
        chrome family, so it reads as "a control of this dashboard" rather
        than a one-off widget: transparent fill, var(--border2) hairline,
        var(--radius) corners, gold hover/selected state. A year <select>
@@ -1939,30 +2312,128 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
     /* MITRE Navigator */
     .nav-wrap { background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:16px; margin:16px 20px; }
-    .nav-legend { display:flex; gap:16px; margin-bottom:12px; font-size:12px; align-items:center; flex-wrap:wrap; }
-    .nav-legend-item { display:flex; align-items:center; gap:5px; }
+    /* .nav-legend-dot / -count are the Verdict dropdown's swatch and count; the
+       inline legend row they were named for no longer exists (its job is the
+       Legend dialog now). */
     .nav-legend-dot { width:12px; height:12px; border-radius:2px; flex-shrink:0; }
+    .nav-legend-count { font-family:var(--font); font-size:11px; font-weight:700; color:var(--text2); }
     .nav-import { margin-left:auto; font-size:12px; }
+    /* Navigator toolbar: one unified bar with thin dividers between groups */
+    .nav-toolbar { display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap; }
+    .nav-tb-sep { width:1px; height:22px; background:var(--border2); flex-shrink:0; }
+    .nav-search-wrap { position:relative; display:flex; align-items:center; flex:1; min-width:220px; max-width:420px; }
+    .nav-search-wrap > svg { position:absolute; left:10px; width:15px; height:15px; stroke:var(--text3); fill:none; pointer-events:none; }
+    .nav-search-input { width:100%; height:32px; padding:0 30px 0 32px; background:var(--bg); border:1px solid var(--border2); border-radius:var(--radius); color:var(--text); font-family:var(--font-ui); font-size:13px; }
+    .nav-search-input:focus { outline:none; border-color:#ffaa00; box-shadow:0 0 0 2px rgba(255,170,0,0.14); }
+    .nav-search-clear { position:absolute; right:6px; display:none; align-items:center; justify-content:center; width:20px; height:20px; background:none; border:none; color:var(--text3); cursor:pointer; }
+    .nav-search-clear svg { width:13px; height:13px; }
+    .nav-search-clear:hover { color:var(--text); }
+    .nav-search-clear.show { display:flex; }
+    .nav-search-count { font-family:var(--font); font-size:12px; color:var(--text3); white-space:nowrap; }
+    /* Segmented Covered/Gaps control */
+    .nav-quickfilters { display:inline-flex; border:1px solid var(--border2); border-radius:8px; overflow:hidden; }
+    .nav-qf { background:none; border:none; border-right:1px solid var(--border2); color:var(--text2); padding:5px 13px; font-size:12px; font-weight:600; font-family:var(--font-ui); cursor:pointer; transition:all 0.12s; }
+    .nav-qf:last-child { border-right:none; }
+    .nav-qf:hover { color:var(--text); background:rgba(255,170,0,.08); }
+    .nav-qf.active { background:#ffaa00; color:#111; }
+    /* Coverage counts live on the buttons themselves — "Not covered" is no
+       longer a Verdict entry, so this is the only place the gap total shows. */
+    .nav-qf-count { font-family:var(--font); font-size:11px; font-weight:700; color:var(--text3); margin-left:6px; }
+    .nav-qf.active .nav-qf-count { color:rgba(17,17,17,0.72); }
+    .nav-qf-count:empty { display:none; }
+    #nav-export-wrap { margin-left:auto; }
+    /* Verdict filter dropdown */
+    .nav-verdict-wrap { position:relative; }
+    .nav-verdict-btn { display:inline-flex; align-items:center; gap:6px; background:none; border:1px solid var(--border2); color:var(--text2); border-radius:var(--radius); padding:5px 10px; font-size:12px; font-family:var(--font-ui); font-weight:600; cursor:pointer; white-space:nowrap; transition:all 0.12s; }
+    .nav-verdict-btn svg { width:13px; height:13px; stroke:currentColor; fill:none; }
+    .nav-verdict-btn:hover, .nav-verdict-btn.has-active { border-color:#ffaa00; color:var(--text); }
+    .nav-verdict-active { font-family:var(--font); font-size:11px; font-weight:700; color:#ffaa00; }
+    .nav-verdict-active:empty { display:none; }
+    .nav-verdict-menu { display:none; position:absolute; left:0; top:calc(100% + 5px); min-width:200px; background:var(--bg2); border:1px solid var(--border2); border-radius:var(--radius-lg); box-shadow:0 8px 28px rgba(0,0,0,0.5); z-index:50; overflow:hidden; }
+    .nav-verdict-menu.open { display:block; }
+    .nav-verdict-item { display:flex; align-items:center; gap:8px; padding:8px 12px; cursor:pointer; border-bottom:1px solid var(--border); font-size:12px; color:var(--text2); transition:background 0.08s; }
+    .nav-verdict-item:last-child { border-bottom:none; }
+    .nav-verdict-item:hover { background:rgba(233,220,196,0.10); }
+    .nav-verdict-item .nav-legend-dot { width:12px; height:12px; border-radius:2px; flex-shrink:0; position:relative; }
+    .nav-verdict-item .lbl { flex:1; }
+    .nav-verdict-item.checked { color:var(--text); background:rgba(255,170,0,0.10); }
+    .nav-verdict-item.checked .nav-legend-dot::after { content:'✓'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; font-size:9px; font-weight:900; }
     .att-matrix { display:flex; gap:2px; overflow-x:auto; padding-bottom:4px; scrollbar-width:none; }
     .att-matrix::-webkit-scrollbar { display:none; }
     .tc-col { flex:0 0 175px; display:flex; flex-direction:column; gap:1px; }
-    .tc-hdr { background:#FFAA00; color:#111; font-size:12px; font-weight:700; padding:6px 5px; text-align:center; border-radius:3px 3px 0 0; min-height:44px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; }
+    .tc-hdr { position:relative; background:#FFAA00; color:#111; font-size:12px; font-weight:700; padding:6px 5px; text-align:center; border-radius:3px 3px 0 0; min-height:44px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; }
     .tc-count { font-size:10px; font-weight:400; opacity:.75; }
     .tc-hdr a { color:#111; text-decoration:none; }
+    /* Per-tactic coverage bar (item: column header ratio) */
+    .tc-cov-bar { width:78%; height:3px; background:rgba(0,0,0,.22); border-radius:2px; overflow:hidden; }
+    .tc-cov-fill { display:block; height:100%; background:#111; opacity:.55; border-radius:2px; }
+    /* Column collapse toggle + collapsed state */
+    .tc-col-toggle { position:absolute; top:2px; right:3px; background:none; border:none; color:#111; opacity:.6; cursor:pointer; font-size:11px; line-height:1; padding:1px 3px; }
+    .tc-col-toggle:hover { opacity:1; }
+    .tc-col.collapsed { flex:0 0 40px; }
+    .tc-col.collapsed > *:not(.tc-hdr) { display:none !important; }
+    .tc-col.collapsed .tc-count, .tc-col.collapsed .tc-cov-bar { display:none; }
+    .tc-col.collapsed .tc-hdr { writing-mode:vertical-rl; min-height:150px; justify-content:flex-start; padding:22px 4px 8px; gap:0; }
+    .tc-col.collapsed .tc-col-toggle { writing-mode:horizontal-tb; top:4px; right:auto; left:50%; transform:translateX(-50%); }
     .tc-hdr a:hover { text-decoration:underline; }
     .tc { font-size:12px; padding:5px 6px; border-radius:2px; cursor:default; display:flex; flex-direction:column; min-height:40px; gap:1px; position:relative; }
     .tc.uncov { background:#1c2128; color:#484f58; }
-    .tc.uncov.has-cov { background:rgba(255,170,0,.13); color:#545f6e; }
-    .tc.pass    { background:#1a4731; color:#aff3c5; }
-    .tc.notver  { background:#4b3400; color:#ffd580; border-left:2px solid #d29922; }
-    .tc.fail    { background:#67060c; color:#ffc1c1; }
-    .tc.nv      { background:#2d333b; color:#adbac7; border-left:2px solid rgba(255,170,0,.35); }
+    .tc.uncov.has-cov { background:rgba(255,170,0,.13); color:#545f6e; border-left:2px solid rgba(255,170,0,.55); }
+    /* Covered cells — "accent rail" style: dark base + a coloured left rail in
+       the verdict colour (green/amber/red/grey), instead of a solid fill. */
+    .tc.pass    { background:#21262d; color:var(--text); border-left:3px solid #2ea44f; }
+    .tc.notver  { background:#21262d; color:var(--text); border-left:3px solid #d29922; }
+    .tc.fail    { background:#21262d; color:var(--text); border-left:3px solid #f85149; }
+    .tc.nv      { background:#21262d; color:var(--text); border-left:3px solid #6e7681; }
+    .tc.pass .tn, .tc.notver .tn, .tc.fail .tn, .tc.nv .tn { color:var(--text2); }
+    /* Directly-covered PARENT techniques get an extra soft verdict tint so they
+       stand out from their (rail-only) covered sub-techniques and read as the
+       higher level in the hierarchy. */
+    .tc.pass:not(.sub)   { background:rgba(46,164,79,.11); }
+    .tc.notver:not(.sub) { background:rgba(210,153,34,.11); }
+    .tc.fail:not(.sub)   { background:rgba(248,81,73,.11); }
+    .tc.nv:not(.sub)     { background:rgba(110,118,129,.14); }
+    /* Covered SUB techniques carry a small verdict dot at the top-right (parents
+       show the expand caret there instead, and are distinguished by their tint). */
+    .tc.sub.pass::after, .tc.sub.notver::after, .tc.sub.fail::after, .tc.sub.nv::after {
+      content:''; position:absolute; top:7px; right:7px; width:7px; height:7px; border-radius:50%;
+    }
+    .tc.sub.pass::after   { background:#2ea44f; }
+    .tc.sub.notver::after { background:#d29922; }
+    .tc.sub.fail::after   { background:#f85149; }
+    .tc.sub.nv::after     { background:#6e7681; }
+    /* Confirmed-failure flag. The cell keeps its best-verdict colour (a PASS
+       rule really does cover the technique), but a red corner triangle marks
+       that at least one covering rule FAILed — otherwise the roll-up to the
+       best verdict would hide the failure completely. Cells whose best verdict
+       already IS fail carry the red rail, so they skip the redundant corner. */
+    .tc.fail-flag:not(.fail)::before {
+      content:''; position:absolute; top:0; right:0; width:0; height:0;
+      border-style:solid; border-width:0 8px 8px 0;
+      border-color:transparent #f85149 transparent transparent;
+      pointer-events:none; z-index:2;
+    }
+    .tc.sub.fail-flag:not(.fail)::before { border-width:0 6px 6px 0; }
+    .tc.highlighted.fail-flag:not(.fail)::before { border-right-color:#b62324; }
+    /* On hover the detail (hamburger) button occupies the right edge, so fade
+       the verdict dot out to avoid the two colliding — the left rail still
+       conveys the verdict. */
+    .tc.sub[data-rules]:hover::after { opacity:0; }
     .tc.sub   { min-height:28px; padding-left:12px; }
     .tc[data-rules] { cursor:pointer; }
-    .tc[data-rules]:hover { filter:brightness(1.3); }
-    .tc.highlighted { box-shadow:inset 0 0 0 2px #FFAA00; filter:brightness(1.15); }
-    .tc.expanded { box-shadow:inset 0 0 0 1.5px rgba(255,170,0,.55); }
-    .tc.expanded.highlighted { box-shadow:inset 0 0 0 2px #FFAA00; }
+    /* Hover feedback on any technique/sub-technique mirrors the Rule Library's
+       warm row tint + subtle border (covered or not). */
+    .tc[data-id]:hover { box-shadow:inset 0 0 0 1px rgba(233,220,196,0.32), inset 0 0 0 999px rgba(233,220,196,0.10); }
+    /* Click cross-highlight paints equivalent cells with the tactic-header amber */
+    .tc.highlighted { background:#FFAA00 !important; color:#111 !important; }
+    .tc.highlighted .ti, .tc.highlighted .tn, .tc.highlighted .sub-badge, .tc.highlighted .sub-badge-cov { color:#111 !important; opacity:1; }
+    .tc.highlighted:hover { box-shadow:none; }
+    /* Expanded parent + its sub-group read as one continuous amber frame */
+    .tc.expanded { border:1.5px solid rgba(255,170,0,.65); border-bottom:none; border-radius:3px 3px 0 0; }
+    /* Cells with a verdict/has-cov left accent have a higher-specificity
+       border-left; re-assert the uniform 1.5px frame width when expanded so it
+       lines up seamlessly with the sub-group's left border (no notch). */
+    .tc.uncov.has-cov.expanded, .tc.notver.expanded, .tc.nv.expanded { border-left:1.5px solid rgba(255,170,0,.65); }
     .ti { font-weight:700; font-size:12px; color:inherit; text-decoration:none; }
     .ti:hover { text-decoration:underline; }
     .tn { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
@@ -1976,27 +2447,30 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .tc-detail:hover { opacity:1 !important; color:#FFAA00; }
     .sub-badge { font-size:9px; opacity:.55; }
     .sub-badge-cov { font-size:9px; color:#FFAA00; font-weight:700; }
-    .sub-group { border:1.5px solid rgba(255,170,0,.5); border-radius:3px; display:flex; flex-direction:column; gap:1px; padding:1px; margin-top:1px; }
+    .sub-group { border:1.5px solid rgba(255,170,0,.65); border-top:none; border-radius:0 0 3px 3px; display:flex; flex-direction:column; gap:1px; padding:0 1px 1px; margin-top:-1px; }
     .tc.tc-hidden { display:none !important; }
-    .nav-legend-item[data-filter] { cursor:pointer; border-radius:4px; padding:2px 6px; transition:background .15s; }
-    .nav-legend-item[data-filter]:hover { background:rgba(255,170,0,.08); }
-    .nav-legend-item.filter-active { background:rgba(255,170,0,.18); outline:1px solid rgba(255,170,0,.55); }
-    .nav-legend-item[data-filter] .nav-legend-dot { position:relative; }
-    .nav-legend-item.filter-active .nav-legend-dot::after { content:'✓'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; font-size:9px; font-weight:900; }
+    .tc-col.tc-col-hidden { display:none !important; }
+    /* Empty result set: drop the collapsed matrix and its scroll mirror so the
+       empty state stands alone instead of sitting under two stray slivers. */
+    .nav-wrap.nav-empty .att-matrix,
+    .nav-wrap.nav-empty .nav-scroll-mirror { display:none; }
     #expand-all-btn { background:none; border:1px solid var(--border); color:var(--text2); border-radius:5px; padding:3px 10px; font-size:12px; cursor:pointer; white-space:nowrap; }
     #expand-all-btn:hover { color:var(--text); border-color:#FFAA00; }
-    /* Detail panel */
-    #detail-panel { position:fixed; right:0; top:0; bottom:0; width:300px; background:#161b22; border-left:1px solid #30363d; z-index:10000; display:none; flex-direction:column; box-shadow:-4px 0 24px rgba(0,0,0,.6); }
-    #detail-panel.open { display:flex; }
-    #detail-header { display:flex; justify-content:space-between; align-items:flex-start; padding:14px 16px 10px; border-bottom:1px solid #30363d; flex-shrink:0; }
-    #detail-title { font-weight:700; font-size:13px; color:#e6edf3; }
-    #detail-tid { color:#8b949e; font-size:10px; margin-top:2px; }
-    #detail-close { background:none; border:none; color:#8b949e; font-size:20px; cursor:pointer; padding:0; line-height:1; }
-    #detail-close:hover { color:#e6edf3; }
-    #detail-body { padding:12px 16px; overflow-y:auto; flex:1; }
-    .detail-rule { display:flex; align-items:center; gap:6px; margin:6px 0; text-decoration:none; color:#58a6ff; font-size:12px; line-height:1.4; }
-    .detail-rule:hover { text-decoration:underline; }
-    .detail-noverd { display:flex; align-items:center; gap:6px; margin:6px 0; font-size:12px; color:#8b949e; }
+    /* Detail panel — mirrors the Rule Library drawer's look (tokens, slide-in,
+       card-style rule rows) so the two views feel like one component. */
+    #detail-panel { position:fixed; right:0; top:0; bottom:0; width:340px; max-width:92vw; background:var(--bg2); border-left:1px solid var(--border); z-index:202; display:flex; flex-direction:column; box-shadow:-4px 0 24px rgba(0,0,0,.5); transform:translateX(100%); transition:transform 0.2s ease; }
+    #detail-panel.open { transform:translateX(0); }
+    #detail-header { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding:18px 20px 14px; border-bottom:1px solid var(--border); flex-shrink:0; }
+    #detail-title { font-weight:700; font-size:14px; color:var(--text); line-height:1.3; }
+    #detail-tid { font-family:var(--font); color:var(--text2); font-size:11px; margin-top:3px; }
+    #detail-close { background:none; border:1px solid var(--border2); border-radius:var(--radius); width:28px; height:28px; display:flex; align-items:center; justify-content:center; color:var(--text2); font-size:18px; line-height:1; cursor:pointer; flex-shrink:0; transition:all 0.1s; }
+    #detail-close:hover { border-color:#ffaa00; color:#ffaa00; box-shadow:0 0 0 2px rgba(255,170,0,0.14); }
+    #detail-body { padding:14px 16px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:7px; }
+    .detail-rule { display:flex; align-items:center; gap:8px; text-decoration:none; color:var(--text); font-size:12px; line-height:1.4; background:var(--bg3); border:1px solid var(--border); border-left:2px solid #ffaa00; border-radius:var(--radius); padding:8px 10px; cursor:pointer; transition:all 0.1s; }
+    .detail-rule:hover { border-color:var(--border2); border-left-color:#ffaa00; background:var(--bg4); text-decoration:none; }
+    .detail-rule:focus-visible { outline:none; border-color:#ffaa00; box-shadow:0 0 0 2px rgba(255,170,0,0.18); }
+    .detail-rule.sel { border-color:#ffaa00; border-left-color:#ffaa00; background:var(--bg4); box-shadow:inset 0 0 0 1px rgba(255,170,0,0.25); }
+    .detail-noverd { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text2); background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); padding:8px 10px; }
     .detail-vbadge { display:inline-block; padding:1px 7px; border-radius:8px; font-size:10px; font-weight:600; flex-shrink:0; }
     .detail-vbadge.PASS { background:#2EA44F; color:#fff; }
     .detail-vbadge.NOT_VERIFIED { background:#9A6700; color:#fff; }
@@ -2009,7 +2483,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       box-shadow:0 8px 24px rgba(0,0,0,.5);
     }
     .tip-head { font-weight:700; font-size:13px; margin-bottom:6px; }
-    .tip-rule { display:flex; align-items:center; gap:6px; margin:3px 0; text-decoration:none; color:#58a6ff; font-size:11px; }
+    .tip-rule { display:flex; align-items:center; gap:6px; margin:3px 0; text-decoration:none; color:var(--text); font-size:11px; }
     .tip-rule:hover { text-decoration:underline; }
     .tip-vbadge { display:inline-block; padding:1px 7px; border-radius:8px; font-size:10px; font-weight:600; flex-shrink:0; }
     .tip-vbadge.PASS { background:#2EA44F; color:#fff; }
@@ -2040,20 +2514,250 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .trend-tip-primary { font-weight:700; font-size:13px; color:#e6edf3; }
     .trend-tip-secondary { font-size:10px; color:#8b949e; margin-top:2px; }
 
+    /* ── Legend & help ──────────────────────────────────────────────────────
+       One shared dialog for all three tabs. The page carries a fair amount of
+       unlabelled visual language (verdict rails, the amber sub-coverage tint,
+       the red failure corner); rather than fitting a legend into each tab's
+       toolbar, everything lives behind one button that is always in the same
+       place. Swatches below re-declare the matrix colours instead of reusing
+       .tc — a legend that silently drifts from the thing it explains is worse
+       than none, so the two blocks are meant to be edited together. */
+    .info-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: none; border: 1px solid var(--border2); color: var(--text2);
+      border-radius: var(--radius); padding: 5px 11px;
+      font-size: 12px; font-weight: 600; font-family: var(--font-ui);
+      cursor: pointer; flex-shrink: 0; white-space: nowrap; transition: all 0.12s;
+    }
+    .info-btn:hover, .info-btn.active { border-color: #ffaa00; color: var(--text); }
+    .info-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; flex-shrink: 0; }
+
+    .info-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 300; }
+    .info-backdrop.open { display: block; }
+    .info-modal {
+      display: none; position: fixed; z-index: 301;
+      left: 50%; top: 50%; transform: translate(-50%, -50%);
+      width: 780px; max-width: 94vw; max-height: 84vh;
+      background: var(--bg2); border: 1px solid var(--border2);
+      border-radius: var(--radius-lg); box-shadow: 0 18px 50px rgba(0,0,0,0.6);
+      flex-direction: column; overflow: hidden;
+    }
+    .info-modal.open { display: flex; }
+    .info-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 15px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .info-head-title { font-family: var(--font-ui); font-size: 14px; font-weight: 700; color: var(--text); }
+    .info-close { background: none; border: none; color: var(--text3); font-size: 17px; line-height: 1; cursor: pointer; padding: 2px 6px; }
+    .info-close:hover { color: var(--text); }
+    .info-body { padding: 18px 20px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 22px; }
+    .info-sec-title {
+      font-family: var(--font-ui); font-size: 11px; font-weight: 700;
+      letter-spacing: 0.6px; text-transform: uppercase; color: #ffaa00; margin-bottom: 11px;
+    }
+    .info-grid { display: grid; grid-template-columns: 128px 1fr; gap: 9px 14px; align-items: start; font-size: 12px; color: var(--text2); line-height: 1.5; }
+    .info-grid .k { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+    .info-grid .k .badge { margin: 0; }
+    .info-grid .kbd { font-size: 10px; }
+    .info-note { font-size: 12px; color: var(--text2); line-height: 1.6; }
+    .info-note + .info-note { margin-top: 9px; }
+    .info-note code { font-family: var(--font); font-size: 11px; color: var(--text); background: var(--bg3); border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; }
+
+    /* Matrix swatches — mirror of the .tc rules further up. */
+    .sw { display: inline-block; position: relative; width: 40px; height: 17px; border-radius: 2px; background: #21262d; flex-shrink: 0; }
+    .sw-pass   { background: rgba(46,164,79,.11);   border-left: 3px solid #2ea44f; }
+    .sw-notver { background: rgba(210,153,34,.11);  border-left: 3px solid #d29922; }
+    .sw-fail   { background: rgba(248,81,73,.11);   border-left: 3px solid #f85149; }
+    .sw-nv     { background: rgba(110,118,129,.14); border-left: 3px solid #6e7681; }
+    .sw-uncov  { background: #1c2128; border: 1px solid #30363d; }
+    .sw-hascov { background: rgba(255,170,0,.13); border-left: 2px solid rgba(255,170,0,.55); }
+    .sw-flag::before {
+      content: ''; position: absolute; top: 0; right: 0; width: 0; height: 0;
+      border-style: solid; border-width: 0 8px 8px 0;
+      border-color: transparent #f85149 transparent transparent;
+    }
+    .sw-dot::after { content: ''; position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: #2ea44f; }
+
+    /* ── Small screens ──────────────────────────────────────────────────────
+       The desktop layout is a fixed 250px filter rail next to a 10-column
+       table; both have to give way on a phone. The rail collapses behind a
+       toggle that only exists here, and the table sheds columns in order of
+       signal-per-pixel — identity, severity and verdict are the last to go, so
+       the narrowest view still answers "which rule, how bad, does it work".
+       Nothing is hidden that isn't reachable another way: every dropped column
+       is still a filter facet, and the row drawer shows the full record. */
+    .filters-toggle {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      background: none;
+      border: 1px solid var(--border2);
+      color: var(--text2);
+      border-radius: var(--radius);
+      padding: 7px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: var(--font-ui);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .filters-toggle.active { border-color: #ffaa00; color: var(--text); }
+
+    @media (max-width: 900px) {
+      .stats-strip { height:auto; min-height:48px; padding:8px 12px; flex-wrap:wrap; }
+      .strip-brand { flex-wrap:wrap; row-gap:8px; }
+      .strip-sep { display:none; }
+      .tab-bar { flex-wrap:wrap; }
+
+      .main { flex-direction:column; }
+      .filters-panel {
+        display:none;
+        width:100%; min-width:0;
+        flex:0 0 auto;
+        max-height:55vh;
+        border-right:none;
+        border-bottom:1px solid var(--border);
+      }
+      .filters-panel.mobile-open { display:flex; }
+      .filters-toggle { display:inline-flex; }
+
+      .content { padding:0 12px 16px; }
+      .search-row { flex-wrap:wrap; }
+      .kbd-hint { display:none; }
+      .info-btn-label { display:none; }
+      .info-btn { padding:5px 8px; }
+
+      /* Category · Product · Service — all three are filter facets too. */
+      thead th:nth-child(3), tbody td:nth-child(3),
+      thead th:nth-child(4), tbody td:nth-child(4),
+      thead th:nth-child(5), tbody td:nth-child(5) { display:none; }
+
+      .drawer { width:100%; max-width:100%; }
+
+      .nav-toolbar { gap:8px; }
+      #nav-export-wrap { margin-left:0; }
+      .tc-col { flex:0 0 145px; }
+    }
+
+    @media (max-width: 640px) {
+      /* Tactic · Technique · Status — the drawer carries the full ATT&CK map. */
+      thead th:nth-child(6), tbody td:nth-child(6),
+      thead th:nth-child(7), tbody td:nth-child(7),
+      thead th:nth-child(9), tbody td:nth-child(9) { display:none; }
+
+      .dash-section { padding:12px; }
+      .chart-card { padding:14px; }
+      .chart-card-canvas-wrap { height:240px; }
+    }
+
   </style>
 </head>
 <body>
   <div class="stats-strip">
     <div class="strip-brand">
-      <span class="strip-title">Detection Rule Tracker</span>
+      <span class="strip-title">Detection Engineer Console</span>
       <span class="strip-sep"></span>
       <span class="strip-total" id="strip-total"></span>
       <span class="strip-sep"></span>
       <div class="tab-bar">
-        <button class="tab-btn active" data-tab="rules">Rule Tracker</button>
+        <button class="tab-btn active" data-tab="rules">Rule Library</button>
         <button class="tab-btn" data-tab="navigator">MITRE Navigator</button>
         <button class="tab-btn" data-tab="dashboards">Dashboards</button>
       </div>
+    </div>
+    <button class="info-btn" id="info-btn" onclick="toggleInfo()" aria-haspopup="dialog" aria-expanded="false" title="Legend and how this page works">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="11"/><line x1="12" y1="8" x2="12" y2="8.01"/></svg>
+      <span class="info-btn-label">Legend</span>
+    </button>
+  </div>
+
+  <div class="info-backdrop" id="info-backdrop" onclick="closeInfo()"></div>
+  <div class="info-modal" id="info-modal" role="dialog" aria-modal="true" aria-labelledby="info-modal-title">
+    <div class="info-head">
+      <span class="info-head-title" id="info-modal-title">Legend &amp; how this page works</span>
+      <button class="info-close" onclick="closeInfo()" aria-label="Close">&#10005;</button>
+    </div>
+    <div class="info-body">
+
+      <div>
+        <div class="info-sec-title">Verdicts — what the CI pipeline found</div>
+        <div class="info-grid">
+          <span class="k"><span class="badge verdict-pass">PASS</span></span>
+          <span>The Atomic Red Team test ran and the Splunk detection fired.</span>
+          <span class="k"><span class="badge verdict-fail">FAIL</span></span>
+          <span>The test ran to completion and no alert fired — a confirmed negative. Also covers the cases where the rule itself is at fault: the saved search isn't in Splunk, or the search errored when Splunk ran it.</span>
+          <span class="k"><span class="badge verdict-notverified">NOT VERIFIED</span></span>
+          <span>Deployed and attempted, but something didn't finish — so nothing is known either way. Unknown, not broken. Two routes reach it: the <strong>attack</strong> didn't complete (the Atomic Red Team run was cut short by its timeout), or the <strong>measurement</strong> didn't complete (the Splunk search never finished, or the query errored on the way). The first only applies to rules tested by Atomic Red Team — for an <strong>Emulation</strong>-verified rule (see <em>Verification</em> below) a test that never started still reads as a FAIL, because all the pipeline sees is an absence of events. The second applies to every rule, however it is tested.</span>
+          <span class="k"><span class="badge verdict-na">N/A</span></span>
+          <span>Never tested — no test result exists for this rule.</span>
+        </div>
+        <div class="info-note" style="margin-top:11px">A verdict badge links to the GitHub Actions run it came from, and the rule's drawer shows when it was last tested.</div>
+      </div>
+
+      <div>
+        <div class="info-sec-title">Evidence — whether that verdict still holds</div>
+        <div class="info-note" style="margin-top:0">A verdict is a certificate: it stops being evidence about the rule as it stands either because the rule changed underneath it, or because it simply got old. Both mean the same thing — we do not know today — and both are fixed by the same thing, a re-run. So neither counts toward the Pass Rate, and a badge in either state is drawn <em>hollow</em>. The marker beside it says which happened.</div>
+        <div class="info-grid" style="margin-top:11px">
+          <span class="k"><span class="badge verdict-pass verdict-lapsed">PASS</span><span class="verdict-drift"><svg viewBox="0 0 24 24"><path d="M12 5 L20.5 19 H3.5 Z"/></svg></span></span>
+          <span><strong>Superseded.</strong> Measured on an <em>earlier version</em> of the rule — the logic has changed since, so the badge describes text that is no longer there. The certain case: what was tested is provably not what is deployed. Independent of age, a rule edited this morning is superseded even if it passed yesterday.</span>
+          <span class="k"><span class="badge verdict-pass verdict-lapsed">PASS</span><span class="review-due">&#9679;</span></span>
+          <span><strong>Expired.</strong> Same logic as when it was tested, but the verdict is older than @@REVIEW_DAYS@@ days. The probabilistic case: nothing in the rule moved, but telemetry, Splunk config and attacker tooling may have. The age is measured against <em>your</em> clock as you read this, so a rule crosses the line on its own between pipeline runs — and the Pass Rate above the chart is recomputed with it.</span>
+        </div>
+        <div class="info-note" style="margin-top:11px">The <strong>Verdict &rarr; Evidence</strong> filter splits the library on exactly this: <em>Current</em>, <em>Superseded</em>, <em>Expired</em>, <em>Never tested</em> — and the <strong>Evidence</strong> chart on the Dashboards tab is the same four values as a ring. <em>Expired</em> is simply not drawn while nothing has expired.</div>
+        <div class="info-note">A rule's version comes from its commit history, so any edit to the file supersedes its verdict — a re-worded description counts the same as re-written logic. That is deliberately blunt: it can only ever overstate how much needs re-testing, never understate it.</div>
+        <div class="info-note">Lapsing is a correction to the numbers, not a gate. Nothing in the pipeline blocks a rule from staying in production on a verdict that no longer holds; this page is where you find out.</div>
+      </div>
+
+      <div>
+        <div class="info-sec-title">Rule Library</div>
+        <div class="info-grid">
+          <span class="k">Severity</span>
+          <span>The Sigma rule's own <code>level</code> — critical, high, medium, low.</span>
+          <span class="k">Status</span>
+          <span>The Sigma <code>status</code> field: stable, test, experimental or deprecated. It describes the rule's maturity, not whether it works — that's the verdict.</span>
+          <span class="k">Row</span>
+          <span>Click any row to open the full record: metadata, ATT&amp;CK mapping, references, the verification run, and the complete Sigma YAML or SPL with a copy button.</span>
+          <span class="k">Verification</span>
+          <span>Not what the verdict said, but how it was reached: <strong>Method</strong> is Atomic Red Team or Emulation, <strong>Runner</strong> the host the test ran on. Filter-only, no column — an emulation-backed PASS and an ATT&amp;CK-test-backed PASS carry the same green badge but not the same weight, and this is how you separate them. The rule's drawer spells the same thing out in a sentence.</span>
+          <span class="k">Columns</span>
+          <span>Click a header to sort; drag its right edge to resize.</span>
+          <span class="k">Keyboard</span>
+          <span><span class="kbd">/</span> search &nbsp; <span class="kbd">&uarr;&darr;</span> move &nbsp; <span class="kbd">&crarr;</span> open &nbsp; <span class="kbd">Esc</span> close</span>
+        </div>
+      </div>
+
+      <div>
+        <div class="info-sec-title">MITRE Navigator</div>
+        <div class="info-grid">
+          <span class="k"><span class="sw sw-pass"></span></span>
+          <span>Covered technique. The coloured left rail is the <em>best</em> verdict among the rules mapped to it — green PASS, amber NOT VERIFIED, red FAIL, grey N/A.</span>
+          <span class="k"><span class="sw sw-pass sw-dot"></span></span>
+          <span>A sub-technique carries the same verdict as a dot instead of a tint. Parent techniques get the tint.</span>
+          <span class="k"><span class="sw sw-uncov"></span></span>
+          <span>No rule maps to this technique — a gap.</span>
+          <span class="k"><span class="sw sw-uncov sw-hascov"></span></span>
+          <span>The technique itself has no rule, but one or more of its sub-techniques does. The <code>n/m</code> badge counts them; expand the cell to see which.</span>
+          <span class="k"><span class="sw sw-pass sw-flag"></span></span>
+          <span>At least one rule covering this technique <strong>FAILed</strong>, even though the cell shows a better verdict. On a parent cell the flag can be inherited from a sub-technique. Hover the cell for the rule list.</span>
+        </div>
+        <div class="info-note" style="margin-top:12px"><strong>Verdict</strong> and <strong>Covered / Gaps</strong> answer different questions: Covered/Gaps is whether a detection exists at all, Verdict is how the existing ones performed. They combine, so Gaps plus any verdict is deliberately empty.</div>
+        <div class="info-note">Hover a cell for its rules, click <strong>&#9776;</strong> for the detail panel, and use the tactic header caret to collapse a column. <strong>Export view</strong> writes out exactly what the current filters show.</div>
+        <div class="info-note">The same menu's <strong>ATT&amp;CK Navigator JSON</strong> is a different thing: the full coverage as a standard layer file. Load it into the official MITRE Navigator (<em>Open Existing Layer &rarr; Load from URL</em>) to compare this coverage against another layer — a threat actor's technique set, a red team's results, an earlier snapshot. Techniques whose covering rules include a failure are marked <code>&#9888;</code> there too.</div>
+      </div>
+
+      <div>
+        <div class="info-sec-title">Dashboards</div>
+        <div class="info-note"><strong>Rule Overview</strong> breaks the library down by type, severity, status and verification outcome. <strong>MITRE ATT&amp;CK Alignment</strong> shows overall technique coverage and how the rules spread across tactics. <strong>Trends Over Time</strong> tracks coverage and rule count from the repo's own history — one data point per day the pipeline ran, so gaps in the line are days with no run.</div>
+        <div class="info-note"><strong>Evidence</strong> and <strong>Verification</strong> are two rings because they are two questions, and a slice can only carry one name. Evidence asks how much of the library has a verdict worth reading — all @@TOTAL@@ rules, split into Current / Superseded / Expired / Never tested. Verification asks what those readable verdicts actually say, and counts <em>only</em> the current ones, so its ring is the Current slice of the one beside it, not the whole library. A lapsed PASS is not a pass that happens to be old — it is an absence of present-tense evidence, so it is counted once, on the left, and never as a pass on the right.</div>
+        <div class="info-note">Read the two together: <strong>Pass Rate</strong> says how much of what was measured works, <strong>Current</strong> how much of the library was measured. Alone, either one flatters. Both are recomputed in your browser on every load, so they stay true as verdicts age past the review interval after this page was built — and <strong>Verification Age</strong> is the distribution behind Evidence's <em>Expired</em> slice.</div>
+        <div class="info-note">Legend entries are clickable: they toggle their series in and out of the chart.</div>
+      </div>
+
+      <div>
+        <div class="info-sec-title">Sharing a view</div>
+        <div class="info-note">The address bar tracks the active tab, every filter, the search text, the sort order, the Navigator's own filters and any open technique panel. Copy the URL and whoever opens it lands on exactly what you were looking at.</div>
+      </div>
+
     </div>
   </div>
 
@@ -2063,6 +2767,10 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       <div class="filters-panel" id="filters-panel"></div>
       <div class="content">
         <div class="search-row">
+          <button class="filters-toggle" id="filters-toggle" onclick="toggleFiltersPanel()" aria-expanded="false" aria-controls="filters-panel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            Filters
+          </button>
           <div class="search-input-wrap">
             <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input class="search-input" id="search-input" type="text" placeholder="Search title, description, ID, product…" oninput="onSearchInput()">
@@ -2122,16 +2830,56 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
   <div id="tab-navigator" class="tab-pane">
     <div class="nav-wrap">
-      <div class="nav-legend">
-        <div class="nav-legend-item" data-filter="pass"><div class="nav-legend-dot" style="background:#1a4731;border:1px solid #2EA44F"></div> PASS</div>
-        <div class="nav-legend-item" data-filter="notver"><div class="nav-legend-dot" style="background:#4b3400;border:1px solid #d29922"></div> NOT VERIFIED</div>
-        <div class="nav-legend-item" data-filter="fail"><div class="nav-legend-dot" style="background:#67060c;border:1px solid #CF222E"></div> FAIL</div>
-        <div class="nav-legend-item" data-filter="nv"><div class="nav-legend-dot" style="background:#9f9f9f"></div> N/A</div>
-        <div class="nav-legend-item" data-filter="uncov"><div class="nav-legend-dot" style="background:#1c2128;border:1px solid #30363d"></div> Not covered</div>
+      <div class="nav-toolbar">
+        <div class="nav-search-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="nav-search-input" id="nav-search" type="text" placeholder="Jump to technique — ID or name…" oninput="onNavSearch()">
+          <button class="nav-search-clear" id="nav-search-clear" onclick="clearNavSearch()" title="Clear" aria-label="Clear search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <span class="nav-search-count" id="nav-search-count"></span>
+        <span class="nav-tb-sep"></span>
+        <div class="nav-verdict-wrap">
+          <button class="nav-verdict-btn" id="nav-verdict-btn" onclick="toggleVerdictMenu(event)">
+            <span>Verdict</span><span class="nav-verdict-active" id="nav-verdict-active"></span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="nav-verdict-menu" id="nav-verdict-menu">
+            <div class="nav-verdict-item" data-filter="pass"><span class="nav-legend-dot" style="background:#21262d;border-left:3px solid #2EA44F"></span><span class="lbl">PASS</span><span class="nav-legend-count" data-count="pass"></span></div>
+            <div class="nav-verdict-item" data-filter="notver"><span class="nav-legend-dot" style="background:#21262d;border-left:3px solid #d29922"></span><span class="lbl">NOT VERIFIED</span><span class="nav-legend-count" data-count="notver"></span></div>
+            <div class="nav-verdict-item" data-filter="fail"><span class="nav-legend-dot" style="background:#21262d;border-left:3px solid #CF222E"></span><span class="lbl">FAIL</span><span class="nav-legend-count" data-count="fail"></span></div>
+            <div class="nav-verdict-item" data-filter="nv"><span class="nav-legend-dot" style="background:#21262d;border-left:3px solid #6e7681"></span><span class="lbl">N/A</span><span class="nav-legend-count" data-count="nv"></span></div>
+          </div>
+        </div>
+        <div class="nav-quickfilters">
+          <button class="nav-qf" id="nav-qf-covered" onclick="toggleNavScope('covered')">Covered<span class="nav-qf-count" data-count="covered"></span></button>
+          <button class="nav-qf" id="nav-qf-gaps" onclick="toggleNavScope('gaps')">Gaps<span class="nav-qf-count" data-count="uncov"></span></button>
+        </div>
+        <span class="nav-tb-sep"></span>
         <button id="expand-all-btn">&#9660; Expand All</button>
-        <div class="nav-import"><a href="@@LAYER_URL@@" target="_blank">&#8659; Download Navigator layer (.json)</a></div>
+        <div class="export-wrap" id="nav-export-wrap">
+          <button class="export-btn" onclick="toggleNavExportMenu(event)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export view
+          </button>
+          <div class="export-menu" id="nav-export-menu">
+            <div class="export-menu-head">Current view (<span id="nav-export-count">0</span> techniques)</div>
+            <div class="export-menu-item" onclick="exportNavView('csv')"><span class="ext">CSV</span><span class="desc">Spreadsheet</span></div>
+            <div class="export-menu-item" onclick="exportNavView('json')"><span class="ext">JSON</span><span class="desc">Full metadata</span></div>
+            <div class="export-menu-item" onclick="exportNavView('md')"><span class="ext">MD</span><span class="desc">Markdown table</span></div>
+            <div class="export-menu-head">Full coverage</div>
+            <a class="export-menu-item" href="@@LAYER_URL@@" target="_blank" rel="noopener" title="Load in the official ATT&amp;CK Navigator via Open Existing Layer &rarr; Load from URL"><span class="ext">LAYER</span><span class="desc">ATT&amp;CK Navigator JSON</span></a>
+          </div>
+        </div>
       </div>
       @@MATRIX_HTML@@
+      <div id="nav-no-results" class="no-results" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/><line x1="7" y1="10" x2="13" y2="10"/></svg>
+        <div class="no-results-title">No matching techniques</div>
+        <div class="no-results-sub">Every tactic column is filtered out by the current verdict, scope or search.</div>
+        <button class="nav-clear-btn" onclick="clearNavFilters()">Clear Navigator filters</button>
+      </div>
     </div>
   </div>
 
@@ -2174,13 +2922,47 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
           <div class="chart-card-title">Verification</div>
           <div class="verify-card-body">
             <div class="chart-card-canvas-wrap verify-canvas-wrap">
-              <canvas id="chart-verify" aria-label="Doughnut chart showing rule verification breakdown: pass, not verified, fail, N/A — overall pass rate @@PASS_RATE@@%" role="img"></canvas>
+              <!-- The denominator this ring stands on is not spelled out under
+                   the percentage: Evidence, the very next card in reading order
+                   once the row wraps, carries that whole story, and saying it
+                   twice made two cards answer the same question. It stays in
+                   the aria-label, where there is no neighbour to lean on. -->
+              <canvas id="chart-verify" aria-label="Doughnut chart showing what the current verdicts say: pass, fail, not verified — pass rate @@PASS_RATE@@% across the @@VERIFIED_CURRENT@@ of @@TOTAL@@ rules whose verdict is still current evidence" role="img"></canvas>
               <div class="verify-overlay">
                 <div class="verify-overlay-pct">@@PASS_RATE@@%</div>
                 <div class="verify-overlay-label">Pass Rate</div>
               </div>
             </div>
             <div class="verify-legend" id="verify-legend"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Second row on the same four-track grid, so a card here is exactly as
+           wide as one above. Evidence opens it directly after Verification in
+           reading order, which is the pairing that matters: Verification's ring
+           is literally Evidence's Current slice. Verification Age then takes two
+           tracks — it is the only horizontal bar chart here, and four labelled
+           age bands in a quarter-width card would angle their labels while the
+           doughnuts beside them breathe. -->
+      <div class="dash-section-grid dash-section-grid-row2">
+        <div class="chart-card">
+          <div class="chart-card-title">Evidence</div>
+          <div class="verify-card-body">
+            <div class="chart-card-canvas-wrap verify-canvas-wrap">
+              <canvas id="chart-evidence" aria-label="Doughnut chart showing how many rules have a current verdict versus one that has been superseded by a rule change, has expired, or was never measured" role="img"></canvas>
+              <div class="verify-overlay">
+                <div class="verify-overlay-pct" id="evidence-overlay-pct">—</div>
+                <div class="verify-overlay-label">Current</div>
+              </div>
+            </div>
+            <div class="verify-legend" id="evidence-legend"></div>
+          </div>
+        </div>
+        <div class="chart-card chart-card-wide2">
+          <div class="chart-card-title">Verification Age</div>
+          <div class="chart-card-sub">How long ago each rule was last verified &middot; measured as of now, not at build time</div>
+          <div class="chart-card-canvas-wrap age-canvas-wrap">
+            <canvas id="chart-age" aria-label="Horizontal bar chart showing how many rules fall into each verification-age band, up to and beyond the @@REVIEW_DAYS@@-day review interval" role="img"></canvas>
           </div>
         </div>
       </div>
@@ -2269,10 +3051,14 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2/dist/chartjs-plugin-datalabels.min.js"></script>
   <script>
   const RULES = @@RULES_JSON@@;
+  // Lookup so the Navigator can open the same in-page drawer the Rule Library
+  // uses (openDrawer takes a RULES index), instead of linking out to GitHub.
+  const RULE_IDX_BY_ID = {};
+  RULES.forEach(function(r, i) { RULE_IDX_BY_ID[r.id] = i; });
   const TACTIC_IDS = @@TACTIC_IDS_JSON@@;
   const GENERATED_TS = "@@TS@@";
   const TOTAL_RULES = @@TOTAL@@;
-  const PASS_COUNT = @@PASSED@@;
+  const PASS_COUNT = @@PASSED@@;   // every PASS on record, stale ones included
   const FAIL_COUNT = @@FAILED@@;
   // Real "NOT_VERIFIED" rules (deployed + attempted, Atomic test timed out)
   // vs. true N/A (never tested -- no result.json at all). Kept as two
@@ -2280,6 +3066,11 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   // coverage" nor misrepresented as a pass or a confirmed fail.
   const NOTVER_COUNT = @@NOT_VER@@;
   const NA_COUNT = @@NEVER_TESTED@@;
+  // PASS_RATE is measured over the rules whose verdict is still current
+  // evidence, not over the whole library (see generate_stats.py) -- the
+  // Evidence card beside the Verification ring is what names that population.
+  // The four counters above stay whole-library totals; both charts classify
+  // from RULES themselves, so neither can disagree with the table.
   const PASS_RATE = @@PASS_RATE@@;
   const MITRE_COVERED = @@MITRE_COVERED@@;
   const MITRE_TOTAL = @@MITRE_TOTAL@@;
@@ -2320,7 +3111,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   // recomputes the main-axis size regardless of any width set on the item.
   // Disabling grow/shrink and fixing the flex-basis to the rounded width is
   // what actually makes the rendered width an integer.
-  const ROW_FLEX_CANVAS_IDS = ['chart-severity', 'chart-status', 'chart-verify', 'chart-source'];
+  const ROW_FLEX_CANVAS_IDS = ['chart-severity', 'chart-status', 'chart-verify', 'chart-evidence', 'chart-source'];
 
   // Ids whose canvas-wrap (.chart-card-canvas-wrap, no row-flex modifier
   // class) sits directly in a COLUMN flex container (.chart-card) — main
@@ -2330,21 +3121,45 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   // fought by flex-grow on this axis, so it's enough to pin it directly.
   const COLUMN_FLEX_CANVAS_IDS = ['chart-coverage-trend', 'chart-rule-growth'];
 
+  function wrapOf(id) {
+    const canvas = document.getElementById(id);
+    return canvas ? canvas.parentElement : null;
+  }
+
+  // Two passes on purpose. Every previous pin is released first, then every
+  // width is measured, then every pin is written — so each measurement sees the
+  // natural flex layout instead of the pin this function left behind last time.
+  // Measuring while still pinned made the very first value permanent: the
+  // resize handler re-measured its own `flex: 0 0 Npx` and wrote it straight
+  // back, so these tiles never actually re-fitted. It also made the first
+  // measurement the wrong one, because it happens before the legends are
+  // populated: with an empty legend beside it the ring measures the full card
+  // width, gets pinned there, and the legend items appended a moment later have
+  // nowhere to go but past the card's edge. That is exactly what Evidence's
+  // longer labels ("Superseded", "Never tested") made visible.
   function snapCanvasWrapsToIntegerSize() {
-    ROW_FLEX_CANVAS_IDS.forEach(id => {
-      const canvas = document.getElementById(id);
-      const wrap = canvas && canvas.parentElement;
+    const ids = [...ROW_FLEX_CANVAS_IDS, ...COLUMN_FLEX_CANVAS_IDS];
+    ids.forEach(id => {
+      const wrap = wrapOf(id);
       if (!wrap) return;
-      const rect = wrap.getBoundingClientRect();
-      if (rect.width > 0) wrap.style.flex = '0 0 ' + Math.round(rect.width) + 'px';
-      if (rect.height > 0) wrap.style.height = Math.round(rect.height) + 'px';
+      wrap.style.flex = '';
+      wrap.style.width = '';
+      wrap.style.height = '';
     });
-    COLUMN_FLEX_CANVAS_IDS.forEach(id => {
-      const canvas = document.getElementById(id);
-      const wrap = canvas && canvas.parentElement;
-      if (!wrap) return;
-      const rect = wrap.getBoundingClientRect();
-      if (rect.width > 0) wrap.style.width = Math.round(rect.width) + 'px';
+    const measured = ids.map(id => {
+      const wrap = wrapOf(id);
+      return wrap ? wrap.getBoundingClientRect() : null;
+    });
+    ids.forEach((id, i) => {
+      const wrap = wrapOf(id);
+      const rect = measured[i];
+      if (!wrap || !rect) return;
+      if (rect.width > 0) {
+        // Row-flex wraps need the basis fixed as well as grow/shrink disabled;
+        // plain width is ignored on a flex container's main axis.
+        if (ROW_FLEX_CANVAS_IDS.includes(id)) wrap.style.flex = '0 0 ' + Math.round(rect.width) + 'px';
+        else wrap.style.width = Math.round(rect.width) + 'px';
+      }
       if (rect.height > 0) wrap.style.height = Math.round(rect.height) + 'px';
     });
   }
@@ -2405,7 +3220,11 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
     // Shared hover tooltip for Severity + Tactic charts — same box, same layout:
     // title / "N pcs" (same size as title) / "(pct%)" smaller below.
-    function externalChartTip(ctx, total) {
+    // opts.hideCount drops the "N pcs" line for charts that already print the
+    // count as a datalabel on the mark itself — repeating it in the tooltip is
+    // noise. The percentage then takes over the primary row's styling so the
+    // tooltip doesn't end on a small grey aside.
+    function externalChartTip(ctx, total, opts) {
       const tip = document.getElementById('chart-tip');
       const t = ctx.tooltip;
       if (!t || t.opacity === 0) { tip.style.display = 'none'; return; }
@@ -2413,10 +3232,11 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       if (dp) {
         const value = dp.raw;
         const pct = total > 0 ? Math.round((value / total) * 100) : 0;
-        tip.innerHTML =
-          '<div class="sev-tip-title">' + dp.label + '</div>' +
-          '<div class="sev-tip-count">' + value + ' pcs</div>' +
-          '<div class="sev-tip-pct">(' + pct + '%)</div>';
+        const body = (opts && opts.hideCount)
+          ? '<div class="sev-tip-count">' + pct + '% of all rules</div>'
+          : '<div class="sev-tip-count">' + value + ' pcs</div>' +
+            '<div class="sev-tip-pct">(' + pct + '%)</div>';
+        tip.innerHTML = '<div class="sev-tip-title">' + dp.label + '</div>' + body;
       }
       const rect = ctx.chart.canvas.getBoundingClientRect();
       tip.style.display = 'block';
@@ -2465,6 +3285,71 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
         item.classList.toggle('off', !sevChart.getDataVisibility(i));
       });
       sevLegendEl.appendChild(item);
+    });
+
+    // Verification Age — horizontal bar.
+    //
+    // One flat accent orange for every band, matching the tactic bar chart
+    // below. The bands are ordered (0–45 … 180+), and that order is carried by
+    // the axis alone rather than by a colour ramp. "Never tested" keeps a
+    // neutral grey: it is an absence of data, not a very large age, and only
+    // appears when it is non-empty.
+    //
+    // Every edge is derived from REVIEW_INTERVAL_DAYS. Hard-coding 45/90/180
+    // would leave the chart quietly lying the day that constant changes.
+    const ageQuarter = Math.round(REVIEW_INTERVAL_DAYS / 4);
+    const ageHalf = Math.round(REVIEW_INTERVAL_DAYS / 2);
+    const ageBands = [
+      { label: '0–' + ageQuarter + ' days', max: ageQuarter },
+      { label: ageQuarter + '–' + ageHalf + ' days', max: ageHalf },
+      { label: ageHalf + '–' + REVIEW_INTERVAL_DAYS + ' days', max: REVIEW_INTERVAL_DAYS },
+      { label: REVIEW_INTERVAL_DAYS + '+ days', max: Infinity },
+    ];
+    const ageCounts = ageBands.map(() => 0);
+    let neverTested = 0;
+    RULES.forEach(r => {
+      const days = verdictAgeDays(r.verdictAt);
+      if (days === null) { neverTested++; return; }
+      ageCounts[ageBands.findIndex(b => days < b.max)]++;
+    });
+    const ageRows = ageBands.map((b, i) => ({ label: b.label, count: ageCounts[i], color: '#FFAA00', hover: '#ffc94d' }));
+    if (neverTested > 0) {
+      ageRows.push({ label: 'Never tested', count: neverTested, color: '#6e7681', hover: '#8b949e' });
+    }
+    const ageMax = Math.max.apply(null, ageRows.map(r => r.count));
+
+    new Chart(document.getElementById('chart-age'), {
+      type: 'bar',
+      data: {
+        labels: ageRows.map(r => r.label),
+        datasets: [{
+          data: ageRows.map(r => r.count),
+          backgroundColor: ageRows.map(r => r.color),
+          hoverBackgroundColor: ageRows.map(r => r.hover),
+          borderColor: 'black',
+          borderWidth: 0.5,
+          borderRadius: 4,
+        }],
+      },
+      options: {
+        indexAxis: 'y',
+        maintainAspectRatio: false,
+        animation,
+        layout: { padding: { right: 24 } },
+        // Thinner than the tactic chart's bars: only 4–5 rows share this box,
+        // so the default fill would read as slabs rather than marks.
+        barPercentage: 0.62,
+        categoryPercentage: 0.8,
+        scales: {
+          x: { display: false, grid: { display: false }, suggestedMax: Math.max(ageMax * 1.2, 1) },
+          y: { grid: { display: false }, ticks: { color: '#e6edf3', font: { size: 12 } } },
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: { enabled: false, external: (ctx) => externalChartTip(ctx, TOTAL_RULES, { hideCount: true }) },
+          datalabels: { clip: false, anchor: 'end', align: 'end', color: '#e6edf3', font: { weight: 'bold', size: 11 } },
+        },
+      },
     });
 
     // Rules per MITRE ATT&CK Tactic — horizontal bar
@@ -2664,13 +3549,118 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       statusLegendEl.appendChild(item);
     });
 
-    // Verification — doughnut with center Pass Rate overlay + side legend (status palette: good/critical/neutral)
-    const verifySegs = [
-      { label: 'Pass', n: PASS_COUNT, color: '#3fb950' },
-      { label: 'Not Verified', n: NOTVER_COUNT, color: '#d29922' },
-      { label: 'Fail', n: FAIL_COUNT, color: '#f85149' },
-      { label: 'N/A', n: NA_COUNT, color: '#8b949e' },
+    // Evidence and Verification are two cards because they are two questions,
+    // and a doughnut can only answer one — a slice gets exactly one name.
+    // Evidence asks how much of the library has a verdict worth reading (all
+    // rules); Verification asks what those readable verdicts say (only the
+    // current ones). The denominators differ on purpose, which is why
+    // Verification's overlay spells its own out underneath the percentage.
+    //
+    // Both are counted from RULES with the same predicates the table and the
+    // Evidence facet use, rather than from separate @@ placeholders, so neither
+    // ring can drift out of agreement with the rows underneath it. (Those
+    // predicates are hoisted function declarations in this same scope, defined
+    // further down.)
+    const evidenceCount = { current: 0, superseded: 0, expired: 0, never: 0 };
+    const verifyCount = { pass: 0, notver: 0, fail: 0 };
+    RULES.forEach(r => {
+      const v = r.verdict || 'N/A';
+      if (v === 'N/A' || !v) { evidenceCount.never++; return; }
+      if (isVerdictSuperseded(r)) { evidenceCount.superseded++; return; }
+      if (isVerdictExpired(r)) { evidenceCount.expired++; return; }
+      evidenceCount.current++;
+      // Only current verdicts reach the verdict tally. A lapsed PASS is not a
+      // pass that happens to be old, it is an absence of present-tense
+      // evidence — and it is already accounted for one card to the left.
+      if (v === 'PASS') verifyCount.pass++;
+      else if (v === 'FAIL') verifyCount.fail++;
+      else if (v === 'NOT_VERIFIED') verifyCount.notver++;
+    });
+
+    // Evidence — doughnut with center Current % overlay + side legend.
+    //
+    // Superseded and Expired get a segment each rather than sharing one under
+    // some umbrella word: same standing, different diagnoses, and naming both
+    // plainly beats coining a term a reader has to look up. Superseded keeps the
+    // drift purple worn by the row marker and the Evidence facet so the three
+    // tell one story in one hue; Expired takes the teal the retired Review facet
+    // used to carry. Empty segments are filtered out, so Expired is simply not
+    // drawn until a verdict actually crosses the review interval.
+    const evidenceSegs = [
+      { label: 'Current', n: evidenceCount.current, color: '#3fb950' },
+      { label: 'Superseded', n: evidenceCount.superseded, color: '#bc8cff' },
+      { label: 'Expired', n: evidenceCount.expired, color: '#2dd4bf' },
+      { label: 'Never tested', n: evidenceCount.never, color: '#8b949e' },
     ].filter(s => s.n > 0);
+    const evidenceTotal = evidenceSegs.reduce((s, x) => s + x.n, 0);
+    const evidencePct = evidenceTotal > 0 ? Math.round(evidenceCount.current / evidenceTotal * 100) : 0;
+    const evidencePctEl = document.getElementById('evidence-overlay-pct');
+    if (evidencePctEl) evidencePctEl.textContent = evidencePct + '%';
+    const evidenceChart = new Chart(document.getElementById('chart-evidence'), {
+      type: 'doughnut',
+      data: {
+        labels: evidenceSegs.map(s => s.label),
+        datasets: [{
+          data: evidenceSegs.map(s => s.n),
+          backgroundColor: evidenceSegs.map(s => s.color),
+          borderColor: '#0d1117',
+          borderWidth: 1,
+          hoverOffset: 8,
+        }],
+      },
+      options: {
+        maintainAspectRatio: false,
+        cutout: '55%',
+        radius: '85%',
+        animation: doughnutAnimation,
+        plugins: {
+          legend: { display: false },
+          tooltip: { enabled: false, external: (ctx) => externalChartTip(ctx, evidenceTotal) },
+          datalabels: { display: false },
+        },
+      },
+    });
+
+    const evidenceLegendEl = document.getElementById('evidence-legend');
+    evidenceSegs.forEach((s, i) => {
+      const item = document.createElement('div');
+      item.className = 'verify-legend-item';
+      item.innerHTML = '<span class="vdot" style="background:' + s.color + '"></span><span class="vlabel">' + escHtml(s.label) + '</span>';
+      item.addEventListener('click', () => {
+        evidenceChart.toggleDataVisibility(i);
+        evidenceChart.update();
+        item.classList.toggle('off', !evidenceChart.getDataVisibility(i));
+      });
+      evidenceLegendEl.appendChild(item);
+    });
+
+    // Verification — one dimension again: of the verdicts that still count,
+    // what did they say.
+    const verifySegs = [
+      { label: 'Pass', n: verifyCount.pass, color: '#3fb950' },
+      { label: 'Not Verified', n: verifyCount.notver, color: '#d29922' },
+      { label: 'Fail', n: verifyCount.fail, color: '#f85149' },
+    ].filter(s => s.n > 0);
+
+    // The overlay is recomputed here rather than left as the @@PASS_RATE@@ the
+    // template was built with. Expiry moves with the reader's clock, so a page
+    // opened six months after it was generated would otherwise show a headline
+    // that its own ring below contradicts. stats.json and the README badges keep
+    // the build-time figure -- a badge is a snapshot by definition -- but what
+    // is on screen agrees with what is on screen.
+    const liveCurrent = verifyCount.pass + verifyCount.fail + verifyCount.notver;
+    const livePassRate = liveCurrent > 0 ? Math.round(verifyCount.pass / liveCurrent * 100) : 0;
+    // Scoped through this chart's own canvas, not a bare
+    // '.verify-canvas-wrap .verify-overlay-pct': Evidence reuses the same
+    // wrapper class and now sits first in the DOM, so a document-wide
+    // querySelector would quietly write the pass rate into Evidence's ring.
+    const verifyWrap = document.getElementById('chart-verify').parentElement;
+    const overlayPct = verifyWrap.querySelector('.verify-overlay-pct');
+    if (overlayPct) overlayPct.textContent = livePassRate + '%';
+    document.getElementById('chart-verify').setAttribute('aria-label',
+      'Doughnut chart showing rule verification breakdown — pass rate ' + livePassRate +
+      '% across the ' + liveCurrent + ' of ' + RULES.length +
+      ' rules whose verdict is still current evidence');
     const verifyTotal = verifySegs.reduce((s, x) => s + x.n, 0);
     const verifyChart = new Chart(document.getElementById('chart-verify'), {
       type: 'doughnut',
@@ -2701,7 +3691,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     verifySegs.forEach((s, i) => {
       const item = document.createElement('div');
       item.className = 'verify-legend-item';
-      item.innerHTML = '<span class="vdot" style="background:' + s.color + '"></span>' + escHtml(s.label);
+      item.innerHTML = '<span class="vdot" style="background:' + s.color + '"></span><span class="vlabel">' + escHtml(s.label) + '</span>';
       item.addEventListener('click', () => {
         verifyChart.toggleDataVisibility(i);
         verifyChart.update();
@@ -3006,6 +3996,17 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     });
 
     applyTrendRange();
+
+    // Re-snap now that every legend has been populated. The first snap at the
+    // top of this function measured cards whose legends were still empty, so
+    // the rings were pinned to a width that left the labels nowhere to sit.
+    // Doing it once here, rather than after each individual chart, keeps it to
+    // a single layout pass for the whole section.
+    snapCanvasWrapsToIntegerSize();
+    [...ROW_FLEX_CANVAS_IDS, ...COLUMN_FLEX_CANVAS_IDS].forEach(id => {
+      const c = Chart.getChart(id);
+      if (c) c.resize();
+    });
   }
 
   const FILTER_FIELDS = [
@@ -3015,12 +4016,41 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     { key: 'service',    label: 'Service' },
     { key: 'severity',   label: 'Severity' },
     { key: 'status',     label: 'Status' },
-    { key: 'verdict',    label: 'Verdict' },
+    // The three testing facets run in the order the questions get asked: how
+    // was it tested, what did it say, is it still current. renderFilters()
+    // builds a supergroup out of any RUN OF ADJACENT fields sharing a group
+    // name, so each group's members must stay next to each other — inserting
+    // anything between them silently splits the group into two headers with
+    // the same title.
+    //
+    // Shipped from the pipeline's `testing` block: not what the verdict said,
+    // but how it was arrived at. Deliberately filter-only, no column — the
+    // answer is the same for most of the library, so a column would spend real
+    // width repeating "Atomic Red Team / windows-victim" down the page, while
+    // as a facet it does the one job worth doing: isolating the rules verified
+    // some other way.
+    { key: 'verifyMethod', label: 'Method', group: 'Verification' },
+    { key: 'verifyRunner', label: 'Runner', group: 'Verification' },
+    // Grouped the way MITRE's Tactic/Technique are: the verdict and whether
+    // that verdict is still evidence about the rule as it stands are two halves
+    // of one question, and neither is much use read alone.
+    //
+    // Evidence replaces what used to be two separate facets, Sync (Current /
+    // Outdated, by rule version) and Review (Up to date / Overdue, by age).
+    // They were one concept wearing two names, and the names ran backwards
+    // against the intuition: "Outdated" meant "the rule changed", while the
+    // verdicts that were literally old were filed under "Overdue". A verdict is
+    // a certificate — it stops being evidence either because it expired or
+    // because the thing it certifies changed underneath it — so both live on
+    // one axis now, and the values say which of the two happened. Derived in the
+    // browser; see verdictEvidence.
+    { key: 'verdict',  label: 'Result',   group: 'Verdict' },
+    { key: 'evidence', label: 'Evidence', group: 'Verdict' },
     { key: 'tactics',    label: 'Tactic',    group: 'MITRE ATT&CK' },
     { key: 'techniques', label: 'Technique', group: 'MITRE ATT&CK' },
   ];
 
-  const GROUP_ACCENT = { 'MITRE ATT&CK': '#8f95d6' };
+  const GROUP_ACCENT = { 'MITRE ATT&CK': '#8f95d6', 'Verdict': '#bc8cff', 'Verification': '#39c5cf' };
 
   const FIELD_FC = {
     source: 'fc-source',
@@ -3030,6 +4060,9 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     severity: 'fc-severity',
     status: 'fc-status',
     verdict: 'fc-verdict',
+    evidence: 'fc-verdict',
+    verifyMethod: 'fc-verify',
+    verifyRunner: 'fc-verify',
     tactics: 'fc-mitre',
     techniques: 'fc-mitre',
   };
@@ -3059,6 +4092,108 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   // convention as PASS/FAIL/N-A. CSS class names use normKey() instead, so
   // this only affects human-visible text, never selectors.
   function vLabel(v) { return String(v ?? '').replace(/_/g, ' '); }
+
+  // A rule is due for re-validation this many days after its last verified run.
+  // Everything derived from it is computed in the browser against the visitor's
+  // clock, so the page keeps ageing correctly between pipeline runs.
+  const REVIEW_INTERVAL_DAYS = @@REVIEW_DAYS@@;
+
+  // Calendar days, not elapsed 24h blocks. verdictAt is a full timestamp, but
+  // every place that shows an age also shows the UTC date beside it, so the two
+  // have to agree: a run at 08:58Z read three calendar days later is "3 days
+  // ago", not the "2" that floor((now - then) / 86400000) would give until the
+  // clock passes 08:58Z. Both sides are normalised to UTC midnight — matching
+  // the .slice(0, 10) date the UI prints — so the subtraction is whole days and
+  // DST never enters into it.
+  function verdictAgeDays(iso) {
+    if (!iso) return null;
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    const then = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    const now = new Date();
+    const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    return Math.round((today - then) / 86400000);
+  }
+
+  function isReviewDue(r) {
+    const days = verdictAgeDays(r && r.verdictAt);
+    return days !== null && days >= REVIEW_INTERVAL_DAYS;
+  }
+
+  // A verdict is only as current as the rule it was measured on. The pipeline
+  // records verdictRuleVersion — the rule version that actually ran — beside
+  // the rule's present ruleVersion; when the two diverge the badge is still
+  // green, but it is green for text that no longer exists.
+  function isVerdictSuperseded(r) {
+    if (!r || !r.verdict || r.verdict === 'N/A') return false;
+    if (!r.ruleVersion || !r.verdictRuleVersion) return false;
+    return String(r.ruleVersion) !== String(r.verdictRuleVersion);
+  }
+
+  // A verdict we cannot place inside the review window counts as expired, not
+  // as current. A missing or unparseable verdictAt is the only way that
+  // happens; the pipeline always writes one, so this is a guard rather than a
+  // case, but the direction matters. Treating "we don't know when this was
+  // measured" as current would be an unfalsifiable green — precisely the shape
+  // of claim this whole mechanism exists to remove.
+  function isVerdictExpired(r) {
+    if (!r || !r.verdict || r.verdict === 'N/A') return false;
+    // Deliberately not isReviewDue(), which answers false for an undateable
+    // verdict because "is it past the interval" genuinely has no answer there.
+    // This asks the other question -- can we show it is still inside the
+    // window -- and an unreadable timestamp answers that no, exactly as a
+    // missing one does. Python's verdict_is_expired makes the same call on the
+    // same two cases (_age is None), and the two must not drift apart.
+    const days = verdictAgeDays(r.verdictAt);
+    return days === null || days >= REVIEW_INTERVAL_DAYS;
+  }
+
+  // The two ways a verdict stops being evidence about the rule as it stands
+  // today, in one predicate. Superseded is the certain one -- the logic that
+  // was tested is demonstrably not the logic that is deployed. Expired is the
+  // probabilistic one -- same logic, but @@REVIEW_DAYS@@ days of telemetry
+  // changes, Splunk config and attacker tooling sit between the measurement and
+  // now. Different diagnoses, but the same standing (not evidence) and the same
+  // remedy (re-run the workflow), which is why they share a bucket everywhere a
+  // number is computed, and stay separate only where a label is shown.
+  function isVerdictLapsed(r) {
+    return isVerdictSuperseded(r) || isVerdictExpired(r);
+  }
+
+  // Evidence is a facet the pipeline cannot fully produce: whether a verdict has
+  // expired depends on when the page is READ, not when it was generated.
+  // Deriving it here — once per load, against the reader's clock — keeps the
+  // filter honest, and makes it an ordinary string field so the whole
+  // filter/count/export machinery works on it unchanged.
+  //
+  // Superseded wins over Expired when a rule is both, because it is the
+  // stronger claim: an expired verdict might still describe the rule, a
+  // superseded one provably does not.
+  RULES.forEach(r => {
+    // '' — not a placeholder label — for rules the question cannot be asked
+    // about (a verdict with no version on either side). allVals() drops
+    // empties, so those rules simply never offer a chip, rather than pooling
+    // under an "unknown" bucket that would filter to a meaningless set.
+    // "Never tested" means no verdict at all. A verdict that exists but cannot
+    // be dated is Expired, not Never tested -- the measurement did happen, we
+    // just cannot show it still counts.
+    r.evidence = (!r.verdict || r.verdict === 'N/A')
+      ? 'Never tested'
+      : isVerdictSuperseded(r) ? 'Superseded'
+      : isVerdictExpired(r) ? 'Expired'
+      : 'Current';
+  });
+
+  // How long ago a verdict was measured, in plain words. Days all the way up —
+  // "200 days ago" carries the point better than "6 months ago" does. Returns
+  // '' for a missing or unparseable timestamp so callers can skip the line.
+  function verdictAge(iso) {
+    const days = verdictAgeDays(iso);
+    if (days === null) return '';
+    if (days <= 0) return 'today';
+    if (days === 1) return 'yesterday';
+    return days + ' days ago';
+  }
 
   function emptyCell() { return '<span style="color:var(--text3)">—</span>'; }
 
@@ -3193,6 +4328,20 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     renderTable();
     clearTimeout(hashDebounce);
     hashDebounce = setTimeout(updateHash, 350);
+  }
+
+  // Mobile-only: the filter rail is display:none below 900px until this opens
+  // it. Deliberately not tied to a resize handler — the class is inert on wide
+  // screens, so a phone→desktop rotation needs no cleanup.
+  function toggleFiltersPanel() {
+    const panel = document.getElementById('filters-panel');
+    const btn = document.getElementById('filters-toggle');
+    if (!panel) return;
+    const open = panel.classList.toggle('mobile-open');
+    if (btn) {
+      btn.classList.toggle('active', open);
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
   }
 
   function clearSearch() {
@@ -3343,9 +4492,29 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
   function verdictBadge(r) {
     const v = r.verdict || 'N/A';
-    const badge = `<span class="badge verdict-${normKey(v)}">${escHtml(vLabel(v))}</span>`;
-    if (r.runUrl) return `<a href="${escHtml(r.runUrl)}" target="_blank" title="View Actions run" onclick="event.stopPropagation()">${badge}</a>`;
-    return badge;
+    // A stale verdict is drawn hollow: same word, same hue, but outlined
+    // instead of filled, so an outdated PASS never reads as a solid green chip
+    // at a glance down the column. The badge keeps its verdict colour rather
+    // than turning purple -- what the run found is still what it found; only
+    // its standing has changed, and the drift marker beside it names that.
+    // Hollowing costs no column width, which a second text pill would.
+    // Hollow for either kind of lapse, since either one means the same thing
+    // about the badge: it is a record, not a current claim. Which kind it was is
+    // what the two markers beside it distinguish.
+    const superseded = isVerdictSuperseded(r);
+    const expired = !superseded && isVerdictExpired(r);
+    const badge = `<span class="badge verdict-${normKey(v)}${(superseded || expired) ? ' verdict-lapsed' : ''}">${escHtml(vLabel(v))}</span>`;
+    // A review interval nobody can see is a review interval nobody keeps, and
+    // opening 27 drawers to find the lapsed ones is not a workflow — so the
+    // markers ride next to the verdict in the table itself.
+    const due = expired
+      ? `<span class="review-due" title="Expired — last tested ${verdictAge(r.verdictAt)}, past the ${REVIEW_INTERVAL_DAYS}-day review interval. Not counted in the pass rate.">&#9679;</span>`
+      : '';
+    const drift = superseded
+      ? `<span class="verdict-drift" title="Superseded — ${escHtml(vLabel(v))} measured on rule v${escHtml(r.verdictRuleVersion)}, but the rule is now v${escHtml(r.ruleVersion)}. Not counted in the pass rate."><svg viewBox="0 0 24 24"><path d="M12 5 L20.5 19 H3.5 Z"/></svg></span>`
+      : '';
+    if (r.runUrl) return `<a href="${escHtml(r.runUrl)}" target="_blank" title="View Actions run" onclick="event.stopPropagation()">${badge}</a>${due}${drift}`;
+    return badge + due + drift;
   }
 
   function mitrePills(list, kind) {
@@ -3365,20 +4534,52 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     updateHash();
   }
 
+  // Three columns hold an ordered vocabulary that alphabetising destroys: it
+  // files "low" above "medium" and scatters the verdicts. Rank them by meaning
+  // instead, ascending = whatever most wants attention, so one click on the
+  // header is the triage order. Anything outside a list sorts after it, and
+  // every other column still falls through to the string compare.
+  //
+  // severity and status reuse the orders the dashboard charts already sort by
+  // (LEVEL_ORDER, statusOrder) so the table and the doughnuts agree. verdict is
+  // generate_stats.py's VERDICT_RANK read backwards — least evidence first:
+  // never attempted, then confirmed broken, then unknown, then working. One
+  // ranking of the same vocabulary for the whole repo, not a competing one.
+  const SORT_RANK = {
+    severity: LEVEL_ORDER,
+    status: ['stable', 'test', 'experimental', 'deprecated', 'unsupported'],
+    verdict: ['na', 'fail', 'notverified', 'pass'],
+  };
+
+  function rankOf(col, val) {
+    const order = SORT_RANK[col];
+    const i = order.indexOf(normKey(val));
+    return i < 0 ? order.length : i;
+  }
+
   function renderTable() {
     const q = document.getElementById('search-input').value;
     let filtered = RULES.filter(r => matchesFilters(r) && matchesSearch(r, q));
 
     filtered.sort((a, b) => {
-      let va, vb;
-      if (sortCol === 'tactics' || sortCol === 'techniques') {
-        va = (a[sortCol] && a[sortCol][0]) || '';
-        vb = (b[sortCol] && b[sortCol][0]) || '';
+      let cmp;
+      if (SORT_RANK[sortCol]) {
+        cmp = rankOf(sortCol, a[sortCol]) - rankOf(sortCol, b[sortCol]);
+        // Within a rank the rows would otherwise keep whatever order the
+        // previous sort left them in, which makes the table look unstable
+        // while you flip between columns. Fall back to the rule ID.
+        if (cmp === 0) cmp = String(a.id).localeCompare(String(b.id), undefined, { numeric: true });
       } else {
-        va = String(a[sortCol] ?? '');
-        vb = String(b[sortCol] ?? '');
+        let va, vb;
+        if (sortCol === 'tactics' || sortCol === 'techniques') {
+          va = (a[sortCol] && a[sortCol][0]) || '';
+          vb = (b[sortCol] && b[sortCol][0]) || '';
+        } else {
+          va = String(a[sortCol] ?? '');
+          vb = String(b[sortCol] ?? '');
+        }
+        cmp = va.localeCompare(vb, undefined, { numeric: true, sensitivity: 'base' });
       }
-      const cmp = va.localeCompare(vb, undefined, { numeric: true, sensitivity: 'base' });
       return sortAsc ? cmp : -cmp;
     });
 
@@ -3674,7 +4875,9 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       </div>`;
     }
 
-    if (r.runUrl) {
+    // Also render for a verdict with no run_id (a handful of older results have
+    // a timestamp but no run to link to) — the age is worth showing on its own.
+    if (r.runUrl || r.verdictAt) {
       const isFail = r.verdict === 'FAIL';
       const isNotVer = r.verdict === 'NOT_VERIFIED';
       const verifyCls = isFail ? 'verify-fail' : isNotVer ? 'verify-notver' : 'verify-pass';
@@ -3683,12 +4886,36 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
         : isNotVer
         ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12" y2="16.01"/></svg>'
         : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
+      const cta = r.runUrl
+        ? `<a class="drawer-cta ${verifyCls}" href="${escHtml(r.runUrl)}" target="_blank">
+             ${icon} View Last Action Run — ${escHtml(vLabel(r.verdict))}
+           </a>`
+        : '';
+      const meta = [];
+      const age = verdictAge(r.verdictAt);
+      if (age) {
+        const due = isReviewDue(r);
+        meta.push(`<span class="${due ? 'warn' : ''}">Tested ${escHtml(age)} · ${escHtml(r.verdictAt.slice(0, 10))}${due ? ` — past the ${REVIEW_INTERVAL_DAYS}-day review interval` : ''}</span>`);
+      }
+      // One sentence for the whole provenance of the verdict: by what means, on
+      // which runner, against which version of the rule. Only the drift clause
+      // is coloured — method and runner are not warnings, and painting the
+      // whole line purple would say they were.
+      if (r.verdictRuleVersion || r.verifyMethod) {
+        const via = r.verifyMethod ? `Measured via ${escHtml(r.verifyMethod)}` : 'Measured';
+        const on = r.verifyRunner ? ` on ${escHtml(r.verifyRunner)}` : '';
+        // "against rule v1.3", not "on rule v1.3": the runner already claimed
+        // the "on", and two of them in one clause read as a typo.
+        const ver = r.verdictRuleVersion ? `, against rule v${escHtml(r.verdictRuleVersion)}` : '';
+        const drifted = isVerdictSuperseded(r)
+          ? `<span class="drift"> — but the rule is now v${escHtml(r.ruleVersion)}</span>`
+          : '';
+        meta.push(`<span>${via}${on}${ver}${drifted}</span>`);
+      }
       body += `<div>
         <div class="drawer-section-label">Verification</div>
-        <a class="drawer-cta ${verifyCls}" href="${escHtml(r.runUrl)}" target="_blank">
-          ${icon}
-          View Last Action Run — ${escHtml(vLabel(r.verdict))}
-        </a>
+        ${cta}
+        ${meta.length ? `<div class="verify-meta">${meta.join('')}</div>` : ''}
       </div>`;
     }
 
@@ -3716,6 +4943,14 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   function closeDrawer() {
     document.getElementById('drawer-overlay').classList.remove('open');
     document.getElementById('drawer').classList.remove('open');
+    // If this drawer was opened from a Navigator technique panel, reopen that
+    // panel (with the same rule still highlighted) so the user lands back in
+    // the rule list they were browsing rather than on a bare matrix.
+    if (typeof navReopenAfterDrawer !== 'undefined' && navReopenAfterDrawer) {
+      var ctx = navReopenAfterDrawer;
+      navReopenAfterDrawer = null;
+      openNavDetail(ctx.bid, ctx.name, ctx.rules, ctx.sel);
+    }
   }
 
   // ── Keyboard navigation ──────────────────────────────────────────────────
@@ -3833,6 +5068,41 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     btn.addEventListener('click', () => setActiveTab(btn.dataset.tab));
   });
 
+  // ── Legend & help dialog ───────────────────────────────────────────────
+  // Lives outside the tab panes, so one dialog serves all three tabs.
+
+  function isInfoOpen() {
+    return document.getElementById('info-modal')?.classList.contains('open');
+  }
+
+  function setInfo(open) {
+    document.getElementById('info-modal')?.classList.toggle('open', open);
+    document.getElementById('info-backdrop')?.classList.toggle('open', open);
+    const btn = document.getElementById('info-btn');
+    if (btn) {
+      btn.classList.toggle('active', open);
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    // Move focus into the dialog and hand it back on close, so Escape and the
+    // close button are reachable without a mouse.
+    if (open) document.querySelector('.info-close')?.focus();
+    else btn?.focus();
+  }
+
+  function openInfo() { setInfo(true); }
+  function closeInfo() { setInfo(false); }
+  function toggleInfo() { setInfo(!isInfoOpen()); }
+
+  // Registered ahead of the Rule Library key handler below, so while the dialog
+  // is open Escape closes it and nothing else — the row drawer underneath stays
+  // put instead of being closed by the same keystroke.
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && isInfoOpen()) {
+      e.stopImmediatePropagation();
+      closeInfo();
+    }
+  });
+
   // ── Deep link (hash state: tab + filters + search + sort) ───────────────
 
   function encodeState() {
@@ -3844,12 +5114,30 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     const q = document.getElementById('search-input')?.value?.trim();
     if (q) parts.push('q=' + encodeURIComponent(q));
     if (sortCol !== 'id' || !sortAsc) parts.push(`sort=${sortCol}:${sortAsc ? 'asc' : 'desc'}`);
+    // Deep-link the open Navigator technique panel so the view is shareable.
+    if (currentTab === 'navigator' && typeof navOpenDetailId !== 'undefined' && navOpenDetailId) {
+      parts.push('tech=' + encodeURIComponent(navOpenDetailId));
+    }
+    // The Navigator's own narrowing (verdict filters, Covered/Gaps scope,
+    // technique search) rides along too, so "here is the gap list" is a link and
+    // not an instruction. Emitted regardless of the active tab, like the table
+    // filters above, so switching tabs doesn't silently drop the state.
+    if (typeof navActiveFilters !== 'undefined' && navActiveFilters && navActiveFilters.size) {
+      parts.push('navv=' + Array.from(navActiveFilters).join(','));
+    }
+    if (typeof navScope !== 'undefined' && navScope) parts.push('navs=' + navScope);
+    if (typeof navSearchText !== 'undefined' && navSearchText) {
+      parts.push('navq=' + encodeURIComponent(navSearchText));
+    }
     return parts.join('&');
   }
 
   function decodeState(hash) {
     const raw = (hash || '').replace(/^#/, '');
-    const state = { tab: 'rules', filters: {}, q: '', sortCol: 'id', sortAsc: true };
+    const state = {
+      tab: 'rules', filters: {}, q: '', sortCol: 'id', sortAsc: true, tech: '',
+      navFilters: [], navScope: '', navQ: '',
+    };
     if (!raw) return state;
     const validKeys = new Set(FILTER_FIELDS.map(f => f.key));
     raw.split('&').forEach(pair => {
@@ -3861,9 +5149,21 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
         state.tab = (val === 'navigator' || val === 'dashboards') ? val : 'rules';
       } else if (key === 'q') {
         state.q = decodeURIComponent(val);
+      } else if (key === 'tech') {
+        state.tech = decodeURIComponent(val);
       } else if (key === 'sort') {
         const [col, dir] = val.split(':');
         if (col) { state.sortCol = col; state.sortAsc = dir !== 'desc'; }
+      } else if (key === 'navv') {
+        // Only the four verdicts the dropdown can toggle: an old link carrying
+        // the retired 'uncov' filter would otherwise leave the matrix in a state
+        // no visible control can undo (coverage now lives on Covered/Gaps).
+        const okVerdicts = new Set(['pass', 'notver', 'fail', 'nv']);
+        state.navFilters = val.split(',').filter(v => okVerdicts.has(v));
+      } else if (key === 'navs') {
+        state.navScope = (val === 'covered' || val === 'gaps') ? val : '';
+      } else if (key === 'navq') {
+        state.navQ = decodeURIComponent(val);
       } else if (validKeys.has(key)) {
         state.filters[key] = val.split(',').map(decodeURIComponent).filter(Boolean);
       }
@@ -3888,6 +5188,17 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     renderFilters();
     renderActiveFilterRow();
     renderTable();
+    // Narrow the matrix first, then open any deep-linked technique panel on top
+    // of the restored view.
+    if (typeof applyNavState === 'function') applyNavState(state);
+    // Restore a deep-linked Navigator technique panel (if any).
+    if (typeof openNavByTid === 'function') {
+      if (state.tab === 'navigator' && state.tech) {
+        if (typeof navOpenDetailId === 'undefined' || navOpenDetailId !== state.tech) openNavByTid(state.tech);
+      } else if (typeof navOpenDetailId !== 'undefined' && navOpenDetailId && typeof closeNavDetail === 'function') {
+        closeNavDetail();
+      }
+    }
   }
 
   function updateHash() {
@@ -3907,7 +5218,11 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     document.getElementById('export-menu').classList.toggle('open');
   }
 
-  document.addEventListener('click', () => { document.getElementById('export-menu')?.classList.remove('open'); });
+  document.addEventListener('click', () => {
+    document.getElementById('export-menu')?.classList.remove('open');
+    document.getElementById('nav-export-menu')?.classList.remove('open');
+    document.getElementById('nav-verdict-menu')?.classList.remove('open');
+  });
 
   function flat(v, sep) {
     sep = sep || ' | ';
@@ -3939,6 +5254,14 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       'Severity': r.severity,
       'Status': r.status,
       'Verdict': r.verdict,
+      'Last Tested': r.verdictAt ? r.verdictAt.slice(0, 10) : '',
+      'Rule Version': r.ruleVersion,
+      'Tested Version': r.verdictRuleVersion,
+      // Replaces the former 'Review Status' + 'Verdict Sync' pair: one column
+      // with Current / Superseded / Expired / Never tested, matching the facet.
+      'Evidence': r.evidence || '',
+      'Verification Method': r.verifyMethod,
+      'Verification Runner': r.verifyRunner,
       'Author': r.author,
       'Created': r.date,
       'Modified': r.modified,
@@ -4125,6 +5448,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     var matrix = document.querySelector('.att-matrix');
     if (!matrix) return;
     var mirror = document.createElement('div');
+    mirror.className = 'nav-scroll-mirror';
     mirror.style.cssText = 'overflow-x:auto;position:sticky;bottom:0;height:14px;background:#0d1117;z-index:100;';
     var inner = document.createElement('div');
     inner.style.height = '1px';
@@ -4141,8 +5465,12 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     });
     if (window.ResizeObserver) { new ResizeObserver(syncWidth).observe(matrix); }
   })();
-  // Legend multi-filter with parent+sub logic
+  // Combined Navigator visibility: legend verdict filters + Covered/Gaps scope
+  // + technique search all narrow the same matrix.
   var navActiveFilters = new Set();
+  var navScope = null;          // 'covered' | 'gaps' | null
+  var navSearchText = '';
+  var navAutoExpanded = new Set();
   function tcVerdict(tc) {
     if (tc.classList.contains('pass'))   return 'pass';
     if (tc.classList.contains('notver')) return 'notver';
@@ -4150,39 +5478,284 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
     if (tc.classList.contains('nv'))     return 'nv';
     return 'uncov';
   }
-  function applyNavFilters() {
+  function tcIsCovered(tc) { return tcVerdict(tc) !== 'uncov'; }
+  // A cell counts as FAIL for filtering whenever ANY covering rule failed — not
+  // only when FAIL won the best-verdict roll-up. Without this the FAIL filter is
+  // dead for every technique that also has a passing rule.
+  function tcHasFail(tc) {
+    return tc.classList.contains('fail') || tc.classList.contains('fail-flag');
+  }
+  function tcText(tc) {
+    var tn = tc.querySelector('.tn');
+    return ((tc.dataset.id || '') + ' ' + (tn ? tn.textContent : '')).toLowerCase();
+  }
+  function tcMatches(tc) {
+    var okLegend = navActiveFilters.size === 0
+      || navActiveFilters.has(tcVerdict(tc))
+      || (navActiveFilters.has('fail') && tcHasFail(tc));
+    var okScope = !navScope || (navScope === 'covered' ? tcIsCovered(tc) : !tcIsCovered(tc));
+    var okSearch = !navSearchText || tcText(tc).indexOf(navSearchText) >= 0;
+    return okLegend && okScope && okSearch;
+  }
+  function applyNavVisibility() {
+    // Filtering for FAIL is a "show me what's broken" request, and what's broken
+    // is usually a sub-technique — collapsed by default, so the answer would be
+    // one click away on every parent. Expand those automatically, exactly like a
+    // search that only matches sub-techniques does.
+    var failFocus = navActiveFilters.has('fail');
+    // Drop auto-expands once neither driver is active any more.
+    if (!navSearchText && !failFocus && navAutoExpanded.size) {
+      navAutoExpanded.forEach(function(b) { if (b.classList.contains('open')) navDoExpand(b, false); });
+      navAutoExpanded.clear();
+    }
+    var active = navActiveFilters.size > 0 || !!navScope || !!navSearchText;
+    var shown = 0;
     document.querySelectorAll('.tc-col').forEach(function(col) {
+      var colVisible = 0;
       col.querySelectorAll('.tc:not(.sub)').forEach(function(parentTc) {
         var tid = parentTc.dataset.id;
         if (!tid) return;
         var subs = Array.from(col.querySelectorAll('.tc.sub[data-id^="' + tid + '."]'));
-        if (navActiveFilters.size === 0) {
-          parentTc.classList.remove('tc-hidden');
-          subs.forEach(function(s) { s.classList.remove('tc-hidden'); });
-          return;
+        var pMatch = tcMatches(parentTc);
+        var subMatches = subs.filter(tcMatches);
+        var show = pMatch || subMatches.length > 0;
+        parentTc.classList.toggle('tc-hidden', !show);
+        subs.forEach(function(s) { s.classList.toggle('tc-hidden', !tcMatches(s)); });
+        var exBtn = parentTc.querySelector('.tc-expand');
+        if (!show) {
+          // Collapse hidden parents so no orphan sub-group frame is left behind.
+          if (exBtn && exBtn.classList.contains('open')) { navDoExpand(exBtn, false); navAutoExpanded.delete(exBtn); }
+        } else {
+          colVisible++;
+          shown++;
+          // Reveal sub-techniques the user is implicitly asking about: a search
+          // that only matched below the parent, or a failing sub under a FAIL
+          // filter. The fail case is scoped to subs that actually carry the flag
+          // so a combined PASS+FAIL filter doesn't expand the whole matrix.
+          var revealSubs = (navSearchText && !pMatch)
+            || (failFocus && subMatches.some(tcHasFail));
+          if (exBtn && revealSubs && subMatches.length > 0 && !exBtn.classList.contains('open')) {
+            navDoExpand(exBtn, true);
+            navAutoExpanded.add(exBtn);
+          }
         }
-        var parentMatch = navActiveFilters.has(tcVerdict(parentTc));
-        var subMatch = subs.some(function(s) { return navActiveFilters.has(tcVerdict(s)); });
-        parentTc.classList.toggle('tc-hidden', !parentMatch && !subMatch);
-        subs.forEach(function(s) {
-          s.classList.toggle('tc-hidden', !navActiveFilters.has(tcVerdict(s)));
-        });
       });
+      // Hide whole columns that have no visible techniques under an active filter.
+      col.classList.toggle('tc-col-hidden', active && colVisible === 0);
     });
+    // With every column hidden the matrix collapses to a few pixels of nothing,
+    // and the only feedback left is the small count in the toolbar. Swap in the
+    // same empty state the rule table uses, plus a way back out.
+    var wrap = document.querySelector('.nav-wrap');
+    var empty = document.getElementById('nav-no-results');
+    var isEmpty = active && shown === 0;
+    if (wrap) wrap.classList.toggle('nav-empty', isEmpty);
+    if (empty) empty.style.display = isEmpty ? 'block' : 'none';
+    return shown;
   }
-  document.querySelectorAll('.nav-legend-item[data-filter]').forEach(function(item) {
-    item.addEventListener('click', function() {
+
+  // Reset every Navigator-side narrowing at once (verdict filters, scope,
+  // search) — reachable from the empty state, where nothing else is left to click.
+  function clearNavFilters() {
+    navActiveFilters.clear();
+    navScope = null;
+    navSearchText = '';
+    var inp = document.getElementById('nav-search');
+    if (inp) inp.value = '';
+    var clr = document.getElementById('nav-search-clear');
+    if (clr) clr.classList.remove('show');
+    document.querySelectorAll('.nav-verdict-item[data-filter]').forEach(function(item) {
+      item.classList.remove('checked');
+    });
+    var cb = document.getElementById('nav-qf-covered');
+    var gb = document.getElementById('nav-qf-gaps');
+    if (cb) cb.classList.remove('active');
+    if (gb) gb.classList.remove('active');
+    refreshVerdictBtn();
+    applyNavVisibility();
+    var cnt = document.getElementById('nav-search-count');
+    if (cnt) cnt.textContent = '';
+    if (typeof updateHash === 'function') updateHash();
+  }
+  function computeNavLegendCounts() {
+    var counts = { pass: 0, notver: 0, fail: 0, nv: 0, uncov: 0 };
+    // Verdict counts partition the matrix (used for the coverage totals below);
+    // failAny cross-cuts it — a PASS cell hiding a failed rule lands in both.
+    var failAny = 0;
+    document.querySelectorAll('.att-matrix .tc[data-id]').forEach(function(tc) {
+      counts[tcVerdict(tc)]++;
+      if (tcHasFail(tc)) failAny++;
+    });
+    Object.keys(counts).forEach(function(k) {
+      var n = (k === 'fail') ? failAny : counts[k];
+      var el = document.querySelector('.nav-legend-count[data-count="' + k + '"]');
+      if (el) el.textContent = n;
+      // Hide verdict rows that have no cells at all (e.g. N/A when every mapped
+      // rule has been validated) so the dropdown only lists states in play.
+      var item = el ? el.closest('.nav-verdict-item') : null;
+      if (item) item.style.display = n === 0 ? 'none' : '';
+    });
+    // Coverage is a separate axis from verdict: the Covered/Gaps control owns it,
+    // so its totals are rendered on the buttons rather than in the Verdict menu.
+    var total = counts.pass + counts.notver + counts.fail + counts.nv + counts.uncov;
+    var covEl = document.querySelector('.nav-qf-count[data-count="covered"]');
+    var gapEl = document.querySelector('.nav-qf-count[data-count="uncov"]');
+    if (covEl) covEl.textContent = total - counts.uncov;
+    if (gapEl) gapEl.textContent = counts.uncov;
+  }
+  function refreshVerdictBtn() {
+    var n = navActiveFilters.size;
+    var lbl = document.getElementById('nav-verdict-active');
+    var btn = document.getElementById('nav-verdict-btn');
+    if (lbl) lbl.textContent = n ? '(' + n + ')' : '';
+    if (btn) btn.classList.toggle('has-active', n > 0);
+  }
+  document.querySelectorAll('.nav-verdict-item[data-filter]').forEach(function(item) {
+    item.addEventListener('click', function(e) {
+      e.stopPropagation();
       var f = item.dataset.filter;
       if (navActiveFilters.has(f)) {
         navActiveFilters.delete(f);
-        item.classList.remove('filter-active');
+        item.classList.remove('checked');
       } else {
         navActiveFilters.add(f);
-        item.classList.add('filter-active');
+        item.classList.add('checked');
       }
-      applyNavFilters();
+      refreshVerdictBtn();
+      applyNavVisibility();
+      if (typeof updateHash === 'function') updateHash();
     });
   });
+  // Restore Navigator narrowing from a deep link (counterpart of encodeState).
+  function applyNavState(state) {
+    navActiveFilters = new Set(state.navFilters || []);
+    navScope = state.navScope || null;
+    navSearchText = (state.navQ || '').trim().toLowerCase();
+    document.querySelectorAll('.nav-verdict-item[data-filter]').forEach(function(item) {
+      item.classList.toggle('checked', navActiveFilters.has(item.dataset.filter));
+    });
+    var cb = document.getElementById('nav-qf-covered');
+    var gb = document.getElementById('nav-qf-gaps');
+    if (cb) cb.classList.toggle('active', navScope === 'covered');
+    if (gb) gb.classList.toggle('active', navScope === 'gaps');
+    var inp = document.getElementById('nav-search');
+    if (inp) inp.value = state.navQ || '';
+    var clr = document.getElementById('nav-search-clear');
+    if (clr) clr.classList.toggle('show', !!navSearchText);
+    refreshVerdictBtn();
+    var n = applyNavVisibility();
+    var cnt = document.getElementById('nav-search-count');
+    if (cnt) cnt.textContent = navSearchText ? (n + ' matching') : '';
+  }
+  function toggleVerdictMenu(e) {
+    e.stopPropagation();
+    document.getElementById('nav-export-menu').classList.remove('open');
+    document.getElementById('nav-verdict-menu').classList.toggle('open');
+  }
+  // Covered / Gaps quick-scope toggles
+  function toggleNavScope(scope) {
+    navScope = (navScope === scope) ? null : scope;
+    var cb = document.getElementById('nav-qf-covered');
+    var gb = document.getElementById('nav-qf-gaps');
+    if (cb) cb.classList.toggle('active', navScope === 'covered');
+    if (gb) gb.classList.toggle('active', navScope === 'gaps');
+    applyNavVisibility();
+    if (typeof updateHash === 'function') updateHash();
+  }
+  // Technique search
+  function onNavSearch() {
+    var inp = document.getElementById('nav-search');
+    navSearchText = (inp.value || '').trim().toLowerCase();
+    document.getElementById('nav-search-clear').classList.toggle('show', !!navSearchText);
+    var n = applyNavVisibility();
+    var cnt = document.getElementById('nav-search-count');
+    if (cnt) cnt.textContent = navSearchText ? (n + ' matching') : '';
+    if (navSearchText) {
+      var first = document.querySelector('.att-matrix .tc:not(.sub):not(.tc-hidden)[data-id]');
+      if (first) first.scrollIntoView({ inline: 'center', block: 'nearest' });
+    }
+    if (typeof updateHash === 'function') updateHash();
+  }
+  function clearNavSearch() {
+    var inp = document.getElementById('nav-search');
+    inp.value = '';
+    onNavSearch();
+    inp.focus();
+  }
+  // Export the techniques currently shown (respects filters/search, not collapse)
+  function navViewRows() {
+    var rows = [];
+    var vmap = { pass: 'PASS', notver: 'NOT_VERIFIED', fail: 'FAIL', nv: 'N/A', uncov: 'Not covered' };
+    document.querySelectorAll('.att-matrix .tc[data-id]:not(.tc-hidden)').forEach(function(tc) {
+      var col = tc.closest('.tc-col');
+      if (col && (col.classList.contains('collapsed') || col.classList.contains('tc-col-hidden'))) return;
+      var tn = tc.querySelector('.tn');
+      var ruleIds = '';
+      if (tc.dataset.rules) {
+        try { ruleIds = JSON.parse(tc.dataset.rules).map(function(r) { return r.id; }).join(' | '); } catch (e) {}
+      }
+      rows.push({
+        Technique: tc.dataset.id,
+        Name: tn ? tn.textContent : '',
+        Tactic: col ? (col.dataset.tactic || '') : '',
+        Coverage: vmap[tcVerdict(tc)],
+        // Same roll-up caveat as the matrix cell: Coverage can read PASS while a
+        // covering rule failed, so the failure is exported as its own column.
+        HasFailingRule: tcHasFail(tc) ? 'yes' : 'no',
+        Rules: ruleIds,
+      });
+    });
+    return rows;
+  }
+  function navToMarkdown(rows) {
+    var cols = ['Technique', 'Name', 'Tactic', 'Coverage', 'HasFailingRule', 'Rules'];
+    var esc = function(v) { return String(v == null ? '' : v).replace(/\|/g, '\\|'); };
+    var head = '| ' + cols.join(' | ') + ' |';
+    var sep = '| ' + cols.map(function() { return '---'; }).join(' | ') + ' |';
+    var body = rows.map(function(r) { return '| ' + cols.map(function(c) { return esc(r[c]); }).join(' | ') + ' |'; });
+    return ['# MITRE ATT&CK Navigator — Current View', '', '**Exported:** ' + todayStamp() + '  ', '**Techniques:** ' + rows.length, '', head, sep].concat(body).join('\n');
+  }
+  function toggleNavExportMenu(e) {
+    e.stopPropagation();
+    document.getElementById('nav-verdict-menu').classList.remove('open');
+    var cnt = document.getElementById('nav-export-count');
+    if (cnt) cnt.textContent = navViewRows().length;
+    document.getElementById('nav-export-menu').classList.toggle('open');
+  }
+  function exportNavView(format) {
+    document.getElementById('nav-export-menu').classList.remove('open');
+    var rows = navViewRows();
+    if (!rows.length) { alert('Nothing to export in the current view.'); return; }
+    var stamp = todayStamp();
+    if (format === 'json') {
+      var payload = { exportedAt: new Date().toISOString(), count: rows.length, techniques: rows };
+      downloadFile(JSON.stringify(payload, null, 2), 'navigator_view_' + stamp + '.json', 'application/json');
+    } else if (format === 'md') {
+      downloadFile(navToMarkdown(rows), 'navigator_view_' + stamp + '.md', 'text/markdown;charset=utf-8');
+    } else {
+      downloadFile(toCSV(rows), 'navigator_view_' + stamp + '.csv', 'text/csv;charset=utf-8');
+    }
+  }
+  // Tactic column collapse/expand
+  document.querySelectorAll('.tc-col-toggle').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      e.preventDefault();
+      var col = btn.closest('.tc-col');
+      var collapsed = col.classList.toggle('collapsed');
+      btn.innerHTML = collapsed ? '&#9656;' : '&#9662;';
+      btn.title = collapsed ? 'Expand column' : 'Collapse column';
+    });
+  });
+  // Open a technique panel by ID (used by deep-link on load)
+  function openNavByTid(tid) {
+    var btn = document.querySelector('.tc-detail[data-id="' + tid + '"]');
+    if (!btn) return;
+    openNavDetail(btn.dataset.id, btn.dataset.name, JSON.parse(btn.dataset.rules), -1);
+    var cell = document.querySelector('.tc[data-id="' + tid + '"]');
+    if (cell) cell.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }
+  computeNavLegendCounts();
   // Expand All / Collapse All button
   (function() {
     var btn = document.getElementById('expand-all-btn');
@@ -4193,7 +5766,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
       btn.innerHTML = expanded ? '&#9650; Collapse All' : '&#9660; Expand All';
       document.querySelectorAll('.tc-expand').forEach(function(exBtn) {
         var parentTc = exBtn.closest('.tc');
-        if (navActiveFilters.size > 0 && parentTc.classList.contains('tc-hidden')) return;
+        if (parentTc.classList.contains('tc-hidden')) return;
         var isOpen = exBtn.classList.contains('open');
         if (expanded && !isOpen) navDoExpand(exBtn, true);
         else if (!expanded && isOpen) navDoExpand(exBtn, false);
@@ -4223,37 +5796,115 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   var navPanelTid = document.getElementById('detail-tid');
   var navPanelBody = document.getElementById('detail-body');
   var navOpenDetailId = null;
-  document.getElementById('detail-close').addEventListener('click', function() {
+  // Current technique panel context: { bid, name, rules, sel } — sel is the
+  // index of the arrow-key-highlighted rule (-1 = none). navReopenAfterDrawer
+  // carries the same shape so closeDrawer() can restore the panel afterwards.
+  var navDetail = null;
+  var navReopenAfterDrawer = null;
+
+  function navPaintDetailSel() {
+    if (!navDetail) return;
+    var rows = navPanelBody.querySelectorAll('.detail-rule[data-idx]');
+    rows.forEach(function(row, i) {
+      var on = i === navDetail.sel;
+      row.classList.toggle('sel', on);
+      if (on) row.scrollIntoView({ block: 'nearest' });
+    });
+  }
+
+  function navMoveDetailSel(delta) {
+    if (!navDetail) return;
+    var rows = navPanelBody.querySelectorAll('.detail-rule[data-idx]');
+    if (!rows.length) return;
+    if (navDetail.sel < 0) navDetail.sel = delta > 0 ? 0 : rows.length - 1;
+    else navDetail.sel = Math.min(rows.length - 1, Math.max(0, navDetail.sel + delta));
+    navPaintDetailSel();
+  }
+
+  function navOpenSelectedRule() {
+    if (!navDetail) return;
+    var rows = navPanelBody.querySelectorAll('.detail-rule[data-idx]');
+    var row = rows[navDetail.sel];
+    if (!row) return;
+    // Remember where we came from so closing the drawer reopens this panel.
+    navReopenAfterDrawer = { bid: navDetail.bid, name: navDetail.name, rules: navDetail.rules, sel: navDetail.sel };
+    navPanel.classList.remove('open');
+    openDrawer(parseInt(row.dataset.idx, 10));
+  }
+
+  function openNavDetail(bid, name, rules, selIdx) {
+    navOpenDetailId = bid;
+    navDetail = { bid: bid, name: name, rules: rules, sel: (selIdx == null ? -1 : selIdx) };
+    navPanelTitle.textContent = name;
+    navPanelTid.textContent = bid;
+    if (typeof updateHash === 'function') updateHash();
+    var html = '';
+    rules.forEach(function(r) {
+      var vc = r.verdict === 'N/A' ? 'NA' : r.verdict;
+      var badge = '<span class="detail-vbadge ' + vc + '">' + vLabel(r.verdict) + '</span>';
+      var label = escHtml(r.id + ': ' + r.title);
+      var idx = RULE_IDX_BY_ID[r.id];
+      if (idx !== undefined) {
+        html += '<div class="detail-rule" data-idx="' + idx + '" role="button" tabindex="0">' + badge + label + '</div>';
+      } else {
+        html += '<div class="detail-noverd">' + badge + label + '</div>';
+      }
+    });
+    navPanelBody.innerHTML = html;
+    // Clicking a rule opens the shared Rule Library drawer (not a new page).
+    navPanelBody.querySelectorAll('.detail-rule[data-idx]').forEach(function(el, i) {
+      el.addEventListener('click', function() { navDetail.sel = i; navOpenSelectedRule(); });
+      el.addEventListener('mouseenter', function() { navDetail.sel = i; navPaintDetailSel(); });
+    });
+    navPanel.classList.add('open');
+    navPaintDetailSel();
+  }
+
+  function closeNavDetail() {
     navPanel.classList.remove('open');
     navOpenDetailId = null;
-  });
+    navDetail = null;
+    navReopenAfterDrawer = null;
+    if (typeof updateHash === 'function') updateHash();
+  }
+
+  document.getElementById('detail-close').addEventListener('click', closeNavDetail);
+
   document.querySelectorAll('.tc-detail').forEach(function(btn) {
     btn.addEventListener('click', function(e) {
       e.stopPropagation();
       var bid = btn.dataset.id;
       if (navPanel.classList.contains('open') && navOpenDetailId === bid) {
-        navPanel.classList.remove('open');
-        navOpenDetailId = null;
+        closeNavDetail();
         return;
       }
-      navOpenDetailId = bid;
-      var rules = JSON.parse(btn.dataset.rules);
-      navPanelTitle.textContent = btn.dataset.name;
-      navPanelTid.textContent = bid;
-      var html = '';
-      rules.forEach(function(r) {
-        var vc = r.verdict === 'N/A' ? 'NA' : r.verdict;
-        var badge = '<span class="detail-vbadge ' + vc + '">' + vLabel(r.verdict) + '</span>';
-        var label = r.id + ': ' + r.title;
-        if (r.url) {
-          html += '<a class="detail-rule" href="' + r.url + '" target="_blank">' + badge + label + '</a>';
-        } else {
-          html += '<div class="detail-noverd">' + badge + label + '</div>';
-        }
-      });
-      navPanelBody.innerHTML = html;
-      navPanel.classList.add('open');
+      openNavDetail(bid, btn.dataset.name, JSON.parse(btn.dataset.rules), -1);
     });
+  });
+
+  // Arrow-key navigation for the Navigator technique panel: Up/Down move
+  // between the listed rules, Enter opens the highlighted one, Escape closes.
+  // While a rule drawer is open (opened from here), Escape closes it — which
+  // reopens this panel via closeDrawer().
+  document.addEventListener('keydown', function(e) {
+    if (currentTab !== 'navigator') return;
+    var el = document.activeElement;
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
+    if (isDrawerOpen()) {
+      if (e.key === 'Escape') { e.preventDefault(); closeDrawer(); }
+      return;
+    }
+    if (!navPanel.classList.contains('open')) return;
+    switch (e.key) {
+      case 'ArrowDown': e.preventDefault(); navMoveDetailSel(1); break;
+      case 'ArrowUp': e.preventDefault(); navMoveDetailSel(-1); break;
+      case 'Enter':
+        e.preventDefault();
+        if (navDetail && navDetail.sel < 0) navMoveDetailSel(1);
+        navOpenSelectedRule();
+        break;
+      case 'Escape': e.preventDefault(); closeNavDetail(); break;
+    }
   });
 
 
@@ -4279,6 +5930,7 @@ def render_html_summary(stats: dict, repo: str) -> str:
     not_ver = stats.get("verified_not_verified", 0)
     never_tested = stats.get("never_tested", stats.get("not_verified", 0))
     pass_rate = stats["pass_rate_pct"]
+    verified_current = stats.get("verified_current", total)
     mitre_covered = stats.get("mitre_covered_techniques", 0)
     mitre_total = stats.get("mitre_total_techniques", 0)
     mitre_pct = stats.get("mitre_coverage_pct", 0.0)
@@ -4286,6 +5938,7 @@ def render_html_summary(stats: dict, repo: str) -> str:
     rules_js = []
     for r in stats["rules"]:
         ls = r.get("logsource") or {}
+        testing = r.get("testing") or {}
         rules_js.append({
             "id": r.get("detect_id", ""),
             "title": r.get("title", ""),
@@ -4309,6 +5962,12 @@ def render_html_summary(stats: dict, repo: str) -> str:
             "date": r.get("date", ""),
             "modified": r.get("modified", ""),
             "ruleVersion": r.get("rule_version", ""),
+            "verdictAt": r.get("verdict_at", ""),
+            "verdictRuleVersion": r.get("verdict_rule_version", ""),
+            "verifyMethod": VERIFY_METHOD_LABELS.get(
+                testing.get("type", ""), testing.get("type", "")
+            ),
+            "verifyRunner": testing.get("runner", ""),
             "references": r.get("references") or [],
             "ruleBody": r.get("rule_body", ""),
             "ruleBodyLang": r.get("rule_body_lang", ""),
@@ -4324,7 +5983,12 @@ def render_html_summary(stats: dict, repo: str) -> str:
     rules_detail_inner = stats.get("_rules_detail", stats.get("rules", []))
     technique_coverage = build_technique_coverage(rules_detail_inner, repo)
     matrix_html = _build_matrix_html(technique_map, technique_coverage)
-    layer_url = f"https://github.com/{repo}/blob/main/outputs/reports/navigator_layer.json"
+    # Raw URL, not the blob page: this is what you paste into the official
+    # Navigator's "Open Existing Layer → Load from URL" (raw.githubusercontent
+    # serves it with CORS), and it still saves fine straight from the browser.
+    layer_url = (
+        f"https://raw.githubusercontent.com/{repo}/main/outputs/reports/navigator_layer.json"
+    )
 
     html = _PAGE_TEMPLATE
     html = html.replace("@@TS@@", ts)
@@ -4333,7 +5997,10 @@ def render_html_summary(stats: dict, repo: str) -> str:
     html = html.replace("@@FAILED@@", str(failed))
     html = html.replace("@@NOT_VER@@", str(not_ver))
     html = html.replace("@@NEVER_TESTED@@", str(never_tested))
-    html = html.replace("@@PASS_RATE@@", str(pass_rate))
+    # Render as a whole number so the Pass Rate overlay matches the Status
+    # chart's Stable % (also integer) — no stray decimal on one but not the other.
+    html = html.replace("@@PASS_RATE@@", str(round(pass_rate)))
+    html = html.replace("@@VERIFIED_CURRENT@@", str(verified_current))
     html = html.replace("@@MITRE_COVERED@@", str(mitre_covered))
     html = html.replace("@@MITRE_TOTAL@@", str(mitre_total))
     html = html.replace("@@MITRE_PCT@@", str(mitre_pct))
@@ -4343,6 +6010,19 @@ def render_html_summary(stats: dict, repo: str) -> str:
     html = html.replace("@@RULE_GROWTH_HISTORY_JSON@@", rule_growth_history_json)
     html = html.replace("@@MATRIX_HTML@@", matrix_html)
     html = html.replace("@@LAYER_URL@@", layer_url)
+    html = html.replace("@@REVIEW_DAYS@@", str(REVIEW_INTERVAL_DAYS))
+    owner, name = repo.split("/", 1)
+    html = html.replace("@@PAGE_URL@@", f"https://{owner}.github.io/{name}/")
+    # Plain text, no markup: this lands inside a double-quoted meta attribute,
+    # so a stray quote would end the attribute early. Nothing here is
+    # user-supplied, but the escape keeps that true if the wording ever is.
+    meta_desc = (
+        f"Searchable index of {total} Sigma and native SPL detection rules with "
+        f"MITRE ATT&amp;CK mapping, Atomic Red Team verification verdicts "
+        f"({pass_rate:.0f}% pass rate across the {verified_current} of {total} rules "
+        f"verified against their current version) and {mitre_covered} techniques covered."
+    ).replace('"', "&quot;")
+    html = html.replace("@@META_DESC@@", meta_desc)
     return html
 def update_html_summary(content: str) -> None:
     out_path = REPO_ROOT / "docs" / "index.html"
@@ -4364,7 +6044,10 @@ def main() -> int:
     print(
         f"Stats: {stats['total_sigma_rules']} sigma + {stats['total_native_spl_rules']} native SPL rules — "
         f"{stats['verified_pass']} pass / {stats['verified_fail']} fail / "
-        f"{stats['not_verified']} not verified — pass rate: {stats['pass_rate_pct']}%"
+        f"{stats['not_verified']} not verified / {stats['verified_stale']} outdated — "
+        f"pass rate: {stats['pass_rate_pct']}% of the {stats['verified_current']} "
+        f"rule(s) verified against their current version "
+        f"({stats['verification_current_pct']}% of the library)"
     )
 
     section = render_readme_section(stats, repo)

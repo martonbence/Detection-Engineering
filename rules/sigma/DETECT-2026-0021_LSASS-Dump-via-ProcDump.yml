@@ -1,6 +1,6 @@
 title: LSASS Dump via ProcDump
 detect_id: DETECT-2026-0021
-status: experimental
+status: stable
 description: >
   Detects the use of Sysinternals ProcDump (procdump.exe / procdump64.exe) to
   create a memory dump of the LSASS process. ProcDump is a legitimate diagnostic

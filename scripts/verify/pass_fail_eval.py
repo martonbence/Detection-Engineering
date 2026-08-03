@@ -4,18 +4,26 @@ pass_fail_eval.py — Evaluate Pass/Fail for each rule based on Splunk matched e
 Usage:
     python pass_fail_eval.py [--matched-events-dir outputs/verify/matched_events]
                              [--results-dir outputs/results]
-                             [--min-pass 1] [--max-pass 20]
+                             [--min-pass 1] [--max-pass 10]
 
 Pass criteria : MIN_PASS <= event_count <= MAX_PASS
 Fail criteria : event_count < MIN_PASS  (no alerts fired)
               | event_count > MAX_PASS  (too many / noisy)
-              | error field is non-null (Splunk query failed)
-Not verified  : rule's tester is "atomic" and its Atomic Red Team test did not
-                reach a "completed" progress marker (see --progress-dir) --
-                e.g. the run_atomic.ps1 step was killed by its 10-minute
-                timeout before getting to this rule. Distinct from FAIL:
-                the detection logic was never actually exercised, so we
-                can't say anything about whether it would have matched.
+              | error with error_kind "rule_error" -- the saved search is not
+                deployed, or the search job itself errored inside Splunk
+
+Not verified  : two independent routes, both meaning "we did not measure this",
+                never "this rule is broken":
+                (a) attack side -- rule's tester is "atomic" and its Atomic Red
+                    Team test did not reach a "completed" progress marker (see
+                    --progress-dir), e.g. run_atomic.ps1 was killed by its
+                    10-minute timeout before getting to this rule;
+                (b) measurement side -- the Splunk query carried an error with
+                    error_kind "unmeasured": the search never finished, the
+                    network dropped, or Splunk answered unparseably.
+                Both are distinct from FAIL: nothing was learned either way, so
+                reporting a confirmed negative would be inventing data. Note
+                (b) reaches emulation-tested rules too, unlike (a).
 
 Outputs:
   <results-dir>/<detect_id>/result.json   — per-rule verdict
@@ -91,11 +99,29 @@ def atomic_test_completed(progress_dir: Path | None, detect_id: str) -> bool:
     return data.get("status") == "completed"
 
 
+# Mirrors check_saved_search_hits.py's ERR_UNMEASURED. Only this exact kind
+# softens a query error into NOT_VERIFIED; anything else -- including an
+# unrecognised or absent kind, which is what result files written before this
+# field existed look like -- keeps the original FAIL behaviour. Unknown input
+# should not be able to talk its way out of a failure.
+ERR_UNMEASURED = "unmeasured"
+
+
 def evaluate(
-    event_count: int, error: str | None, min_pass: int, max_pass: int
+    event_count: int,
+    error: str | None,
+    min_pass: int,
+    max_pass: int,
+    error_kind: str | None = None,
 ) -> tuple[str, str]:
     """Return (verdict, reason)."""
     if error:
+        # A query that could not complete says nothing about the detection.
+        # Reporting it as FAIL would manufacture a confirmed negative from
+        # missing data -- the same mistake NOT_VERIFIED exists to prevent on
+        # the attack side, arriving here from the measurement side instead.
+        if error_kind == ERR_UNMEASURED:
+            return NOT_VERIFIED, f"Could not measure: {error}"
         return FAIL, f"Splunk query error: {error}"
     if event_count < min_pass:
         return FAIL, f"Too few events: {event_count} (min expected: {min_pass})"
@@ -138,8 +164,9 @@ def write_github_summary(path: str, report: dict) -> None:
         "",
         "---",
         f"Pass criteria: **{report['min_pass']} ≤ events ≤ {report['max_pass']}**  ",
-        f"{NOT_VERIFIED_EMOJI} NOT VERIFIED: Atomic Red Team test did not complete "
-        "before the step timeout -- treated the same as FAIL for gating purposes.  ",
+        f"{NOT_VERIFIED_EMOJI} NOT VERIFIED: the attack did not complete (Atomic Red Team "
+        "test cut short) or the measurement did not complete (Splunk search did not finish) "
+        "-- unknown, not broken; treated the same as FAIL for gating purposes.  ",
         "Results saved to `outputs/results/`",
     ]
 
@@ -239,13 +266,22 @@ def main(argv: list[str]) -> int:
         title = summary.get("title", "")
         event_count = int(summary.get("event_count", 0))
         error = summary.get("error") or None
+        error_kind = summary.get("error_kind") or None
         tester = str(summary.get("tester") or "").strip().lower()
 
+        # Two independent ways a rule can end up unverified, checked in this
+        # order because they answer different questions. First: did the attack
+        # run? (progress markers, atomic only). Then: did the measurement run?
+        # (error_kind from the Splunk query). A rule whose test completed fine
+        # but whose search timed out reaches the second check with a completed
+        # marker, which is exactly the case that used to fall through to FAIL.
         if tester == "atomic" and not atomic_test_completed(progress_dir, detect_id):
             verdict = NOT_VERIFIED
             reason = "Atomic Red Team test did not complete before step timeout"
         else:
-            verdict, reason = evaluate(event_count, error, args.min_pass, args.max_pass)
+            verdict, reason = evaluate(
+                event_count, error, args.min_pass, args.max_pass, error_kind
+            )
 
         if verdict != PASS:
             all_pass = False

@@ -64,6 +64,19 @@ def extract_meta(path: Path) -> dict:
         return {}
 
 
+# Why an error needs a *kind* and not just a message: downstream, a failed
+# measurement and a failed rule deserve opposite verdicts. If we could not
+# measure -- the search never finished, the network dropped, Splunk answered
+# with something unparseable -- then nothing is known about the detection, and
+# calling that a FAIL invents a confirmed negative out of missing data. But if
+# the saved search is not in Splunk at all, or the search job itself errored,
+# that IS a real defect and hiding it behind a soft "unknown" would be the
+# opposite mistake. pass_fail_eval.py maps these two to NOT_VERIFIED and FAIL
+# respectively; the string stays human-facing, this field is the contract.
+ERR_UNMEASURED = "unmeasured"   # we could not measure -> NOT_VERIFIED
+ERR_RULE = "rule_error"         # the rule/deployment is wrong -> FAIL
+
+
 def dispatch_saved_search(
     session: requests.Session,
     base_url: str,
@@ -75,10 +88,12 @@ def dispatch_saved_search(
     max_events: int = 100,
     poll_interval: float = 3.0,
     max_wait: float = 120.0,
-) -> tuple[list[dict], str | None]:
+) -> tuple[list[dict], str | None, str | None]:
     """
     Dispatch an already-deployed saved search over [earliest, latest] and return
-    (events, error_msg).  Uses /saved/searches/{name}/dispatch — no SPL re-parsing needed.
+    (events, error_msg, error_kind).  Uses /saved/searches/{name}/dispatch — no
+    SPL re-parsing needed.  error_kind is one of ERR_UNMEASURED / ERR_RULE, and
+    is None exactly when error_msg is None.
     """
     dispatch_url = (
         f"{base_url}/servicesNS/{quote(owner, safe='')}/{quote(app, safe='')}"
@@ -93,20 +108,25 @@ def dispatch_saved_search(
     try:
         r = session.post(dispatch_url, data=payload, timeout=30)
     except requests.RequestException as exc:
-        return [], f"Network error dispatching saved search: {exc}"
+        return [], f"Network error dispatching saved search: {exc}", ERR_UNMEASURED
 
+    # A missing saved search is a deployment defect, not a measurement gap:
+    # the rule is not in Splunk, so it cannot fire for anyone, and that should
+    # read red rather than amber.
     if r.status_code == 404:
-        return [], f"Saved search not found in Splunk: '{search_name}'"
+        return [], f"Saved search not found in Splunk: '{search_name}'", ERR_RULE
+    if r.status_code >= 500:
+        return [], f"Splunk error dispatching HTTP {r.status_code}: {r.text[:300]}", ERR_UNMEASURED
     if r.status_code not in (200, 201):
-        return [], f"Dispatch failed HTTP {r.status_code}: {r.text[:300]}"
+        return [], f"Dispatch failed HTTP {r.status_code}: {r.text[:300]}", ERR_RULE
 
     try:
         sid = r.json().get("sid")
     except ValueError:
-        return [], f"Non-JSON dispatch response: {r.text[:300]}"
+        return [], f"Non-JSON dispatch response: {r.text[:300]}", ERR_UNMEASURED
 
     if not sid:
-        return [], f"No SID in dispatch response: {r.text[:300]}"
+        return [], f"No SID in dispatch response: {r.text[:300]}", ERR_UNMEASURED
 
     # Poll until done
     status_url = (
@@ -135,11 +155,32 @@ def dispatch_saved_search(
         except (ValueError, IndexError):
             continue
 
-        if dispatch_state in ("DONE", "FAILED", "FINALIZING"):
+        # FINALIZING deliberately does NOT end the loop. The job is still
+        # assembling its result set in that state, so reading it here returns a
+        # partial count -- which, being lower than the real one, can drop a
+        # working rule under the pass threshold and report a failure that never
+        # happened. DONE is the only state in which the numbers are final.
+        if dispatch_state in ("DONE", "FAILED"):
             break
 
     if dispatch_state == "FAILED":
-        return [], f"Search job failed (SID={sid})"
+        # The search itself errored inside Splunk (malformed SPL, bad field
+        # reference, missing index). That is a defect in the rule, so it stays
+        # a FAIL.
+        return [], f"Search job failed (SID={sid})", ERR_RULE
+
+    if dispatch_state != "DONE":
+        # The whole point of this branch: previously the code fell through here
+        # and fetched results anyway, returning zero events with NO error --
+        # indistinguishable from "the detection did not fire". A search that
+        # never finished tells us nothing about the rule, so it is reported as
+        # an explicit failure to measure and becomes NOT_VERIFIED downstream.
+        state = dispatch_state or "no state reported"
+        return (
+            [],
+            f"Search did not finish within {max_wait:.0f}s (SID={sid}, last state: {state})",
+            ERR_UNMEASURED,
+        )
 
     # Fetch results
     results_url = (
@@ -151,17 +192,21 @@ def dispatch_saved_search(
     try:
         r_results = session.get(results_url, timeout=30)
     except requests.RequestException as exc:
-        return [], f"Network error fetching results: {exc}"
+        return [], f"Network error fetching results: {exc}", ERR_UNMEASURED
 
     if r_results.status_code != 200:
-        return [], f"Failed to fetch results HTTP {r_results.status_code}: {r_results.text[:300]}"
+        return (
+            [],
+            f"Failed to fetch results HTTP {r_results.status_code}: {r_results.text[:300]}",
+            ERR_UNMEASURED,
+        )
 
     try:
         events = r_results.json().get("results", [])
     except ValueError:
-        return [], f"Non-JSON results response: {r_results.text[:300]}"
+        return [], f"Non-JSON results response: {r_results.text[:300]}", ERR_UNMEASURED
 
-    return events, None
+    return events, None, None
 
 
 def main(argv: list[str]) -> int:
@@ -216,6 +261,10 @@ def main(argv: list[str]) -> int:
                 "run_timestamp": run_ts,
                 "event_count": 0,
                 "error": "SPL file not found",
+                # A missing SPL file is a repo/bundle defect, not a Splunk
+                # outage -- there is nothing to measure because the rule is
+                # not there, so it reads as a failure rather than an unknown.
+                "error_kind": ERR_RULE,
                 "events": [],
             }
             (rule_out_dir / "hits.json").write_text(
@@ -229,7 +278,7 @@ def main(argv: list[str]) -> int:
 
         print(f"\n[{detect_id}] Dispatching '{search_name}' ({args.earliest} → {args.latest})")
 
-        events, error = dispatch_saved_search(
+        events, error, error_kind = dispatch_saved_search(
             session=session,
             base_url=base_url,
             app=app,
@@ -266,6 +315,10 @@ def main(argv: list[str]) -> int:
             "run_timestamp": run_ts,
             "event_count": len(events),
             "error": error,
+            # Machine-readable companion to "error": tells pass_fail_eval.py
+            # whether this is a rule defect (FAIL) or a failure to measure
+            # (NOT_VERIFIED). None whenever "error" is None.
+            "error_kind": error_kind,
             "events": events,
         }
 

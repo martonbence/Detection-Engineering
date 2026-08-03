@@ -1,19 +1,29 @@
 {
-  "generated_at": "2026-07-25T12:38:53.915367+00:00",
+  "generated_at": "2026-08-03T16:47:45.259160+00:00",
   "total_rules": 27,
   "total_sigma_rules": 27,
-  "total_splunk_rules": 14,
+  "total_compiled_sigma_rules": 26,
+  "total_splunk_rules": 15,
   "total_native_spl_rules": 1,
   "verified_pass": 26,
   "verified_fail": 1,
   "verified_not_verified": 0,
   "never_tested": 0,
   "not_verified": 0,
-  "pass_rate_pct": 96,
+  "verified_stale": 11,
+  "verified_superseded": 11,
+  "verified_expired": 0,
+  "verified_pass_current": 15,
+  "verified_fail_current": 1,
+  "verified_current": 16,
+  "pass_rate_pct": 94,
   "pass_rate_color": "brightgreen",
+  "verification_current_pct": 59,
+  "verification_current_color": "yellow",
+  "confirmed_working_pct": 56,
   "mitre_covered_techniques": 11,
   "mitre_total_techniques": 222,
-  "mitre_total_fetched_at": "2026-07-22T17:58:10.897088+00:00",
+  "mitre_total_fetched_at": "2026-07-30T19:08:42.985300+00:00",
   "mitre_coverage_pct": 5.0,
   "by_level": {
     "critical": 14,
@@ -22,8 +32,8 @@
     "medium": 3
   },
   "by_status": {
-    "experimental": 4,
-    "stable": 21,
+    "experimental": 1,
+    "stable": 24,
     "test": 2
   },
   "by_tactic": {
@@ -45,6 +55,8 @@
       "source": "native_spl",
       "verdict": "PASS",
       "run_id": "30151948301",
+      "verdict_at": "2026-07-25T08:58:38.914774+00:00",
+      "verdict_rule_version": "1.4",
       "tactics": [
         "Execution"
       ],
@@ -93,6 +105,8 @@
       "source": "sigma",
       "verdict": "PASS",
       "run_id": "30151948301",
+      "verdict_at": "2026-07-25T08:58:38.914774+00:00",
+      "verdict_rule_version": "1.7",
       "tactics": [
         "Execution",
         "Persistence",
@@ -149,6 +163,8 @@
       "source": "sigma",
       "verdict": "PASS",
       "run_id": "30151948301",
+      "verdict_at": "2026-07-25T08:58:38.914774+00:00",
+      "verdict_rule_version": "1.8",
       "tactics": [
         "Execution",
         "Persistence",
@@ -201,6 +217,8 @@
       "source": "sigma",
       "verdict": "PASS",
       "run_id": "30151948301",
+      "verdict_at": "2026-07-25T08:58:38.914774+00:00",
+      "verdict_rule_version": "1.19",
       "tactics": [
         "Execution",
         "Stealth"
@@ -258,6 +276,8 @@
       "source": "sigma",
       "verdict": "PASS",
       "run_id": "30151948301",
+      "verdict_at": "2026-07-25T08:58:38.914774+00:00",
+      "verdict_rule_version": "1.7",
       "tactics": [
         "Execution",
         "Command & Control"
@@ -316,6 +336,8 @@
       "source": "sigma",
       "verdict": "PASS",
       "run_id": "30151948301",
+      "verdict_at": "2026-07-25T08:58:38.914774+00:00",
+      "verdict_rule_version": "1.9",
       "tactics": [
         "Execution",
         "Stealth"
@@ -375,6 +397,8 @@
       "source": "sigma",
       "verdict": "PASS",
       "run_id": "30151948301",
+      "verdict_at": "2026-07-25T08:58:38.914774+00:00",
+      "verdict_rule_version": "1.7",
       "tactics": [
         "Execution"
       ],
@@ -427,6 +451,8 @@
       "source": "sigma",
       "verdict": "PASS",
       "run_id": "30157694300",
+      "verdict_at": "2026-07-25T12:18:42.427709+00:00",
+      "verdict_rule_version": "1.6",
       "tactics": [
         "Execution",
         "Stealth"
@@ -472,6 +498,8 @@
       "source": "sigma",
       "verdict": "FAIL",
       "run_id": "30156928952",
+      "verdict_at": "2026-07-25T11:53:00.922315+00:00",
+      "verdict_rule_version": "1.15",
       "tactics": [
         "Execution",
         "Defense Impairment"
@@ -518,6 +546,8 @@
       "source": "sigma",
       "verdict": "PASS",
       "run_id": "30155968878",
+      "verdict_at": "2026-07-25T11:22:26.048326+00:00",
+      "verdict_rule_version": "1.6",
       "tactics": [
         "Execution",
         "Initial Access"
@@ -564,6 +594,8 @@
       "source": "sigma",
       "verdict": "PASS",
       "run_id": "30155968878",
+      "verdict_at": "2026-07-25T11:22:26.048326+00:00",
+      "verdict_rule_version": "1.8",
       "tactics": [
         "Execution",
         "Stealth"
@@ -610,6 +642,8 @@
       "source": "sigma",
       "verdict": "PASS",
       "run_id": "30155968878",
+      "verdict_at": "2026-07-25T11:22:26.048326+00:00",
+      "verdict_rule_version": "1.7",
       "tactics": [
         "Execution",
         "Stealth"
@@ -662,7 +696,9 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30155968878",
+      "run_id": "30833501859",
+      "verdict_at": "2026-08-03T16:47:40.447432+00:00",
+      "verdict_rule_version": "1.8",
       "tactics": [
         "Execution",
         "Defense Impairment"
@@ -681,7 +717,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-05-05",
-      "modified": "2026-07-25",
+      "modified": "2026-08-03",
       "references": [
         "https://attack.mitre.org/techniques/T1059/001/",
         "https://attack.mitre.org/techniques/T1562/002/"
@@ -699,7 +735,7 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_logging:\n    CommandLine|contains:\n    - ScriptBlockLogging\n    - EnableScriptBlockLogging\n    - EnableScriptBlockInvocationLogging\n    - ModuleLogging\n    - EnableModuleLogging\n    - ProtectedEventLogging\n    - cachedGroupPolicySettings\n    - SOFTWARE\\Policies\\Microsoft\\Windows\\PowerShell\n  selection_delete:\n    CommandLine|contains|all:\n    - Remove-Item\n    - Policies\\Microsoft\\Windows\\PowerShell\n  condition: selection_image and (selection_logging or selection_delete)",
       "rule_body_lang": "yaml",
-      "rule_version": "1.6"
+      "rule_version": "1.8"
     },
     {
       "detect_id": "DETECT-2026-0018",
@@ -709,7 +745,9 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30155968878",
+      "run_id": "30833501859",
+      "verdict_at": "2026-08-03T16:47:40.447432+00:00",
+      "verdict_rule_version": "1.11",
       "tactics": [
         "Execution"
       ],
@@ -725,7 +763,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-05-12",
-      "modified": "2026-07-25",
+      "modified": "2026-08-03",
       "references": [
         "https://attack.mitre.org/techniques/T1059/001/",
         "https://github.com/PowerShellMafia/PowerSploit",
@@ -743,7 +781,7 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_cmdlets:\n    CommandLine|contains:\n    - Add-Persistence\n    - Find-AVSignature\n    - Get-GPPAutologon\n    - Get-GPPPassword\n    - Get-HttpStatus\n    - Get-Keystrokes\n    - Get-SecurityPackages\n    - Get-TimedScreenshot\n    - Get-VaultCredential\n    - Get-VolumeShadowCopy\n    - Install-SSP\n    - Invoke-CredentialInjection\n    - Invoke-DllInjection\n    - Invoke-Mimikatz\n    - Invoke-NinjaCopy\n    - Invoke-Portscan\n    - Invoke-ReflectivePEInjection\n    - Invoke-ReverseDnsLookup\n    - Invoke-Shellcode\n    - Invoke-TokenManipulation\n    - Invoke-WmiCommand\n    - Mount-VolumeShadowCopy\n    - New-ElevatedPersistenceOption\n    - New-UserPersistenceOption\n    - New-VolumeShadowCopy\n    - Out-CompressedDll\n    - Out-EncodedCommand\n    - Out-EncryptedScript\n    - Out-Minidump\n    - PowerUp\n    - PowerView\n    - Remove-Comments\n    - Remove-VolumeShadowCopy\n    - Set-CriticalProcess\n    - Set-MasterBootRecord\n    - Invoke-Kerberoast\n    - Invoke-ASREPRoast\n    - Invoke-DCSync\n    - Invoke-BloodHound\n    - Invoke-TheHash\n    - Invoke-WMIExec\n    - Invoke-SMBExec\n    - Invoke-DCOM\n    - Invoke-PowerShellTcp\n    - Invoke-PowerShellUdp\n    - Invoke-Inveigh\n    - Invoke-InveighRelay\n    - Invoke-EventViewer\n    - Invoke-SilentCleanup\n    - Invoke-Tater\n    - Invoke-Obfuscation\n    - Get-PassHashes\n  condition: selection_image and selection_cmdlets",
       "rule_body_lang": "yaml",
-      "rule_version": "1.9"
+      "rule_version": "1.11"
     },
     {
       "detect_id": "DETECT-2026-0019",
@@ -753,7 +791,9 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30158148605",
+      "run_id": "30833501859",
+      "verdict_at": "2026-08-03T16:47:40.447432+00:00",
+      "verdict_rule_version": "1.5",
       "tactics": [
         "Credential Access"
       ],
@@ -769,7 +809,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-06-21",
-      "modified": "2026-07-25",
+      "modified": "2026-08-03",
       "references": [
         "https://attack.mitre.org/techniques/T1003/001/"
       ],
@@ -787,17 +827,19 @@
       },
       "rule_body": "detection:\n  selection:\n    TargetImage|endswith:\n    - \\lsass.exe\n    GrantedAccess|contains:\n    - '0x1010'\n    - '0x1410'\n    - '0x143a'\n    - '0x1438'\n    - '0x40'\n    - '0x1fffff'\n    - '0x1f1fff'\n  filter_system_processes:\n    SourceImage|endswith:\n    - \\lsass.exe\n    - \\werfault.exe\n    - \\WerFaultSecure.exe\n    - \\csrss.exe\n    - \\wininit.exe\n  filter_av_edr:\n    SourceImage|contains:\n    - \\Windows Defender\\\n    - \\Microsoft Security Client\\\n    - \\Malwarebytes\\\n    - \\CrowdStrike\\\n    - \\SentinelOne\\\n    - \\Carbon Black\\\n    - \\Cylance\\\n    - \\Symantec\\\n    - \\McAfee\\\n    - \\Sophos\\\n    - \\ESET\\\n    - \\Kaspersky\\\n    - \\Trend Micro\\\n    - \\Panda Security\\\n    - \\F-Secure\\\n  condition: selection and not (filter_system_processes or filter_av_edr)",
       "rule_body_lang": "yaml",
-      "rule_version": "1.3"
+      "rule_version": "1.5"
     },
     {
       "detect_id": "DETECT-2026-0020",
       "title": "LSASS Credential Dump via comsvcs.dll MiniDump",
       "description": "Detects LSASS memory dump creation using the MiniDump export of the native Windows DLL comsvcs.dll, invoked via rundll32.exe. This is a well-known living-off-the-land (LOLBAS) technique that avoids dropping third-party dumping tools to disk: the attacker passes the LSASS PID, an output file path, and the literal string \"full\" to the MiniDump function, which creates a complete minidump of LSASS that can be later parsed offline with Mimikatz or pypykatz to extract credentials. Because the target is identified by PID rather than process name, \"lsass\" does not appear in the command line.\nCanonical command form:\n  rundll32.exe C:\\Windows\\System32\\comsvcs.dll, MiniDump <lsass_pid> <output> full\n\nDetection matches on rundll32.exe via Image path or PE OriginalFileName (to catch renamed binaries), combined with \"comsvcs\", \"MiniDump\", and \"full\" all present in the command line. This combination has a near-zero false-positive rate outside of authorized security testing.\nKnown gap: ordinal-based invocation (e.g. comsvcs.dll,#24 instead of MiniDump by name) bypasses this rule, as the export name does not appear in the command line.\n",
       "level": "critical",
-      "status": "experimental",
+      "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "27060254255",
+      "run_id": "30833501859",
+      "verdict_at": "2026-08-03T16:47:40.447432+00:00",
+      "verdict_rule_version": "1.6",
       "tactics": [
         "Credential Access",
         "Stealth"
@@ -815,7 +857,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-06-06",
-      "modified": "2026-06-06",
+      "modified": "2026-08-03",
       "references": [
         "https://attack.mitre.org/techniques/T1003/001/",
         "https://lolbas-project.github.io/lolbas/Libraries/comsvcs/"
@@ -839,17 +881,19 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\rundll32.exe\n  selection_original_filename:\n    OriginalFileName:\n    - RUNDLL32.EXE\n  selection_cmdlet:\n    CommandLine|contains|all:\n    - comsvcs\n    - MiniDump\n    - full\n  condition: (selection_image or selection_original_filename) and selection_cmdlet",
       "rule_body_lang": "yaml",
-      "rule_version": "1.4"
+      "rule_version": "1.6"
     },
     {
       "detect_id": "DETECT-2026-0021",
       "title": "LSASS Dump via ProcDump",
       "description": "Detects the use of Sysinternals ProcDump (procdump.exe / procdump64.exe) to create a memory dump of the LSASS process. ProcDump is a legitimate diagnostic tool, but targeting lsass.exe specifically is a classic credential harvesting step: the resulting .dmp file can be copied off-system and parsed with Mimikatz (sekurlsa::minidump) or pypykatz to recover plaintext credentials, NTLM hashes, and Kerberos tickets without ever running an offensive tool on the victim host.\nDetection matches on \"procdump\" in either the Image path or the PE OriginalFileName (to catch renamed binaries), combined with \"lsass\" in the command line and at least one dump-mode flag (-ma/-mm/-mp) or related switch. PID-based targeting (e.g. procdump -ma 624) is a known gap: the LSASS process name does not appear in the command line in that case.\n",
       "level": "critical",
-      "status": "experimental",
+      "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
       "run_id": "27899339503",
+      "verdict_at": "2026-06-21T08:59:21.299127+00:00",
+      "verdict_rule_version": "1.3",
       "tactics": [
         "Credential Access"
       ],
@@ -890,17 +934,19 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|contains:\n    - \\procdump\n  selection_original_filename:\n    OriginalFileName|contains:\n    - procdump\n  selection_lsass:\n    CommandLine|contains:\n    - lsass\n  selection_dump_flag:\n    CommandLine|contains:\n    - .dmp\n    - -ma\n    - -mm\n    - -mp\n    - -accepteula\n    - -r\n  condition: (1 of selection_image or 1 of selection_original_filename) and selection_lsass and 1 of selection_dump_flag",
       "rule_body_lang": "yaml",
-      "rule_version": "1.4"
+      "rule_version": "1.5"
     },
     {
       "detect_id": "DETECT-2026-0022",
       "title": "Known Credential Dumping Tool Execution",
       "description": "Detects execution of known credential dumping tools by binary name, original file name metadata, or Mimikatz-specific CLI keywords in any process's CommandLine. Three complementary detection branches cover distinct evasion scenarios across multiple credential-access and Kerberos-abuse techniques (T1003.001/002/004/006, T1558.001/002/003).\nBinary name matching catches tools run directly without renaming (common in less sophisticated attacks or automated malware drops): mimikatz.exe, wce.exe, fgdump.exe, gsecdump.exe, pwdumpx.exe, cachedump.exe, Rubeus.exe, and others.\nOriginalFileName matching catches renamed copies of known tools by inspecting PE header metadata written at compile time — a field attackers often overlook.\nCLI keyword matching catches Mimikatz invocations regardless of binary name — including renamed copies, reflectively loaded Invoke-Mimikatz, or Cobalt Strike's built-in mimikatz command — by looking for Mimikatz module::command syntax patterns (sekurlsa::, lsadump::, misc::, privilege::, kerberos::, crypto::, token::, vault::, dpapi::). These namespaces are unique to Mimikatz's interactive and non-interactive command syntax and do not appear in legitimate system operations.\n",
       "level": "critical",
-      "status": "experimental",
+      "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
       "run_id": "28283035113",
+      "verdict_at": "2026-06-27T07:52:59.023291+00:00",
+      "verdict_rule_version": "1.6",
       "tactics": [
         "Credential Access"
       ],
@@ -964,7 +1010,7 @@
       },
       "rule_body": "detection:\n  selection_known_tools:\n    Image|endswith:\n    - \\mimikatz.exe\n    - \\wce.exe\n    - \\fgdump.exe\n    - \\gsecdump.exe\n    - \\pwdumpx.exe\n    - \\cachedump.exe\n    - \\pwdump.exe\n    - \\pwdump2.exe\n    - \\pwdump3.exe\n    - \\pwdump4.exe\n    - \\pwdump5.exe\n    - \\pwdump6.exe\n    - \\pwdump7.exe\n    - \\nanodump.x64.exe\n    - \\DumpMinitool.exe\n    - \\xordump.exe\n    - \\createdump.exe\n    - \\Outflank-Dumpert.exe\n    - \\SharpDump.exe\n    - \\SharpDumpx64.exe\n    - \\Rubeus.exe\n    - \\SafetyKatz.exe\n    - \\HandleKatz.exe\n    - \\PPLBlade.exe\n    - \\lsassy.exe\n    - \\lazagne.exe\n    - \\KDU.exe\n  selection_original_name:\n    OriginalFileName:\n    - mimikatz.exe\n    - wce.exe\n    - fgdump.exe\n    - gsecdump.exe\n    - pwdumpx.exe\n    - cachedump.exe\n    - Rubeus.exe\n    - SafetyKatz.exe\n    - HandleKatz.exe\n    - PPLBlade.exe\n    - lsassy.exe\n    - lazagne.exe\n    - KDU.exe\n    - SharpDump.exe\n    - SharpDumpx64.exe\n    - Outflank-Dumpert.exe\n    - xordump.exe\n    - DumpMinitool.exe\n    - nanodump.exe\n  selection_keywords_cli:\n    CommandLine|contains:\n    - 'sekurlsa::'\n    - 'lsadump::'\n    - 'privilege::'\n    - kerberos::list\n    - kerberos::golden\n    - kerberos::silver\n    - kerberos::ptt\n    - kerberos::purge\n    - kerberos::tgt\n    - kerberos::tgs\n    - kerberos::ptc\n    - 'crypto::'\n    - token::elevate\n    - token::impersonate\n    - vault::cred\n    - vault::list\n    - dpapi::cred\n    - dpapi::masterkey\n    - dpapi::blob\n    - misc::skeleton\n    - misc::memssp\n    - misc::shadowcopies\n    - misc::printnightmare\n    - Invoke-Mimikatz\n    - Invoke-PowerDump\n    - -DumpCreds\n    - mimilib.dll\n    - 'rpc::'\n  filter_createdump_legit:\n    Image|startswith:\n    - C:\\Windows\\\n    - C:\\Program Files\\dotnet\\\n    - C:\\Program Files (x86)\\dotnet\\\n    Image|endswith:\n    - \\createdump.exe\n  condition: (selection_known_tools and not filter_createdump_legit) or selection_original_name or selection_keywords_cli",
       "rule_body_lang": "yaml",
-      "rule_version": "1.7"
+      "rule_version": "1.8"
     },
     {
       "detect_id": "DETECT-2026-0023",
@@ -975,6 +1021,8 @@
       "source": "sigma",
       "verdict": "PASS",
       "run_id": "29146058925",
+      "verdict_at": "2026-07-11T08:30:46.306027+00:00",
+      "verdict_rule_version": "1.4",
       "tactics": [
         "Credential Access"
       ],
@@ -1025,7 +1073,7 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\reg.exe\n    - \\PsExec.exe\n    - \\PsExec64.exe\n  selection_original_filename:\n    OriginalFileName:\n    - reg.exe\n    - psexec.c\n  selection_save:\n    CommandLine|contains:\n    - ' save '\n    - ' export '\n  selection_target_hives:\n    CommandLine|contains:\n    - HKLM\\SAM\n    - HKLM\\SECURITY\n    - HKLM\\SYSTEM\n  condition: (selection_image or selection_original_filename) and selection_save and selection_target_hives",
       "rule_body_lang": "yaml",
-      "rule_version": "1.5"
+      "rule_version": "1.6"
     },
     {
       "detect_id": "DETECT-2026-0024",
@@ -1036,6 +1084,8 @@
       "source": "sigma",
       "verdict": "PASS",
       "run_id": "28953571747",
+      "verdict_at": "2026-07-08T15:14:50.173788+00:00",
+      "verdict_rule_version": "1.1",
       "tactics": [
         "Credential Access"
       ],
@@ -1095,6 +1145,8 @@
       "source": "sigma",
       "verdict": "PASS",
       "run_id": "28962173099",
+      "verdict_at": "2026-07-08T17:24:54.165019+00:00",
+      "verdict_rule_version": "1.0",
       "tactics": [
         "Credential Access"
       ],
@@ -1140,6 +1192,8 @@
       "source": "sigma",
       "verdict": "PASS",
       "run_id": "28963240988",
+      "verdict_at": "2026-07-08T17:42:04.952433+00:00",
+      "verdict_rule_version": "1.1",
       "tactics": [
         "Credential Access"
       ],
@@ -1193,6 +1247,8 @@
       "source": "sigma",
       "verdict": "PASS",
       "run_id": "28965856843",
+      "verdict_at": "2026-07-08T18:25:00.438077+00:00",
+      "verdict_rule_version": "1.3",
       "tactics": [
         "Credential Access"
       ],
@@ -1247,6 +1303,8 @@
       "source": "sigma",
       "verdict": "PASS",
       "run_id": "29145939369",
+      "verdict_at": "2026-07-11T08:22:00.743953+00:00",
+      "verdict_rule_version": "1.0",
       "tactics": [
         "Credential Access"
       ],
@@ -1300,6 +1358,8 @@
       "source": "sigma",
       "verdict": "PASS",
       "run_id": "29148278693",
+      "verdict_at": "2026-07-11T09:49:01.203132+00:00",
+      "verdict_rule_version": "1.1",
       "tactics": [
         "Credential Access"
       ],
@@ -1353,6 +1413,8 @@
       "source": "sigma",
       "verdict": "PASS",
       "run_id": "29152309169",
+      "verdict_at": "2026-07-11T12:17:10.573235+00:00",
+      "verdict_rule_version": "1.0",
       "tactics": [
         "Credential Access"
       ],
@@ -1403,6 +1465,8 @@
       "source": "sigma",
       "verdict": "PASS",
       "run_id": "29162781897",
+      "verdict_at": "2026-07-11T18:06:41.993377+00:00",
+      "verdict_rule_version": "1.1",
       "tactics": [
         "Credential Access"
       ],

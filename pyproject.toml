@@ -1,0 +1,27 @@
+# Tooling config only -- this repo is not a Python package and is not
+# installed. The file lives in the root because that is where ruff and pytest
+# discover it; pointing them elsewhere with --config flags would work but
+# would mean every local invocation needs the flag too.
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+# Deliberately narrow for the first pass. "F" is pyflakes -- undefined names,
+# unused imports, f-strings missing their placeholders: the findings that are
+# actually bugs. "E9" is syntax and IO errors.
+#
+# The full default rule set is not enabled yet on purpose. Nothing here has
+# ever been linted and generate_stats.py alone is ~6000 lines, so switching
+# everything on would bury the real defects under a wall of formatting
+# opinions and make the gate something people learn to skip. Widening this is
+# register item 2.12; the gate is worth more green-and-meaningful than
+# red-and-ignored.
+select = ["F", "E9"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Import mode matters here: the modules under test are standalone scripts in
+# scripts/, put on sys.path by tests/conftest.py rather than installed.
+addopts = "-q"

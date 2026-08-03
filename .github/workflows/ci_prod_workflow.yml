@@ -36,8 +36,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Same pinned file dev installs from. The re-conversion below is only
+          # reproducible if this side runs the identical converter, so the pin
+          # is load-bearing here, not hygiene.
           python -m pip install --upgrade pip
-          python -m pip install pyyaml jsonschema sigma-cli pysigma-backend-splunk requests
+          python -m pip install -r .github/requirements.txt
 
       - name: Regenerate SPL + meta sidecars from Sigma source
         shell: bash
@@ -51,13 +54,49 @@ jobs:
             exit 0
           fi
 
-          # dev already produced and committed the .spl query files -- this step
-          # only exists to regenerate the .meta.json sidecar (gitignored, never
-          # committed) that deploy_spl_to_splunk.py needs. Re-running the same
-          # converter against the same, already-reviewed Sigma source is
-          # deterministic: the .spl output is byte-identical to what's already
-          # committed, only the sidecar is newly written.
+          # What this step is FOR: regenerating the .meta.json sidecars, which
+          # are gitignored and never committed, but which deploy_spl_to_splunk.py
+          # needs.
+          #
+          # What it also DOES: rewrites every .spl on disk. sigma_to_spl.py has
+          # no sidecar-only mode -- it writes the query file, then rewrites it
+          # again in enforce_index_prefix(), and the deploy step below reads
+          # file *contents* from the working tree (git ls-files only supplies
+          # the path list). So the bytes that reach prod Splunk are the ones
+          # produced here, not the ones reviewed and atomic-tested on dev.
+          #
+          # Those are only the same bytes if this runner ran the same converter,
+          # which .github/requirements.txt now pins. The pin is an assertion; the drift
+          # gate in the next step is the check. Do not delete one and keep the
+          # other -- together they turn the old "output is byte-identical"
+          # comment from a claim into something CI proves on every run.
           python scripts/convert/sigma_to_spl.py --outdir rules/splunk "${rule_files[@]}"
+
+      - name: Fail if regenerated SPL drifted from what was reviewed
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Compares the just-regenerated .spl files against the committed ones
+          # that went through review and atomic verification on dev. Any
+          # difference means prod is about to deploy a query nobody approved --
+          # a converter upgrade, a pipeline change, an edited Sigma rule that
+          # never went through dev.
+          #
+          # Scope note: this catches MODIFIED tracked files. A Sigma rule with
+          # no committed .spl at all produces an untracked file, which git diff
+          # does not report and git ls-files will not deploy either -- that gap
+          # is register item 1.1/3.3 (reconcile), deliberately not solved here.
+          if ! git diff --exit-code -- rules/splunk; then
+            echo "::error::Regenerated SPL differs from the reviewed, committed .spl above. Prod deploy stopped."
+            echo "This means the converter on this runner does not reproduce what dev committed."
+            echo "Likely causes: .github/requirements.txt pins changed, a converter/pipeline change landed"
+            echo "without re-running dev, or a Sigma rule was edited directly on main."
+            echo "Fix: re-run the dev workflow so the .spl is regenerated, reviewed and verified there."
+            exit 1
+          fi
+
+          echo "No drift: regenerated SPL is byte-identical to the reviewed, committed files."
 
       - name: Deploy all SPL files to prod Splunk
         shell: bash
