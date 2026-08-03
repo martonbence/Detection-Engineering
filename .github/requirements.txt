@@ -1,0 +1,31 @@
+# Pinned toolchain for both CI workflows.
+#
+# Lives in .github/ rather than the repo root because CI is its only consumer:
+# nothing here is needed to work on the rules locally, and the workflows that
+# install it sit in the same directory.
+#
+# Why this file exists: the prod workflow re-runs sigma_to_spl.py against the
+# same Sigma source dev already converted, and deploys the result from disk.
+# That only yields the bytes that were reviewed and atomic-tested on dev if
+# both workflows run the *same* converter. With floating versions that held
+# because PyPI happened to serve the same release twice -- a property of the
+# index, not of this repo. Both workflows now install from here, so "dev and
+# prod ran the same converter" is something the repo states and the drift gate
+# in ci_prod_workflow.yml can check.
+#
+# pySigma is pinned even though nothing installs it directly: it is the engine
+# that actually serializes the query text, so leaving it floating would defeat
+# the pins on the two packages that wrap it.
+#
+# Deliberately NOT a full lock: transitive dependencies below these still
+# float and there are no hashes. pip-compile / --require-hashes and automated
+# version bumps belong to register item 2.11 (repo hygiene, dependabot).
+#
+# Resolved against Python 3.11 (the version both workflows set up).
+
+pyyaml==6.0.3
+jsonschema==4.26.0
+sigma-cli==3.1.0
+pySigma==1.5.0
+pysigma-backend-splunk==2.1.0
+requests==2.34.2
