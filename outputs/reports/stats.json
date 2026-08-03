@@ -1,26 +1,26 @@
 {
-  "generated_at": "2026-08-03T12:40:09.700308+00:00",
+  "generated_at": "2026-08-03T16:47:45.259160+00:00",
   "total_rules": 27,
   "total_sigma_rules": 27,
   "total_compiled_sigma_rules": 26,
-  "total_splunk_rules": 14,
+  "total_splunk_rules": 15,
   "total_native_spl_rules": 1,
   "verified_pass": 26,
   "verified_fail": 1,
   "verified_not_verified": 0,
   "never_tested": 0,
   "not_verified": 0,
-  "verified_stale": 15,
-  "verified_superseded": 15,
+  "verified_stale": 11,
+  "verified_superseded": 11,
   "verified_expired": 0,
-  "verified_pass_current": 11,
+  "verified_pass_current": 15,
   "verified_fail_current": 1,
-  "verified_current": 12,
-  "pass_rate_pct": 92,
+  "verified_current": 16,
+  "pass_rate_pct": 94,
   "pass_rate_color": "brightgreen",
-  "verification_current_pct": 44,
-  "verification_current_color": "red",
-  "confirmed_working_pct": 41,
+  "verification_current_pct": 59,
+  "verification_current_color": "yellow",
+  "confirmed_working_pct": 56,
   "mitre_covered_techniques": 11,
   "mitre_total_techniques": 222,
   "mitre_total_fetched_at": "2026-07-30T19:08:42.985300+00:00",
@@ -696,9 +696,9 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30155968878",
-      "verdict_at": "2026-07-25T11:22:26.048326+00:00",
-      "verdict_rule_version": "1.6",
+      "run_id": "30833501859",
+      "verdict_at": "2026-08-03T16:47:40.447432+00:00",
+      "verdict_rule_version": "1.8",
       "tactics": [
         "Execution",
         "Defense Impairment"
@@ -717,7 +717,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-05-05",
-      "modified": "2026-07-25",
+      "modified": "2026-08-03",
       "references": [
         "https://attack.mitre.org/techniques/T1059/001/",
         "https://attack.mitre.org/techniques/T1562/002/"
@@ -735,7 +735,7 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_logging:\n    CommandLine|contains:\n    - ScriptBlockLogging\n    - EnableScriptBlockLogging\n    - EnableScriptBlockInvocationLogging\n    - ModuleLogging\n    - EnableModuleLogging\n    - ProtectedEventLogging\n    - cachedGroupPolicySettings\n    - SOFTWARE\\Policies\\Microsoft\\Windows\\PowerShell\n  selection_delete:\n    CommandLine|contains|all:\n    - Remove-Item\n    - Policies\\Microsoft\\Windows\\PowerShell\n  condition: selection_image and (selection_logging or selection_delete)",
       "rule_body_lang": "yaml",
-      "rule_version": "1.7"
+      "rule_version": "1.8"
     },
     {
       "detect_id": "DETECT-2026-0018",
@@ -745,9 +745,9 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30155968878",
-      "verdict_at": "2026-07-25T11:22:26.048326+00:00",
-      "verdict_rule_version": "1.9",
+      "run_id": "30833501859",
+      "verdict_at": "2026-08-03T16:47:40.447432+00:00",
+      "verdict_rule_version": "1.11",
       "tactics": [
         "Execution"
       ],
@@ -763,7 +763,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-05-12",
-      "modified": "2026-07-25",
+      "modified": "2026-08-03",
       "references": [
         "https://attack.mitre.org/techniques/T1059/001/",
         "https://github.com/PowerShellMafia/PowerSploit",
@@ -781,7 +781,7 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_cmdlets:\n    CommandLine|contains:\n    - Add-Persistence\n    - Find-AVSignature\n    - Get-GPPAutologon\n    - Get-GPPPassword\n    - Get-HttpStatus\n    - Get-Keystrokes\n    - Get-SecurityPackages\n    - Get-TimedScreenshot\n    - Get-VaultCredential\n    - Get-VolumeShadowCopy\n    - Install-SSP\n    - Invoke-CredentialInjection\n    - Invoke-DllInjection\n    - Invoke-Mimikatz\n    - Invoke-NinjaCopy\n    - Invoke-Portscan\n    - Invoke-ReflectivePEInjection\n    - Invoke-ReverseDnsLookup\n    - Invoke-Shellcode\n    - Invoke-TokenManipulation\n    - Invoke-WmiCommand\n    - Mount-VolumeShadowCopy\n    - New-ElevatedPersistenceOption\n    - New-UserPersistenceOption\n    - New-VolumeShadowCopy\n    - Out-CompressedDll\n    - Out-EncodedCommand\n    - Out-EncryptedScript\n    - Out-Minidump\n    - PowerUp\n    - PowerView\n    - Remove-Comments\n    - Remove-VolumeShadowCopy\n    - Set-CriticalProcess\n    - Set-MasterBootRecord\n    - Invoke-Kerberoast\n    - Invoke-ASREPRoast\n    - Invoke-DCSync\n    - Invoke-BloodHound\n    - Invoke-TheHash\n    - Invoke-WMIExec\n    - Invoke-SMBExec\n    - Invoke-DCOM\n    - Invoke-PowerShellTcp\n    - Invoke-PowerShellUdp\n    - Invoke-Inveigh\n    - Invoke-InveighRelay\n    - Invoke-EventViewer\n    - Invoke-SilentCleanup\n    - Invoke-Tater\n    - Invoke-Obfuscation\n    - Get-PassHashes\n  condition: selection_image and selection_cmdlets",
       "rule_body_lang": "yaml",
-      "rule_version": "1.10"
+      "rule_version": "1.11"
     },
     {
       "detect_id": "DETECT-2026-0019",
@@ -791,9 +791,9 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30158148605",
-      "verdict_at": "2026-07-25T12:38:49.654254+00:00",
-      "verdict_rule_version": "1.3",
+      "run_id": "30833501859",
+      "verdict_at": "2026-08-03T16:47:40.447432+00:00",
+      "verdict_rule_version": "1.5",
       "tactics": [
         "Credential Access"
       ],
@@ -809,7 +809,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-06-21",
-      "modified": "2026-07-25",
+      "modified": "2026-08-03",
       "references": [
         "https://attack.mitre.org/techniques/T1003/001/"
       ],
@@ -827,7 +827,7 @@
       },
       "rule_body": "detection:\n  selection:\n    TargetImage|endswith:\n    - \\lsass.exe\n    GrantedAccess|contains:\n    - '0x1010'\n    - '0x1410'\n    - '0x143a'\n    - '0x1438'\n    - '0x40'\n    - '0x1fffff'\n    - '0x1f1fff'\n  filter_system_processes:\n    SourceImage|endswith:\n    - \\lsass.exe\n    - \\werfault.exe\n    - \\WerFaultSecure.exe\n    - \\csrss.exe\n    - \\wininit.exe\n  filter_av_edr:\n    SourceImage|contains:\n    - \\Windows Defender\\\n    - \\Microsoft Security Client\\\n    - \\Malwarebytes\\\n    - \\CrowdStrike\\\n    - \\SentinelOne\\\n    - \\Carbon Black\\\n    - \\Cylance\\\n    - \\Symantec\\\n    - \\McAfee\\\n    - \\Sophos\\\n    - \\ESET\\\n    - \\Kaspersky\\\n    - \\Trend Micro\\\n    - \\Panda Security\\\n    - \\F-Secure\\\n  condition: selection and not (filter_system_processes or filter_av_edr)",
       "rule_body_lang": "yaml",
-      "rule_version": "1.4"
+      "rule_version": "1.5"
     },
     {
       "detect_id": "DETECT-2026-0020",
@@ -837,9 +837,9 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "27060254255",
-      "verdict_at": "2026-06-06T10:51:29.737541+00:00",
-      "verdict_rule_version": "1.3",
+      "run_id": "30833501859",
+      "verdict_at": "2026-08-03T16:47:40.447432+00:00",
+      "verdict_rule_version": "1.6",
       "tactics": [
         "Credential Access",
         "Stealth"
@@ -857,7 +857,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-06-06",
-      "modified": "2026-06-06",
+      "modified": "2026-08-03",
       "references": [
         "https://attack.mitre.org/techniques/T1003/001/",
         "https://lolbas-project.github.io/lolbas/Libraries/comsvcs/"
@@ -881,7 +881,7 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\rundll32.exe\n  selection_original_filename:\n    OriginalFileName:\n    - RUNDLL32.EXE\n  selection_cmdlet:\n    CommandLine|contains|all:\n    - comsvcs\n    - MiniDump\n    - full\n  condition: (selection_image or selection_original_filename) and selection_cmdlet",
       "rule_body_lang": "yaml",
-      "rule_version": "1.5"
+      "rule_version": "1.6"
     },
     {
       "detect_id": "DETECT-2026-0021",

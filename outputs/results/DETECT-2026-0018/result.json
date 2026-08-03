@@ -2,14 +2,14 @@
   "detect_id": "DETECT-2026-0018",
   "title": "PowerShell Known Malicious Cmdlet Invocation",
   "verdict": "PASS",
-  "reason": "Event count 2 within expected range [1–10]",
-  "event_count": 2,
+  "reason": "Event count 1 within expected range [1–10]",
+  "event_count": 1,
   "min_pass": 1,
   "max_pass": 10,
-  "earliest": "-5m",
+  "earliest": "1785775433",
   "latest": "now",
-  "run_timestamp": "2026-07-25T11:22:26.048326+00:00",
-  "rule_version": "1.9",
-  "git_sha": "f604231a35fae3c2df2e4fe648ec98c8f95c61b1",
-  "run_id": "30155968878"
+  "run_timestamp": "2026-08-03T16:47:40.447432+00:00",
+  "rule_version": "1.11",
+  "git_sha": "becc3aeb01a34eb9a56be796591a3fa2b65e2415",
+  "run_id": "30833501859"
 }
