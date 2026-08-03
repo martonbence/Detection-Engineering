@@ -378,9 +378,11 @@ def fetch_mitre_techniques(
 # Precedence used to pick a technique's "best_verdict" when it's covered by
 # several rules with different verdicts. PASS obviously wins (a working,
 # verified detection exists). Below that, NOT_VERIFIED ranks above FAIL: FAIL
-# means the test actually ran to completion and no Splunk alert fired -- a
-# confirmed negative -- whereas NOT_VERIFIED means the run timed out before
-# we found out either way, so it's still "unknown", not "confirmed broken".
+# means we found out and the answer was bad -- the test ran to completion and
+# no Splunk alert fired, or the rule is not deployed / its search errored --
+# whereas NOT_VERIFIED means either the attack or the measurement stopped
+# before we found out either way, so it's still "unknown", not "confirmed
+# broken".
 # Surfacing the unknown state ahead of a confirmed failure avoids implying a
 # technique is worse off than it's actually known to be. N/A (never tested)
 # is last since no attempt was even made.
@@ -2684,9 +2686,9 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
           <span class="k"><span class="badge verdict-pass">PASS</span></span>
           <span>The Atomic Red Team test ran and the Splunk detection fired.</span>
           <span class="k"><span class="badge verdict-fail">FAIL</span></span>
-          <span>The test ran to completion and no alert fired — a confirmed negative.</span>
+          <span>The test ran to completion and no alert fired — a confirmed negative. Also covers the cases where the rule itself is at fault: the saved search isn't in Splunk, or the search errored when Splunk ran it.</span>
           <span class="k"><span class="badge verdict-notverified">NOT VERIFIED</span></span>
-          <span>Deployed and attempted, but the test didn't complete in time. Unknown, not broken. This state only reaches rules tested by Atomic Red Team — for an <strong>Emulation</strong>-verified rule (see <em>Verification</em> below) a test that never started reads as a FAIL, because all the pipeline sees is an absence of events.</span>
+          <span>Deployed and attempted, but something didn't finish — so nothing is known either way. Unknown, not broken. Two routes reach it: the <strong>attack</strong> didn't complete (the Atomic Red Team run was cut short by its timeout), or the <strong>measurement</strong> didn't complete (the Splunk search never finished, or the query errored on the way). The first only applies to rules tested by Atomic Red Team — for an <strong>Emulation</strong>-verified rule (see <em>Verification</em> below) a test that never started still reads as a FAIL, because all the pipeline sees is an absence of events. The second applies to every rule, however it is tested.</span>
           <span class="k"><span class="badge verdict-na">N/A</span></span>
           <span>Never tested — no test result exists for this rule.</span>
         </div>
