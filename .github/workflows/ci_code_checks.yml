@@ -83,6 +83,12 @@ jobs:
     # PR like everything else.
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
+    # Required for secrets.GH_PAT_DEV_PUSH to resolve: it is an environment
+    # secret on `dev`, not a repository secret, so a job that does not declare
+    # the environment receives an empty string and actions/checkout fails with
+    # "Input required and not supplied: token". Every job in ci_dev_workflow.yml
+    # that pushes back to dev declares this for the same reason.
+    environment: dev
 
     outputs:
       published: ${{ steps.regen.outputs.published }}
