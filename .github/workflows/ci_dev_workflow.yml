@@ -140,7 +140,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: pip-prepare-${{ runner.os }}-${{ hashFiles('.github/workflows/ci_dev_workflow.yml') }}
+          key: pip-prepare-${{ runner.os }}-${{ hashFiles('.github/requirements.txt') }}
           restore-keys: |
             pip-prepare-${{ runner.os }}-
 
@@ -149,9 +149,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "Installing Python dependencies: pyyaml, jsonschema, sigma-cli, pysigma-backend-splunk"
+          # Pinned in .github/requirements.txt, and prod installs from the same
+          # file -- that shared pin is what makes prod's re-conversion reproduce
+          # the .spl reviewed here rather than whatever PyPI serves that day.
+          echo "Installing pinned Python dependencies from .github/requirements.txt"
           python -m pip install --upgrade pip
-          python -m pip install pyyaml jsonschema sigma-cli pysigma-backend-splunk
+          python -m pip install -r .github/requirements.txt
 
       - name: Validate Sigma rules
         if: steps.changes.outputs.has_rules == 'true'
