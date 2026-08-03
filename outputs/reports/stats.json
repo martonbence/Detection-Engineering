@@ -1,26 +1,26 @@
 {
-  "generated_at": "2026-08-03T16:47:45.259160+00:00",
+  "generated_at": "2026-08-03T17:02:39.155857+00:00",
   "total_rules": 27,
   "total_sigma_rules": 27,
   "total_compiled_sigma_rules": 26,
-  "total_splunk_rules": 15,
+  "total_splunk_rules": 26,
   "total_native_spl_rules": 1,
   "verified_pass": 26,
   "verified_fail": 1,
   "verified_not_verified": 0,
   "never_tested": 0,
   "not_verified": 0,
-  "verified_stale": 11,
-  "verified_superseded": 11,
+  "verified_stale": 0,
+  "verified_superseded": 0,
   "verified_expired": 0,
-  "verified_pass_current": 15,
+  "verified_pass_current": 26,
   "verified_fail_current": 1,
-  "verified_current": 16,
-  "pass_rate_pct": 94,
+  "verified_current": 27,
+  "pass_rate_pct": 96,
   "pass_rate_color": "brightgreen",
-  "verification_current_pct": 59,
-  "verification_current_color": "yellow",
-  "confirmed_working_pct": 56,
+  "verification_current_pct": 100,
+  "verification_current_color": "brightgreen",
+  "confirmed_working_pct": 96,
   "mitre_covered_techniques": 11,
   "mitre_total_techniques": 222,
   "mitre_total_fetched_at": "2026-07-30T19:08:42.985300+00:00",
@@ -891,9 +891,9 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "27899339503",
-      "verdict_at": "2026-06-21T08:59:21.299127+00:00",
-      "verdict_rule_version": "1.3",
+      "run_id": "30834423548",
+      "verdict_at": "2026-08-03T17:02:34.863551+00:00",
+      "verdict_rule_version": "1.6",
       "tactics": [
         "Credential Access"
       ],
@@ -909,7 +909,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-06-06",
-      "modified": "2026-06-06",
+      "modified": "2026-08-03",
       "references": [
         "https://attack.mitre.org/techniques/T1003/001/",
         "https://learn.microsoft.com/en-us/sysinternals/downloads/procdump"
@@ -934,7 +934,7 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|contains:\n    - \\procdump\n  selection_original_filename:\n    OriginalFileName|contains:\n    - procdump\n  selection_lsass:\n    CommandLine|contains:\n    - lsass\n  selection_dump_flag:\n    CommandLine|contains:\n    - .dmp\n    - -ma\n    - -mm\n    - -mp\n    - -accepteula\n    - -r\n  condition: (1 of selection_image or 1 of selection_original_filename) and selection_lsass and 1 of selection_dump_flag",
       "rule_body_lang": "yaml",
-      "rule_version": "1.5"
+      "rule_version": "1.6"
     },
     {
       "detect_id": "DETECT-2026-0022",
@@ -944,9 +944,9 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "28283035113",
-      "verdict_at": "2026-06-27T07:52:59.023291+00:00",
-      "verdict_rule_version": "1.6",
+      "run_id": "30834423548",
+      "verdict_at": "2026-08-03T17:02:34.863551+00:00",
+      "verdict_rule_version": "1.9",
       "tactics": [
         "Credential Access"
       ],
@@ -969,7 +969,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-06-06",
-      "modified": "2026-06-27",
+      "modified": "2026-08-03",
       "references": [
         "https://attack.mitre.org/techniques/T1003/001/",
         "https://attack.mitre.org/techniques/T1003/002/",
@@ -1010,7 +1010,7 @@
       },
       "rule_body": "detection:\n  selection_known_tools:\n    Image|endswith:\n    - \\mimikatz.exe\n    - \\wce.exe\n    - \\fgdump.exe\n    - \\gsecdump.exe\n    - \\pwdumpx.exe\n    - \\cachedump.exe\n    - \\pwdump.exe\n    - \\pwdump2.exe\n    - \\pwdump3.exe\n    - \\pwdump4.exe\n    - \\pwdump5.exe\n    - \\pwdump6.exe\n    - \\pwdump7.exe\n    - \\nanodump.x64.exe\n    - \\DumpMinitool.exe\n    - \\xordump.exe\n    - \\createdump.exe\n    - \\Outflank-Dumpert.exe\n    - \\SharpDump.exe\n    - \\SharpDumpx64.exe\n    - \\Rubeus.exe\n    - \\SafetyKatz.exe\n    - \\HandleKatz.exe\n    - \\PPLBlade.exe\n    - \\lsassy.exe\n    - \\lazagne.exe\n    - \\KDU.exe\n  selection_original_name:\n    OriginalFileName:\n    - mimikatz.exe\n    - wce.exe\n    - fgdump.exe\n    - gsecdump.exe\n    - pwdumpx.exe\n    - cachedump.exe\n    - Rubeus.exe\n    - SafetyKatz.exe\n    - HandleKatz.exe\n    - PPLBlade.exe\n    - lsassy.exe\n    - lazagne.exe\n    - KDU.exe\n    - SharpDump.exe\n    - SharpDumpx64.exe\n    - Outflank-Dumpert.exe\n    - xordump.exe\n    - DumpMinitool.exe\n    - nanodump.exe\n  selection_keywords_cli:\n    CommandLine|contains:\n    - 'sekurlsa::'\n    - 'lsadump::'\n    - 'privilege::'\n    - kerberos::list\n    - kerberos::golden\n    - kerberos::silver\n    - kerberos::ptt\n    - kerberos::purge\n    - kerberos::tgt\n    - kerberos::tgs\n    - kerberos::ptc\n    - 'crypto::'\n    - token::elevate\n    - token::impersonate\n    - vault::cred\n    - vault::list\n    - dpapi::cred\n    - dpapi::masterkey\n    - dpapi::blob\n    - misc::skeleton\n    - misc::memssp\n    - misc::shadowcopies\n    - misc::printnightmare\n    - Invoke-Mimikatz\n    - Invoke-PowerDump\n    - -DumpCreds\n    - mimilib.dll\n    - 'rpc::'\n  filter_createdump_legit:\n    Image|startswith:\n    - C:\\Windows\\\n    - C:\\Program Files\\dotnet\\\n    - C:\\Program Files (x86)\\dotnet\\\n    Image|endswith:\n    - \\createdump.exe\n  condition: (selection_known_tools and not filter_createdump_legit) or selection_original_name or selection_keywords_cli",
       "rule_body_lang": "yaml",
-      "rule_version": "1.8"
+      "rule_version": "1.9"
     },
     {
       "detect_id": "DETECT-2026-0023",
@@ -1020,9 +1020,9 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "29146058925",
-      "verdict_at": "2026-07-11T08:30:46.306027+00:00",
-      "verdict_rule_version": "1.4",
+      "run_id": "30834423548",
+      "verdict_at": "2026-08-03T17:02:34.863551+00:00",
+      "verdict_rule_version": "1.7",
       "tactics": [
         "Credential Access"
       ],
@@ -1039,7 +1039,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-06-21",
-      "modified": "2026-07-11",
+      "modified": "2026-08-03",
       "references": [
         "https://attack.mitre.org/techniques/T1003/002/",
         "https://attack.mitre.org/techniques/T1003/004/",
@@ -1073,7 +1073,7 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\reg.exe\n    - \\PsExec.exe\n    - \\PsExec64.exe\n  selection_original_filename:\n    OriginalFileName:\n    - reg.exe\n    - psexec.c\n  selection_save:\n    CommandLine|contains:\n    - ' save '\n    - ' export '\n  selection_target_hives:\n    CommandLine|contains:\n    - HKLM\\SAM\n    - HKLM\\SECURITY\n    - HKLM\\SYSTEM\n  condition: (selection_image or selection_original_filename) and selection_save and selection_target_hives",
       "rule_body_lang": "yaml",
-      "rule_version": "1.6"
+      "rule_version": "1.7"
     },
     {
       "detect_id": "DETECT-2026-0024",
@@ -1083,9 +1083,9 @@
       "status": "experimental",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "28953571747",
-      "verdict_at": "2026-07-08T15:14:50.173788+00:00",
-      "verdict_rule_version": "1.1",
+      "run_id": "30834423548",
+      "verdict_at": "2026-08-03T17:02:34.863551+00:00",
+      "verdict_rule_version": "1.3",
       "tactics": [
         "Credential Access"
       ],
@@ -1101,7 +1101,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-06-27",
-      "modified": "2026-06-27",
+      "modified": "2026-08-03",
       "references": [
         "https://attack.mitre.org/techniques/T1003/003/",
         "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1003.003/T1003.003.md",
@@ -1134,7 +1134,7 @@
       },
       "rule_body": "detection:\n  selection_ntdsutil_image:\n  - Image|endswith: \\ntdsutil.exe\n  - OriginalFileName: ntdsutil.exe\n  selection_cli_1:\n    CommandLine|contains|all:\n    - ac i ntds\n    - create full\n  selection_cli_2:\n    CommandLine|contains|all:\n    - activate instance ntds\n    - create full\n  selection_direct_ntds_copy:\n    CommandLine|contains|all:\n    - '/c copy '\n    - \\windows\\ntds\\ntds.dit\n  selection_esentutl_image:\n  - Image|endswith: \\esentutl.exe\n  - OriginalFileName: esentutl.exe\n  selection_esentutl_ntds:\n    CommandLine|contains: \\windows\\ntds\\ntds.dit\n  selection_vss_shadow:\n    CommandLine|contains: HarddiskVolumeShadowCopy\n  selection_vss_ntds:\n    CommandLine|contains: \\windows\\ntds\\ntds.dit\n  selection_diskshadow_image:\n  - Image|endswith: \\diskshadow.exe\n  - OriginalFileName: diskshadow.exe\n  selection_diskshadow_script:\n    CommandLine|contains: '/s '\n  selection_wbadmin_image:\n  - Image|endswith: \\wbadmin.exe\n  - OriginalFileName: WBADMIN.EXE\n  selection_wbadmin_ntds:\n    CommandLine|contains: \\windows\\ntds\n  selection_tool:\n  - Image|endswith:\n    - \\NTDSDump.exe\n    - \\NTDSDumpEx.exe\n  - OriginalFileName:\n    - NTDSDump.exe\n    - NTDSDumpEx.exe\n  - CommandLine|contains|all:\n    - ntds.dit\n    - system.hiv\n  - CommandLine|contains: NTDSgrab.ps1\n  condition: (selection_ntdsutil_image and 1 of selection_cli*) or selection_direct_ntds_copy or (selection_esentutl_image\n    and selection_esentutl_ntds) or (selection_vss_shadow and selection_vss_ntds) or (selection_diskshadow_image\n    and selection_diskshadow_script) or (selection_wbadmin_image and selection_wbadmin_ntds) or selection_tool",
       "rule_body_lang": "yaml",
-      "rule_version": "1.2"
+      "rule_version": "1.3"
     },
     {
       "detect_id": "DETECT-2026-0025",
@@ -1144,9 +1144,9 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "28962173099",
-      "verdict_at": "2026-07-08T17:24:54.165019+00:00",
-      "verdict_rule_version": "1.0",
+      "run_id": "30834423548",
+      "verdict_at": "2026-08-03T17:02:34.863551+00:00",
+      "verdict_rule_version": "1.2",
       "tactics": [
         "Credential Access"
       ],
@@ -1162,7 +1162,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-07-08",
-      "modified": "2026-07-08",
+      "modified": "2026-08-03",
       "references": [
         "https://attack.mitre.org/techniques/T1003/001/",
         "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1003.001/T1003.001.md",
@@ -1181,7 +1181,7 @@
       },
       "rule_body": "detection:\n  selection_taskmgr:\n    Image|endswith: \\taskmgr.exe\n    TargetFilename|contains: lsass\n    TargetFilename|endswith: .dmp\n  selection_lsass_dump:\n    TargetFilename|contains: lsass\n    TargetFilename|endswith: .dmp\n  filter_wer:\n    Image|endswith:\n    - \\WerFault.exe\n    - \\WerFaultSecure.exe\n  condition: (selection_taskmgr or selection_lsass_dump) and not filter_wer",
       "rule_body_lang": "yaml",
-      "rule_version": "1.1"
+      "rule_version": "1.2"
     },
     {
       "detect_id": "DETECT-2026-0026",
@@ -1191,9 +1191,9 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "28963240988",
-      "verdict_at": "2026-07-08T17:42:04.952433+00:00",
-      "verdict_rule_version": "1.1",
+      "run_id": "30834423548",
+      "verdict_at": "2026-08-03T17:02:34.863551+00:00",
+      "verdict_rule_version": "1.3",
       "tactics": [
         "Credential Access"
       ],
@@ -1210,7 +1210,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-07-08",
-      "modified": "2026-07-08",
+      "modified": "2026-08-03",
       "references": [
         "https://attack.mitre.org/techniques/T1003/002/",
         "https://attack.mitre.org/techniques/T1003/004/",
@@ -1236,7 +1236,7 @@
       },
       "rule_body": "detection:\n  selection_image:\n  - Image|endswith: \\esentutl.exe\n  - OriginalFileName: esentutl.exe\n  selection_copy_flag:\n    CommandLine|contains: ' /y '\n  selection_hives:\n    CommandLine|contains:\n    - /system32/config/SAM\n    - /system32/config/SECURITY\n    - /system32/config/SYSTEM\n  condition: selection_image and selection_copy_flag and selection_hives",
       "rule_body_lang": "yaml",
-      "rule_version": "1.2"
+      "rule_version": "1.3"
     },
     {
       "detect_id": "DETECT-2026-0027",
@@ -1246,9 +1246,9 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "28965856843",
-      "verdict_at": "2026-07-08T18:25:00.438077+00:00",
-      "verdict_rule_version": "1.3",
+      "run_id": "30834423548",
+      "verdict_at": "2026-08-03T17:02:34.863551+00:00",
+      "verdict_rule_version": "1.5",
       "tactics": [
         "Credential Access"
       ],
@@ -1264,7 +1264,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-07-08",
-      "modified": "2026-07-08",
+      "modified": "2026-08-03",
       "references": [
         "https://attack.mitre.org/techniques/T1003/002/",
         "https://attack.mitre.org/techniques/T1003/004/",
@@ -1292,7 +1292,7 @@
       },
       "rule_body": "detection:\n  selection_vss_path:\n    CommandLine|contains: HarddiskVolumeShadowCopy\n  selection_hives:\n    CommandLine|contains:\n    - \\config\\SAM\n    - \\config\\SECURITY\n  condition: selection_vss_path and selection_hives",
       "rule_body_lang": "yaml",
-      "rule_version": "1.4"
+      "rule_version": "1.5"
     },
     {
       "detect_id": "DETECT-2026-0028",
@@ -1302,9 +1302,9 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "29145939369",
-      "verdict_at": "2026-07-11T08:22:00.743953+00:00",
-      "verdict_rule_version": "1.0",
+      "run_id": "30834423548",
+      "verdict_at": "2026-08-03T17:02:34.863551+00:00",
+      "verdict_rule_version": "1.2",
       "tactics": [
         "Credential Access"
       ],
@@ -1320,7 +1320,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-07-11",
-      "modified": "2026-07-11",
+      "modified": "2026-08-03",
       "references": [
         "https://attack.mitre.org/techniques/T1003/005/",
         "https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/cmdkey",
@@ -1347,7 +1347,7 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\cmdkey.exe\n  selection_original_filename:\n    OriginalFileName: cmdkey.exe\n  selection_list:\n    CommandLine|contains: /list\n  condition: (selection_image or selection_original_filename) and selection_list",
       "rule_body_lang": "yaml",
-      "rule_version": "1.1"
+      "rule_version": "1.2"
     },
     {
       "detect_id": "DETECT-2026-0029",
@@ -1357,9 +1357,9 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "29148278693",
-      "verdict_at": "2026-07-11T09:49:01.203132+00:00",
-      "verdict_rule_version": "1.1",
+      "run_id": "30834423548",
+      "verdict_at": "2026-08-03T17:02:34.863551+00:00",
+      "verdict_rule_version": "1.3",
       "tactics": [
         "Credential Access"
       ],
@@ -1375,7 +1375,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-07-11",
-      "modified": "2026-07-11",
+      "modified": "2026-08-03",
       "references": [
         "https://attack.mitre.org/techniques/T1003/006/",
         "https://www.dsinternals.com/en/retrieving-active-directory-passwords-remotely/",
@@ -1402,7 +1402,7 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_cmdlet:\n    CommandLine|contains:\n    - Get-ADReplAccount\n  condition: selection_image and selection_cmdlet",
       "rule_body_lang": "yaml",
-      "rule_version": "1.2"
+      "rule_version": "1.3"
     },
     {
       "detect_id": "DETECT-2026-0030",
@@ -1412,9 +1412,9 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "29152309169",
-      "verdict_at": "2026-07-11T12:17:10.573235+00:00",
-      "verdict_rule_version": "1.0",
+      "run_id": "30834423548",
+      "verdict_at": "2026-08-03T17:02:34.863551+00:00",
+      "verdict_rule_version": "1.2",
       "tactics": [
         "Credential Access"
       ],
@@ -1430,7 +1430,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-07-11",
-      "modified": "2026-07-11",
+      "modified": "2026-08-03",
       "references": [
         "https://attack.mitre.org/techniques/T1003/003/",
         "https://attack.mitre.org/techniques/T1003/002/",
@@ -1454,7 +1454,7 @@
       },
       "rule_body": "detection:\n  selection_mklink:\n    CommandLine|contains: mklink\n  selection_powershell_symlink:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n    CommandLine|contains:\n    - SymbolicLink\n    - Junction\n  selection_vss_target:\n    CommandLine|contains: HarddiskVolumeShadowCopy\n  condition: (selection_mklink or selection_powershell_symlink) and selection_vss_target",
       "rule_body_lang": "yaml",
-      "rule_version": "1.1"
+      "rule_version": "1.2"
     },
     {
       "detect_id": "DETECT-2026-0031",
@@ -1464,9 +1464,9 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "29162781897",
-      "verdict_at": "2026-07-11T18:06:41.993377+00:00",
-      "verdict_rule_version": "1.1",
+      "run_id": "30834423548",
+      "verdict_at": "2026-08-03T17:02:34.863551+00:00",
+      "verdict_rule_version": "1.3",
       "tactics": [
         "Credential Access"
       ],
@@ -1482,7 +1482,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-07-11",
-      "modified": "2026-07-11",
+      "modified": "2026-08-03",
       "references": [
         "https://attack.mitre.org/techniques/T1003/003/",
         "https://attack.mitre.org/techniques/T1003/002/",
@@ -1508,7 +1508,7 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_cmdlet:\n    CommandLine|contains: Underlay-Copy\n  selection_target:\n    CommandLine|contains:\n    - \\ntds\\ntds.dit\n    - \\config\\SAM\n    - \\config\\SECURITY\n    - \\config\\SYSTEM\n  condition: selection_image and selection_cmdlet and selection_target",
       "rule_body_lang": "yaml",
-      "rule_version": "1.2"
+      "rule_version": "1.3"
     }
   ]
 }
