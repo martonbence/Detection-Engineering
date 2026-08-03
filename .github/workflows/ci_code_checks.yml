@@ -43,8 +43,8 @@ permissions:
   contents: read
 
 jobs:
-  checks:
-    name: Lint and test
+  static_analysis:
+    name: Static analysis and tests
     runs-on: ubuntu-latest
 
     steps:
@@ -75,9 +75,9 @@ jobs:
       - name: Pytest
         run: pytest
 
-  regenerate_docs:
-    name: Regenerate rule browser
-    needs: checks
+  regenerate_console:
+    name: Regenerate Console
+    needs: static_analysis
     # Only on dev, and only for real pushes: a PR must not rewrite generated
     # files on someone's branch, and main gets its copy through the promotion
     # PR like everything else.
@@ -190,13 +190,13 @@ jobs:
               exit 0
             fi
 
-            echo "Rule browser output changed; publishing."
+            echo "Console output changed; publishing."
             git diff --cached --stat
 
             # [skip ci] matters: this job's own push touches paths in its
             # trigger list, so without it the workflow would re-trigger itself
             # on every run.
-            git commit -m "chore(docs): regenerate rule browser and stats [skip ci]"
+            git commit -m "chore(docs): regenerate Console and stats [skip ci]"
 
             if git push origin HEAD:dev; then
               echo "Push succeeded."
@@ -211,15 +211,15 @@ jobs:
           echo "Push failed after 3 attempts."
           exit 1
 
-  deploy_pages:
-    name: Publish rule browser
-    needs: regenerate_docs
+  publish_console:
+    name: Publish Console
+    needs: regenerate_console
     # Only when something actually changed. GitHub Pages publishes from an
     # uploaded artifact, not from the branch, so committing docs/index.html
     # above updates the repo but NOT the live site -- without this job the
     # published page would still wait for the next rule change to go out,
     # which is half of what register item 1.6 is about.
-    if: needs.regenerate_docs.outputs.published == 'true'
+    if: needs.regenerate_console.outputs.published == 'true'
     runs-on: ubuntu-latest
     permissions:
       pages: write
