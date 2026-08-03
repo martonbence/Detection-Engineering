@@ -904,11 +904,12 @@
     </div>
 
     <div class="row sev-crit" data-sev="crit" data-weight="3">
-      <input class="row-check" type="checkbox" id="i-1-9" aria-labelledby="t-1-9">
+      <input class="row-check" type="checkbox" id="i-1-9" aria-labelledby="t-1-9" checked>
       <div class="row-main">
         <div class="row-head">
           <span class="id">1.9</span>
           <span class="row-title" id="t-1-9">Egy hibás szabály megbuktatja az egész batch tesztelését</span>
+          <span class="tag done">kész</span>
         </div>
         <p class="row-body">
           A <code>throw "No atomic tests found"</code> <code>$ErrorActionPreference = "Stop"</code>
@@ -918,16 +919,18 @@
           meg, tehát <code>type: atomic</code> <code>atomics:</code> tömb nélkül átmegy a validáción.
         </p>
         <p class="row-fix"><span class="fix-label">javítás</span>JSON Schema <code>if/then</code>: <code>atomic</code> → kötelező <code>atomics</code> + <code>runner</code>, <code>emulation</code> → kötelező <code>custom</code>. A scriptben <code>throw</code> helyett <code>Write-Warning</code> + <code>continue</code>, hogy a hiba egy szabályra lokalizálódjon.</p>
+        <p class="row-fix"><span class="fix-label">kész 2026-08-03</span>Mindkét réteg megvan. A sémában <code>allOf</code> + <code>if/then</code> köti a <code>type</code>-ot ahhoz a tömbhöz, amire szüksége van — <code>enabled: true</code>-ra szűkítve, hogy egy leparkolt szabály ne kényszerüljön teszt-listát fenntartani. A <code>runner</code>-t szándékosan <em>nem</em> tettük kötelezővé: a script üres runner-mezőt „minden runnerre érvényes"-ként kezel, ez nem hibaállapot. A scriptben mind a négy <code>throw</code> (hiányzó <code>.spl</code>, hiányzó meta sidecar, üres <code>atomics</code>/<code>custom</code>, hiányzó <code>technique</code>) <code>Write-Warning</code> + <code>continue</code> lett, <code>$malformed</code> számlálóval és <code>::warning</code> annotációval. Az érintett szabály progress-marker nélkül marad, amit a <code>pass_fail_eval.py</code> már ma is „meg sem kíséreltük"-ként olvas, tehát a verdikt őszinte marad, nem találunk ki helyette semmit. Új ág: ha a batch <em>összes</em> szabálya hibás metaadatú, a script <code>exit 1</code> — a „nincs mit futtatni" és a „minden elromlott" ugyanúgy nulla teszt, de nem ugyanaz a kimenetel. Ellenőrizve: a séma önmagában érvényes, mind a 27 szabály átmegy rajta, és három szintetikus eset a várt módon viselkedik (<code>atomic</code> tömb nélkül → INVALID, <code>emulation</code> <code>custom</code> nélkül → INVALID, <code>enabled: false</code> tömb nélkül → OK).</p>
         <div class="refs"><span class="ref">run_atomic.ps1:313</span><span class="ref">run_atomic.ps1:338</span><span class="ref">sigma_schema.json testing.required</span></div>
       </div>
     </div>
 
     <div class="row sev-crit" data-sev="crit" data-weight="3">
-      <input class="row-check" type="checkbox" id="i-1-10" aria-labelledby="t-1-10">
+      <input class="row-check" type="checkbox" id="i-1-10" aria-labelledby="t-1-10" checked>
       <div class="row-main">
         <div class="row-head">
           <span class="id">1.10</span>
           <span class="row-title" id="t-1-10">Atomic higiénia: nincs <code>-GetPrereqs</code> és nincs <code>-Cleanup</code></span>
+          <span class="tag done">kész</span>
         </div>
         <p class="row-body">
           A teszt-invokáció se prerequisite-beszerzést, se cleanupot nem futtat. Két következmény: a
@@ -936,16 +939,18 @@
           legnagyobb flakiness-forrás.
         </p>
         <p class="row-fix"><span class="fix-label">javítás</span><code>Invoke-AtomicTest -GetPrereqs</code> a futás előtt, <code>-Cleanup</code> utána.</p>
+        <p class="row-fix"><span class="fix-label">kész 2026-08-03</span>Az <code>Invoke-AtomicTestCompat</code> kapott egy <code>-Mode</code> paramétert (<code>GetPrereqs</code> / <code>Run</code> / <code>Cleanup</code>), mert ezek az <code>Invoke-AtomicTest</code>-en <em>egymást kizáró</em> kapcsolók, nem összeadódó flagek — tehát tesztenként három külön invokáció, nem egy bővebb. A cleanup <code>finally</code>-ben fut, tehát akkor is, ha a teszt dobott, és sem a prereq-, sem a cleanup-hiba nem növeli a <code>$failures</code>-t: a verdikt a detekcióról szól, nem a háztartásról. A meglévő compat-minta megtartva — ha a telepített modul nem ismeri a kapcsolót, warning és kihagyás, nem hiba. <code>ATOMIC_SKIP_PREREQS</code> / <code>ATOMIC_SKIP_CLEANUP</code> a kikapcsoláshoz, mindkettő hangos figyelmeztetéssel.<br><strong>Verifikációs mellékhatás megvizsgálva:</strong> a cleanup nem ronthatja el a mérést, mert a Splunk a forwarder által már kiküldött eventekből dolgozik — az artifact utólagos törlése nem szedi vissza őket. A valódi kompromisszum az, hogy egy cleanup-parancs maga is üthet szabályt (kulcstörlés, fájltörlés); ez az Atomic Red Team cleanup-modelljéből következik, ezért van kapcsoló rá.</p>
         <div class="refs"><span class="ref">run_atomic.ps1:178-242</span></div>
       </div>
     </div>
 
     <div class="row sev-crit" data-sev="crit" data-weight="3">
-      <input class="row-check" type="checkbox" id="i-1-11" aria-labelledby="t-1-11">
+      <input class="row-check" type="checkbox" id="i-1-11" aria-labelledby="t-1-11" checked>
       <div class="row-main">
         <div class="row-head">
           <span class="id">1.11</span>
           <span class="row-title" id="t-1-11">A Defender kikapcsolva maradhat a victim hoston</span>
+          <span class="tag done">kész</span>
         </div>
         <p class="row-body">
           A <code>finally</code> blokk visszakapcsolja a real-time monitoringot — de ha a stepet a
@@ -953,17 +958,19 @@
           fut le, és a host védelem nélkül marad a következő futásig.
         </p>
         <p class="row-fix"><span class="fix-label">javítás</span>Független biztosíték: scheduled task vagy runner startup script, ami minden job elején visszaállítja a Defendert.</p>
+        <p class="row-fix"><span class="fix-label">kész 2026-08-03</span><strong>Ez élő kitettség volt, nem elméleti:</strong> az <code>ATOMIC_DISABLE_REALTIME_MONITORING</code> alapértelmezése mindkét atomic stepen <code>'true'</code>, tehát a Defender <em>minden</em> futáskor ki volt kapcsolva, és minden timeoutolt step védtelenül hagyta a hostot.<br>A garancia mostantól a folyamaton kívül él: a script a kikapcsolás <em>előtt</em> regisztrál egy <code>DetectionEngineering-RestoreDefenderRealtime</code> nevű scheduled taskot, ami SYSTEM-ként visszakapcsolja a real-time monitoringot. Két triggerrel, mert kétféleképpen lehet beragadni: <em>Once</em> most + 20 percre (a folyamatot megölték, a gép megy tovább — 20 perc jóval a step saját <code>timeout-minutes: 10</code>-je fölött van, tehát csak akkor süthet el, amikor a script már halott, sosem teszt közben), és <em>AtStartup</em> (a gépet újraindították, amíg a monitoring ki volt kapcsolva, így az egyszeri trigger sosem sült el). Tiszta lefutásnál a <code>finally</code> visszakapcsol és leszedi a taskot; ha a visszakapcsolás <em>maga</em> hibázik, a task szándékosan ott marad, mert onnantól ő az egyetlen, ami visszahozza a védelmet.<br><strong>Fail-closed:</strong> ha a task nem regisztrálható, a script nem kapcsolja ki a Defendert, hanem hibával áll meg — a felmentés <code>ATOMIC_ALLOW_UNPROTECTED_DISABLE=true</code>. Indulásnál egy leftover task <code>::warning</code>-ot kap: a puszta jelenléte bizonyítja, hogy az előző futás nem állt le rendesen, és a <code>-Force</code> különben némán felülírná ezt a nyomot.</p>
         <div class="refs"><span class="ref">run_atomic.ps1:496-498</span></div>
       </div>
     </div>
 
     <div class="row sev-crit" data-sev="crit" data-weight="3">
-      <input class="row-check" type="checkbox" id="i-1-12" aria-labelledby="t-1-12">
+      <input class="row-check" type="checkbox" id="i-1-12" aria-labelledby="t-1-12" checked>
       <div class="row-main">
         <div class="row-head">
           <span class="id">1.12</span>
           <span class="row-title" id="t-1-12">A MITRE hőtérkép soha nem mutat FAIL-t — egy bizonyítottan romlott detekció láthatatlan</span>
           <span class="tag verified">mérve</span>
+          <span class="tag done">kész</span>
         </div>
         <p class="row-body">
           A <code>best_verdict</code> a technikát fedő szabályok közül a <em>legjobb</em> verdiktet
@@ -977,6 +984,7 @@
           az, hogy a hőtérkép elrejti a megerősített hibát.
         </p>
         <p class="row-fix"><span class="fix-label">javítás</span>Eldöntendő, mit kérdez a hőtérkép. „Van működő lefedettség?" → best-verdict a helyes. „Van-e valami romlott?" → worst-verdict. Egy lefedettségi térkép valószínűleg mindkettőt akarja: a cella színe maradhat a best-verdict, de kapjon jelölést (sáv, pont), ha bármelyik fedő szabály FAIL — és a legend-szűrő ezt izolálja.</p>
+        <p class="row-fix"><span class="fix-label">kész 2026-08-03</span>Pontosan a javasolt megoldás él, csak nem ebben a körben készült el: a rule browser átdolgozása közben oldódott meg, ezért maradt itt bepipálatlanul. A cella megtartja a best-verdict színét, és <code>fail-flag</code> osztályt kap, ha bármelyik fedő szabály FAIL (<code>generate_stats.py:556,612</code>); a jelölés piros sarok-háromszög (<code>:2421-2428</code>), amit a saját rail-jük miatt a már eleve FAIL cellák kihagynak. A legend-szűrő nem halott többé: a <code>tcHasFail()</code> / <code>failAny</code> páros (<code>:5497,5506,5601</code>) keresztbe vág a best-verdict csoportosításon, tehát a FAIL szűrő azokat a cellákat is megtalálja, amiket zöldre színez a roll-up. Élesben igazolva a mai kimeneten: 5 cella visel <code>fail-flag</code>-et, köztük a <code>T1685.001</code> és <code>T1059.001</code> a <code>DETECT-2026-0012</code> miatt, a szülő <code>T1685</code>/<code>T1059</code> pedig tooltipet is kap. A <code>navigator_layer.json</code> exportban ugyanez a <code>⚠ 1 of N covering rule(s) FAILED verification</code> megjegyzésként jelenik meg.</p>
         <div class="refs"><span class="ref">generate_stats.py:368-399</span><span class="ref">generate_stats.py:475-481</span><span class="ref">navigator_layer.json: 19 zöld / 0 vörös</span></div>
       </div>
     </div>
@@ -1399,7 +1407,7 @@
   </p>
   <ul class="gaps">
     <li><b>A 27 szabály detekciós logikájának tartalmi minősége.</b> Csak a <code>0019</code>-et olvastam végig. FP-kockázat, átfedések, ATT&amp;CK-tag helyesség: ez a <code>detection-content-reviewer</code> dolga.</li>
-    <li><b>A <code>docs/index.html</code> 3287 sora front-endként.</b> Csak szerkezetileg. Nem futtattam Playwright-ot, nem auditáltam accessibility/perf szempontból. <em>Korrekció:</em> az első kiadásban itt az állt, hogy a „Navigator elrejti a FAIL verdikteket" megállapítás nem igazolható — ez téves volt. A <code>.tc.fail</code> stílus létezik, de elérhetetlen; a megállapítás igaz és ma is él, lásd az <b>1.12</b> tételt.</li>
+    <li><b>A <code>docs/index.html</code> 3287 sora front-endként.</b> Csak szerkezetileg. Nem futtattam Playwright-ot, nem auditáltam accessibility/perf szempontból. <em>Korrekció:</em> az első kiadásban itt az állt, hogy a „Navigator elrejti a FAIL verdikteket" megállapítás nem igazolható — ez téves volt. A <code>.tc.fail</code> stílus létezett, de elérhetetlen volt; a megállapítás igaznak bizonyult, <b>1.12</b> néven került fel, és 2026-08-03-ra lezárult (a <code>fail-flag</code> jelölés és a keresztbe vágó FAIL-szűrő azóta él).</li>
     <li><b>A tábla sormagasság-hibája sok technika-badge esetén</b> (korábbi Playwright-megfigyelés: <code>vertical-align: middle</code> + ~183px-es sor a <code>DETECT-2026-0022</code>-nél). Ezt nem ellenőriztem újra ebben a körben — vagy javítva lett a rule browser átdolgozásakor, vagy még él.</li>
     <li><b>Az élő CI-futások logjai.</b> Minden megállapítás statikus elemzés. A tényleges flakiness-mintákat — mennyi futás hasal el és min — csak a run history mutatná meg.</li>
     <li><b>A Splunk tényleges állapota.</b> A drift-megállapítások repo-oldali következtetések; hogy mi van <em>valóban</em> kint, csak a Splunk API mondaná meg.</li>
