@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-08-03T17:02:39.155857+00:00",
+  "generated_at": "2026-08-03T17:12:22.180448+00:00",
   "total_rules": 27,
   "total_sigma_rules": 27,
   "total_compiled_sigma_rules": 26,
-  "total_splunk_rules": 26,
+  "total_splunk_rules": 27,
   "total_native_spl_rules": 1,
   "verified_pass": 26,
   "verified_fail": 1,
@@ -33,8 +33,8 @@
   },
   "by_status": {
     "experimental": 1,
-    "stable": 24,
-    "test": 2
+    "stable": 25,
+    "test": 1
   },
   "by_tactic": {
     "Execution": 14,
@@ -494,12 +494,12 @@
       "title": "PowerShell AMSI Bypass",
       "description": "Detects PowerShell commands that attempt to bypass the Antimalware Scan Interface (AMSI) by manipulating the AmsiUtils type, patching AmsiScanBuffer in memory, or disabling AMSI initialization. Successful AMSI bypass allows subsequent malicious scripts to execute without AV/EDR inspection — making this a critical precursor to many PS-based attacks.",
       "level": "high",
-      "status": "test",
+      "status": "experimental",
       "source": "sigma",
       "verdict": "FAIL",
-      "run_id": "30156928952",
-      "verdict_at": "2026-07-25T11:53:00.922315+00:00",
-      "verdict_rule_version": "1.15",
+      "run_id": "30835491986",
+      "verdict_at": "2026-08-03T17:12:17.831457+00:00",
+      "verdict_rule_version": "1.16",
       "tactics": [
         "Execution",
         "Defense Impairment"
@@ -517,7 +517,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-05-05",
-      "modified": "2026-05-13",
+      "modified": "2026-08-03",
       "references": [
         "https://attack.mitre.org/techniques/T1059/001/",
         "https://attack.mitre.org/techniques/T1685/001/"
@@ -535,7 +535,7 @@
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_amsi:\n    CommandLine|contains:\n    - AmsiUtils\n    - amsiInitFailed\n    - AmsiScanBuffer\n    - amsi.dll\n    - AmsiOpenSession\n    - AmsiScanString\n    - amsiContext\n    - amsiSession\n    - AmsiInitialize\n    - AmsiCloseSession\n  condition: selection_image and selection_amsi",
       "rule_body_lang": "yaml",
-      "rule_version": "1.15"
+      "rule_version": "1.16"
     },
     {
       "detect_id": "DETECT-2026-0013",
@@ -1080,12 +1080,12 @@
       "title": "NTDS.dit Credential Dump Attempt",
       "description": "Detects attempts to extract credential data from the Active Directory database (NTDS.dit) stored on Domain Controllers via seven complementary detection branches.\nntdsutil.exe IFM (Install From Media) is the most common native method: the attacker activates the NTDS instance and calls \"ifm create full\" to produce a self-contained copy of NTDS.dit and the SYSTEM hive that can be taken offline for credential extraction with Impacket secretsdump, DSInternals, or Mimikatz lsadump::lsa. The \"ac i ntds\" and \"activate instance ntds\" variants are abbreviated and long-form equivalents of the same sub-command sequence.\nesentutl.exe can copy the locked NTDS.dit by leveraging the Volume Shadow Copy Service (/vss flag) or the generic file-copy operation (/y), bypassing the Extensible Storage Engine (ESE) lock that prevents direct file access while AD DS is running.\nVolume Shadow Copy paths in any process's CommandLine indicate direct extraction of NTDS.dit from a VSS snapshot — the manual copy step that follows snapshot creation via vssadmin, wmic, or PowerShell WMI. The process is typically xcopy.exe, robocopy.exe, or cmd.exe piping a copy command.\ndiskshadow.exe invoked in script mode (/s) is a LOLBin technique used to automate the full snapshot-and-extract workflow in a single binary call. Legitimate interactive diskshadow sessions do not require a script file argument.\nwbadmin.exe (Windows Server Backup) can be abused to back up or recover the NTDS.dit file or the entire NTDS directory, producing an offline-accessible copy without touching VSS shadow paths directly. Unlike vssadmin or WMI-based snapshot creation — where the target file is implicit — wbadmin embeds the source path in its CommandLine (-include: or -items:), making the NTDS reference directly observable in process telemetry.\nDirect live-path copy detects any process that runs a copy command against the NTDS.dit at its original location (C:\\Windows\\NTDS\\ntds.dit) rather than through a shadow copy or backup utility. This succeeds only when AD DS is stopped; the pattern still fires if an attacker attempts it while the service is running, revealing the intent regardless of whether the copy actually completes.\nKnown NTDS dump tools are matched by binary name, OriginalFileName PE metadata, and characteristic CLI patterns. NTDSDump.exe and NTDSDumpEx.exe are purpose-built NTDS extraction utilities. The ntds.dit + system.hiv CLI combination is a fingerprint of offline extraction workflows that require both the ESE database and the SYSTEM hive boot key for decryption. NTDSgrab.ps1 is a PowerShell wrapper that automates the same extraction flow.\n",
       "level": "critical",
-      "status": "experimental",
+      "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30834423548",
-      "verdict_at": "2026-08-03T17:02:34.863551+00:00",
-      "verdict_rule_version": "1.3",
+      "run_id": "30835491986",
+      "verdict_at": "2026-08-03T17:12:17.831457+00:00",
+      "verdict_rule_version": "1.4",
       "tactics": [
         "Credential Access"
       ],
@@ -1134,7 +1134,7 @@
       },
       "rule_body": "detection:\n  selection_ntdsutil_image:\n  - Image|endswith: \\ntdsutil.exe\n  - OriginalFileName: ntdsutil.exe\n  selection_cli_1:\n    CommandLine|contains|all:\n    - ac i ntds\n    - create full\n  selection_cli_2:\n    CommandLine|contains|all:\n    - activate instance ntds\n    - create full\n  selection_direct_ntds_copy:\n    CommandLine|contains|all:\n    - '/c copy '\n    - \\windows\\ntds\\ntds.dit\n  selection_esentutl_image:\n  - Image|endswith: \\esentutl.exe\n  - OriginalFileName: esentutl.exe\n  selection_esentutl_ntds:\n    CommandLine|contains: \\windows\\ntds\\ntds.dit\n  selection_vss_shadow:\n    CommandLine|contains: HarddiskVolumeShadowCopy\n  selection_vss_ntds:\n    CommandLine|contains: \\windows\\ntds\\ntds.dit\n  selection_diskshadow_image:\n  - Image|endswith: \\diskshadow.exe\n  - OriginalFileName: diskshadow.exe\n  selection_diskshadow_script:\n    CommandLine|contains: '/s '\n  selection_wbadmin_image:\n  - Image|endswith: \\wbadmin.exe\n  - OriginalFileName: WBADMIN.EXE\n  selection_wbadmin_ntds:\n    CommandLine|contains: \\windows\\ntds\n  selection_tool:\n  - Image|endswith:\n    - \\NTDSDump.exe\n    - \\NTDSDumpEx.exe\n  - OriginalFileName:\n    - NTDSDump.exe\n    - NTDSDumpEx.exe\n  - CommandLine|contains|all:\n    - ntds.dit\n    - system.hiv\n  - CommandLine|contains: NTDSgrab.ps1\n  condition: (selection_ntdsutil_image and 1 of selection_cli*) or selection_direct_ntds_copy or (selection_esentutl_image\n    and selection_esentutl_ntds) or (selection_vss_shadow and selection_vss_ntds) or (selection_diskshadow_image\n    and selection_diskshadow_script) or (selection_wbadmin_image and selection_wbadmin_ntds) or selection_tool",
       "rule_body_lang": "yaml",
-      "rule_version": "1.3"
+      "rule_version": "1.4"
     },
     {
       "detect_id": "DETECT-2026-0025",
