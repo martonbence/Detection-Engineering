@@ -1,6 +1,13 @@
 rules/splunk/*.meta.json
 pipeline_bundle/
 
+# Splunk reconciliation output. Describes the Splunk instance at one moment,
+# not the repo -- committing it would add a commit per run that says nothing
+# about the code. It travels as a build artifact instead. Deliberately not
+# under outputs/reports/, which the verify job stages wholesale with
+# `git add outputs/reports/`.
+outputs/state/
+
 # Python build/test leftovers. Nothing imported anything until tests/ existed,
 # so these never appeared before.
 __pycache__/

@@ -870,6 +870,7 @@
           <span class="id">1.7</span>
           <span class="row-title" id="t-1-7">Nincs törlés és kivezetés (retirement) az egész folyamatban</span>
           <span class="tag verified">mérve</span>
+          <span class="tag progress">részben kész</span>
         </div>
         <p class="row-body">
           Négy tünet, egy gyökér: a <code>--diff-filter=AMRC</code> kizárja a törléseket; a törölt
@@ -891,6 +892,7 @@
         <div class="row-head">
           <span class="id">1.8</span>
           <span class="row-title" id="t-1-8">A title átírása árva saved search-öt hagy a Splunkban</span>
+          <span class="tag progress">részben kész</span>
         </div>
         <p class="row-body">
           A Splunk objektumnév <code>detect_id + slug(title)</code>-ből képződik. A dokumentáció ezt
@@ -1205,12 +1207,13 @@
     <div class="row sev-arch" data-sev="arch" data-weight="2">
       <input class="row-check" type="checkbox" id="i-3-3" aria-labelledby="t-3-3">
       <div class="row-main">
-        <div class="row-head"><span class="id">3.3</span><span class="row-title" id="t-3-3">Nincs desired-state ↔ actual-state rekonciliáció</span></div>
+        <div class="row-head"><span class="id">3.3</span><span class="row-title" id="t-3-3">Nincs desired-state ↔ actual-state rekonciliáció</span><span class="tag progress">részben kész</span></div>
         <p class="row-body">
           A pipeline push-alapú: események hatására tesz dolgokat. Nincs viszont olyan komponens,
           ami megkérdezné, hogy „a Splunkban most pontosan az van-e, aminek lennie kell".
         </p>
         <p class="row-fix"><span class="fix-label">javítás</span>Egy <code>scripts/state/reconcile.py</code>, ami kilistázza a CI-managed saved search-öket (a <code>ci_managed: true</code> sidecar-mező már megvan hozzá), összeveti a repo desired state-jével, és jelenti: <code>missing</code> / <code>orphan</code> / <code>drifted</code>. Két üzemmód: <code>--check</code> a CI-ban, <code>--apply</code> a törléshez. Egyetlen script, ami egyszerre lezárja az 1.1-et, az 1.7-et és az 1.8-at — a kimenete pedig a 4.7-es inventory.</p>
+        <p class="row-note"><span class="note-label">2026-08-03</span><b>Felderítés kész, beavatkozás nem — ezért nincs pipa.</b> Új, kizárólag olvasó <code>scripts/state/reconcile.py</code>. A desired state a <code>rules/sigma/*.yml</code> fájlokból jön (a <code>.meta.json</code> sidecarok gitignore-oltak, tehát CI-futáson kívül nem léteznek), és ugyanazzal a <code>saved_search_name()</code>-mel képzi a nevet, amit a deploy is használ. Az actual state a Splunk <code>servicesNS/{owner}/{app}/saved/searches</code> endpointjáról jön, <code>count=0</code>-val — enélkül a 30 soros alapértelmezett lapozás miatt minden 30. utáni szabály „hiányzónak" látszana. <b>Nem kellett új <code>ci_managed</code> sidecar-mező:</b> a deploy már ma minden leírásba beleírja, hogy „Managed by CI/CD (Detection-Engineering repo)", és a jelölőnek amúgy is a Splunk-objektumon a helye, nem a repóban — egy árva objektum épp az, amihez már nincs repo-oldali bejegyzés. <b>Öt vödör:</b> in sync, missing, <em>orphan_renamed</em> (a detect_id megvan, csak a title-slug mozdult → <b>1.8</b>), <em>orphan_removed</em> (a detect_id sincs meg → <b>1.7</b>), és unmanaged (nincs rajta CI-jelölő: jelentjük, de sosem nyúlunk hozzá, és nem számít driftnek). A két árva-vödör szándékosan külön: egy átnevezés maradéka biztonsággal törölhető, egy eltűnt szabály viszont ránézést érdemel. CI-ban a <code>splunk_verify</code> job végén fut, <code>always()</code> + <code>continue-on-error</code>, tehát sosem blokkol — meglévő Splunk-állapotról szól, nem erről a futásról. 15 teszt mockolt Splunkkal, plusz száraz futtatás a valós 27 szabályon. <b>Hátra:</b> a tényleges törlés (<code>--apply</code>) és a deprecated szabályok kizárása a deployból.</p>
         <div class="refs"><span class="ref">új: scripts/state/</span><span class="ref">sidecar ci_managed</span></div>
       </div>
     </div>
