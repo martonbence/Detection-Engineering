@@ -256,6 +256,23 @@ For rules with `testing.type: emulation` (8 of the current 27), `emulation_verif
 |---|---|---|
 | `deploy_to_prod` | `self-hosted, linux, de-lab` | Checkout, Setup Python, Install deps (pinned, from `.github/requirements.txt`), **Regenerate SPL + meta sidecars from Sigma source**, **Fail if regenerated SPL drifted from what was reviewed** (`git diff --exit-code -- rules/splunk`), **Deploy all SPL files to prod Splunk** |
 
+### `ci_code_checks.yml`
+
+The pipeline's own CI, rather than the pipeline. `ci_dev_workflow.yml` only does substantive work when a *rule* changes -- its `changes` step derives a list of Sigma files, and an empty list makes every downstream job skip -- so the code running the pipeline was never exercised. Adding `scripts/docs/**` to that workflow's `paths:` would not have fixed it: the run starts, then skips everything. Hence a separate, rule-independent workflow, which is also what keeps it fast (`ubuntu-latest`, no Splunk, no self-hosted runner, no live attacks).
+
+Triggered on `push` (any branch but `main`) and `pull_request` touching `scripts/**`, `tests/**`, `pyproject.toml`, `.github/requirements*.txt` or `.github/workflows/**`.
+
+| Job | Runner | Key steps |
+|---|---|---|
+| `checks` | `ubuntu-latest` | Checkout, Setup Python (pip cache keyed on both requirements files), Install deps (`.github/requirements.txt` + `.github/requirements-dev.txt`), **Ruff**, **Pytest** |
+| `regenerate_docs` | `ubuntu-latest` | `needs: checks`, and only on a `push` to `dev`. Checkout (`fetch-depth: 0`, for the same `git log --follow` reason as `splunk_verify`), Setup Python, Install deps, **Regenerate and commit if changed** -- resets to `dev`'s tip, re-runs `generate_stats.py`, stages `outputs/reports/`, `README.md` and `docs/index.html`, and commits with `[skip ci]`. Exposes a `published` output. |
+| `deploy_pages` | `ubuntu-latest` | `needs: regenerate_docs`, gated on `published == 'true'`. Checks out `dev` and publishes `docs/` via `configure-pages` / `upload-pages-artifact` / `deploy-pages`. Shares the `pages` concurrency group with the dev workflow's publish job so the two queue rather than race. |
+
+`regenerate_docs` exists because a change to `generate_stats.py` alone never regenerated the published page. `deploy_pages` exists because Pages serves an uploaded artifact, not the branch -- committing `docs/index.html` updates the repo but not the live site.
+
+The "did anything change?" test is not a plain `git diff --quiet`. `generate_stats.py` stamps the current time and HEAD's sha into everything it writes, so two runs over identical sources are never byte-identical and a naive check would commit on every push. The job normalises timestamps and shas out of both sides before comparing. It deliberately does not filter diff *lines* that look like timestamps: `index.html` carries `COVERAGE_HISTORY` and `RULE_GROWTH_HISTORY` as one enormous line each, holding the real data alongside a timestamp, so a line-level filter would silently discard genuine coverage changes.
+
+
 There is no third workflow file in `.github/workflows/` for the promotion PR's post-merge board transition — see stage 10 above for why (it's Project #3's own native, UI-configured automation, not repo code).
 
 ## Runners, named
