@@ -26,6 +26,7 @@ on:
       - ".github/requirements.txt"
       - ".github/requirements-dev.txt"
       - ".github/workflows/**"
+      - ".github/PSScriptAnalyzerSettings.psd1"
   pull_request:
     paths:
       - "scripts/**"
@@ -34,6 +35,7 @@ on:
       - ".github/requirements.txt"
       - ".github/requirements-dev.txt"
       - ".github/workflows/**"
+      - ".github/PSScriptAnalyzerSettings.psd1"
 
 concurrency:
   group: code-checks-${{ github.ref }}
@@ -75,9 +77,102 @@ jobs:
       - name: Pytest
         run: pytest
 
+  # Separate job rather than two more steps in static_analysis, for two reasons:
+  # steps run in sequence, so a ruff failure would hide a PowerShell failure
+  # until the next push; and a parse error in a .ps1 has no business being
+  # reported under a job named for Python tests. Runs in parallel, so it costs
+  # no wall-clock time.
+  #
+  # Until this existed, nothing checked the PowerShell at all: ruff and pytest
+  # are Python-only, and run_atomic.ps1 is otherwise first parsed by the Windows
+  # runner during a live atomic run -- the slowest feedback loop in the repo.
+  # (Register item 4.10.)
+  powershell_analysis:
+    name: PowerShell analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # Pinned, like .github/requirements.txt pins the Python toolchain
+          # (register item 1.3): an analyzer that changes under us turns a green
+          # build red on someone else's release schedule.
+          Install-Module -Name PSScriptAnalyzer -RequiredVersion 1.25.0 `
+            -Scope CurrentUser -Force -AcceptLicense -ErrorAction Stop
+          Import-Module PSScriptAnalyzer -ErrorAction Stop
+          Write-Host "PSScriptAnalyzer $((Get-Module PSScriptAnalyzer).Version)"
+
+      # Deliberately separate from, and ahead of, the analyzer: this uses the
+      # PowerShell parser itself, so it answers "does this file even parse?"
+      # without depending on any analyzer rule being enabled. It is the check
+      # that would have caught a typo in a script edited on a machine with no
+      # pwsh installed.
+      - name: Parse check
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $failed = $false
+
+          foreach ($file in Get-ChildItem -Path scripts -Filter *.ps1 -Recurse -File) {
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              $file.FullName, [ref]$null, [ref]$errors)
+
+            $relative = (Resolve-Path -LiteralPath $file.FullName -Relative) -replace '^\.[\\/]', ''
+
+            if ($errors -and $errors.Count -gt 0) {
+              $failed = $true
+              foreach ($e in $errors) {
+                Write-Host "::error file=$relative,line=$($e.Extent.StartLineNumber)::$($e.Message)"
+              }
+            }
+            else {
+              Write-Host "OK  $relative"
+            }
+          }
+
+          if ($failed) {
+            Write-Host "::error title=PowerShell parse error::One or more .ps1 files failed to parse."
+            exit 1
+          }
+
+      - name: PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $results = @(Invoke-ScriptAnalyzer -Path scripts -Recurse `
+            -Settings .github/PSScriptAnalyzerSettings.psd1)
+
+          # Severity is an enum, so it is stringified before comparing rather
+          # than relying on coercion inside -in.
+          $isFatal = { param($r) [string]$r.Severity -in @('Error', 'ParseError') }
+
+          foreach ($r in $results) {
+            $relative = (Resolve-Path -LiteralPath $r.ScriptPath -Relative) -replace '^\.[\\/]', ''
+            # Warnings are annotations, not gates -- see the Severity note in
+            # the settings file for why the bar starts here.
+            $level = if (& $isFatal $r) { 'error' } else { 'warning' }
+            Write-Host "::$level file=$relative,line=$($r.Line)::[$($r.RuleName)] $($r.Message)"
+          }
+
+          $fatal = @($results | Where-Object { & $isFatal $_ })
+          $warned = @($results | Where-Object { [string]$_.Severity -eq 'Warning' })
+
+          Write-Host "PSScriptAnalyzer: $($fatal.Count) error(s), $($warned.Count) warning(s)."
+
+          if ($fatal.Count -gt 0) {
+            exit 1
+          }
+
   regenerate_console:
     name: Regenerate Console
-    needs: static_analysis
+    needs: [static_analysis, powershell_analysis]
     # Only on dev, and only for real pushes: a PR must not rewrite generated
     # files on someone's branch, and main gets its copy through the promotion
     # PR like everything else.
