@@ -42,13 +42,21 @@ pipeline saját kódjára is fut végre CI (**4.10** részben kész), a hőtérk
 megerősített hibát, és a runner oldalán sem egy hibás szabály, sem egy megölt step nem visz
 magával mást (**1.9–1.11**).
 
-Következik a **3.3** reconcile, ami lefedi az 1.7-et és az 1.8-at, és az 1.1 lezárása után megmaradt
-*láthatósági* igényt is (melyik szabály él ténylegesen prodban) — az egyedi javítások helyett
-érdemes rögtön azt megcsinálni. A 2026-08-03-i teljes workflow-futás után az 1.7 **tünetei
-pillanatnyilag nullák** (27 sigma / 27 spl / 27 result, nincs árva `.spl`, nincs árva result,
-nincs `status: deprecated`), tehát a reconcile tiszta állapotból indulhat — nincs mögötte
-felhalmozódott szemét, amit előbb ki kellene takarítani. A defekt maga viszont megvan: az első
-átnevezés vagy törlés újratermeli.
+A **3.3** reconcile `--check` fele megvan (2026-08-03), tehát az 1.7 és az 1.8 mostantól
+*láthatóvá* válik — de egyik sincs lezárva, mert a beavatkozás hiányzik. A három tétel egyben
+mozog tovább, és két, egymást feltételező lépés maradt:
+
+1. **`--apply`** a reconcile-hoz (törli az árva objektumokat) — ez zárja az **1.7**-et.
+2. **Objektumnév csak `detect_id`-ból** (`rule_naming.py`) — ez zárja az **1.8**-at.
+
+A sorrend nem cserélhető fel: a 2. lépés egyszeri jelleggel **minden** meglévő saved search-öt
+árvává tesz (mind a 27 név megváltozik), tehát csak akkor biztonságos, ha a törlési útvonal már
+létezik és bizonyított. Addig a reconcile riportja megmutatja, mi keletkezne.
+
+A 2026-08-03-i teljes workflow-futás után az 1.7 **tünetei pillanatnyilag nullák** (27 sigma /
+27 spl / 27 result, nincs árva `.spl`, nincs árva result, nincs `status: deprecated`) — a
+reconcile tiszta állapotból indul, nincs mögötte felhalmozódott szemét. A defekt maga viszont
+megvan: az első átnevezés vagy törlés újratermeli.
 
 ---
 
@@ -60,8 +68,8 @@ felhalmozódott szemét, amit előbb ki kellene takarítani. A defekt maga viszo
 - [x] **1.4** Az `-5m` verify-ablak rövidebb az atomic tesztek futásidejénél · `ci_dev_workflow.yml:428,670` · **kész 2026-08-03:** mindhárom teszt-job első stepként lebélyegzi az indulását (epoch), a `splunk_verify` a minimumukat veszi −60s margóval `--earliest`-nek; fallback `-15m` + warning. A `check_saved_search_hits.py` érintetlen (a Splunk elfogadja az epochot). A szabályok `custom.splunk.earliest` mezője más dolog — a prod saved search ütemezési ablaka —, nem változott
 - [x] **1.5** A Splunk-lekérdezés timeoutja hamis FAIL-ként jelenik meg (+ `FINALIZING` részleges eredmény) · `check_saved_search_hits.py:120-164,138` · **kész 2026-08-03:** explicit timeout-error, olvasás csak `DONE`-nál, plusz a hibák `error_kind`-ot kapnak (`unmeasured` → NOT_VERIFIED, `rule_error` → FAIL) — a script javítása önmagában kevés lett volna, mert az `evaluate()` minden hibát FAIL-re képezett. A legend és a `VERDICT_RANK` komment is átírva
 - [x] **1.6** A `scripts/docs/**` nincs a trigger-path-ok között · `ci_dev_workflow.yml:7-28` · **kész 2026-08-03:** a 4.10 útján, mert a path felvétele önmagában nem működött volna (a run elindulna, majd `has_rules=false` miatt mindent átugrana). Új `ci_code_checks.yml`: ruff + pytest minden kód-változásra, plusz `regenerate_docs` és `deploy_pages` job — a Pages ugyanis artifactból publikál, nem a branchről, tehát a commit önmagában nem frissítette volna az élő oldalt
-- [ ] **1.7** Nincs törlés/kivezetés: `--diff-filter=AMRC`, árva `.spl`, árva saved search, 3 árva result, holt `status: deprecated` · `ci_dev_workflow.yml:89` · fix: 3.3 reconcile; addig min. a deprecated kizárása a deployból
-- [ ] **1.8** A title átírása árva saved search-öt hagy a Splunkban · `rule_naming.py:10` · fix: objektumnév csak `detect_id`-ból, title a description-be
+- [~] **1.7** Nincs törlés/kivezetés: `--diff-filter=AMRC`, árva `.spl`, árva saved search, 3 árva result, holt `status: deprecated` · `ci_dev_workflow.yml:89` · **részben kész 2026-08-03:** a 3.3 reconcile `--check` mostantól *láthatóvá* teszi az árva saved search-öket (`orphan_removed` vödör), de nem töröl. Hátra: a tényleges kivezetés és a deprecated kizárása a deployból
+- [~] **1.8** A title átírása árva saved search-öt hagy a Splunkban · `rule_naming.py:10` · **részben kész 2026-08-03:** a reconcile `orphan_renamed` vödre külön néven jelenti ezt az esetet (a `detect_id` megvan, csak a title-slug mozdult). A *kiváltó ok* viszont változatlan: az objektumnév továbbra is tartalmazza a title-slugot. Hátra: név csak `detect_id`-ból — de figyelem, ez a váltás egyszeri jelleggel **minden** meglévő saved search-öt árvává tesz, tehát a törlési útvonallal együtt érdemes
 - [x] **1.9** Egy hibás szabály `throw`-ja megbuktatja az egész batch tesztelését · `run_atomic.ps1:313,338`, `sigma_schema.json` · **kész 2026-08-03:** séma `allOf`+`if/then` (`enabled: true`-ra szűkítve), és mind a négy `throw` → `Write-Warning` + `continue` `$malformed` számlálóval; új `exit 1` ág, ha a batch minden szabálya hibás
 - [x] **1.10** Atomic higiénia: nincs `-GetPrereqs` és nincs `-Cleanup` · `run_atomic.ps1:178-242` · **kész 2026-08-03:** `Invoke-AtomicTestCompat -Mode GetPrereqs|Run|Cleanup` (egymást kizáró kapcsolók, tehát három invokáció), cleanup `finally`-ben, egyik segédfázis hibája sem számít `$failures`-nek; `ATOMIC_SKIP_PREREQS` / `ATOMIC_SKIP_CLEANUP`
 - [x] **1.11** A Defender kikapcsolva maradhat, ha a stepet a timeout hard-kill-eli · `run_atomic.ps1:496-498` · **kész 2026-08-03:** scheduled task deadman (Once +20p **és** AtStartup), a kikapcsolás *előtt* regisztrálva, fail-closed (`ATOMIC_ALLOW_UNPROTECTED_DISABLE` a felmentés), leftover task `::warning`-gal jelezve
@@ -92,7 +100,7 @@ felhalmozódott szemét, amit előbb ki kellene takarítani. A defekt maga viszo
 
 - [ ] **3.1** Egy manifest helyett négyszer parse-olt metaadat · `sigma_to_spl.py`, `run_atomic.ps1:26-43`, `deploy:46`, `verify:56` · fix: `manifest.json` a converterből, a workflow `jq`-val olvassa (≈60-80 sorral rövidebb dev workflow)
 - [ ] **3.2** Artifact-promóció újraépítés helyett (a bundle legyen az artifact, digesttel) · fix: release asset / build provenance, a prod letölti és ellenőrzi
-- [ ] **3.3** Nincs desired-state ↔ actual-state rekonciliáció · fix: `scripts/state/reconcile.py` (`--check` / `--apply`), a `ci_managed: true` sidecar-mezőre építve — egyben lezárja 1.1 + 1.7 + 1.8-at
+- [~] **3.3** Nincs desired-state ↔ actual-state rekonciliáció · **részben kész 2026-08-03:** `scripts/state/reconcile.py` megvan, **csak `--check`** (kizárólag olvasó, nincs `--apply`). Öt vödör: in sync / missing / orphan_renamed / orphan_removed / unmanaged. Új `ci_managed` sidecar-mező **nem kellett** — a deploy leírás-prefixe már ma is CI-jelölő. CI-ban a `splunk_verify` végén, `always()` + `continue-on-error`. Hátra: `--apply`
 - [ ] **3.4** A `generate_stats.py` 4392 soros monolit (~3300 sor inline HTML) · `generate_stats.py:986-4275` · fix: template + assetek külön fájlba, egy JSON-blokk a 16 placeholder helyett
 - [ ] **3.5** A verziózás a git history-hoz kötött, két helyen duplikálva · `sigma_to_spl.py:219`, `generate_stats.py:590` · fix: explicit `version:` a YAML-ben + CI-check a bumpra
 - [ ] **3.6** A `scripts/lib/` alulhasznált (meta IO és verzió 2-2 példányban, nincs `SplunkClient`)
@@ -451,3 +459,47 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   és a `.psd1` érvényessége csak az első CI-futáson derül ki. A `.psd1` szintaxisát sem tudtam
   lokálisan parse-olni, ugyanabból az okból, amiért az egész job létrejött.
   **Hátra a 4.10-ből:** actionlint, shellcheck, pip-audit.
+- **2026-08-03** — **3.3 fele kész: a reconcile `--check`.** Új `scripts/state/reconcile.py`,
+  **kizárólag olvasó** — nincs `--apply`, tudatosan. A törlés automatizálása külön döntés, külön
+  hatósugárral, és úgy helyes meghozni, hogy ez a riport már a kézben van, nem egyszerre azzal,
+  ami előállítja.
+  **Desired state a `rules/sigma/*.yml`-ből**, nem a `.meta.json` sidecarokból: azok futás közben
+  keletkeznek és gitignore-oltak (`.gitignore:1`), tehát CI-futáson kívül nem is léteznek. A
+  `detect_id` és a `title` viszont top-level Sigma mező, és ugyanaz a `saved_search_name()` képzi
+  a nevet, amit a deploy használ — így konverzió futtatása nélkül reprodukálja a deploy nevezéktanát.
+  **Actual state** a `servicesNS/{owner}/{app}/saved/searches` endpointról, `count=0`-val. Ez utóbbi
+  nem kozmetika: a Splunk alapértelmezésben 30 sort ad vissza, tehát enélkül a 27 szabály ma még
+  átférne, de a 31. rögtön „hiányzónak" látszana.
+  **Új `ci_managed` sidecar-mező nem kellett.** A terv eredetileg arra épített volna, de a deploy
+  már ma minden leírásba beleírja, hogy „Managed by CI/CD (Detection-Engineering repo)"
+  (`deploy_spl_to_splunk.py:260`) — ez de facto CI-jelölő. És a jelölőnek amúgy is a Splunk-objektumon
+  a helye, nem a repóban: egy repo-oldali mező csak olyan szabályt tud leírni, ami még megvan,
+  az árva viszont épp az, ami már nincs meg.
+  **Öt vödör, nem három.** A tervben `missing`/`orphan`/`drifted` szerepelt; a tényleges bontás
+  `in_sync`, `missing`, `orphan_renamed`, `orphan_removed`, `unmanaged`. A két árva-vödör
+  szétválasztása a lényegi rész: ugyanaz a tünet, két különböző ok és két különböző teendő. Ha az
+  árva objektum `detect_id`-ja **még megvan** a repóban, az egy *átnevezés* maradéka (**1.8**) — a
+  szabály él és virul új néven, ez a régi héja, biztonsággal törölhető. Ha a `detect_id` **sincs**
+  meg, az egy *eltávolítás* (**1.7**), ami ránézést érdemel, mert egy szabály eltűnése nem mindig
+  szándékos. Az `unmanaged` (CI-jelölő nélküli, kézzel épített kereső) jelentve van, hogy a számok
+  kijöjjenek, de sosem minősül driftnek — a pipeline nem hozta létre, nincs róla véleménye.
+  **A query-drift szándékosan kimaradt.** Kézenfekvő lett volna összevetni a repo `.spl`-jét a
+  Splunkban tárolt kereséssel, de a Splunk normalizálja a lekérdezést, tehát ez megbízhatóan hamis
+  driftet gyártana — egy zajos ellenőrzés pedig rosszabb, mint a hiánya.
+  **CI-integráció:** a `splunk_verify` job végén fut, `always()` + `continue-on-error`, és **nem**
+  buktat (`--fail-on-drift` létezik, de nincs bekapcsolva). Ez szándékos: a riport a Splunk
+  *meglévő* állapotáról szól, aminek semmi köze ahhoz, hogy az adott futás szabályai jók-e —
+  kapuzni rajta annyit jelentene, hogy valaki más által okozott drift blokkol egy független munkát.
+  A JSON kimenet `outputs/state/`-be megy és build artifactként utazik, **nem** commitolva:
+  egy pillanatnyi Splunk-állapotról szól, nem a repóról, és futásonként egy tartalmatlan commitot
+  termelne. Menet közben javított csapda: eredetileg `outputs/reports/`-ba írt volna, amit a
+  következő step `git add outputs/reports/`-tal tömegesen stage-el — így némán bekerült volna.
+  A publikálása a dashboardra a **4.7**, ott kell eldönteni.
+  **Tesztelés:** 15 új teszt mockolt Splunkkal (osztályozás, `count=0`, a 401/403 mint végzetes
+  hiba — mert egy elutasított kérés üres listája az egész könyvtárat „hiányzónak" mutatná —,
+  nem-JSON válasz, és hogy egy parse-olhatatlan szabály inkább hibát dob, mint hogy némán
+  zsugorítsa a desired state-et). Teljes suite 40 teszt, ruff tiszta. Plusz száraz futtatás a
+  valós 27 szabályon, szimulált Splunkkal, mind az öt vödörre.
+  **A pontszám nem mozdul: 30/86,5, 7,4 / 10.** A három érintett tétel (**1.7**, **1.8**, **3.3**)
+  mind `[~]`, mert a register saját szabálya szerint félkész tétel nem kap súlyt — és ez itt
+  pontos: a felderítés kész, a beavatkozás nem.

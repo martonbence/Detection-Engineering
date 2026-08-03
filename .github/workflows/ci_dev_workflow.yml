@@ -13,6 +13,7 @@ on:
       - "scripts/lib/rule_naming.py"
       - "scripts/atomic/run_atomic.ps1"
       - "scripts/verify/**"
+      - "scripts/state/**"
       - ".github/workflows/ci_dev_workflow.yml"
   pull_request:
     paths:
@@ -25,6 +26,7 @@ on:
       - "scripts/lib/rule_naming.py"
       - "scripts/atomic/run_atomic.ps1"
       - "scripts/verify/**"
+      - "scripts/state/**"
       - ".github/workflows/ci_dev_workflow.yml"
 
 concurrency:
@@ -817,6 +819,58 @@ jobs:
           name: matched-events-sigma-${{ github.run_id }}
           path: ${{ env.matched_events_dir }}
           retention-days: 90
+          if-no-files-found: ignore
+
+      # Nothing else in this pipeline ever looks at Splunk and asks "is what is
+      # in there still what we asked for?". Deletions and title renames both
+      # leave objects behind that keep running and alerting, and no step
+      # notices. (Register items 1.7, 1.8; feeds 4.7.)
+      #
+      # Read-only and non-blocking on purpose. It reports a *pre-existing*
+      # condition of the Splunk instance, which has nothing to do with whether
+      # this particular run's rules are correct -- gating on it would block
+      # unrelated work on drift somebody else introduced. always() so drift is
+      # still reported when verification itself failed, and continue-on-error
+      # so a Splunk hiccup in a reporting step cannot fail a run whose real
+      # work already succeeded.
+      - name: Reconcile Splunk state against the repo
+        if: always()
+        continue-on-error: true
+        shell: bash
+        env:
+          SPLUNK_BASE_URL: ${{ secrets.SPLUNK_BASE_URL }}
+          SPLUNK_USERNAME: ${{ secrets.SPLUNK_USERNAME }}
+          SPLUNK_PASSWORD: ${{ secrets.SPLUNK_PASSWORD }}
+          SPLUNK_APP: ${{ secrets.SPLUNK_APP }}
+          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS || 'false' }}
+        run: |
+          set -uo pipefail
+
+          python scripts/state/reconcile.py \
+            --rules-dir rules/sigma \
+            --json outputs/state/reconcile.json \
+            | tee reconcile_report.txt
+
+          {
+            echo "### Splunk state reconciliation"
+            echo
+            echo '```'
+            cat reconcile_report.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Not committed to the repo: this describes the Splunk instance at one
+      # moment, not the repo's own state, so it would add a commit on every run
+      # that says nothing about the code. Publishing it to the dashboard is
+      # register item 4.7, and that is where it should be decided.
+      - name: Upload reconciliation report
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: splunk-reconcile-${{ github.run_id }}
+          path: outputs/state/reconcile.json
+          retention-days: 30
           if-no-files-found: ignore
 
       - name: Generate stats and update README
