@@ -1,2 +1,9 @@
 rules/splunk/*.meta.json
 pipeline_bundle/
+
+# Python build/test leftovers. Nothing imported anything until tests/ existed,
+# so these never appeared before.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/

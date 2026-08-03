@@ -17,7 +17,7 @@ A CI/CD-driven detection engineering pipeline that treats Sigma/SPL detections a
 
 📋 Full rule index → [GitHub Pages](https://martonbence.github.io/Detection-Engineering/)
 
-*Generated at 2026-07-30T20:40:24 UTC*
+*Generated at 2026-08-03T12:40:09 UTC*
 <!-- STATS_END -->
 
 ## Why this exists
@@ -97,9 +97,9 @@ Every detection is authored as [Sigma](https://github.com/SigmaHQ/sigma) YAML �
 
 **8. Publish.** [`docs/index.html`](docs/index.html) is a self-contained rule browser and interactive MITRE ATT&CK Navigator, published to GitHub Pages from the `dev` branch by the `deploy_pages` job inside [`ci_dev_workflow.yml`](.github/workflows/ci_dev_workflow.yml) — the sole Pages-publish path, gated on `splunk_verify` having run (`success` or `failure`). A previously-existing standalone `deploy_pages.yml` workflow, which fired independently on any push to `dev` touching `docs/**`, was removed because it double-published Pages on every normal run (the pipeline's own results-commit step also touches `docs/index.html`). One tradeoff of that fix: a genuinely docs-only edit no longer triggers its own publish — it just rides along with the next real pipeline run.
 
-### CI orchestration — two workflows, dev then main
+### CI orchestration — three workflows
 
-Detection changes are authored against `dev`, not `main` directly. Two separate workflows split "prove it works" from "ship it":
+Detection changes are authored against `dev`, not `main` directly. Two workflows split "prove it works" from "ship it", and a third checks the pipeline's own code:
 
 **[`ci_dev_workflow.yml`](.github/workflows/ci_dev_workflow.yml) — the full pipeline, runs on `dev`.** Triggered on `push` to any branch other than `main` and on `pull_request`, whenever `rules/sigma/**`, the schema, or the pipeline scripts change. Jobs, in dependency order:
 
@@ -114,6 +114,9 @@ Detection changes are authored against `dev`, not `main` directly. Two separate 
 | `deploy_pages` | `ubuntu-latest` | `needs: [splunk_verify, atomic_verify, atomic_verify_dc, emulation_verify]`. Publishes `docs/` from `dev` to GitHub Pages — the sole publish path (see the note above). |
 
 **[`ci_prod_workflow.yml`](.github/workflows/ci_prod_workflow.yml) — deploy-only, runs on `main`.** Triggered on `push` to `main` when `rules/sigma/**` changes (i.e. on merge of a promotion PR, or any other direct change to `main`). It does **not** re-validate, re-test, or re-verify anything: it re-runs `sigma_to_spl.py` over the already-committed, already-reviewed Sigma source. That step exists for the gitignored `.meta.json` sidecars, but it rewrites the `.spl` files too — the converter has no sidecar-only mode — and the deploy step reads file *contents* from the working tree (`git ls-files` supplies only the path list). Two things make that safe rather than merely hoped-for: both workflows install the same pinned converter from [`.github/requirements.txt`](.github/requirements.txt), and a **drift gate** (`git diff --exit-code -- rules/splunk`) fails the job if the regenerated `.spl` differs from the committed, reviewed, Atomic-verified one. Only after that check passes does it deploy every rule in `rules/splunk/*.spl` straight to the **prod** Splunk instance (`environment: prod` secrets) via the same `deploy_spl_to_splunk.py`. There is no Atomic Red Team run, no verification, and no stats/README commit on `main` — production deploy trusts the dev-branch verification that already happened.
+
+**[`ci_code_checks.yml`](.github/workflows/ci_code_checks.yml) — the pipeline's own CI, runs on any branch but `main`.** Triggered on `push`/`pull_request` touching `scripts/**`, `tests/**`, `pyproject.toml`, the requirements files or `.github/workflows/**`. `ci_dev_workflow.yml` only does substantive work when a *rule* changes — its `changes` step derives a list of Sigma files, and an empty list skips every downstream job — so the code that runs the pipeline was never exercised by CI. (Adding `scripts/docs/**` to the dev workflow's `paths:` would not have helped: the run starts, then skips everything.) Three jobs: `checks` runs `ruff` and `pytest` on `ubuntu-latest` (no Splunk, no self-hosted runner, no live attacks); `regenerate_docs` re-runs `generate_stats.py` on `dev` and commits `docs/index.html`, `README.md` and `outputs/reports/` when the output changed by more than its embedded timestamps; `deploy_pages` then publishes, because Pages serves an uploaded artifact rather than the branch, so a commit alone would update the repo but not the live site. It shares the `pages` concurrency group with the dev workflow's publish job so the two never race.
+
 
 #### Promotion PR: dev → main
 

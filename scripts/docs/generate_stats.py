@@ -18,7 +18,6 @@ import html as _html
 import json
 import re
 import subprocess
-import sys
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path

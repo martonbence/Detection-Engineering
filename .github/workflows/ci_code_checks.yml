@@ -1,0 +1,244 @@
+name: CI - Code Checks
+
+# The pipeline's own CI, as opposed to the pipeline itself.
+#
+# ci_dev_workflow.yml only does real work when a *rule* changes: its `changes`
+# step derives a list of Sigma files, and if that list is empty every
+# downstream job skips. That is correct for rule verification, but it leaves
+# the code that runs the pipeline unexercised -- edit generate_stats.py or
+# check_saved_search_hits.py and nothing checks it. A defect then merges
+# unnoticed and surfaces later, mid-pipeline, in a run that was about
+# something else entirely. (Register items 1.6 and 4.10.)
+#
+# Note this is why simply adding scripts/docs/** to the dev workflow's paths:
+# list would not have worked: the run would start and then skip everything,
+# because no rule changed. The gate has to be a separate, rule-independent
+# workflow, which is also what lets it stay fast -- ubuntu-latest, no Splunk,
+# no self-hosted runner, no live attacks.
+
+on:
+  push:
+    branches-ignore: [ "main" ]
+    paths:
+      - "scripts/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - ".github/requirements.txt"
+      - ".github/requirements-dev.txt"
+      - ".github/workflows/**"
+  pull_request:
+    paths:
+      - "scripts/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - ".github/requirements.txt"
+      - ".github/requirements-dev.txt"
+      - ".github/workflows/**"
+
+concurrency:
+  group: code-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Lint and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            .github/requirements.txt
+            .github/requirements-dev.txt
+
+      - name: Install deps
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          # The pinned pipeline toolchain, so tests import the same library
+          # versions the pipeline runs against, plus the pinned test tools.
+          python -m pip install -r .github/requirements.txt
+          python -m pip install -r .github/requirements-dev.txt
+
+      - name: Ruff
+        run: ruff check .
+
+      - name: Pytest
+        run: pytest
+
+  regenerate_docs:
+    name: Regenerate rule browser
+    needs: checks
+    # Only on dev, and only for real pushes: a PR must not rewrite generated
+    # files on someone's branch, and main gets its copy through the promotion
+    # PR like everything else.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+
+    outputs:
+      published: ${{ steps.regen.outputs.published }}
+
+    steps:
+      # Full history, not shallow: generate_stats.py derives each rule's
+      # version from `git log --follow` over its file. On a depth=1 checkout
+      # every rule silently comes out "1.0" -- no error, just wrong data. The
+      # dev workflow's splunk_verify job carries the same note for the same
+      # reason.
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT_DEV_PUSH }}
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: .github/requirements.txt
+
+      - name: Install deps
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -r .github/requirements.txt
+
+      - name: Regenerate and commit if changed
+        id: regen
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # generate_stats.py stamps the current time (and HEAD's sha) into
+          # everything it writes, so two runs over identical sources are never
+          # byte-identical. Without accounting for that, "did anything change?"
+          # is always yes, this job commits on every push, and "published"
+          # stops meaning anything.
+          #
+          # Comparing content with those two normalised away is what makes the
+          # question answerable. Deliberately NOT done by filtering diff lines
+          # that look like timestamps: index.html carries COVERAGE_HISTORY and
+          # RULE_GROWTH_HISTORY as one enormous line each, holding the real
+          # data *and* a timestamp, so a line-level filter would silently
+          # discard genuine coverage changes.
+          normalize() {
+            sed -E \
+              -e 's/\r$//' \
+              -e 's/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})?/<TIMESTAMP>/g' \
+              -e 's/[0-9a-f]{40}/<SHA>/g'
+          }
+
+          # True when at least one staged file differs by more than its
+          # timestamps. A file that is new (no HEAD version) counts, since an
+          # empty left side always differs.
+          has_substantive_change() {
+            local f
+            for f in $(git diff --cached --name-only); do
+              if ! diff -q \
+                  <(git show "HEAD:$f" 2>/dev/null | normalize) \
+                  <(normalize < "$f") >/dev/null 2>&1; then
+                echo "  content changed: $f"
+                return 0
+              fi
+            done
+            return 1
+          }
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Mirrors the dev workflow's commit-back loop: reset to dev's tip,
+          # regenerate from there, push, retry on conflict. Resetting rather
+          # than merging is safe precisely because everything written here is
+          # derived -- regenerating on top of the newest dev reproduces it.
+          for i in 1 2 3; do
+            git fetch origin dev
+            git reset --hard origin/dev
+
+            python scripts/docs/generate_stats.py
+
+            # outputs/results/ is deliberately NOT staged: those are verdicts,
+            # owned by the verification pipeline. This job only publishes what
+            # the generator derives from them.
+            git add outputs/reports/ README.md docs/index.html
+
+            if git diff --cached --quiet; then
+              echo "Generated output is byte-identical. Nothing to publish."
+              echo "published=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            if ! has_substantive_change; then
+              echo "Only generation timestamps moved -- no content change. Nothing to publish."
+              git reset >/dev/null
+              echo "published=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            echo "Rule browser output changed; publishing."
+            git diff --cached --stat
+
+            # [skip ci] matters: this job's own push touches paths in its
+            # trigger list, so without it the workflow would re-trigger itself
+            # on every run.
+            git commit -m "chore(docs): regenerate rule browser and stats [skip ci]"
+
+            if git push origin HEAD:dev; then
+              echo "Push succeeded."
+              echo "published=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            echo "Push failed (attempt $i), retrying..."
+            sleep $((i * 2))
+          done
+
+          echo "Push failed after 3 attempts."
+          exit 1
+
+  deploy_pages:
+    name: Publish rule browser
+    needs: regenerate_docs
+    # Only when something actually changed. GitHub Pages publishes from an
+    # uploaded artifact, not from the branch, so committing docs/index.html
+    # above updates the repo but NOT the live site -- without this job the
+    # published page would still wait for the next rule change to go out,
+    # which is half of what register item 1.6 is about.
+    if: needs.regenerate_docs.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    # Same group name as ci_dev_workflow.yml's Pages job on purpose:
+    # concurrency groups are shared repo-wide, so the two deployments queue
+    # instead of racing each other to publish different snapshots.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # dev's tip, which now includes the commit the previous job pushed.
+          ref: dev
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
