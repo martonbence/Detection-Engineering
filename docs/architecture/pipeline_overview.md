@@ -78,6 +78,64 @@ The exact GitHub Actions mechanism connecting an upstream-skip several hops back
 
 **11. Publish — GitHub Pages.** `docs/index.html`, a self-contained rule browser and MITRE ATT&CK Navigator, is published from `dev` by the `deploy_pages` job inside `ci_dev_workflow.yml` — the single publish path (see the note above).
 
+## Retirement: the reverse path
+
+Stages 1–11 describe a rule arriving. Nothing in them describes one leaving, and for most of this
+pipeline's life nothing did: deleting a rule, or merely editing its `title`, left objects behind
+that kept running, scheduling and alerting, with no step anywhere noticing. Retirement is therefore
+not a stage in the forward chain but a pair of cleanups hanging off it, one on each side of the
+boundary — Splunk and the repo.
+
+**Why it needs its own mechanism at all.** The `Determine changed Sigma files` step diffs with
+`--diff-filter=AMRC`, which excludes deletions. A commit that only deletes a rule produces an empty
+`rule_files` list, `has_rules=false`, and every downstream job skips. The single event that creates
+the mess is precisely the one the forward pipeline cannot see.
+
+**Splunk side — `scripts/state/reconcile.py`.** Runs at the end of `splunk_verify`, `always()` and
+`continue-on-error`, so drift is still reported when verification itself failed and a Splunk hiccup
+in a reporting step can never fail a run whose real work succeeded. It builds desired state from
+`rules/sigma/*.yml` (not the gitignored `.meta.json` sidecars, which don't exist outside a run)
+using the same `saved_search_name()` the deploy uses, reads actual state from
+`servicesNS/{owner}/{app}/saved/searches` with `count=0` (without which Splunk's default 30-row page
+would make every rule past the first page look missing), and sorts every name into five buckets:
+
+| Bucket | Meaning | What happens |
+|---|---|---|
+| `in_sync` | repo and Splunk agree | nothing |
+| `missing` | the repo defines it, Splunk doesn't | reported; usually a rule that hasn't completed a full dev run yet |
+| `orphan_renamed` | the `detect_id` is still in the repo, only the title-slug moved | **deleted automatically** by `--apply` |
+| `orphan_removed` | the `detect_id` is gone from the repo entirely | **disabled and marked**, and only when a human passes `--apply-removals` |
+| `unmanaged` | no CI marker in the description — someone's hand-built search | reported so the numbers add up, never touched |
+
+The asymmetry between the two orphan buckets is the whole design. A rename orphan's rule is alive
+under a new name, so the leftover is safe to delete unattended — but only once the replacement is
+verified present in Splunk, because a failed deploy plus an eager cleanup would leave a
+just-edited rule with no saved search at all. A removal orphan's rule is gone, which is not always
+intentional, so it is disabled (reversible, and it keeps the object's Splunk-side scheduling and
+alert configuration) rather than deleted, and never without someone asking. Objects the pipeline
+did not create are reported and left alone.
+
+Rename orphans are a *standing* condition rather than a migration: the Splunk object name
+deliberately includes the title slug, because that is what an analyst sees in the search bar and in
+alert lists, so every title edit produces one. That is why `--apply` runs unattended on every dev
+run.
+
+**Repo side — `scripts/state/prune_orphans.py`.** Runs in `prepare_validate_convert`, with its own
+trigger condition and its own commit rather than riding along with the SPL commit step, which is
+gated on `has_spl` and would never be reached on a deletion-only push. It removes
+`rules/splunk/*.spl` files and `outputs/results/<detect_id>/` directories with no corresponding
+rule — leftovers that otherwise keep being deployed to prod (which reads `git ls-files`) and keep
+counting towards the dashboard's coverage. It compares current state rather than a diff, so it is
+idempotent and picks up anything an earlier run missed, and it refuses to run against an empty
+rules directory rather than treating the entire library as orphaned.
+
+**`status: deprecated` closes the loop.** The schema always allowed it, but nothing read it, so a
+rule parked as deprecated deployed and ran exactly like a stable one. The deploy now skips those
+rules — in prod too, since prod regenerates the sidecars and runs the same script — and
+`reconcile.py` drops them from desired state, so an object left live for a deprecated rule surfaces
+as a removal orphan and can be retired deliberately. Their `.spl` and results are *not* pruned: the
+rule is still in the repo, and its measurement history is still its own.
+
 ## Verdict lifecycle: the states, and a pass rate with a moving denominator
 
 The pipeline's whole claim is that its numbers are measured rather than asserted. That claim only survives if a measurement can stop counting — a verdict describes the rule as it was at the moment the attack ran, and nothing that happens afterwards re-runs it. Two different things end a verdict's standing, and it is worth treating them as one concept with two diagnoses: a verdict is a certificate that can be **superseded** (the rule was replaced under it — certain) or **expire** (it simply got too old — probabilistic). Same consequence, same remedy, therefore the same bucket in every calculation; only the label and the reasoning differ.
@@ -239,12 +297,12 @@ For rules with `testing.type: emulation` (8 of the current 27), `emulation_verif
 
 | Job | Runner | Key steps (literal `name:` values, bolded ones are the substantive work) |
 |---|---|---|
-| `prepare_validate_convert` | `ubuntu-latest` | Checkout, Setup Python, Determine changed Sigma files, Install Python deps, **Validate Sigma rules**, **Convert Sigma rules to Splunk SPL**, Build pipeline bundle, Commit converted SPL outputs to dev, Detect test types in pipeline bundle, Upload pipeline bundle |
+| `prepare_validate_convert` | `ubuntu-latest` | Checkout, Setup Python, Determine changed Sigma files, Install Python deps, **Prune repo artefacts of deleted rules** (deliberately *not* gated on `has_rules` — a deletion-only push produces no rule files, which is exactly when this is needed; installs deps itself for the same reason, and commits separately), **Validate Sigma rules**, **Convert Sigma rules to Splunk SPL**, Build pipeline bundle, Commit converted SPL outputs to dev, Detect test types in pipeline bundle, Upload pipeline bundle |
 | `deploy_to_splunk` | `self-hosted, linux, de-lab` | Download pipeline bundle, Setup Python, Install deploy deps, **Deploy selected SPL files to Splunk** |
 | `atomic_verify` | `self-hosted, X64, Windows, victim, atomic, windows-victim` | **Mark test-phase start** (epoch seconds, exposed as the `started_at` job output — first step so a job later killed by `timeout-minutes` still reports when it began), Download pipeline bundle, **Run Atomic Red Team tests embedded in deployed SPL metadata**, Upload atomic progress markers |
 | `atomic_verify_dc` | `self-hosted, X64, Windows, dc, windows-dc` | **Mark test-phase start** (own host, own clock — hence a separate stamp), Download pipeline bundle, **Run Atomic Red Team tests on Domain Controller**, Upload atomic progress markers |
 | `emulation_verify` | `self-hosted, X64, Windows, victim, windows-victim` | **Mark test-phase start** (shares the victim runner with `atomic_verify`, so the two serialise — which is what stretches the test phase past any fixed window), Download pipeline bundle, **Run Script Emulation tests embedded in deployed SPL metadata** |
-| `splunk_verify` | `self-hosted, linux, de-lab` | Checkout (`fetch-depth: 0` — not shallow, on purpose: `generate_stats.py`'s `compute_rule_version()` runs `git log --follow` per rule file later in this same job, and a shallow checkout silently made every rule's version come out `1.0` regardless of real history), Download pipeline bundle, Download atomic progress markers (victim), Download atomic progress markers (DC), Setup Python, Install deps, Wait for Splunk indexing, **Compute verification time window** (takes the earliest `started_at` across the three test jobs, minus a 60s clock-skew margin, as `--earliest`; falls back to `-15m` with a warning if none reported), **Query Splunk for matched events**, **Evaluate Pass/Fail**, Upload matched events artifact, **Generate stats and update README**, Commit verification results and stats, **Report verification verdict** (re-exits `pass_fail_eval.py`'s exit code — makes the job's own `result` the PASS/FAIL verdict) |
+| `splunk_verify` | `self-hosted, linux, de-lab` | Checkout (`fetch-depth: 0` — not shallow, on purpose: `generate_stats.py`'s `compute_rule_version()` runs `git log --follow` per rule file later in this same job, and a shallow checkout silently made every rule's version come out `1.0` regardless of real history), Download pipeline bundle, Download atomic progress markers (victim), Download atomic progress markers (DC), Setup Python, Install deps, Wait for Splunk indexing, **Compute verification time window** (takes the earliest `started_at` across the three test jobs, minus a 60s clock-skew margin, as `--earliest`; falls back to `-15m` with a warning if none reported), **Query Splunk for matched events**, **Evaluate Pass/Fail**, Upload matched events artifact, **Reconcile Splunk state against the repo** (`always()` + `continue-on-error`; runs with `--apply`, which cleans up rename orphans only — the step re-exits the script's code via `PIPESTATUS` so a cleanup that failed to land is visible instead of hidden behind the step-summary `echo`), Upload reconciliation report, **Generate stats and update README**, Commit verification results and stats, **Report verification verdict** (re-exits `pass_fail_eval.py`'s exit code — makes the job's own `result` the PASS/FAIL verdict) |
 | `open_promotion_pr` | `ubuntu-latest` | `needs: splunk_verify`, `if: always() && needs.splunk_verify.result == 'success'`, no checkout step. **Open promotion PR to main and mark it In review** (single step: `gh pr create` then `gh project item-add`/`item-edit`) |
 | `deploy_pages` | `ubuntu-latest` | `needs: [splunk_verify, atomic_verify, atomic_verify_dc, emulation_verify]`. Checkout (ref: `dev`), configure-pages, upload-pages-artifact, deploy-pages (no explicit step `name:`s — these are third-party actions). The sole GitHub Pages publish path — see the note above. |
 
