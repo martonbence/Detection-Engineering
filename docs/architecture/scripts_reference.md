@@ -25,6 +25,7 @@ The manual entry points are called out explicitly where they exist.
 | **Pipeline stages** | | |
 | [`scripts/validate/validate_sigma.ps1`](../../scripts/validate/validate_sigma.ps1) | Thin wrapper that feeds the rule list to the Python validator in one process | dev workflow |
 | [`scripts/validate/validate_sigma.py`](../../scripts/validate/validate_sigma.py) | Validates each Sigma rule against the JSON Schema | the wrapper above |
+| [`scripts/validate/check_test_routing.py`](../../scripts/validate/check_test_routing.py) | Warns when a rule's test runner has no job that services it | dev workflow, pytest |
 | [`scripts/convert/sigma_to_spl.py`](../../scripts/convert/sigma_to_spl.py) | Sigma YAML → `.spl` query + `.meta.json` sidecar | dev + prod workflows |
 | [`scripts/deploy/deploy_spl_to_splunk.py`](../../scripts/deploy/deploy_spl_to_splunk.py) | Creates/updates the Splunk saved searches | dev + prod workflows |
 | [`scripts/atomic/run_atomic.ps1`](../../scripts/atomic/run_atomic.ps1) | Executes the attack that is supposed to trigger each rule | dev workflow, 3 jobs |
@@ -119,6 +120,32 @@ Validates each rule against [`docs/schemas/sigma_schema.json`](../../docs/schema
 Exit codes are meaningful: `0` all valid, `1` at least one rule invalid, `2` the validator itself
 could not run (missing dependency, unreadable schema). Nothing downstream runs on a rule that fails
 here.
+
+### `scripts/validate/check_test_routing.py`
+
+Answers one question the schema cannot: **is there a job that will actually run this rule's test?**
+
+`run_atomic.ps1` selects work by an exact match on the `(custom.testing.type, custom.testing.runner)`
+pair the job hands it via `ATOMIC_TESTER_TYPE` / `ATOMIC_RUNNER`. The schema's `runner` enum is wider
+than the set of jobs — `linux-victim` is in it deliberately, ahead of that VM existing — so a rule can
+be schema-valid, deploy fine, and then be dropped by every test job with a single `Write-Host` line
+in a job that exits `0`. Nothing else reports it.
+
+The serviced combinations are **derived from the workflow**, not hardcoded: the script parses
+`ci_dev_workflow.yml`, collects every step that sets both env vars, and treats those pairs as the
+matrix. Adding the linux job later needs no edit here, and deleting a job cannot leave a stale
+allow-list behind claiming its rules are still covered. If no job sets both vars it exits `2` rather
+than reporting every rule in the repo as unrouted — that state is a checker fault, not a rule fault.
+
+A missing `runner` is flagged the same way as an unserviced one: the converter only writes the meta
+field when it is non-empty, so "unset" is not "the default", it is a value every job's filter rejects.
+
+Runs in two places with two different severities. In the dev workflow it is a `::warning` plus a step
+summary table — a detection is worth deploying even when its test cannot run yet. In the pytest suite
+(`tests/test_check_test_routing.py`, run by `ci_code_checks.yml`) it is a hard failure, because a
+*committed* rule that stops routing means a job was renamed or removed.
+
+Exit codes: `0` clean or advisory, `1` findings under `--strict`, `2` the checker could not run.
 
 ### `scripts/convert/sigma_to_spl.py`
 
@@ -284,6 +311,8 @@ in this repo: the real one is a full pipeline run with live attacks.
 | [`tests/test_reconcile.py`](../../tests/test_reconcile.py) | Bucket classification, and the write path: that a rename orphan is not deleted when its replacement is not live, that removals are disabled rather than deleted, that the CI marker survives, that unmanaged objects are never written to |
 | [`tests/test_prune_orphans.py`](../../tests/test_prune_orphans.py) | Which artefacts count as orphaned, the fail-safes, idempotency |
 | [`tests/test_deploy_deprecated.py`](../../tests/test_deploy_deprecated.py) | That a deprecated rule generates *zero* HTTP calls, and that everything else still deploys |
+| [`tests/test_sigma_to_spl.py`](../../tests/test_sigma_to_spl.py) | Index-prefix injection, including that a query opening with a generating command is left alone rather than turned into invalid SPL |
+| [`tests/test_check_test_routing.py`](../../tests/test_check_test_routing.py) | That the serviced matrix is derived from the workflow rather than hardcoded, and — against the real repo — that every committed rule still has a job that can run its test |
 
 ---
 

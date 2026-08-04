@@ -1165,11 +1165,13 @@
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-17" aria-labelledby="t-2-17">
+      <input class="row-check" type="checkbox" id="i-2-17" aria-labelledby="t-2-17" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.17</span><span class="row-title" id="t-2-17">Az <code>emulation</code> + <code>windows-dc</code> kombináció csendben kiesik</span><span class="tag new">új</span></div>
+        <div class="row-head"><span class="id">2.17</span><span class="row-title" id="t-2-17">Az <code>emulation</code> + <code>windows-dc</code> kombináció csendben kiesik</span><span class="tag done">kész</span></div>
         <p class="row-body">Az <code>emulation_verify</code> job fixen <code>windows-victim</code> runneren fut, a <code>run_atomic.ps1</code> pedig runner szerint szűr — egy <code>type: emulation</code> + <code>runner: windows-dc</code> szabályt így egyik job sem futtatna le, hibajelzés nélkül. Ma nincs ilyen szabály (16 atomic/victim, 3 atomic/DC, 8 emulation/victim), de a séma engedi.</p>
-        <div class="refs"><span class="ref">ci_dev_workflow.yml:527</span><span class="ref">run_atomic.ps1:300</span></div>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Tágabb volt, mint ahogy itt szerepelt.</b> A séma <code>runner</code> enumja <code>linux-victim</code>-et is enged, amihez <b>egyetlen job sincs</b> — tehát nem csak az emulation+DC esett ki némán. A <code>linux-victim</code> viszont <b>szándékos előretekintés</b> (a VM még nem létezik, de tervben van), ezért a megoldás nem a sémából való kivétel lett.</p>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Kész.</b> Új <code>scripts/validate/check_test_routing.py</code>. A kiszolgált kombinációkat <b>a workflow-ból vezeti le</b> — minden step, ami <code>ATOMIC_TESTER_TYPE</code>-ot <em>és</em> <code>ATOMIC_RUNNER</code>-t is állít —, nem egy beégetett listából: így a linux job későbbi hozzáadása nem igényel szerkesztést itt, és egy job törlése nem hagy maga után elavult allow-listát, ami továbbra is lefedettnek állítaná a szabályait. Ha egyetlen job sem állítja a két env-et, <code>exit 2</code> a 27 találat helyett — az az állapot a checker hibája, nem a szabályoké. <b>Két helyen, két szigorúsággal:</b> a dev workflow-ban <code>::warning</code> + step summary tábla, mert a detekció akkor is deployolandó, ha a tesztje még nem futtatható; a pytest-suite-ban viszont kemény bukás, mert egy <em>committolt</em> szabály kiesése már regresszió — job átnevezés vagy törlés. <b>Menet közben talált plusz hiba:</b> a hiányzó <code>runner</code> ugyanez a defekt — a converter csak nem-üresen írja ki a meta mezőt, a <code>run_atomic.ps1</code> pedig pontos egyezést vár, tehát a „nincs megadva" nem az alapértelmezettet jelenti, hanem egy olyan értéket, amit <em>minden</em> job szűrője eldob; a checker ezt is jelzi. 25 új teszt. <b>Ami nyitva marad:</b> a le nem futott emulation szabály verdiktje ettől még nem lesz NOT_VERIFIED — az a <b>2.8</b>.</p>
+        <div class="refs"><span class="ref">check_test_routing.py</span><span class="ref">25 teszt</span></div>
       </div>
     </div>
 
