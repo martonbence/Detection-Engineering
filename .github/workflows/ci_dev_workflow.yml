@@ -41,6 +41,16 @@ jobs:
   prepare_validate_convert:
     name: Prepare, Validate, Convert
     runs-on: ubuntu-latest
+    # Every job in this repo carries a timeout-minutes (register item 2.2).
+    # These are backstops against a hung runner, not performance budgets: each
+    # is set well above the worst case the scripts' own timeouts allow, so a
+    # slow-but-working run is never killed. That matters most on the
+    # self-hosted runners -- the same `de-lab` machine serves dev and prod, so
+    # a job stuck there blocks production deploys too, which is the actual
+    # damage this prevents.
+    #
+    # Here: pip install, validate + convert 27 rules, and up to 3 push attempts.
+    timeout-minutes: 30
     environment: dev
     outputs:
       mode: ${{ steps.changes.outputs.mode }}
@@ -415,6 +425,10 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
       needs.prepare_validate_convert.outputs.has_spl == 'true'
     runs-on: [ self-hosted, linux, de-lab ]
+    # deploy_spl_to_splunk.py allows 30s per HTTP call and makes up to three per
+    # rule (create, update-on-conflict, ACL), so 27 rules bound at roughly 40
+    # minutes of legitimate network wait before anything is genuinely stuck.
+    timeout-minutes: 60
     environment: dev
 
     steps:
@@ -476,6 +490,12 @@ jobs:
       needs.prepare_validate_convert.outputs.has_atomic_tests == 'true'
     continue-on-error: true
     runs-on: [ self-hosted, X64, Windows, victim, atomic, windows-victim ]
+    # The attack step itself is already capped at 10 minutes; this covers that
+    # plus bundle download and the Defender failsafe teardown. Kept comfortably
+    # above the step cap so the *step* stays the thing that fires first -- a
+    # step timeout leaves the job alive to upload its progress markers, which
+    # is what tells pass_fail_eval.py "not measured" rather than "failed".
+    timeout-minutes: 25
 
     outputs:
       started_at: ${{ steps.mark_start.outputs.started_at }}
@@ -553,6 +573,9 @@ jobs:
       needs.prepare_validate_convert.outputs.has_atomic_dc_tests == 'true'
     continue-on-error: true
     runs-on: [ self-hosted, X64, Windows, dc, windows-dc ]
+    # Same reasoning as the victim job: its attack step is capped at 10, and
+    # this stays well above it so the step timeout fires first.
+    timeout-minutes: 25
 
     outputs:
       started_at: ${{ steps.mark_start.outputs.started_at }}
@@ -625,6 +648,11 @@ jobs:
       needs.prepare_validate_convert.outputs.has_emulation_tests == 'true'
     continue-on-error: true
     runs-on: [ self-hosted, X64, Windows, victim, windows-victim ]
+    # This job shares the victim host with atomic_verify, so an unbounded run
+    # here does not just hang itself -- it holds the runner the atomic job
+    # needs. Its attack step had no cap at all (unlike the other two attack
+    # jobs); one is added below so the step still fires before the job does.
+    timeout-minutes: 25
 
     outputs:
       started_at: ${{ steps.mark_start.outputs.started_at }}
@@ -651,6 +679,11 @@ jobs:
           path: pipeline_bundle
 
       - name: Run Script Emulation tests embedded in deployed SPL metadata
+        # Matches the two atomic attack steps. Without it this step was the
+        # only unbounded attack execution in the pipeline: a rule's own
+        # emulation command hanging (a prompt, a wait, a blocked network call)
+        # would hold the shared victim runner indefinitely.
+        timeout-minutes: 10
         shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass
           -Command ". '{0}'"
         env:
@@ -689,6 +722,14 @@ jobs:
         needs.emulation_verify.result == 'success' || needs.emulation_verify.result == 'skipped'
       )
     runs-on: [ self-hosted, linux, de-lab ]
+    # By far the longest job, and the one where a tight cap would do real harm:
+    # check_saved_search_hits.py allows 30s to dispatch, 120s of polling and 30s
+    # to read results *per rule*, so 27 rules bound at ~81 minutes of legitimate
+    # waiting -- before the 60s indexing wait, and before the commit step, whose
+    # 3 retry attempts each re-run generate_stats.py. A 60-minute cap would kill
+    # a slow-but-honest run and report it as a pipeline failure, which is the
+    # exact class of false verdict registers 1.4 and 1.5 were about.
+    timeout-minutes: 120
     environment: dev
 
     steps:
@@ -1038,6 +1079,8 @@ jobs:
       always() &&
       needs.splunk_verify.result == 'success'
     runs-on: ubuntu-latest
+    # A handful of gh CLI calls and nothing else.
+    timeout-minutes: 15
     environment: dev
 
     steps:
@@ -1093,6 +1136,10 @@ jobs:
       github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
       (needs.splunk_verify.result == 'success' || needs.splunk_verify.result == 'failure')
     runs-on: ubuntu-latest
+    # Checkout plus two Pages actions. The cap also bounds how long this can
+    # hold the repo-wide `pages` concurrency group, which ci_code_checks.yml's
+    # publish job queues behind.
+    timeout-minutes: 15
     permissions:
       pages: write
       id-token: write

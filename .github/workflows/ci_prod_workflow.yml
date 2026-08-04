@@ -8,6 +8,19 @@ on:
       - "rules/sigma/**/*.yaml"
       - ".github/workflows/ci_prod_workflow.yml"
 
+  # Register item 2.5. The path filter above means only a *rule* change reaches
+  # prod. Everything else this workflow depends on -- deploy_spl_to_splunk.py,
+  # sigma_to_spl.py, rule_naming.py, the pinned .github/requirements.txt -- can
+  # be fixed, reviewed and merged to main without prod ever noticing, and the
+  # fix then sits dormant until somebody happens to touch a rule. That delay is
+  # invisible: nothing reports that prod is running an older deploy path.
+  #
+  # This makes the redeploy an explicit, available action instead. It needs no
+  # inputs: the job derives its file list from `git ls-files`, not from a diff,
+  # so a dispatched run deploys the full current library on main -- exactly what
+  # "re-apply everything with the fixed script" should mean.
+  workflow_dispatch:
+
 concurrency:
   group: detection-pipeline-prod-${{ github.ref }}
   cancel-in-progress: false
@@ -19,6 +32,12 @@ jobs:
   deploy_to_prod:
     name: Deploy to Prod Splunk
     runs-on: [ self-hosted, linux, de-lab ]
+    # Register item 2.2. Re-conversion of all 27 rules, the drift gate, and the
+    # deploy itself -- which allows up to three 30s HTTP calls per rule, so ~40
+    # minutes of legitimate network wait. Set above that, because a cap that
+    # fires mid-deploy would leave prod Splunk half-updated: some rules on the
+    # new version, some on the old, with nothing recording which.
+    timeout-minutes: 60
     environment: prod
 
     steps:

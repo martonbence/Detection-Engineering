@@ -21,7 +21,7 @@ Nincs menetrend — a tempó ad-hoc, tételenként.
 
 ## Pontszám
 
-Jelenlegi: **6,5 / 10** (kiindulás). Mai állás: **7,6 / 10**, kész súly 39/86,5.
+Jelenlegi: **6,5 / 10** (kiindulás). Mai állás: **7,7 / 10**, kész súly 42,5/86,5.
 Minden tétel elvégzése után: **9,0 / 10**.
 A register meterének súlyozása: kritikus ×3, architektúra ×2, feature ×1,5, kisebb ×1
 (összesen **88** súlypont a 4.11 felvétele óta; korábban 85).
@@ -82,10 +82,10 @@ pip-audit), a **2.x** blokk olcsó darabjai (**2.2** `timeout-minutes`, **2.14**
 ## 2 · Kisebb hibák és optimalizálás (18)
 
 - [ ] **2.1** A `splunk_verify` OR-lánca gyakorlatilag mindig igaz (nem kapu) · `ci_dev_workflow.yml:563-573`
-- [ ] **2.2** Egyetlen jobon sincs `timeout-minutes` (a self-hosted runner beragadhat, prodot is blokkolva)
+- [x] **2.2** Egyetlen jobon sincs `timeout-minutes` (a self-hosted runner beragadhat, prodot is blokkolva) · **kész 2026-08-04:** mind a **13 job** kapott job-szintű `timeout-minutes`-t mindhárom workflow-ban, az értékek a scriptek saját timeoutjaiból számolt legrosszabb eset **fölé** állítva (a `splunk_verify` 120 perc, mert a 27 szabály lekérdezése önmagában ~81 perc legitim várakozást enged). Menet közben talált plusz hiba: az **emulation step-nek step-szintű timeoutja sem volt**, a másik két támadó-jobbal ellentétben — ez volt a pipeline egyetlen korlátlan támadás-végrehajtása, ráadásul a victim runneren osztozva az atomickal; kapott egy `timeout-minutes: 10`-et, a másik kettővel azonosan
 - [ ] **2.3** `SPLUNK_VERIFY_WAIT_SECONDS` soha nincs beállítva → mindig fix 60s · `ci_dev_workflow.yml:636` · fix: poll
 - [ ] **2.4** A prod futásnak nincs audit-nyoma (nincs step summary, nincs deploy-artifact)
-- [ ] **2.5** Deploy-script javítás nem jut ki prodba (paths filter) · `ci_prod_workflow.yml:6-9` · fix: `workflow_dispatch`
+- [x] **2.5** Deploy-script javítás nem jut ki prodba (paths filter) · `ci_prod_workflow.yml:6-9` · **kész 2026-08-04:** `workflow_dispatch` a prod workflow-ra. Input nélkül, mert a job `git ls-files`-ból dolgozik, nem diffből — egy manuális futás a `main` teljes aktuális könyvtárát deployolja, ami pontosan az „alkalmazd újra mindent a javított scripttel" jelentése. Ellenőrizve, hogy a job semmilyen push-specifikus kontextust nem használ (`github.event.before` stb.), tehát a manuális indítás nem tör el semmit. **Amit szándékosan nem tettem:** a `scripts/deploy/**` felvételét a `paths:` listára — az minden deploy-script merge-nél automatikusan újradeployolna prodba, ami nagyobb viselkedésváltozás, mint amit ez a tétel kér
 - [ ] **2.6** A „már létezik" detektálás a hibaszöveget stringkeresi · `deploy_spl_to_splunk.py:160-163` · fix: upsert az objektum-endpointra
 - [ ] **2.7** A pass-ablak globális (`--max-pass 10`) · `pass_fail_eval.py:167` · fix: `custom.testing.expected_events`
 - [ ] **2.8** A `NOT_VERIFIED` kapu csak atomicra vonatkozik (8 emulation szabály kimarad) · `pass_fail_eval.py:244`
@@ -122,7 +122,7 @@ pip-audit), a **2.x** blokk olcsó darabjai (**2.2** `timeout-minutes`, **2.14**
 - [ ] **4.7** Deployment inventory a dashboardon (dev/prod hol él, milyen verzióval) — a 3.3 kimenetéből
 - [ ] **4.8** A `rule_documentations/` generálása a `stats.json`-ból (runbook-oldal szabályonként)
 - [ ] **4.9** A promotion PR body-ja legyen érdemi: per-szabály breakdown · `ci_dev_workflow.yml:814`
-- [~] **4.10** Saját CI a pipeline-ra: ruff, pytest, actionlint, PSScriptAnalyzer, shellcheck, pip-audit · **részben kész 2026-08-03:** `ci_code_checks.yml` megvan ruff + pytest-tel (pinelve a `.github/requirements-dev.txt`-ben), és az 1.6-ot lezárja. **PSScriptAnalyzer is bekötve** (külön `powershell_analysis` job, parse check + analyzer, pin 1.25.0, `Error`/`ParseError` buktat). Hátra: actionlint, shellcheck, pip-audit. Szándékosan nincs kipipálva — a súlyozott pontszámot a checkbox hajtja, egy félkész tétel nem kaphat teljes súlyt
+- [x] **4.10** Saját CI a pipeline-ra: ruff, pytest, actionlint, PSScriptAnalyzer, shellcheck, pip-audit · **kész 2026-08-04, mind a hat eszközzel.** 2026-08-03: `ci_code_checks.yml` ruff + pytest-tel (pinelve a `.github/requirements-dev.txt`-ben), az 1.6-ot lezárva; majd PSScriptAnalyzer külön `powershell_analysis` jobban (parse check + analyzer, pin 1.25.0). 2026-08-04: új `workflow_analysis` job **actionlint 1.7.12**-vel, checksum-ellenőrzött letöltéssel — és vele a **shellcheck** is, mert az actionlint maga futtatja minden `run:` blokkon (külön shellcheck-step nem tudná kinyerni a scripteket a YAML-ből); plusz `dependency_audit` job **pip-audit 2.10.1**-gyel, **`continue-on-error`-ral**, mert egy éjjel publikált CVE különben minden független PR-t pirosra váltana. A hatból négy eszköz **kapu**, a pip-audit riport
 - [ ] **4.11** Az elévülés riportálási korrekció, nem kapu — a `splunk_verify` exit kódja és a promotion PR gate csak az adott futás szabályait látja, azok verdiktje pedig definíció szerint friss, így egy lejárt vagy felülírt verdiktű szabály **soha nem blokkolja a promóciót**, és mérés nélkül ülhet prodban akármeddig (ma 15 ilyen). A dashboard 2026-07-30 óta megmondja, a pipeline nem tesz vele semmit · fix: re-validation gate a promotion előtt, vagy ütemezett újramérés az elévült halmazra · a `docs-maintainer` észrevétele az 1.2 dokumentálása közben
 
 ---
@@ -614,3 +614,57 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   Splunkkal (deprecated → *nulla* HTTP-hívás; stable → változatlanul deployol; a kihagyás nem
   számít hibának), és a prune fail-safe ágai. Száraz futtatás a valós repón: nulla árva.
   Kész súly: 38/86,5, projektált pontszám **7,6 / 10**.
+- **2026-08-04** — **4.10 kész: actionlint, shellcheck, pip-audit.** Ezzel a pipeline saját CI-ja
+  mind a hat eszközt futtatja. Közvetlen indok: az elmúlt két tételben (2.2, 2.5) megint
+  workflow-YAML-t és bash-t írtam, amit semmi nem ellenőrzött — a workflow-k a repo egyetlen
+  jelentős kódrétege voltak, amit csak a GitHub Actions olvasott, futásidőben, a leglassabb
+  visszacsatolási hurokban.
+  **Az actionlint helyben lefuttatva, mielőtt CI-ba került.** Ez fogta meg, hogy a job különben
+  azonnal pirosra váltott volna: **10 találat, mind ugyanaz a téves riasztás** — a self-hosted
+  runnerek egyedi címkéit (`de-lab`, `victim`, `atomic`, `windows-victim`, `dc`, `windows-dc`) nem
+  ismeri. Ezért új `.github/actionlint.yaml`; utána nulla találat. Mellékhaszon: ez az egyetlen hely
+  a repóban, ahol a várt runner-címkék listaként le vannak írva, tehát egy elgépelt `runs-on:`
+  (ami különben örökre sorban álló jobot eredményez) mostantól lint-hiba.
+  **A shellcheck nem külön step:** az actionlint maga futtatja minden `run:` blokkon. Egy önálló
+  shellcheck-stepnek előbb ki kellene bányásznia a scripteket a YAML-ből, hogy egyáltalán lássa
+  őket. Cserébe a shellcheck jelenléte teherhordóvá vált — ha eltűnne a runner-image-ből, az
+  actionlint továbbra is zölden futna, csak szigorúan kevesebbet ellenőrizve —, ezért külön step
+  **állítja**, hogy ott van, nem feltételezi.
+  **A pip-audit szándékosan nem kapu** (`continue-on-error`). Egy pinelt függőség ellen publikált
+  sebezhetőség valós információ, de a világ ütemterve szerint érkezik, nem a repóé szerint: egy
+  éjjel megjelent CVE különben másnap reggel minden független PR-t pirosra váltana, olyan
+  problémáért, amit abban a PR-ben senki nem okozott és nem is tud megjavítani. A találat hangosan
+  látszik (annotáció + step summary), a job failed-but-continued állapotban — ugyanaz a minta, amit
+  a dev pipeline reconcile-stepje használ.
+  **Ezt a döntést az első futás rögtön igazolta:** a pip-audit helyben lefuttatva **valós találatot
+  ad ma is** — `diskcache 5.6.3`, PYSEC-2026-2447 (CVE-2025-69872), unsafe pickle deserialization,
+  **javított verzió nincs**, mert a sérülékenység minden kiadást érint az 5.6.3-ig bezárólag, ami a
+  legfrissebb. A lánc: `pySigma 1.5.0` → `diskcache>=5.6.3,<6.0.0`. Ha ez kapu lenne, a CI most
+  azonnal piros volna, elérhető javítás nélkül. Amikor a diskcache kiad javítást, a `<6.0.0`
+  tartomány miatt magától bejön — a tranzitív függőségek lebegése, amit a **2.11** hiányosságként
+  tart nyilván, itt épp a javunkra dolgozik.
+  **Gyakorlati kockázat ebben a repóban:** a támadáshoz írási jog kell a cache-könyvtárhoz. A
+  `ubuntu-latest` runnereken a fájlrendszer futásonként eldobódik; a **prod self-hosted runner**
+  viszont perzisztens lemezen futtat pySigmát a `deploy_to_prod` re-konverziójakor — ott egy korábbi,
+  kompromittált futás elvileg mérgezett cache-bejegyzést hagyhatna. Szűk, de nem nulla.
+  Kész súly: 42,5/86,5, projektált pontszám **7,7 / 10**.
+- **2026-08-04** — **A doksi-hook agentből determinisztikus scriptté alakítva.** Nem audit-tétel,
+  hanem elvi döntés a felhasználótól: *a repo működésében semmi nem függhet agenttől vagy LLM-től —
+  az agentek a fejlesztéshez és a dokumentáláshoz vannak.* Ellenőrizve: a `.github/workflows/` és a
+  `scripts/` **nulla** LLM- vagy agent-hivatkozást tartalmaz, tehát maga a pipeline eddig is
+  agent-független volt; az egyetlen kivétel a `.claude/settings.json` `agent` típusú hookja volt.
+  **Miért kellett lecserélni, a tegnapi javítás ellenére is:** a kapuk jól működtek — a hook minden
+  alkalommal helyesen ismerte fel, hogy nincs commit —, de az `if` szűrő **nem szűrt**: a hook így is
+  elindult minden Bash-hívásra, és a leállását a rendszer blokkoló hibaként jelenítette meg. Egyetlen
+  munkamenetben négyszer, és minden alkalommal egy fölösleges modell-hívással.
+  **Az új megoldás** `.claude/hooks/docs-drift-check.sh`: három git-parancs és egy útvonal-illesztés,
+  LLM nélkül. Három kapu — (1) van-e egyáltalán `git commit` a parancsban, ez zárja le a hívások
+  túlnyomó részét azonnal; (2) tényleg landolt-e friss commit (a HEAD kora), ami determinisztikusan
+  váltja ki a korábbi „mindig ugyanazt a régi commitot sürgeti" hibát; (3) érintett-e a commit olyan
+  útvonalat, amiről a doksi állít valamit. Mindig `exit 0`: emlékeztető, sosem kapu.
+  **Menet közben talált hiba, amit a teszt fogott meg:** eredetileg `git diff-tree -r HEAD`-et
+  használtam, ami **szülő nélküli commitra üres kimenetet ad** — egy repo legelső commitjánál a
+  vizsgálat tartalomtól függetlenül némán átengedett volna. `git show --pretty=format: --name-only`
+  erre is helyes.
+  **7 teszt** a `.claude/hooks/test-docs-drift-check.sh`-ban, eldobható git-repóval, valós
+  commitokon: a néma esetek, a pozitív eset, a csak-doksi commit, és a frissesség-kapu.
