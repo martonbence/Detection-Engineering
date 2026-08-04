@@ -1,0 +1,25 @@
+# actionlint configuration.
+#
+# Without this, actionlint reports every `runs-on:` entry in the dev and prod
+# workflows as an unknown label -- 10 findings, all false. It only knows
+# GitHub's hosted-runner labels; the lab's self-hosted runners are registered
+# with custom labels that no tool can discover from the repo alone.
+#
+# Declaring them here is also the only place in the repo where the expected
+# runner labels are written down as a list, so a typo in a `runs-on:` (a job
+# that would then queue forever against a runner that does not exist) becomes
+# a lint error rather than a hang.
+self-hosted-runner:
+  labels:
+    # The Linux runner that reaches Splunk -- deploys and verifies, and is
+    # shared between the dev and prod workflows.
+    - de-lab
+    # The Windows host that gets attacked. `victim` and `atomic` are the
+    # narrower labels; `windows-victim` is the one rules refer to in their
+    # custom.testing.runner field.
+    - victim
+    - atomic
+    - windows-victim
+    # The domain controller, for techniques that only make sense there.
+    - dc
+    - windows-dc
