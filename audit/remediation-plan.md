@@ -668,3 +668,29 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   erre is helyes.
   **7 teszt** a `.claude/hooks/test-docs-drift-check.sh`-ban, eldobható git-repóval, valós
   commitokon: a néma esetek, a pozitív eset, a csak-doksi commit, és a frissesség-kapu.
+- **2026-08-04** — **A 4.10 első éles futása két hibát dobott, mindkettő az én munkámban.**
+  Rögzítve, mert mindkettő tanulságos.
+  **(1) Az actionlint elbukott három `SC2129` shellcheck-találaton.** Helyben nem láttam őket: a
+  shellcheck nem volt telepítve a gépemen, tehát az actionlint **némán kihagyta az összes `run:`
+  blokkot** — pontosan az a forgatókönyv, amiért a workflow-ba külön stepet tettem, ami *állítja* a
+  shellcheck jelenlétét. A sajátomon nem futott le ugyanez. Azóta telepítve, a hiba helyben
+  reprodukálva, majd javítva. **A találatok valósak voltak:** három helyen egymás utáni
+  `echo ... >> "$GITHUB_OUTPUT"` sorok, miközben a fájl **két sorral lejjebb** már a javasolt
+  `{ ...; } >> file` formát használja — tehát következetlenség, nem stílus-vita. Mindhárom
+  összevonva; a két érintett kimenet-blokkot leteszteltem (üres és nem üres `rule_files` ág),
+  byte-pontosan ugyanazt írja, mint előtte. **A kaput szándékosan nem lágyítottam:** a shellcheck
+  minden súlyossága buktat, a `style` is. Ez szigorúbb, mint a ruff (`F`+`E9`) és a PSScriptAnalyzer
+  (`Error`+`ParseError`) precedens — de azok azért szűkültek, mert több ezer sosem lintelt sorra
+  néztek, ahol a valódi defektek elvesztek volna; a workflow-bash ennek töredéke és minden szinten
+  tiszta. A knob dokumentálva a step kommentjében, ha mégis zajossá válna.
+  **(2) A `dependency_audit` „Error: Process completed with exit code 1"-gyel végzett**, pedig
+  szándékosan csak tájékoztató. A `continue-on-error` a *workflow* elbukását akadályozza meg, a
+  step hibakódját és a piros jelölést nem — vagyis egy tanácsadó ellenőrzés pontosan úgy nézett ki,
+  mint egy elromlott. Egy piros X-et „ez csak információ"-ként olvasni nem olyasmi, amit bárkinek
+  fejben kellene tartania. Átírva: a `continue-on-error` **kivéve**, helyette a step maga fordítja
+  le a pip-audit kimeneti kódját — **1 = talált sebezhetőséget** → `::warning::` és `exit 0`;
+  **bármi más nem-nulla** = a pip-audit le sem futott (hálózat, resolver, rossz fájl) → `::error::`
+  és `exit 1`. Ez a különbség a lényeg: egy meg nem történt audit nem látszhat tiszta auditnak.
+  Mindhárom ág leteszteltve hamis `pip-audit`-tal (0 / 1 / 2 kimeneti kód).
+  **Tanulság a munkamenetre:** egy lint-eszközt nem elég bekötni — le kell futtatni ugyanazzal a
+  kiegészítő eszközkészlettel, amivel a CI futtatja, különben csendben kevesebbet ellenőriz.

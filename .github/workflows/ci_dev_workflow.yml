@@ -129,9 +129,9 @@ jobs:
 
           if [[ "${#rule_files[@]}" -eq 0 ]]; then
             echo "No Sigma rule files to process."
-            echo "mode=none" >> "$GITHUB_OUTPUT"
-            echo "has_rules=false" >> "$GITHUB_OUTPUT"
             {
+              echo "mode=none"
+              echo "has_rules=false"
               echo "rule_files<<EOF"
               echo "EOF"
             } >> "$GITHUB_OUTPUT"
@@ -139,9 +139,9 @@ jobs:
           fi
 
           echo "Mode: $mode"
-          echo "has_rules=true" >> "$GITHUB_OUTPUT"
-          echo "mode=$mode" >> "$GITHUB_OUTPUT"
           {
+            echo "has_rules=true"
+            echo "mode=$mode"
             echo "rule_files<<EOF"
             printf '%s\n' "${rule_files[@]}"
             echo "EOF"
@@ -405,9 +405,11 @@ jobs:
             esac
           done
 
-          echo "has_atomic_tests=$has_atomic" >> "$GITHUB_OUTPUT"
-          echo "has_atomic_dc_tests=$has_atomic_dc" >> "$GITHUB_OUTPUT"
-          echo "has_emulation_tests=$has_emulation" >> "$GITHUB_OUTPUT"
+          {
+            echo "has_atomic_tests=$has_atomic"
+            echo "has_atomic_dc_tests=$has_atomic_dc"
+            echo "has_emulation_tests=$has_emulation"
+          } >> "$GITHUB_OUTPUT"
           echo "Test types in this batch: atomic (victim)=$has_atomic, atomic (DC)=$has_atomic_dc, emulation=$has_emulation"
 
       - name: Upload pipeline bundle
