@@ -238,25 +238,43 @@ jobs:
       # Self-hosted runner labels come from .github/actionlint.yaml -- without
       # it every `runs-on:` in the dev and prod workflows reports as an unknown
       # label (10 findings, all false).
+      #
+      # Every shellcheck severity gates, style included. That is stricter than
+      # the ruff (F + E9) and PSScriptAnalyzer (Error + ParseError) precedents,
+      # and deliberately so: those two were narrowed because they were pointed
+      # at thousands of lines that had never been linted, where the real defects
+      # would have drowned. The workflow bash is a fraction of that size and is
+      # clean at every severity as of the first run, so there is nothing to
+      # drown. If style findings ever start blocking unrelated work, the knob is
+      # `-shellcheck "shellcheck --severity=warning"` here (verified to work),
+      # or `-ignore <regex>` for one specific rule.
       - name: Run actionlint
         shell: bash
         run: |
           set -euo pipefail
           actionlint -color
 
-  # Advisory, not a gate -- note the continue-on-error. A vulnerability
-  # disclosed against a pinned dependency is real information, but it arrives
-  # on the world's schedule rather than this repo's: a CVE published overnight
-  # would otherwise turn every unrelated pull request red the next morning,
-  # for a problem nobody in that pull request introduced or can fix. The
-  # finding is surfaced loudly (annotation plus step summary) and the job shows
-  # as failed-but-continued; acting on it stays a decision, the same pattern
-  # the dev pipeline's reconciliation step uses.
+  # Advisory, not a gate. A vulnerability disclosed against a pinned dependency
+  # is real information, but it arrives on the world's schedule rather than this
+  # repo's: a CVE published overnight would otherwise turn every unrelated pull
+  # request red the next morning, for a problem nobody in that pull request
+  # introduced or can fix. It is surfaced loudly instead -- an annotation and
+  # the full report in the step summary.
+  #
+  # Implemented by translating pip-audit's "found vulnerabilities" exit code
+  # into a warning, NOT by continue-on-error on the job. The first version used
+  # continue-on-error, and it was wrong in practice: the step still ended with
+  # "Error: Process completed with exit code 1" and the job still rendered as
+  # failed, so an advisory check looked exactly like a broken one. Reading a red
+  # X as "informational" is not something anyone should have to remember.
+  #
+  # The distinction that matters is preserved below: findings are a warning,
+  # but pip-audit failing to *run* at all still fails the job -- an audit that
+  # never happened must not look like an audit that found nothing.
   dependency_audit:
     name: Dependency audit
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    continue-on-error: true
 
     steps:
       - name: Checkout
@@ -284,19 +302,38 @@ jobs:
         run: |
           set -uo pipefail
 
-          rc=0
+          findings=0
+          broken=0
+
+          # Reports go to a temp directory, not the workspace: nothing here is
+          # meant to be committed, and writing them next to the checkout means
+          # running this step locally litters the repo with untracked files.
+          reports=$(mktemp -d)
+
           for req in .github/requirements.txt .github/requirements-dev.txt; do
             echo "=== $req ==="
-            if ! pip-audit --strict --progress-spinner off -r "$req" 2>&1 | tee "audit-$(basename "$req").txt"; then
-              rc=1
-            fi
+            out="${reports}/$(basename "$req").txt"
+
+            pip-audit --strict --progress-spinner off -r "$req" >"$out" 2>&1
+            status=$?
+            cat "$out"
+
+            # pip-audit exits 1 when it found vulnerabilities and it ran fine.
+            # Any other non-zero status means the audit itself did not happen
+            # (network, resolver, bad file) -- that is a real failure, because
+            # an audit that never ran must not be mistaken for a clean one.
+            case "$status" in
+              0) ;;
+              1) findings=1 ;;
+              *) broken=1; echo "::error::pip-audit could not complete for ${req} (exit ${status})." ;;
+            esac
           done
 
           {
             echo "### Dependency audit"
             echo
-            for f in audit-*.txt; do
-              echo "<details><summary>${f}</summary>"
+            for f in "${reports}"/*.txt; do
+              echo "<details><summary>$(basename "$f")</summary>"
               echo
               echo '```'
               cat "$f"
@@ -306,10 +343,15 @@ jobs:
             done
           } >> "$GITHUB_STEP_SUMMARY"
 
-          if [ "$rc" -ne 0 ]; then
-            echo "::warning::pip-audit reported findings against a pinned dependency. See the step summary. This does not block the build -- see the comment above this job."
+          if [ "$broken" -ne 0 ]; then
+            exit 1
           fi
-          exit "$rc"
+
+          if [ "$findings" -ne 0 ]; then
+            echo "::warning::pip-audit reported known vulnerabilities in a pinned dependency. See the step summary. Advisory only -- it does not block the build."
+          fi
+
+          exit 0
 
   regenerate_console:
     name: Regenerate Console
