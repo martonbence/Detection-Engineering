@@ -954,12 +954,23 @@ jobs:
         run: |
           set -uo pipefail
 
-          python scripts/state/reconcile.py \
+          # Wrapped in `if` rather than run bare with `rc="${PIPESTATUS[0]}"` on
+          # the next line. GitHub runs `shell: bash` as `bash --noprofile --norc
+          # -e -o pipefail`, so -e applies regardless of the `set` line above:
+          # the moment reconcile.py exited non-zero the step would die right
+          # here, skipping the step summary and the warning below -- the very
+          # diagnostics that exist to make a failed cleanup visible. A command
+          # in an `if` condition is exempt from -e, and PIPESTATUS still refers
+          # to that pipeline inside the branch.
+          if python scripts/state/reconcile.py \
             --rules-dir rules/sigma \
             --json outputs/state/reconcile.json \
             --apply \
-            | tee reconcile_report.txt
-          rc="${PIPESTATUS[0]}"
+            | tee reconcile_report.txt; then
+            rc=0
+          else
+            rc="${PIPESTATUS[0]}"
+          fi
 
           {
             echo "### Splunk state reconciliation"
