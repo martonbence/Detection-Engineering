@@ -691,6 +691,27 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   le a pip-audit kimeneti kódját — **1 = talált sebezhetőséget** → `::warning::` és `exit 0`;
   **bármi más nem-nulla** = a pip-audit le sem futott (hálózat, resolver, rossz fájl) → `::error::`
   és `exit 1`. Ez a különbség a lényeg: egy meg nem történt audit nem látszhat tiszta auditnak.
-  Mindhárom ág leteszteltve hamis `pip-audit`-tal (0 / 1 / 2 kimeneti kód).
+  Mindhárom ág leteszteltve hamis `pip-audit`-tal (0 / 1 / 2 kimeneti kód) — **de nem a CI
+  shell-kapcsolóival, és emiatt a javítás így is elbukott élesben; lásd a következő bejegyzést.**
   **Tanulság a munkamenetre:** egy lint-eszközt nem elég bekötni — le kell futtatni ugyanazzal a
   kiegészítő eszközkészlettel, amivel a CI futtatja, különben csendben kevesebbet ellenőriz.
+- **2026-08-04** — **A `dependency_audit` élesben újra elbukott, és a valódi ok egy osztállyal
+  mélyebb volt: a GitHub `-e`-t ad a `shell: bash`-hoz.** A log árulta el:
+  `shell: /usr/bin/bash --noprofile --norc -e -o pipefail`. A step scriptje `set -uo pipefail`-lel
+  indul — ez **nem kapcsolja ki** a kívülről kapott `-e`-t —, tehát a `pip-audit` 1-es kilépésekor a
+  step azonnal meghalt, még a `status=$?` sor *előtt*. Az összes utána következő logika (osztályozás,
+  step summary, `::warning::`) sosem futott le. Az előző napi tesztem azért engedte át, mert
+  `bash -c`-vel futtatta, `-e` nélkül — **ugyanaz a hibaosztály, mint a shellchecknél: a helyi
+  ellenőrzés nem a CI környezetét reprodukálta.**
+  **A javítás nem `set +e`,** hanem `if`-be zárt hívás: egy `if` feltételében szereplő parancs
+  definíció szerint mentes a `-e` alól, tehát a forma **helyes a kapcsolótól függetlenül** — és nem
+  kapcsolja ki a hibakezelést a script többi részére sem (egy elhasalt `mktemp` továbbra is megbuktat).
+  **Ugyanez a latens hiba megvolt a tegnapi reconcile-stepben is**, csak eddig nem sült el, mert a
+  `reconcile.py` mindig 0-val tért vissza. Ott is javítva. Ironikus: pont azért tettem bele az
+  `exit "$rc"`-t, hogy egy el nem szállt takarítás látható legyen — a `-e` viszont a *diagnosztikát*
+  vitte volna el, a step summaryt és a warningot. A repo meglévő `Evaluate Pass/Fail` stepje egyébként
+  már ma is helyesen csinálta (explicit `set +e`); az én két új stepem volt a kivétel.
+  **Mostantól minden ellenőrzés a valódi kapcsolókkal fut:** mind a három ág újratesztelve
+  `bash --noprofile --norc -e -o pipefail`-lel (a találat-eset most helyesen zöld + warning, az
+  eszközhiba piros), a reconcile-minta külön három kilépési kódra, és mind a **29** `shell: bash`
+  step szintaxisa átnézve ugyanezekkel a kapcsolókkal.

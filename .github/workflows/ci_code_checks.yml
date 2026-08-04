@@ -314,8 +314,18 @@ jobs:
             echo "=== $req ==="
             out="${reports}/$(basename "$req").txt"
 
-            pip-audit --strict --progress-spinner off -r "$req" >"$out" 2>&1
-            status=$?
+            # Captured through `if` rather than by reading $? on the next line.
+            # GitHub runs `shell: bash` as `bash --noprofile --norc -e -o
+            # pipefail`, so -e is on no matter what this script's own `set` line
+            # says: a bare `pip-audit ...` followed by `status=$?` kills the step
+            # the moment pip-audit reports findings, before the exit code can be
+            # classified at all. A command inside an `if` condition is exempt
+            # from -e, so this form is correct with or without it.
+            if pip-audit --strict --progress-spinner off -r "$req" >"$out" 2>&1; then
+              status=0
+            else
+              status=$?
+            fi
             cat "$out"
 
             # pip-audit exits 1 when it found vulnerabilities and it ran fine.
