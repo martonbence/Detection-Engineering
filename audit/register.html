@@ -1003,7 +1003,7 @@
 
   <!-- ============ 2. KISEBB ============ -->
 
-  <h2><span class="swatch sw-minor"></span>2 · Kisebb hibák és optimalizálás<span class="h2-count">18 tétel</span></h2>
+  <h2><span class="swatch sw-minor"></span>2 · Kisebb hibák és optimalizálás<span class="h2-count">20 tétel</span></h2>
 
   <div class="register" data-sev="minor">
 
@@ -1181,6 +1181,28 @@
         <div class="row-head"><span class="id">2.18</span><span class="row-title" id="t-2-18">A <code>SPLUNK_APP</code> secretként van kezelve</span><span class="tag new">új</span></div>
         <p class="row-body">Nem érzékeny adat — <code>vars</code>-ba tartozik, így hibakereséskor a logokban is olvasható maradna.</p>
         <div class="refs"><span class="ref">mindkét workflow env blokk</span></div>
+      </div>
+    </div>
+
+    <div class="row sev-minor" data-sev="minor" data-weight="1">
+      <input class="row-check" type="checkbox" id="i-2-19" aria-labelledby="t-2-19" checked>
+      <div class="row-main">
+        <div class="row-head"><span class="id">2.19</span><span class="row-title" id="t-2-19">A teljes újraépítés kiváltó feltétele könyvtárra illeszt, nem kimeneti hatásra</span><span class="tag done">kész</span></div>
+        <p class="row-body">A <code>changes</code> lépés <code>mode=all</code>-ra vált — mind a 27 szabály újrakonvertálása, újradeployolása és <b>élő újratámadása</b> —, ha a push érint bármit a <code>scripts/validate/</code> alatt. A glob nem azt nézi, hogy a fájl képes-e egyáltalán megváltoztatni egy szabály kimenetét.</p>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Éles esetben derült ki, nem elemzésből.</b> A 2.17 <code>check_test_routing.py</code>-ja a <code>scripts/validate/</code> alá került, és ezzel teljes labor-futást indított: deploy + mind a három támadó job + verifikáció, 27 szabályra — egy scriptért, ami egyetlen <code>.spl</code>-t sem befolyásol, csak figyelmeztetéseket ír ki. A futás beragadt egy offline runnerre várva, és blokkolta a következő pusht is.</p>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Kész.</b> A feltétel explicit fájllistára cserélve: <code>sigma_schema.json</code>, <code>validate_sigma.py</code>, <code>validate_sigma.ps1</code>, <code>sigma_to_spl.py</code>, <code>rule_naming.py</code>. A <b>szándék változatlan</b> — ha a converter vagy a séma változik, minden korábban konvertált <code>.spl</code> érvénytelen, tehát mindent újra kell építeni és újra kell mérni; csak a kiváltó ok lett pontos. <b>Menet közben talált plusz hiba:</b> a <code>rule_naming.py</code> eddig <em>nem</em> volt a listán, holott a workflow <code>paths:</code>-ában igen — pedig a saved search <em>nevét</em> határozza meg, tehát a módosítása minden telepített objektumot átnevez. Ez volt az egyetlen eset, ami elindított egy futást, de aztán csak a diffet dolgozta fel; most már mind a 27-et. 14 esetre ellenőrizve, a mai valós esettel és a pontos illesztéssel együtt (<code>.bak</code>, <code>.pyc</code> nem húz be teljes futást).</p>
+        <div class="refs"><span class="ref">ci_dev_workflow.yml: changes</span><span class="ref">14 eset</span></div>
+      </div>
+    </div>
+
+    <div class="row sev-minor" data-sev="minor" data-weight="1">
+      <input class="row-check" type="checkbox" id="i-2-20" aria-labelledby="t-2-20" checked>
+      <div class="row-main">
+        <div class="row-head"><span class="id">2.20</span><span class="row-title" id="t-2-20">Kikapcsolt labor esetén a futás beragad és blokkolja a sávot</span><span class="tag done">kész</span></div>
+        <p class="row-body">A labor VM-jei nincsenek mindig bekapcsolva. Egy offline self-hosted runnerre váró job <b>nem fut timeoutra</b>: a <code>timeout-minutes</code> a job <em>indulásától</em> számol, a sorban állástól nem. A <code>cancel-in-progress: false</code> miatt az a futás ezután minden későbbi dev pusht blokkol, amíg a GitHub el nem dobja — nagyjából egy nap.</p>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Kész.</b> Új <code>vars.LAB_ONLINE</code> repo-változó: <code>false</code> esetén a laborhoz kötött jobok kimaradnak, a push viszont továbbra is validál, konvertál és committolja az SPL-t — sorban állás helyett. <b>Egyetlen kapun</b>, a <code>deploy_to_splunk</code>-on: az a belépési pont minden self-hosted runnerhez, és a függőségi gráf viszi tovább, ahelyett hogy ugyanaz a feltétel öt helyen létezne és elcsúszhatna. A kaszkád nem véletlen, hanem levezetett: a három támadó job függ tőle és nincs <code>always()</code>-ük; a <code>splunk_verify</code>-nak van, de <code>deploy_to_splunk.result == 'success'</code>-ot vár; a promóció és a Pages pedig olyan <code>splunk_verify</code> eredményt, amit nem fog megkapni. Semmi nem promótálódik és nem publikálódik olyan futásból, ami nem mért semmit. <b>A polaritás szándékos:</b> csak a szó szerinti <code>'false'</code> tilt — beállítatlan változó azt jelenti, hogy megy a labor, tehát a normál állapothoz nem kell konfiguráció, és egy elgépelt változónév a futás felé hibázik, nem a néma kihagyás felé.</p>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>A visszaút is kellett hozzá.</b> A kapcsoló önmagában lyukat hagyott: a labor lekapcsolt állapotában mergelt szabály <code>.spl</code>-je bekerül a repóba, de a Splunkba soha — és semmi nem viszi ki később, mert a dev workflow csak azt deployolja, ami az adott pushban változott, és a proddal ellentétben (2.5) nem volt <code>workflow_dispatch</code>-e. Most már van. Input nélkül: a dispatchnél üres a <code>github.event.before</code>, amitől a <code>changes</code> lépés <code>mode=all</code>-ba kerül — egy kézi indítás tehát az egész szabálykészletet újraépíti, újradeployolja és újraméri, ami pontosan a „hozd vissza, ami kimaradt" művelet. A kihagyásról <code>::warning</code> és step summary szól, mert a kihagyott job nem hiba, tehát a jobok listájában egy zöld futástól semmiben nem különbözne.</p>
+        <div class="refs"><span class="ref">vars.LAB_ONLINE</span><span class="ref">workflow_dispatch</span></div>
       </div>
     </div>
 

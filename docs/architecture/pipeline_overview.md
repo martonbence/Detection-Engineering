@@ -58,7 +58,11 @@ The exact GitHub Actions mechanism connecting an upstream-skip several hops back
 
 **1. Author.** Detections are written as Sigma YAML under `rules/sigma/`. Most rules have a real `detection:` block Sigma can compile. Rules too sophisticated to express that way still live in `rules/sigma/*.yml` (with a required-but-unused placeholder `detection:` block) and instead set `custom.splunk.raw_query` to the literal SPL text.
 
-**2. Validate — `scripts/validate/validate_sigma.py`.** Checks the changed rules (or, if the schema, `scripts/validate/**`, or the converter itself changed, *every* rule in the repo — see the `mode` logic in the `Determine changed Sigma files` step) against `docs/schemas/sigma_schema.json`, a Draft-07 JSON Schema. Invoked from CI via a PowerShell wrapper, `scripts/validate/validate_sigma.ps1`. Nothing downstream runs on a rule that fails schema validation.
+**2. Validate — `scripts/validate/validate_sigma.py`.** Checks the rules against `docs/schemas/sigma_schema.json`, a Draft-07 JSON Schema. Invoked from CI via a PowerShell wrapper, `scripts/validate/validate_sigma.ps1`. Nothing downstream runs on a rule that fails schema validation.
+
+Normally only the rules the push changed are processed. The run widens to *every* rule in the repo when the push touches one of five files that can change what a rule converts to or what it is called in Splunk — `sigma_schema.json`, `validate_sigma.py`, `validate_sigma.ps1`, `sigma_to_spl.py`, `rule_naming.py` — because each of those invalidates every `.spl` already converted. That is an explicit list, not a directory glob: widening the run means re-deploying and re-attacking all 27 rules on the lab VMs, so it should happen for files that genuinely change rule output and no others. See the `mode` logic in the `Determine changed Sigma files` step.
+
+A manual run (`workflow_dispatch`, Actions tab) widens the same way and takes no inputs — it rebuilds, redeploys and re-measures the whole rule set. That is the way to catch up after rules were merged while the lab was switched off; see `LAB_ONLINE` below.
 
 **3. Convert — `scripts/convert/sigma_to_spl.py`.** Compiles each validated rule into `rules/splunk/<name>.spl` (pure query text, via `pysigma` with the Splunk backend, or emitted verbatim for `custom.splunk.raw_query` rules) plus a `<name>.meta.json` sidecar carrying the metadata that deploy/verify/atomic-runner need (`detect_id`, title, severity, MITRE tags, testing config), all sourced from the Sigma YAML. Only the `.spl` file is committed to git (back to `dev`, by the `Commit converted SPL outputs to dev` step); `.meta.json` is regenerated fresh on every run and never committed.
 
@@ -297,7 +301,7 @@ For rules with `testing.type: emulation` (8 of the current 27), `emulation_verif
 
 | Job | Runner | Key steps (literal `name:` values, bolded ones are the substantive work) |
 |---|---|---|
-| `prepare_validate_convert` | `ubuntu-latest` | Checkout, Setup Python, Determine changed Sigma files, Install Python deps, **Prune repo artefacts of deleted rules** (deliberately *not* gated on `has_rules` — a deletion-only push produces no rule files, which is exactly when this is needed; installs deps itself for the same reason, and commits separately), **Validate Sigma rules**, **Convert Sigma rules to Splunk SPL**, Build pipeline bundle, Commit converted SPL outputs to dev, Detect test types in pipeline bundle, Upload pipeline bundle |
+| `prepare_validate_convert` | `ubuntu-latest` | Checkout, Setup Python, Determine changed Sigma files, Install Python deps, **Prune repo artefacts of deleted rules** (deliberately *not* gated on `has_rules` — a deletion-only push produces no rule files, which is exactly when this is needed; installs deps itself for the same reason, and commits separately), **Validate Sigma rules**, **Check every rule has a job that can run its test** (warns, does not gate), **Convert Sigma rules to Splunk SPL**, Build pipeline bundle, Commit converted SPL outputs to dev, Detect test types in pipeline bundle, Upload pipeline bundle, Warn that the lab is switched off (only when `LAB_ONLINE` is `false`) |
 | `deploy_to_splunk` | `self-hosted, linux, de-lab` | Download pipeline bundle, Setup Python, Install deploy deps, **Deploy selected SPL files to Splunk** |
 | `atomic_verify` | `self-hosted, X64, Windows, victim, atomic, windows-victim` | **Mark test-phase start** (epoch seconds, exposed as the `started_at` job output — first step so a job later killed by `timeout-minutes` still reports when it began), Download pipeline bundle, **Run Atomic Red Team tests embedded in deployed SPL metadata**, Upload atomic progress markers |
 | `atomic_verify_dc` | `self-hosted, X64, Windows, dc, windows-dc` | **Mark test-phase start** (own host, own clock — hence a separate stamp), Download pipeline bundle, **Run Atomic Red Team tests on Domain Controller**, Upload atomic progress markers |
@@ -306,7 +310,7 @@ For rules with `testing.type: emulation` (8 of the current 27), `emulation_verif
 | `open_promotion_pr` | `ubuntu-latest` | `needs: splunk_verify`, `if: always() && needs.splunk_verify.result == 'success'`, no checkout step. **Open promotion PR to main and mark it In review** (single step: `gh pr create` then `gh project item-add`/`item-edit`) |
 | `deploy_pages` | `ubuntu-latest` | `needs: [splunk_verify, atomic_verify, atomic_verify_dc, emulation_verify]`. Checkout (ref: `dev`), configure-pages, upload-pages-artifact, deploy-pages (no explicit step `name:`s — these are third-party actions). The sole GitHub Pages publish path — see the note above. |
 
-`atomic_verify`, `atomic_verify_dc`, and `emulation_verify` each only run if `prepare_validate_convert`'s `has_atomic_tests` / `has_atomic_dc_tests` / `has_emulation_tests` output is `true` for the changed rules, and all three are `continue-on-error: true` so a single flaky test host doesn't block `splunk_verify` from running (it treats `success` or `skipped` as acceptable for each).
+`atomic_verify`, `atomic_verify_dc`, and `emulation_verify` each only run if `prepare_validate_convert`'s `has_atomic_tests` / `has_atomic_dc_tests` / `has_emulation_tests` output is `true` for the changed rules, and all three are `continue-on-error: true` so a single flaky test host doesn't block `splunk_verify` from running. `splunk_verify` no longer inspects their results at all: what gates it is that the SPL was built and the deploy succeeded. A failed attack job is not a reason to skip measurement — the progress-marker mechanism is what turns "the attack never ran" into an honest `NOT_VERIFIED` instead of a `FAIL`.
 
 ### `ci_prod_workflow.yml`
 
@@ -342,6 +346,21 @@ There is no third workflow file in `.github/workflows/` for the promotion PR's p
 | `self-hosted, X64, Windows, victim, atomic, windows-victim` | The Windows victim host that executes Atomic Red Team tests, used by `atomic_verify`. |
 | `self-hosted, X64, Windows, victim, windows-victim` | The same physical victim host, used by `emulation_verify` for script-emulation-style tests — note the label set here omits `atomic` compared to `atomic_verify`'s; that's what the workflow file actually specifies, not a documentation inconsistency. |
 | `self-hosted, X64, Windows, dc, windows-dc` | The domain-controller host, used only by `atomic_verify_dc` for techniques that specifically require DC context. |
+
+### `LAB_ONLINE`: running when the lab is not
+
+The four self-hosted machines above are not always on, and GitHub does not fail a job that has no runner to pick it up — it queues it. `timeout-minutes` does not help, because it starts counting when a job *starts*, not while it waits; and since the dev workflow's `concurrency` group uses `cancel-in-progress: false`, one such run blocks every later push to `dev` until GitHub drops it about a day later.
+
+Setting the repository variable `LAB_ONLINE` to `false` skips the lab-bound half of the pipeline, so a push still validates, converts and commits its SPL instead of queueing behind an absent runner.
+
+It is applied in exactly one place — `deploy_to_splunk`'s `if:` — because that job is the gateway to every self-hosted runner and the dependency graph carries the decision the rest of the way: the three attack jobs need it and carry no `always()`, `splunk_verify` requires `deploy_to_splunk.result == 'success'`, and `open_promotion_pr` and `deploy_pages` both require a `splunk_verify` result they will not get. Nothing is promoted or published from a run that measured nothing.
+
+Only the literal string `false` disables. An unset variable means the lab is up, so the normal state needs no configuration and a typo in the variable name fails towards running rather than towards silently skipping every deploy.
+
+Two things to know about the switch:
+
+- A rule merged while it is `false` reaches the repo but **never reaches Splunk**, because a normal push only deploys what that push changed. The way back is a manual run (`workflow_dispatch`) once the lab is up, which rebuilds and re-measures everything.
+- Skipped jobs are not failures, so a run with the lab off looks green in the jobs list. The `Warn that the lab is switched off` step in `prepare_validate_convert` therefore emits a `::warning` and a step-summary block spelling out what did not happen.
 
 ## Custom Claude Code subagents involved in building/maintaining this pipeline
 
