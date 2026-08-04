@@ -166,12 +166,35 @@ def _inject_index_prefix(query: str, index_value: str) -> str:
     Behavior:
       - "search <...>" -> "search index=<idx> <...>"
       - "index=<...> <...>" -> replace leading index with Sigma index
+      - "| <generating command>" -> left alone (see below)
       - everything else -> prefix with "index=<idx> "
     """
     q = (query or "").strip()
     idx = _safe_str(index_value)
 
     if not q or not idx:
+        return q
+
+    # A query that opens with a generating command (`| tstats`, `| inputlookup`,
+    # `| from datamodel`, ...) cannot take an index prefix: the old fallthrough
+    # produced `index=x | tstats ...`, which is not valid SPL, and Splunk would
+    # only reject it at deploy or search time -- long after the point where the
+    # mistake was made. Nothing in the repo emits one today, but the sysmon
+    # acceleration pipeline can produce tstats, and raw_query rules can contain
+    # anything (register item 2.9).
+    #
+    # It is returned unchanged rather than rejected. Some generating commands
+    # legitimately never touch an index at all (`| inputlookup`), so failing the
+    # conversion would invent an error for correct input. What is worth saying
+    # out loud is the case where the query neither carries an index of its own
+    # nor could receive ours -- that one is silently searching everything.
+    if q.startswith("|"):
+        if not re.search(r"(?i)\bindex\s*=", q):
+            print(
+                f"WARNING: query begins with a generating command and names no index, "
+                f"so the Sigma index '{idx}' could not be applied: {q[:80]}",
+                file=sys.stderr,
+            )
         return q
 
     m = re.match(r"(?i)^search\s+", q)

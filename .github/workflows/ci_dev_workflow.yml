@@ -712,17 +712,32 @@ jobs:
   splunk_verify:
     name: Splunk Verification
     needs: [ prepare_validate_convert, deploy_to_splunk, atomic_verify, atomic_verify_dc, emulation_verify ]
+    # Register item 2.1. This used to end with a disjunction over the three test
+    # jobs -- `success || skipped` for each, OR'd together -- which read like a
+    # gate and was not one: a batch almost never contains all three test types,
+    # so at least one job is normally `skipped` and the whole group is true
+    # regardless of what the others did.
+    #
+    # It did have exactly one effect, and removing it is a deliberate change of
+    # behaviour in that single case: when all three test jobs *failed* (not
+    # skipped), the group went false and verification was silently skipped
+    # along with everything downstream of it. Now it runs. The outcome is the
+    # same either way -- no promotion PR, because the verdict will not be a
+    # pass -- but the run leaves evidence: per-rule NOT_VERIFIED results, the
+    # regenerated stats, and a reconciliation report, instead of a job that
+    # simply never happened.
+    #
+    # What actually gates this job is above: the SPL had to be built, and the
+    # deploy had to succeed. Failure of a test job is not a reason to skip
+    # measurement -- those jobs are `continue-on-error: true` on purpose, and
+    # the progress-marker mechanism is what turns "the attack never ran" into
+    # an honest NOT_VERIFIED rather than a FAIL.
     if: |
       always() &&
       github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
       needs.prepare_validate_convert.outputs.has_spl == 'true' &&
       needs.prepare_validate_convert.result == 'success' &&
-      needs.deploy_to_splunk.result == 'success' &&
-      (
-        needs.atomic_verify.result == 'success' || needs.atomic_verify.result == 'skipped' ||
-        needs.atomic_verify_dc.result == 'success' || needs.atomic_verify_dc.result == 'skipped' ||
-        needs.emulation_verify.result == 'success' || needs.emulation_verify.result == 'skipped'
-      )
+      needs.deploy_to_splunk.result == 'success'
     runs-on: [ self-hosted, linux, de-lab ]
     # By far the longest job, and the one where a tight cap would do real harm:
     # check_saved_search_hits.py allows 30s to dispatch, 120s of polling and 30s

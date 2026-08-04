@@ -21,7 +21,7 @@ Nincs menetrend — a tempó ad-hoc, tételenként.
 
 ## Pontszám
 
-Jelenlegi: **6,5 / 10** (kiindulás). Mai állás: **7,7 / 10**, kész súly 42,5/86,5.
+Jelenlegi: **6,5 / 10** (kiindulás). Mai állás: **7,8 / 10**, kész súly 44,5/86,5.
 Minden tétel elvégzése után: **9,0 / 10**.
 A register meterének súlyozása: kritikus ×3, architektúra ×2, feature ×1,5, kisebb ×1
 (összesen **88** súlypont a 4.11 felvétele óta; korábban 85).
@@ -81,7 +81,7 @@ pip-audit), a **2.x** blokk olcsó darabjai (**2.2** `timeout-minutes`, **2.14**
 
 ## 2 · Kisebb hibák és optimalizálás (18)
 
-- [ ] **2.1** A `splunk_verify` OR-lánca gyakorlatilag mindig igaz (nem kapu) · `ci_dev_workflow.yml:563-573`
+- [x] **2.1** A `splunk_verify` OR-lánca gyakorlatilag mindig igaz (nem kapu) · `ci_dev_workflow.yml:563-573` · **kész 2026-08-04:** az OR-blokk törölve; ami valóban kapuz, az fölötte marad (épült SPL + sikeres deploy). **Nem volt teljesen no-op:** egyetlen esetben hatott — ha mind a három teszt-job *elbukott* (nem skipped), a csoport hamis lett és a verifikáció némán kimaradt. Ez tudatos viselkedésváltozás: mostantól lefut, és NOT_VERIFIED verdikteket, statisztikát és reconcile-riportot hagy maga után. Promóció egyik esetben sem lett volna; a különbség az, hogy most van nyoma
 - [x] **2.2** Egyetlen jobon sincs `timeout-minutes` (a self-hosted runner beragadhat, prodot is blokkolva) · **kész 2026-08-04:** mind a **13 job** kapott job-szintű `timeout-minutes`-t mindhárom workflow-ban, az értékek a scriptek saját timeoutjaiból számolt legrosszabb eset **fölé** állítva (a `splunk_verify` 120 perc, mert a 27 szabály lekérdezése önmagában ~81 perc legitim várakozást enged). Menet közben talált plusz hiba: az **emulation step-nek step-szintű timeoutja sem volt**, a másik két támadó-jobbal ellentétben — ez volt a pipeline egyetlen korlátlan támadás-végrehajtása, ráadásul a victim runneren osztozva az atomickal; kapott egy `timeout-minutes: 10`-et, a másik kettővel azonosan
 - [ ] **2.3** `SPLUNK_VERIFY_WAIT_SECONDS` soha nincs beállítva → mindig fix 60s · `ci_dev_workflow.yml:636` · fix: poll
 - [ ] **2.4** A prod futásnak nincs audit-nyoma (nincs step summary, nincs deploy-artifact)
@@ -89,7 +89,7 @@ pip-audit), a **2.x** blokk olcsó darabjai (**2.2** `timeout-minutes`, **2.14**
 - [ ] **2.6** A „már létezik" detektálás a hibaszöveget stringkeresi · `deploy_spl_to_splunk.py:160-163` · fix: upsert az objektum-endpointra
 - [ ] **2.7** A pass-ablak globális (`--max-pass 10`) · `pass_fail_eval.py:167` · fix: `custom.testing.expected_events`
 - [ ] **2.8** A `NOT_VERIFIED` kapu csak atomicra vonatkozik (8 emulation szabály kimarad) · `pass_fail_eval.py:244`
-- [ ] **2.9** Az index-prefix beszúrása elhasal pipe-pal kezdődő queryn · `sigma_to_spl.py:162-185`
+- [x] **2.9** Az index-prefix beszúrása elhasal pipe-pal kezdődő queryn · `sigma_to_spl.py:162-185` · **kész 2026-08-04:** a generáló paranccsal (`| tstats`, `| inputlookup`, …) kezdődő query mostantól **változatlanul** megy tovább, a korábbi `index=x | tstats …` helyett, ami érvénytelen SPL. **Nem hibával**, hanem érintetlenül: egyes generáló parancsok jogosan nem nyúlnak indexhez (`| inputlookup`), ezért a bukás helyes bemenetre találna ki hibát. Amiről viszont hangosan szól: ha a query **sem a sajátját nem hozza, sem a miénket nem tudja fogadni** — az csendben mindent átfésül. 10 új teszt; a 27 committolt `.spl`-en ellenőrizve, hogy egyetlen kimenet sem változott
 - [ ] **2.10** Szabályonként két Python-process egy mező kiolvasásához · `ci_dev_workflow.yml:323-324` · fix: 3.1 manifest
 - [ ] **2.11** Hiányzó repo-higiénia: requirements/pyproject/Makefile/pre-commit/CODEOWNERS/PR template/dependabot, actions csak major taggel pinelve
 - [~] **2.12** Nulla teszt és nulla linter · fix: 4.10 · **részben kész 2026-08-03:** már nem nulla — 25 teszt a `tests/` alatt és ruff a CI-ban. A ruff viszont szűkre van állítva (`F` + `E9`), a teljes szabálykészlet bekapcsolása és a lefedettség bővítése ide tartozik
@@ -97,7 +97,7 @@ pip-audit), a **2.x** blokk olcsó darabjai (**2.2** `timeout-minutes`, **2.14**
 - [ ] **2.14** A TLS-verifikáció csendben kikapcsol, ha a secret nincs beállítva · `ci_dev_workflow.yml:386`, `ci_prod_workflow.yml:69` · fix: fail-closed
 - [ ] **2.15** A `fields:` metaadat halott (séma kötelezi, converter kidobja, SPL nem használja) · `sigma_to_spl.py:255` · fix: `| table` vagy kivenni a sémából
 - [ ] **2.16** Nyers Splunk-eventek 90 napig publikusan letölthető artifactban · `ci_dev_workflow.yml:691-698` · fix: rövidebb retention vagy mezőszűrés
-- [ ] **2.17** Az `emulation` + `windows-dc` kombináció csendben kiesik · `ci_dev_workflow.yml:527`, `run_atomic.ps1:300`
+- [ ] **2.17** Az `emulation` + `windows-dc` kombináció csendben kiesik · `ci_dev_workflow.yml:527`, `run_atomic.ps1:300` · **tágabb, mint ahogy itt szerepel** (2026-08-04): a séma `runner` enumja `linux-victim`-et is enged, amihez **egyetlen job sincs** — tehát nem csak az emulation+DC esik ki némán. A `linux-victim` **szándékos előretekintés** (a VM még nem létezik, de tervben van), ezért a megoldás *nem* a sémából való kivétel, hanem hogy a pipeline hangosan jelezze, ha egy szabály olyan runnert kér, amihez nincs futtató job
 - [ ] **2.18** A `SPLUNK_APP` secretként van kezelve, holott `vars`-ba tartozik
 
 ## 3 · Architektúra (8)

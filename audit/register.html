@@ -1008,12 +1008,13 @@
   <div class="register" data-sev="minor">
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-1" aria-labelledby="t-2-1">
+      <input class="row-check" type="checkbox" id="i-2-1" aria-labelledby="t-2-1" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.1</span><span class="row-title" id="t-2-1">A <code>splunk_verify</code> OR-lánca gyakorlatilag mindig igaz</span></div>
+        <div class="row-head"><span class="id">2.1</span><span class="row-title" id="t-2-1">A <code>splunk_verify</code> OR-lánca gyakorlatilag mindig igaz</span><span class="tag done">kész</span></div>
         <p class="row-body">Az atomic jobokra vonatkozó feltételek OR-ral vannak összekötve, mindegyik <code>success || skipped</code>. Ha bármelyik job skipped (a leggyakoribb eset), az egész kifejezés igaz — a feltétel nem kapu. Ártalmatlan, de félrevezető: aki olvassa, azt hiszi, van itt védelem.</p>
         <p class="row-fix"><span class="fix-label">javítás</span>Írd le annak, ami: <code>always()</code> + csak a <code>deploy_to_splunk.result == 'success'</code> ellenőrzés.</p>
-        <div class="refs"><span class="ref">ci_dev_workflow.yml:563-573</span></div>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Kész — de nem volt teljesen no-op, ezért ez tudatos viselkedésváltozás.</b> Az OR-blokk törölve; ami valóban kapuz, az fölötte marad: épült SPL és sikeres deploy. A csoportnak <em>egyetlen</em> hatása volt: ha mind a három teszt-job <em>elbukott</em> (nem skipped), hamisra fordult, és a verifikáció a rá épülő mindennel együtt némán kimaradt. Mostantól lefut. A végkimenetel ugyanaz — promóció így sem lesz, mert a verdikt nem pass —, a futás viszont <b>nyomot hagy</b>: per-szabály NOT_VERIFIED eredményeket, újragenerált statisztikát és reconcile-riportot, egy olyan job helyett, ami meg sem történt. Egy elbukott teszt-job amúgy sem ok a mérés kihagyására: azok szándékosan <code>continue-on-error</code>-osak, és a progress-marker mechanizmus pont attól őszinte, hogy a „a támadás le sem futott"-ból NOT_VERIFIED lesz, nem FAIL.</p>
+        <div class="refs"><span class="ref">ci_dev_workflow.yml: OR-blokk törölve</span></div>
       </div>
     </div>
 
@@ -1088,11 +1089,12 @@
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-9" aria-labelledby="t-2-9">
+      <input class="row-check" type="checkbox" id="i-2-9" aria-labelledby="t-2-9" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.9</span><span class="row-title" id="t-2-9">Az index-prefix beszúrása elhasal pipe-pal kezdődő queryn</span></div>
+        <div class="row-head"><span class="id">2.9</span><span class="row-title" id="t-2-9">Az index-prefix beszúrása elhasal pipe-pal kezdődő queryn</span><span class="tag done">kész</span></div>
         <p class="row-body">Az <code>_inject_index_prefix</code> feltételezi, hogy a query search-kifejezéssel indul. Ha a backend <code>| tstats</code>-szal kezdődő queryt ad ki (a sysmon acceleration pipeline képes rá), az eredmény <code>index=x | tstats ...</code> — érvénytelen SPL. Ma egyetlen szabály sem esik ide (mind a 14 generált fájlt ellenőriztem), de a következő logsource-nál elsülhet.</p>
-        <div class="refs"><span class="ref">sigma_to_spl.py:162-185</span></div>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Kész.</b> A generáló paranccsal kezdődő query (<code>| tstats</code>, <code>| inputlookup</code>, <code>| from datamodel</code>) mostantól <b>változatlanul</b> megy tovább — a korábbi ág feltétel nélkül elé fűzte az indexet, amiből <code>index=x | tstats …</code> lett, ami nem érvényes SPL, és amit a Splunk csak deploykor vagy keresés közben utasított volna vissza, jóval a hiba elkövetése után. <b>Nem bukással oldottam meg:</b> egyes generáló parancsok jogosan nem nyúlnak indexhez (<code>| inputlookup</code>), tehát a konverzió elbuktatása helyes bemenetre találna ki hibát. Amiről viszont hangosan szól egy figyelmeztetés: ha a query <em>sem a saját indexét nem hozza, sem a miénket nem tudja fogadni</em> — az csendben mindent átfésül. Ma egyetlen szabály sem esik ide (mind a 27 hagyományos keresés), de a sysmon acceleration pipeline tud <code>tstats</code>-ot adni, és a <code>raw_query</code> szabályok bármit tartalmazhatnak. 10 új teszt, és a 27 committolt <code>.spl</code>-en ellenőrizve, hogy egyetlen kimenet sem változott.</p>
+        <div class="refs"><span class="ref">sigma_to_spl.py: generáló parancs</span><span class="ref">10 teszt</span></div>
       </div>
     </div>
 
