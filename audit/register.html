@@ -644,14 +644,17 @@
   <header class="masthead">
     <p class="eyebrow">
       <span>Detection-Engineering</span>
-      <span>branch: dev @ 22799a5</span>
-      <span>audit: 2026-07-26</span>
+      <span>audit: 2026-07-26 · dev @ 22799a5</span>
+      <span>állapot: 2026-08-04</span>
     </p>
     <h1>Fejlesztési register — pipeline audit</h1>
     <p class="standfirst">
-      Statikus átvizsgálás mindkét CI workflow-ra, mind a hét script-re, a Sigma sémára és a repo
-      tényleges állapotára. A tételek prioritás szerint állnak; a pipálás súlyozottan hajtja a
-      projektált minőségi pontszámot. Az állapot a böngészőben marad, nem kerül vissza a repóba.
+      Statikus átvizsgálás mindkét CI workflow-ra, mind a hét akkori script-re, a Sigma sémára és a
+      repo tényleges állapotára. A tételek prioritás szerint állnak; a pipálás súlyozottan hajtja a
+      projektált minőségi pontszámot. <b>A bepipált tételek az oldalba vannak sütve</b>, tehát azt
+      mutatják, ami valóban elkészült — az igazság forrása a repo
+      <code>audit/remediation-plan.md</code>-je, ez az oldal annak a képe. Amit te kattintasz hozzá,
+      az csak a saját böngésződben marad.
     </p>
   </header>
 
@@ -720,8 +723,11 @@
 
   <h2><span class="swatch sw-crit"></span>1 · Kritikus hibák<span class="h2-count">a repo jelenlegi állapotán bizonyítva</span></h2>
   <p class="sec-intro">
-    Mind a tizenkét tétel ma fennálló, valós hiba — nem elméleti kockázat. A „mérve" jelölés azt
-    jelenti, hogy az ellenőrzést konkrétan lefuttattam a repón.
+    Mind a tizenkét tétel valós, a repón bizonyított hiba volt — nem elméleti kockázat. A „mérve"
+    jelölés azt jelenti, hogy az ellenőrzést konkrétan lefuttattam. <b>2026-08-04-re mind a tizenkettő
+    lezárult</b>, kettő közülük nem javítással: az <b>1.1</b> kivizsgálás után nem bizonyult
+    kódhibának, az <b>1.8</b> javasolt javítását pedig tudatosan elutasítottuk, és a tünetét a
+    <b>3.3</b> kezeli.
   </p>
 
   <div class="register" data-sev="crit">
@@ -1115,11 +1121,12 @@
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-13" aria-labelledby="t-2-13">
+      <input class="row-check" type="checkbox" id="i-2-13" aria-labelledby="t-2-13" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.13</span><span class="row-title" id="t-2-13">A <code>rule_documentations/</code> üres könyvtár</span></div>
+        <div class="row-head"><span class="id">2.13</span><span class="row-title" id="t-2-13">A <code>rule_documentations/</code> üres könyvtár</span><span class="tag done">lezárva</span></div>
         <p class="row-body">Semmi nem hivatkozik rá kódból. Vagy generálj bele (4.8), vagy töröld.</p>
-        <div class="refs"><span class="ref">rule_documentations/</span></div>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Lezárva a két javasolt út közül a törléssel.</b> A könyvtár már nincs a repóban — a tétel csak a registerben maradt nyitott, a valóságban rég megoldódott. A repo-leltár átnézésekor derült ki. A generálás mint lehetőség a <b>4.8</b> alatt él tovább: ha egyszer megvalósul, új könyvtárként jön létre, tartalommal — nem üres helyőrzőként. A <code>detection-content-reviewer</code> agent leírásából is kikerült a rá épülő rész, ami addig egy nem létező könyvtárba írt volna.</p>
+        <div class="refs"><span class="ref">törölve</span><span class="ref">a generálás: 4.8</span></div>
       </div>
     </div>
 
@@ -1432,7 +1439,7 @@
   </div>
 
   <footer>
-    <span>49 tétel · 12 kritikus · 2 kész</span>
+    <span>49 tétel · 14 kész · a 12 kritikusból 12</span>
     <span>statikus audit, futtatás nélkül</span>
     <span>az állapot a repo remediation-plan.md-jében</span>
   </footer>

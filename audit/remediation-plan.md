@@ -21,7 +21,7 @@ Nincs menetrend — a tempó ad-hoc, tételenként.
 
 ## Pontszám
 
-Jelenlegi: **6,5 / 10** (kiindulás). Mai állás: **7,6 / 10**, kész súly 38/86,5.
+Jelenlegi: **6,5 / 10** (kiindulás). Mai állás: **7,6 / 10**, kész súly 39/86,5.
 Minden tétel elvégzése után: **9,0 / 10**.
 A register meterének súlyozása: kritikus ×3, architektúra ×2, feature ×1,5, kisebb ×1
 (összesen **88** súlypont a 4.11 felvétele óta; korábban 85).
@@ -93,7 +93,7 @@ pip-audit), a **2.x** blokk olcsó darabjai (**2.2** `timeout-minutes`, **2.14**
 - [ ] **2.10** Szabályonként két Python-process egy mező kiolvasásához · `ci_dev_workflow.yml:323-324` · fix: 3.1 manifest
 - [ ] **2.11** Hiányzó repo-higiénia: requirements/pyproject/Makefile/pre-commit/CODEOWNERS/PR template/dependabot, actions csak major taggel pinelve
 - [~] **2.12** Nulla teszt és nulla linter · fix: 4.10 · **részben kész 2026-08-03:** már nem nulla — 25 teszt a `tests/` alatt és ruff a CI-ban. A ruff viszont szűkre van állítva (`F` + `E9`), a teljes szabálykészlet bekapcsolása és a lefedettség bővítése ide tartozik
-- [ ] **2.13** A `rule_documentations/` üres könyvtár · fix: 4.8 vagy törlés
+- [x] **2.13** A `rule_documentations/` üres könyvtár · **lezárva 2026-08-04, törléssel** (a két javasolt út közül; a könyvtár már nincs a repóban, csak a register mutatta nyitottként). A generálás mint lehetőség megmarad a **4.8** alatt — ha egyszer megvalósul, új könyvtárként jön létre, tartalommal. A `detection-content-reviewer` agent leírásából is kikerült a rá építő rész
 - [ ] **2.14** A TLS-verifikáció csendben kikapcsol, ha a secret nincs beállítva · `ci_dev_workflow.yml:386`, `ci_prod_workflow.yml:69` · fix: fail-closed
 - [ ] **2.15** A `fields:` metaadat halott (séma kötelezi, converter kidobja, SPL nem használja) · `sigma_to_spl.py:255` · fix: `| table` vagy kivenni a sémából
 - [ ] **2.16** Nyers Splunk-eventek 90 napig publikusan letölthető artifactban · `ci_dev_workflow.yml:691-698` · fix: rövidebb retention vagy mezőszűrés
@@ -559,6 +559,26 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   **Az 1.7 nincs kipipálva**, mert a Splunk-oldali kivezetés csak az egyik fele: a `deprecated`
   státusz kizárása a deployból és a törölt szabály repo-oldali `.spl`/result maradványai hátravannak.
   Kész súly: 35/86,5, projektált pontszám **7,5 / 10**.
+- **2026-08-04** — **A kör lezárása: 2.13, és az architektúra-dokumentáció utolérése.**
+  **2.13 lezárva, törléssel** — a `rule_documentations/` már nem volt a repóban, a tétel csak a
+  registerben maradt nyitva. A repo teljes fájl-leltára közben derült ki, ahol az volt a kérdés, mire
+  nincs valójában szükség. A generálás mint lehetőség a **4.8** alatt él tovább; a
+  `detection-content-reviewer` agent leírásából kikerült a rá épülő rész, ami addig egy nem létező
+  könyvtárba írt volna.
+  **Az architektúra-dokumentáció utolérte a kódot.** A `pipeline_overview.md` és a `data_flow.md`
+  egyáltalán nem említette sem a reconcile-t (2026-08-03 óta), sem a prune-t (ma) — a `docs/` a
+  pipeline *előrefelé* menő útját írta le, a kivezetésről egy szó sem esett benne. Új **Retirement —
+  the reverse path** szakasz az áttekintőben (az öt vödör, a két árva-típus eltérő kezelése és annak
+  indoka, a `deprecated` szerepe), a job-táblában a két új step, a `data_flow.md`-ben pedig a
+  reconcile-artifact, a harmadik `[skip ci]` commit és a CI-jelölő szerepe a Splunk-objektumokon.
+  Szándékosan **nem** új számozott stage lett belőle: a kivezetés nem az 1–11-es lánc egy pontja,
+  hanem két, a lánc két különböző pontjára akasztott takarítás.
+  **Nem audit-tétel, de ide tartozik:** a `.claude/settings.json` doksi-szinkron hookja javítva. Három
+  hibája volt — az `if` szűrője commit nélküli Bash-hívásokra is elsült, jogosultság híján blokkoló
+  hibát dobott csendes kilépés helyett, és mindig a HEAD-et elemezte, tehát ugyanazt a régi commitot
+  sürgette újra meg újra. Mostantól öt kapun megy át, és bármelyik bukása néma kilépés. A hook
+  továbbra sem lát IDE-ből indított commitot — csak a Bash-en át futókat.
+  Kész súly: 39/86,5, projektált pontszám **7,6 / 10**.
 - **2026-08-04** — **1.7 kész. Ezzel mind a 12 kritikus tétel lezárult.** A délelőtti `--apply`
   után a maradék két repo-oldali darab is megvan.
   **(a) `status: deprecated` kizárása a deployból.** A séma kezdettől engedte, de egyetlen script
