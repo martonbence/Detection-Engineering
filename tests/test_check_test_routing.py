@@ -226,6 +226,23 @@ def test_json_output_records_the_matrix_and_the_findings(tmp_path):
     assert {"type": "atomic", "runner": "windows-victim", "job": "atomic_verify"} in data["serviced"]
 
 
+def test_the_suite_cannot_write_to_a_real_job_summary(tmp_path, capsys):
+    """Regression: these tests once appended invented findings to the real one.
+
+    The autouse fixture in conftest.py unsets it; without that, running the
+    suite inside CI reports fixture rules as broken in the job summary.
+    """
+    import os
+
+    wf = _workflow_file(tmp_path)
+    r = write_rule(tmp_path, runner="linux-victim")
+
+    main(["--workflow", str(wf), str(r)])
+
+    assert "GITHUB_STEP_SUMMARY" not in os.environ
+    assert "::warning" in capsys.readouterr().out  # the finding still happened
+
+
 def test_step_summary_is_appended_when_github_provides_one(tmp_path, monkeypatch):
     wf = _workflow_file(tmp_path)
     r = write_rule(tmp_path, runner="linux-victim")
