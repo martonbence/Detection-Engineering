@@ -72,7 +72,7 @@ Two things worth knowing before editing it:
 
 ### `ci_prod_workflow.yml` — production deploy
 
-One job, on `main`. It re-converts from Sigma (which is how the `.meta.json` sidecars, gitignored
+One real job, on `main`. It re-converts from Sigma (which is how the `.meta.json` sidecars, gitignored
 and never committed, come to exist on the prod runner), then runs a **drift gate** — `git diff
 --exit-code -- rules/splunk` — before deploying. If the re-conversion produced a different `.spl`
 than the one reviewed and merged, the deploy stops. Both workflows install from the same pinned
@@ -80,6 +80,13 @@ than the one reviewed and merged, the deploy stops. Both workflows install from 
 reproducibility claim mean anything.
 
 `main` never attacks anything or verifies anything; it trusts what `dev` proved.
+
+It also honours the `LAB_ONLINE` repository variable, because its deploy job runs on the same
+`de-lab` machine dev uses and would otherwise queue against an offline runner rather than fail. A
+second job, `announce_lab_offline` on `ubuntu-latest`, runs under the exactly complementary
+condition — prod's only real job is the one being skipped, so without it nothing would be left to
+report that production was not updated. See the `LAB_ONLINE` section in
+[`pipeline_overview.md`](pipeline_overview.md).
 
 ### `ci_code_checks.yml` — CI for the pipeline itself
 
