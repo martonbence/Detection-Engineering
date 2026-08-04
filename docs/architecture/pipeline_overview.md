@@ -316,6 +316,7 @@ For rules with `testing.type: emulation` (8 of the current 27), `emulation_verif
 
 | Job | Runner | Key steps |
 |---|---|---|
+| `announce_lab_offline` | `ubuntu-latest` | Runs only when `LAB_ONLINE` is `false`. Say that prod was not updated — exists because prod's only real job is on the runner being skipped, and an entirely skipped run is indistinguishable from a healthy one in the runs list. |
 | `deploy_to_prod` | `self-hosted, linux, de-lab` | Checkout, Setup Python, Install deps (pinned, from `.github/requirements.txt`), **Regenerate SPL + meta sidecars from Sigma source**, **Fail if regenerated SPL drifted from what was reviewed** (`git diff --exit-code -- rules/splunk`), **Deploy all SPL files to prod Splunk** |
 
 ### `ci_code_checks.yml`
@@ -351,9 +352,9 @@ There is no third workflow file in `.github/workflows/` for the promotion PR's p
 
 The four self-hosted machines above are not always on, and GitHub does not fail a job that has no runner to pick it up — it queues it. `timeout-minutes` does not help, because it starts counting when a job *starts*, not while it waits; and since the dev workflow's `concurrency` group uses `cancel-in-progress: false`, one such run blocks every later push to `dev` until GitHub drops it about a day later.
 
-Setting the repository variable `LAB_ONLINE` to `false` skips the lab-bound half of the pipeline, so a push still validates, converts and commits its SPL instead of queueing behind an absent runner.
+Setting the repository variable `LAB_ONLINE` to `false` skips the lab-bound half of the pipeline, so a push still validates, converts and commits its SPL instead of queueing behind an absent runner. It must be a **repository** variable, not an environment one: job-level `if:` conditions are evaluated before a job's `environment:` is resolved, so an environment-scoped variable would not be visible and the gate would quietly do nothing.
 
-It is applied in exactly one place — `deploy_to_splunk`'s `if:` — because that job is the gateway to every self-hosted runner and the dependency graph carries the decision the rest of the way: the three attack jobs need it and carry no `always()`, `splunk_verify` requires `deploy_to_splunk.result == 'success'`, and `open_promotion_pr` and `deploy_pages` both require a `splunk_verify` result they will not get. Nothing is promoted or published from a run that measured nothing.
+In `ci_dev_workflow.yml` it is applied in exactly one place — `deploy_to_splunk`'s `if:` — because that job is the gateway to every self-hosted runner and the dependency graph carries the decision the rest of the way: the three attack jobs need it and carry no `always()`, `splunk_verify` requires `deploy_to_splunk.result == 'success'`, and `open_promotion_pr` and `deploy_pages` both require a `splunk_verify` result they will not get. Nothing is promoted or published from a run that measured nothing.
 
 Only the literal string `false` disables. An unset variable means the lab is up, so the normal state needs no configuration and a typo in the variable name fails towards running rather than towards silently skipping every deploy.
 
@@ -361,6 +362,10 @@ Two things to know about the switch:
 
 - A rule merged while it is `false` reaches the repo but **never reaches Splunk**, because a normal push only deploys what that push changed. The way back is a manual run (`workflow_dispatch`) once the lab is up, which rebuilds and re-measures everything.
 - Skipped jobs are not failures, so a run with the lab off looks green in the jobs list. The `Warn that the lab is switched off` step in `prepare_validate_convert` therefore emits a `::warning` and a step-summary block spelling out what did not happen.
+
+**`ci_prod_workflow.yml` honours the same variable**, because `deploy_to_prod` runs on that same `de-lab` machine and inherits the problem exactly. Skipping is strictly better than queueing there too: both mean prod is not updated, but one of them says so within a minute instead of looking busy for a day, and does not block the run that would have deployed. Prod's recovery path already existed for a different reason — its `workflow_dispatch` (item 2.5) deploys from `git ls-files` rather than from a diff, so one manual run applies the full current library on `main`, including whatever was merged while the switch was off.
+
+Prod has only one real job and it is the one being skipped, so a second job, `announce_lab_offline`, runs on `ubuntu-latest` under the exactly complementary condition. Without it there would be no job left to report and the run would be indistinguishable from a healthy one.
 
 ## Custom Claude Code subagents involved in building/maintaining this pipeline
 
