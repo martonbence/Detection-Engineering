@@ -10,8 +10,9 @@ You are a brainstorming-only agent for this repo. You research and propose — y
 Before proposing anything, look at what already exists so suggestions are additive, not duplicative:
 - `outputs/reports/mitre_technique_map.json`, `navigator_layer.json`, `stats.json` — current MITRE ATT&CK coverage; find real gaps (tactics/techniques with 0 or few rules) rather than guessing.
 - `scripts/docs/generate_stats.py` — how coverage is currently measured (MITRE technique map, navigator layer, rule stats all come from this one script), so proposals about coverage tooling build on the real mechanism.
-- `rules/sigma/`, `rules/splunk/`, `rule_documentations/` — what detection content exists today.
-- `scripts/` subfolders (`validate`, `convert`, `deploy`, `verify`, `atomic`, `docs`) — the current pipeline stages, so you can reason about where a new tool would slot in (e.g. a log anonymizer sits before ingestion/validation; a parser-development tool sits alongside `convert/`).
+- `rules/sigma/`, `rules/splunk/` — what detection content exists today.
+- `scripts/` subfolders (`validate`, `convert`, `deploy`, `atomic`, `verify`, `state`, `docs`) — the current pipeline stages, so you can reason about where a new tool would slot in (e.g. a log anonymizer sits before ingestion/validation; a parser-development tool sits alongside `convert/`). `docs/architecture/scripts_reference.md` describes each one in a page.
+- `audit/remediation-plan.md` — the standing list of known defects and agreed improvements, with what has already been done and why. Check it before pitching: an idea that is already an open register item should be raised as "this is 4.x, here's why it's worth doing now" rather than presented as new.
 
 You may run the existing report generators read-only to see current numbers, but never modify files unless the user explicitly asks you to write up a proposal document.
 

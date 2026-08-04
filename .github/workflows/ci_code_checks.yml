@@ -26,6 +26,8 @@ on:
       - ".github/requirements.txt"
       - ".github/requirements-dev.txt"
       - ".github/workflows/**"
+      - ".github/PSScriptAnalyzerSettings.psd1"
+      - ".github/actionlint.yaml"
   pull_request:
     paths:
       - "scripts/**"
@@ -34,6 +36,8 @@ on:
       - ".github/requirements.txt"
       - ".github/requirements-dev.txt"
       - ".github/workflows/**"
+      - ".github/PSScriptAnalyzerSettings.psd1"
+      - ".github/actionlint.yaml"
 
 concurrency:
   group: code-checks-${{ github.ref }}
@@ -46,6 +50,10 @@ jobs:
   static_analysis:
     name: Static analysis and tests
     runs-on: ubuntu-latest
+    # Register item 2.2. These four run on GitHub-hosted runners, where a hung
+    # job costs minutes rather than blocking the lab -- but an unbounded job is
+    # still a job nobody notices is stuck, so they get caps too.
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -75,14 +83,298 @@ jobs:
       - name: Pytest
         run: pytest
 
+  # Separate job rather than two more steps in static_analysis, for two reasons:
+  # steps run in sequence, so a ruff failure would hide a PowerShell failure
+  # until the next push; and a parse error in a .ps1 has no business being
+  # reported under a job named for Python tests. Runs in parallel, so it costs
+  # no wall-clock time.
+  #
+  # Until this existed, nothing checked the PowerShell at all: ruff and pytest
+  # are Python-only, and run_atomic.ps1 is otherwise first parsed by the Windows
+  # runner during a live atomic run -- the slowest feedback loop in the repo.
+  # (Register item 4.10.)
+  powershell_analysis:
+    name: PowerShell analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # Pinned, like .github/requirements.txt pins the Python toolchain
+          # (register item 1.3): an analyzer that changes under us turns a green
+          # build red on someone else's release schedule.
+          Install-Module -Name PSScriptAnalyzer -RequiredVersion 1.25.0 `
+            -Scope CurrentUser -Force -AcceptLicense -ErrorAction Stop
+          Import-Module PSScriptAnalyzer -ErrorAction Stop
+          Write-Host "PSScriptAnalyzer $((Get-Module PSScriptAnalyzer).Version)"
+
+      # Deliberately separate from, and ahead of, the analyzer: this uses the
+      # PowerShell parser itself, so it answers "does this file even parse?"
+      # without depending on any analyzer rule being enabled. It is the check
+      # that would have caught a typo in a script edited on a machine with no
+      # pwsh installed.
+      - name: Parse check
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $failed = $false
+
+          foreach ($file in Get-ChildItem -Path scripts -Filter *.ps1 -Recurse -File) {
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              $file.FullName, [ref]$null, [ref]$errors)
+
+            $relative = (Resolve-Path -LiteralPath $file.FullName -Relative) -replace '^\.[\\/]', ''
+
+            if ($errors -and $errors.Count -gt 0) {
+              $failed = $true
+              foreach ($e in $errors) {
+                Write-Host "::error file=$relative,line=$($e.Extent.StartLineNumber)::$($e.Message)"
+              }
+            }
+            else {
+              Write-Host "OK  $relative"
+            }
+          }
+
+          if ($failed) {
+            Write-Host "::error title=PowerShell parse error::One or more .ps1 files failed to parse."
+            exit 1
+          }
+
+      - name: PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $results = @(Invoke-ScriptAnalyzer -Path scripts -Recurse `
+            -Settings .github/PSScriptAnalyzerSettings.psd1)
+
+          # Severity is an enum, so it is stringified before comparing rather
+          # than relying on coercion inside -in.
+          $isFatal = { param($r) [string]$r.Severity -in @('Error', 'ParseError') }
+
+          foreach ($r in $results) {
+            $relative = (Resolve-Path -LiteralPath $r.ScriptPath -Relative) -replace '^\.[\\/]', ''
+            # Warnings are annotations, not gates -- see the Severity note in
+            # the settings file for why the bar starts here.
+            $level = if (& $isFatal $r) { 'error' } else { 'warning' }
+            Write-Host "::$level file=$relative,line=$($r.Line)::[$($r.RuleName)] $($r.Message)"
+          }
+
+          $fatal = @($results | Where-Object { & $isFatal $_ })
+          $warned = @($results | Where-Object { [string]$_.Severity -eq 'Warning' })
+
+          Write-Host "PSScriptAnalyzer: $($fatal.Count) error(s), $($warned.Count) warning(s)."
+
+          if ($fatal.Count -gt 0) {
+            exit 1
+          }
+
+  # Register item 4.10. Until this existed, the workflow YAML was the only
+  # substantial code in the repo nothing checked: ruff and pytest are
+  # Python-only, PSScriptAnalyzer covers the .ps1 files, and the workflows --
+  # which is where most of this pipeline's logic actually lives -- were read by
+  # nothing but GitHub Actions itself, at run time, on the slowest feedback
+  # loop there is.
+  #
+  # Its own job for the same reason powershell_analysis is: steps run in
+  # sequence, so folding this into static_analysis would let a ruff failure
+  # hide a broken workflow until the next push.
+  workflow_analysis:
+    name: Workflow analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Pinned and checksum-verified, following the same reasoning as the
+      # Python pins and PSScriptAnalyzer 1.25.0: a linter that updates itself
+      # turns an unrelated pull request red on somebody else's release
+      # schedule. The checksum is the published one from the release's own
+      # actionlint_1.7.12_checksums.txt.
+      - name: Install actionlint
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="1.7.12"
+          sha256="8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+          tarball="actionlint_${version}_linux_amd64.tar.gz"
+
+          curl -fsSL -o "$tarball" \
+            "https://github.com/rhysd/actionlint/releases/download/v${version}/${tarball}"
+
+          echo "${sha256}  ${tarball}" | sha256sum --check --strict
+          tar -xzf "$tarball" actionlint
+          sudo mv actionlint /usr/local/bin/actionlint
+          actionlint --version
+
+      # actionlint runs shellcheck itself on every `run:` block that uses a
+      # POSIX shell, which is how shellcheck coverage arrives here -- there is
+      # no separate shellcheck step, because a standalone one would have to
+      # re-extract the scripts out of the YAML to see them at all. That makes
+      # shellcheck's presence load-bearing: if it silently disappeared from the
+      # runner image, actionlint would keep passing while checking strictly
+      # less, so this asserts it rather than assuming it.
+      - name: Verify shellcheck is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            echo "::error::shellcheck is not on PATH, so actionlint would silently skip every run: block."
+            exit 1
+          fi
+          shellcheck --version | sed -n '2p'
+
+      # Self-hosted runner labels come from .github/actionlint.yaml -- without
+      # it every `runs-on:` in the dev and prod workflows reports as an unknown
+      # label (10 findings, all false).
+      #
+      # Every shellcheck severity gates, style included. That is stricter than
+      # the ruff (F + E9) and PSScriptAnalyzer (Error + ParseError) precedents,
+      # and deliberately so: those two were narrowed because they were pointed
+      # at thousands of lines that had never been linted, where the real defects
+      # would have drowned. The workflow bash is a fraction of that size and is
+      # clean at every severity as of the first run, so there is nothing to
+      # drown. If style findings ever start blocking unrelated work, the knob is
+      # `-shellcheck "shellcheck --severity=warning"` here (verified to work),
+      # or `-ignore <regex>` for one specific rule.
+      - name: Run actionlint
+        shell: bash
+        run: |
+          set -euo pipefail
+          actionlint -color
+
+  # Advisory, not a gate. A vulnerability disclosed against a pinned dependency
+  # is real information, but it arrives on the world's schedule rather than this
+  # repo's: a CVE published overnight would otherwise turn every unrelated pull
+  # request red the next morning, for a problem nobody in that pull request
+  # introduced or can fix. It is surfaced loudly instead -- an annotation and
+  # the full report in the step summary.
+  #
+  # Implemented by translating pip-audit's "found vulnerabilities" exit code
+  # into a warning, NOT by continue-on-error on the job. The first version used
+  # continue-on-error, and it was wrong in practice: the step still ended with
+  # "Error: Process completed with exit code 1" and the job still rendered as
+  # failed, so an advisory check looked exactly like a broken one. Reading a red
+  # X as "informational" is not something anyone should have to remember.
+  #
+  # The distinction that matters is preserved below: findings are a warning,
+  # but pip-audit failing to *run* at all still fails the job -- an audit that
+  # never happened must not look like an audit that found nothing.
+  dependency_audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pip-audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install pip-audit==2.10.1
+
+      # Both files, because both get installed somewhere: requirements.txt is
+      # what dev and prod run the pipeline with, requirements-dev.txt is what
+      # this workflow runs its own checks with. A vulnerability in the second
+      # is lower stakes but not zero -- it still executes in CI with a checkout
+      # of the repo present.
+      - name: Audit pinned dependencies
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          findings=0
+          broken=0
+
+          # Reports go to a temp directory, not the workspace: nothing here is
+          # meant to be committed, and writing them next to the checkout means
+          # running this step locally litters the repo with untracked files.
+          reports=$(mktemp -d)
+
+          for req in .github/requirements.txt .github/requirements-dev.txt; do
+            echo "=== $req ==="
+            out="${reports}/$(basename "$req").txt"
+
+            # Captured through `if` rather than by reading $? on the next line.
+            # GitHub runs `shell: bash` as `bash --noprofile --norc -e -o
+            # pipefail`, so -e is on no matter what this script's own `set` line
+            # says: a bare `pip-audit ...` followed by `status=$?` kills the step
+            # the moment pip-audit reports findings, before the exit code can be
+            # classified at all. A command inside an `if` condition is exempt
+            # from -e, so this form is correct with or without it.
+            if pip-audit --strict --progress-spinner off -r "$req" >"$out" 2>&1; then
+              status=0
+            else
+              status=$?
+            fi
+            cat "$out"
+
+            # pip-audit exits 1 when it found vulnerabilities and it ran fine.
+            # Any other non-zero status means the audit itself did not happen
+            # (network, resolver, bad file) -- that is a real failure, because
+            # an audit that never ran must not be mistaken for a clean one.
+            case "$status" in
+              0) ;;
+              1) findings=1 ;;
+              *) broken=1; echo "::error::pip-audit could not complete for ${req} (exit ${status})." ;;
+            esac
+          done
+
+          {
+            echo "### Dependency audit"
+            echo
+            for f in "${reports}"/*.txt; do
+              echo "<details><summary>$(basename "$f")</summary>"
+              echo
+              echo '```'
+              cat "$f"
+              echo '```'
+              echo
+              echo "</details>"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$broken" -ne 0 ]; then
+            exit 1
+          fi
+
+          if [ "$findings" -ne 0 ]; then
+            echo "::warning::pip-audit reported known vulnerabilities in a pinned dependency. See the step summary. Advisory only -- it does not block the build."
+          fi
+
+          exit 0
+
   regenerate_console:
     name: Regenerate Console
-    needs: static_analysis
+    needs: [static_analysis, powershell_analysis, workflow_analysis]
     # Only on dev, and only for real pushes: a PR must not rewrite generated
     # files on someone's branch, and main gets its copy through the promotion
     # PR like everything else.
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
+    # Regenerates the whole console (generate_stats.py, including a git
+    # log --follow per rule) and commits, so it gets more room than the two
+    # analysis jobs.
+    timeout-minutes: 30
     # Required for secrets.GH_PAT_DEV_PUSH to resolve: it is an environment
     # secret on `dev`, not a repository secret, so a job that does not declare
     # the environment receives an empty string and actions/checkout fails with
@@ -221,6 +513,9 @@ jobs:
     # which is half of what register item 1.6 is about.
     if: needs.regenerate_console.outputs.published == 'true'
     runs-on: ubuntu-latest
+    # Also bounds how long this can hold the repo-wide `pages` concurrency
+    # group that the dev pipeline's own publish job queues behind.
+    timeout-minutes: 15
     permissions:
       pages: write
       id-token: write

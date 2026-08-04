@@ -8,6 +8,19 @@ on:
       - "rules/sigma/**/*.yaml"
       - ".github/workflows/ci_prod_workflow.yml"
 
+  # Register item 2.5. The path filter above means only a *rule* change reaches
+  # prod. Everything else this workflow depends on -- deploy_spl_to_splunk.py,
+  # sigma_to_spl.py, rule_naming.py, the pinned .github/requirements.txt -- can
+  # be fixed, reviewed and merged to main without prod ever noticing, and the
+  # fix then sits dormant until somebody happens to touch a rule. That delay is
+  # invisible: nothing reports that prod is running an older deploy path.
+  #
+  # This makes the redeploy an explicit, available action instead. It needs no
+  # inputs: the job derives its file list from `git ls-files`, not from a diff,
+  # so a dispatched run deploys the full current library on main -- exactly what
+  # "re-apply everything with the fixed script" should mean.
+  workflow_dispatch:
+
 concurrency:
   group: detection-pipeline-prod-${{ github.ref }}
   cancel-in-progress: false
@@ -16,9 +29,63 @@ permissions:
   contents: read
 
 jobs:
+  # Register item 2.20. `deploy_to_prod` below runs on the same `de-lab` machine
+  # dev uses, so prod inherits dev's problem exactly: when the lab is off, the
+  # job does not fail, it queues -- `timeout-minutes` only starts once a job
+  # starts -- and with cancel-in-progress: false it holds the prod lane until
+  # GitHub drops it about a day later.
+  #
+  # Skipping is strictly better than queueing. Both mean prod is not updated,
+  # but one of them says so within a minute instead of looking busy for a day,
+  # and does not block the run that would have deployed.
+  #
+  # The recovery path is already here and was built for this: `workflow_dispatch`
+  # above deploys from `git ls-files`, not from a diff, so one manual run once
+  # the lab is up applies the full current library on main -- including whatever
+  # was merged while this was switched off.
+  #
+  # This job exists because prod has exactly one real job and it is on the
+  # runner being skipped. Without a hosted job there is nothing left to report,
+  # and an entirely skipped workflow run is indistinguishable from a healthy one
+  # in the runs list.
+  announce_lab_offline:
+    name: Lab Offline Notice
+    if: vars.LAB_ONLINE == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Say that prod was not updated
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "::warning title=Prod deploy skipped::LAB_ONLINE is false, so the prod Splunk deploy did not run. Production is still serving the previously deployed rules."
+
+          {
+            echo "### Prod was not updated"
+            echo ""
+            echo "\`LAB_ONLINE\` is \`false\`, so **Deploy to Prod Splunk** was skipped."
+            echo ""
+            echo "Production Splunk still serves whatever was deployed before this run."
+            echo "Nothing was removed or half-applied -- the deploy simply did not happen."
+            echo ""
+            echo "To apply it: set \`LAB_ONLINE\` to \`true\` (or delete the variable) once the lab is up, then run this workflow manually from the Actions tab. It deploys the full current rule library on \`main\`, so it also catches up anything merged while the lab was down."
+          } >> "$GITHUB_STEP_SUMMARY"
+
   deploy_to_prod:
     name: Deploy to Prod Splunk
+    # Register item 2.20. Same switch and same polarity as the dev workflow:
+    # only the literal string 'false' disables, so an unset variable means the
+    # lab is up and a typo in the variable name fails towards deploying rather
+    # than towards silently skipping production.
+    if: vars.LAB_ONLINE != 'false'
     runs-on: [ self-hosted, linux, de-lab ]
+    # Register item 2.2. Re-conversion of all 27 rules, the drift gate, and the
+    # deploy itself -- which allows up to three 30s HTTP calls per rule, so ~40
+    # minutes of legitimate network wait. Set above that, because a cap that
+    # fires mid-deploy would leave prod Splunk half-updated: some rules on the
+    # new version, some on the old, with nothing recording which.
+    timeout-minutes: 60
     environment: prod
 
     steps:

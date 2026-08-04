@@ -58,7 +58,11 @@ The exact GitHub Actions mechanism connecting an upstream-skip several hops back
 
 **1. Author.** Detections are written as Sigma YAML under `rules/sigma/`. Most rules have a real `detection:` block Sigma can compile. Rules too sophisticated to express that way still live in `rules/sigma/*.yml` (with a required-but-unused placeholder `detection:` block) and instead set `custom.splunk.raw_query` to the literal SPL text.
 
-**2. Validate — `scripts/validate/validate_sigma.py`.** Checks the changed rules (or, if the schema, `scripts/validate/**`, or the converter itself changed, *every* rule in the repo — see the `mode` logic in the `Determine changed Sigma files` step) against `docs/schemas/sigma_schema.json`, a Draft-07 JSON Schema. Invoked from CI via a PowerShell wrapper, `scripts/validate/validate_sigma.ps1`. Nothing downstream runs on a rule that fails schema validation.
+**2. Validate — `scripts/validate/validate_sigma.py`.** Checks the rules against `docs/schemas/sigma_schema.json`, a Draft-07 JSON Schema. Invoked from CI via a PowerShell wrapper, `scripts/validate/validate_sigma.ps1`. Nothing downstream runs on a rule that fails schema validation.
+
+Normally only the rules the push changed are processed. The run widens to *every* rule in the repo when the push touches one of five files that can change what a rule converts to or what it is called in Splunk — `sigma_schema.json`, `validate_sigma.py`, `validate_sigma.ps1`, `sigma_to_spl.py`, `rule_naming.py` — because each of those invalidates every `.spl` already converted. That is an explicit list, not a directory glob: widening the run means re-deploying and re-attacking all 27 rules on the lab VMs, so it should happen for files that genuinely change rule output and no others. See the `mode` logic in the `Determine changed Sigma files` step.
+
+A manual run (`workflow_dispatch`, Actions tab) widens the same way and takes no inputs — it rebuilds, redeploys and re-measures the whole rule set. That is the way to catch up after rules were merged while the lab was switched off; see `LAB_ONLINE` below.
 
 **3. Convert — `scripts/convert/sigma_to_spl.py`.** Compiles each validated rule into `rules/splunk/<name>.spl` (pure query text, via `pysigma` with the Splunk backend, or emitted verbatim for `custom.splunk.raw_query` rules) plus a `<name>.meta.json` sidecar carrying the metadata that deploy/verify/atomic-runner need (`detect_id`, title, severity, MITRE tags, testing config), all sourced from the Sigma YAML. Only the `.spl` file is committed to git (back to `dev`, by the `Commit converted SPL outputs to dev` step); `.meta.json` is regenerated fresh on every run and never committed.
 
@@ -77,6 +81,64 @@ The exact GitHub Actions mechanism connecting an upstream-skip several hops back
 **10. Track promotion on the project board at merge — Project #3's native board automation (not repo YAML).** Once the promotion PR is merged, its Project #3 item's Status field moves from `In review` to `Auto-merged` automatically. This is done entirely by Project #3's own built-in "Workflow" automation (GitHub Projects' native, UI-configured rule — set once under the Project's own Settings → Workflows: "Pull request merged" → set Status to `Auto-merged`), not by any GitHub Actions workflow in this repo. A repo workflow (`project_status_automerged.yml`) previously attempted to do this same thing from CI, but its run history (checked via the GitHub API) shows it only ever executed once in the repo's whole history — and that one run was skipped — while every real `dev`→`main` promotion PR since has still correctly landed on `Auto-merged`, because the native Project workflow was doing the job the entire time. The dead workflow file has been removed; nothing in `.github/workflows/` is involved in this transition. Because this is platform-side Project configuration rather than code in this repo, its exact trigger semantics aren't something this document can further describe beyond what's stated on the Project's own Settings page.
 
 **11. Publish — GitHub Pages.** `docs/index.html`, a self-contained rule browser and MITRE ATT&CK Navigator, is published from `dev` by the `deploy_pages` job inside `ci_dev_workflow.yml` — the single publish path (see the note above).
+
+## Retirement: the reverse path
+
+Stages 1–11 describe a rule arriving. Nothing in them describes one leaving, and for most of this
+pipeline's life nothing did: deleting a rule, or merely editing its `title`, left objects behind
+that kept running, scheduling and alerting, with no step anywhere noticing. Retirement is therefore
+not a stage in the forward chain but a pair of cleanups hanging off it, one on each side of the
+boundary — Splunk and the repo.
+
+**Why it needs its own mechanism at all.** The `Determine changed Sigma files` step diffs with
+`--diff-filter=AMRC`, which excludes deletions. A commit that only deletes a rule produces an empty
+`rule_files` list, `has_rules=false`, and every downstream job skips. The single event that creates
+the mess is precisely the one the forward pipeline cannot see.
+
+**Splunk side — `scripts/state/reconcile.py`.** Runs at the end of `splunk_verify`, `always()` and
+`continue-on-error`, so drift is still reported when verification itself failed and a Splunk hiccup
+in a reporting step can never fail a run whose real work succeeded. It builds desired state from
+`rules/sigma/*.yml` (not the gitignored `.meta.json` sidecars, which don't exist outside a run)
+using the same `saved_search_name()` the deploy uses, reads actual state from
+`servicesNS/{owner}/{app}/saved/searches` with `count=0` (without which Splunk's default 30-row page
+would make every rule past the first page look missing), and sorts every name into five buckets:
+
+| Bucket | Meaning | What happens |
+|---|---|---|
+| `in_sync` | repo and Splunk agree | nothing |
+| `missing` | the repo defines it, Splunk doesn't | reported; usually a rule that hasn't completed a full dev run yet |
+| `orphan_renamed` | the `detect_id` is still in the repo, only the title-slug moved | **deleted automatically** by `--apply` |
+| `orphan_removed` | the `detect_id` is gone from the repo entirely | **disabled and marked**, and only when a human passes `--apply-removals` |
+| `unmanaged` | no CI marker in the description — someone's hand-built search | reported so the numbers add up, never touched |
+
+The asymmetry between the two orphan buckets is the whole design. A rename orphan's rule is alive
+under a new name, so the leftover is safe to delete unattended — but only once the replacement is
+verified present in Splunk, because a failed deploy plus an eager cleanup would leave a
+just-edited rule with no saved search at all. A removal orphan's rule is gone, which is not always
+intentional, so it is disabled (reversible, and it keeps the object's Splunk-side scheduling and
+alert configuration) rather than deleted, and never without someone asking. Objects the pipeline
+did not create are reported and left alone.
+
+Rename orphans are a *standing* condition rather than a migration: the Splunk object name
+deliberately includes the title slug, because that is what an analyst sees in the search bar and in
+alert lists, so every title edit produces one. That is why `--apply` runs unattended on every dev
+run.
+
+**Repo side — `scripts/state/prune_orphans.py`.** Runs in `prepare_validate_convert`, with its own
+trigger condition and its own commit rather than riding along with the SPL commit step, which is
+gated on `has_spl` and would never be reached on a deletion-only push. It removes
+`rules/splunk/*.spl` files and `outputs/results/<detect_id>/` directories with no corresponding
+rule — leftovers that otherwise keep being deployed to prod (which reads `git ls-files`) and keep
+counting towards the dashboard's coverage. It compares current state rather than a diff, so it is
+idempotent and picks up anything an earlier run missed, and it refuses to run against an empty
+rules directory rather than treating the entire library as orphaned.
+
+**`status: deprecated` closes the loop.** The schema always allowed it, but nothing read it, so a
+rule parked as deprecated deployed and ran exactly like a stable one. The deploy now skips those
+rules — in prod too, since prod regenerates the sidecars and runs the same script — and
+`reconcile.py` drops them from desired state, so an object left live for a deprecated rule surfaces
+as a removal orphan and can be retired deliberately. Their `.spl` and results are *not* pruned: the
+rule is still in the repo, and its measurement history is still its own.
 
 ## Verdict lifecycle: the states, and a pass rate with a moving denominator
 
@@ -239,21 +301,22 @@ For rules with `testing.type: emulation` (8 of the current 27), `emulation_verif
 
 | Job | Runner | Key steps (literal `name:` values, bolded ones are the substantive work) |
 |---|---|---|
-| `prepare_validate_convert` | `ubuntu-latest` | Checkout, Setup Python, Determine changed Sigma files, Install Python deps, **Validate Sigma rules**, **Convert Sigma rules to Splunk SPL**, Build pipeline bundle, Commit converted SPL outputs to dev, Detect test types in pipeline bundle, Upload pipeline bundle |
+| `prepare_validate_convert` | `ubuntu-latest` | Checkout, Setup Python, Determine changed Sigma files, Install Python deps, **Prune repo artefacts of deleted rules** (deliberately *not* gated on `has_rules` — a deletion-only push produces no rule files, which is exactly when this is needed; installs deps itself for the same reason, and commits separately), **Validate Sigma rules**, **Check every rule has a job that can run its test** (warns, does not gate), **Convert Sigma rules to Splunk SPL**, Build pipeline bundle, Commit converted SPL outputs to dev, Detect test types in pipeline bundle, Upload pipeline bundle, Warn that the lab is switched off (only when `LAB_ONLINE` is `false`) |
 | `deploy_to_splunk` | `self-hosted, linux, de-lab` | Download pipeline bundle, Setup Python, Install deploy deps, **Deploy selected SPL files to Splunk** |
 | `atomic_verify` | `self-hosted, X64, Windows, victim, atomic, windows-victim` | **Mark test-phase start** (epoch seconds, exposed as the `started_at` job output — first step so a job later killed by `timeout-minutes` still reports when it began), Download pipeline bundle, **Run Atomic Red Team tests embedded in deployed SPL metadata**, Upload atomic progress markers |
 | `atomic_verify_dc` | `self-hosted, X64, Windows, dc, windows-dc` | **Mark test-phase start** (own host, own clock — hence a separate stamp), Download pipeline bundle, **Run Atomic Red Team tests on Domain Controller**, Upload atomic progress markers |
 | `emulation_verify` | `self-hosted, X64, Windows, victim, windows-victim` | **Mark test-phase start** (shares the victim runner with `atomic_verify`, so the two serialise — which is what stretches the test phase past any fixed window), Download pipeline bundle, **Run Script Emulation tests embedded in deployed SPL metadata** |
-| `splunk_verify` | `self-hosted, linux, de-lab` | Checkout (`fetch-depth: 0` — not shallow, on purpose: `generate_stats.py`'s `compute_rule_version()` runs `git log --follow` per rule file later in this same job, and a shallow checkout silently made every rule's version come out `1.0` regardless of real history), Download pipeline bundle, Download atomic progress markers (victim), Download atomic progress markers (DC), Setup Python, Install deps, Wait for Splunk indexing, **Compute verification time window** (takes the earliest `started_at` across the three test jobs, minus a 60s clock-skew margin, as `--earliest`; falls back to `-15m` with a warning if none reported), **Query Splunk for matched events**, **Evaluate Pass/Fail**, Upload matched events artifact, **Generate stats and update README**, Commit verification results and stats, **Report verification verdict** (re-exits `pass_fail_eval.py`'s exit code — makes the job's own `result` the PASS/FAIL verdict) |
+| `splunk_verify` | `self-hosted, linux, de-lab` | Checkout (`fetch-depth: 0` — not shallow, on purpose: `generate_stats.py`'s `compute_rule_version()` runs `git log --follow` per rule file later in this same job, and a shallow checkout silently made every rule's version come out `1.0` regardless of real history), Download pipeline bundle, Download atomic progress markers (victim), Download atomic progress markers (DC), Setup Python, Install deps, Wait for Splunk indexing, **Compute verification time window** (takes the earliest `started_at` across the three test jobs, minus a 60s clock-skew margin, as `--earliest`; falls back to `-15m` with a warning if none reported), **Query Splunk for matched events**, **Evaluate Pass/Fail**, Upload matched events artifact, **Reconcile Splunk state against the repo** (`always()` + `continue-on-error`; runs with `--apply`, which cleans up rename orphans only — the step re-exits the script's code via `PIPESTATUS` so a cleanup that failed to land is visible instead of hidden behind the step-summary `echo`), Upload reconciliation report, **Generate stats and update README**, Commit verification results and stats, **Report verification verdict** (re-exits `pass_fail_eval.py`'s exit code — makes the job's own `result` the PASS/FAIL verdict) |
 | `open_promotion_pr` | `ubuntu-latest` | `needs: splunk_verify`, `if: always() && needs.splunk_verify.result == 'success'`, no checkout step. **Open promotion PR to main and mark it In review** (single step: `gh pr create` then `gh project item-add`/`item-edit`) |
 | `deploy_pages` | `ubuntu-latest` | `needs: [splunk_verify, atomic_verify, atomic_verify_dc, emulation_verify]`. Checkout (ref: `dev`), configure-pages, upload-pages-artifact, deploy-pages (no explicit step `name:`s — these are third-party actions). The sole GitHub Pages publish path — see the note above. |
 
-`atomic_verify`, `atomic_verify_dc`, and `emulation_verify` each only run if `prepare_validate_convert`'s `has_atomic_tests` / `has_atomic_dc_tests` / `has_emulation_tests` output is `true` for the changed rules, and all three are `continue-on-error: true` so a single flaky test host doesn't block `splunk_verify` from running (it treats `success` or `skipped` as acceptable for each).
+`atomic_verify`, `atomic_verify_dc`, and `emulation_verify` each only run if `prepare_validate_convert`'s `has_atomic_tests` / `has_atomic_dc_tests` / `has_emulation_tests` output is `true` for the changed rules, and all three are `continue-on-error: true` so a single flaky test host doesn't block `splunk_verify` from running. `splunk_verify` no longer inspects their results at all: what gates it is that the SPL was built and the deploy succeeded. A failed attack job is not a reason to skip measurement — the progress-marker mechanism is what turns "the attack never ran" into an honest `NOT_VERIFIED` instead of a `FAIL`.
 
 ### `ci_prod_workflow.yml`
 
 | Job | Runner | Key steps |
 |---|---|---|
+| `announce_lab_offline` | `ubuntu-latest` | Runs only when `LAB_ONLINE` is `false`. Say that prod was not updated — exists because prod's only real job is on the runner being skipped, and an entirely skipped run is indistinguishable from a healthy one in the runs list. |
 | `deploy_to_prod` | `self-hosted, linux, de-lab` | Checkout, Setup Python, Install deps (pinned, from `.github/requirements.txt`), **Regenerate SPL + meta sidecars from Sigma source**, **Fail if regenerated SPL drifted from what was reviewed** (`git diff --exit-code -- rules/splunk`), **Deploy all SPL files to prod Splunk** |
 
 ### `ci_code_checks.yml`
@@ -284,6 +347,25 @@ There is no third workflow file in `.github/workflows/` for the promotion PR's p
 | `self-hosted, X64, Windows, victim, atomic, windows-victim` | The Windows victim host that executes Atomic Red Team tests, used by `atomic_verify`. |
 | `self-hosted, X64, Windows, victim, windows-victim` | The same physical victim host, used by `emulation_verify` for script-emulation-style tests — note the label set here omits `atomic` compared to `atomic_verify`'s; that's what the workflow file actually specifies, not a documentation inconsistency. |
 | `self-hosted, X64, Windows, dc, windows-dc` | The domain-controller host, used only by `atomic_verify_dc` for techniques that specifically require DC context. |
+
+### `LAB_ONLINE`: running when the lab is not
+
+The four self-hosted machines above are not always on, and GitHub does not fail a job that has no runner to pick it up — it queues it. `timeout-minutes` does not help, because it starts counting when a job *starts*, not while it waits; and since the dev workflow's `concurrency` group uses `cancel-in-progress: false`, one such run blocks every later push to `dev` until GitHub drops it about a day later.
+
+Setting the repository variable `LAB_ONLINE` to `false` skips the lab-bound half of the pipeline, so a push still validates, converts and commits its SPL instead of queueing behind an absent runner. It must be a **repository** variable, not an environment one: job-level `if:` conditions are evaluated before a job's `environment:` is resolved, so an environment-scoped variable would not be visible and the gate would quietly do nothing.
+
+In `ci_dev_workflow.yml` it is applied in exactly one place — `deploy_to_splunk`'s `if:` — because that job is the gateway to every self-hosted runner and the dependency graph carries the decision the rest of the way: the three attack jobs need it and carry no `always()`, `splunk_verify` requires `deploy_to_splunk.result == 'success'`, and `open_promotion_pr` and `deploy_pages` both require a `splunk_verify` result they will not get. Nothing is promoted or published from a run that measured nothing.
+
+Only the literal string `false` disables. An unset variable means the lab is up, so the normal state needs no configuration and a typo in the variable name fails towards running rather than towards silently skipping every deploy.
+
+Two things to know about the switch:
+
+- A rule merged while it is `false` reaches the repo but **never reaches Splunk**, because a normal push only deploys what that push changed. The way back is a manual run (`workflow_dispatch`) once the lab is up, which rebuilds and re-measures everything.
+- Skipped jobs are not failures, so a run with the lab off looks green in the jobs list. The `Warn that the lab is switched off` step in `prepare_validate_convert` therefore emits a `::warning` and a step-summary block spelling out what did not happen.
+
+**`ci_prod_workflow.yml` honours the same variable**, because `deploy_to_prod` runs on that same `de-lab` machine and inherits the problem exactly. Skipping is strictly better than queueing there too: both mean prod is not updated, but one of them says so within a minute instead of looking busy for a day, and does not block the run that would have deployed. Prod's recovery path already existed for a different reason — its `workflow_dispatch` (item 2.5) deploys from `git ls-files` rather than from a diff, so one manual run applies the full current library on `main`, including whatever was merged while the switch was off.
+
+Prod has only one real job and it is the one being skipped, so a second job, `announce_lab_offline`, runs on `ubuntu-latest` under the exactly complementary condition. Without it there would be no job left to report and the run would be indistinguishable from a healthy one.
 
 ## Custom Claude Code subagents involved in building/maintaining this pipeline
 

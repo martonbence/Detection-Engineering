@@ -13,6 +13,7 @@ on:
       - "scripts/lib/rule_naming.py"
       - "scripts/atomic/run_atomic.ps1"
       - "scripts/verify/**"
+      - "scripts/state/**"
       - ".github/workflows/ci_dev_workflow.yml"
   pull_request:
     paths:
@@ -25,7 +26,21 @@ on:
       - "scripts/lib/rule_naming.py"
       - "scripts/atomic/run_atomic.ps1"
       - "scripts/verify/**"
+      - "scripts/state/**"
       - ".github/workflows/ci_dev_workflow.yml"
+  # Register item 2.20. The lab VMs are not always on, and a job queued for an
+  # offline self-hosted runner does not time out -- `timeout-minutes` starts
+  # counting when a job *starts*, not while it waits for a runner. With
+  # cancel-in-progress: false below, that one run then blocks every later push
+  # to dev until GitHub drops it, roughly a day later.
+  #
+  # `vars.LAB_ONLINE: false` skips the lab-bound jobs so a push still validates,
+  # converts and commits its SPL instead of queueing. This is the way back:
+  # a manual run once the lab is up. No inputs -- an empty `github.event.before`
+  # already puts the `changes` step in `mode=all`, so a dispatch re-converts,
+  # re-deploys and re-measures the whole rule set, which is exactly what is
+  # needed after rules were merged while the lab was down.
+  workflow_dispatch:
 
 concurrency:
   group: detection-pipeline-${{ github.ref }}
@@ -39,6 +54,16 @@ jobs:
   prepare_validate_convert:
     name: Prepare, Validate, Convert
     runs-on: ubuntu-latest
+    # Every job in this repo carries a timeout-minutes (register item 2.2).
+    # These are backstops against a hung runner, not performance budgets: each
+    # is set well above the worst case the scripts' own timeouts allow, so a
+    # slow-but-working run is never killed. That matters most on the
+    # self-hosted runners -- the same `de-lab` machine serves dev and prod, so
+    # a job stuck there blocks production deploys too, which is the actual
+    # damage this prevents.
+    #
+    # Here: pip install, validate + convert 27 rules, and up to 3 push attempts.
+    timeout-minutes: 30
     environment: dev
     outputs:
       mode: ${{ steps.changes.outputs.mode }}
@@ -93,12 +118,40 @@ jobs:
             printf ' - %s\n' "${files[@]}"
           fi
 
+          # Register item 2.19. Touching one of these invalidates every .spl
+          # already converted, so the run widens from "the rules in this push"
+          # to the whole rule set: re-convert, re-deploy, re-attack, re-measure.
+          #
+          # That is the single most expensive thing this pipeline does -- it
+          # puts live attacks on the lab VMs -- so the trigger is an explicit
+          # list of files that can change what a rule *converts to* or what it
+          # is *called* in Splunk. It used to be the glob `scripts/validate/*`,
+          # which meant any new file in that directory forced a full lab run:
+          # adding check_test_routing.py (item 2.17), which cannot affect a
+          # single rule's SPL, did exactly that.
+          #
+          # rule_naming.py is on the list and was not before, though it was
+          # already in this workflow's `paths:`. It decides the saved search
+          # name, so changing it renames every deployed object -- the strongest
+          # reason there is to rebuild everything, and it was the one case that
+          # started a run and then only processed the diff.
+          rebuild_all_files=(
+            "docs/schemas/sigma_schema.json"
+            "scripts/validate/validate_sigma.py"
+            "scripts/validate/validate_sigma.ps1"
+            "scripts/convert/sigma_to_spl.py"
+            "scripts/lib/rule_naming.py"
+          )
+
           if [[ "$mode" != "all" ]]; then
             for f in "${files[@]}"; do
-              if [[ "$f" == "docs/schemas/sigma_schema.json" ]] || [[ "$f" == scripts/validate/* ]] || [[ "$f" == "scripts/convert/sigma_to_spl.py" ]]; then
-                mode="all"
-                break
-              fi
+              for trigger in "${rebuild_all_files[@]}"; do
+                if [[ "$f" == "$trigger" ]]; then
+                  mode="all"
+                  echo "Full rebuild triggered by $f (it can change every rule's output)."
+                  break 2
+                fi
+              done
             done
           fi
 
@@ -117,9 +170,9 @@ jobs:
 
           if [[ "${#rule_files[@]}" -eq 0 ]]; then
             echo "No Sigma rule files to process."
-            echo "mode=none" >> "$GITHUB_OUTPUT"
-            echo "has_rules=false" >> "$GITHUB_OUTPUT"
             {
+              echo "mode=none"
+              echo "has_rules=false"
               echo "rule_files<<EOF"
               echo "EOF"
             } >> "$GITHUB_OUTPUT"
@@ -127,9 +180,9 @@ jobs:
           fi
 
           echo "Mode: $mode"
-          echo "has_rules=true" >> "$GITHUB_OUTPUT"
-          echo "mode=$mode" >> "$GITHUB_OUTPUT"
           {
+            echo "has_rules=true"
+            echo "mode=$mode"
             echo "rule_files<<EOF"
             printf '%s\n' "${rule_files[@]}"
             echo "EOF"
@@ -156,6 +209,62 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r .github/requirements.txt
 
+      # Register item 1.7, repo side. Deleting a Sigma rule leaves its converted
+      # .spl behind (and prod deploys from `git ls-files`, so it keeps going to
+      # production) plus its outputs/results/ directory (which keeps counting
+      # towards the dashboard's coverage).
+      #
+      # This needs its own step and its own commit rather than riding along with
+      # "Commit converted SPL outputs": that step is gated on has_spl, which
+      # comes from has_rules, which is built from --diff-filter=AMRC -- so a
+      # commit that only *deletes* a rule produces no rule_files, skips every
+      # job below, and would never reach it. The orphan is created by precisely
+      # the event the rest of the pipeline cannot see.
+      #
+      # Deliberately not gated on has_rules for the same reason, and safe to run
+      # unconditionally because it compares current state rather than a diff:
+      # with nothing orphaned it prints one line and exits.
+      - name: Prune repo artefacts of deleted rules
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # "Install Python deps" above is gated on has_rules, and the case this
+          # step exists for -- a commit that only deletes a rule -- is exactly
+          # the case where has_rules is false and that step was skipped. Same
+          # pinned file, so this cannot drift from what the rest of the job uses.
+          python -c "import yaml" 2>/dev/null || python -m pip install -r .github/requirements.txt
+
+          python scripts/state/prune_orphans.py --apply
+
+          # -A so deletions are staged; the paths are scoped so nothing else
+          # this job produced can ride along in the commit.
+          git add -A rules/splunk outputs/results
+
+          if git diff --cached --quiet; then
+            echo "No orphaned artefacts to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(prune): remove artefacts of deleted rules [skip ci]"
+
+          for i in 1 2 3; do
+            git fetch origin dev
+            git pull --rebase origin dev || true
+            if git push origin HEAD:dev; then
+              echo "Push succeeded."
+              exit 0
+            fi
+            echo "Push failed (attempt $i), retrying..."
+            sleep 2
+          done
+
+          echo "Push failed after 3 attempts."
+          exit 1
+
       - name: Validate Sigma rules
         if: steps.changes.outputs.has_rules == 'true'
         shell: pwsh
@@ -180,6 +289,27 @@ jobs:
             -SchemaPath $schemaPath `
             -Files $rules `
             -MaxErrors $maxErrors
+
+      # Register item 2.17. Schema validation above accepts a `runner` that no
+      # job here services (`linux-victim` is in the enum deliberately, ahead of
+      # the VM existing), and run_atomic.ps1 matches the runner exactly -- so
+      # such a rule deploys, its test job skips it with one Write-Host line, and
+      # the job still exits 0. Nothing else in the pipeline ever says so.
+      #
+      # A warning rather than a gate: the detection is worth deploying even when
+      # its test cannot run yet. The hard version of this check lives in
+      # ci_code_checks.yml, where the pytest suite fails if a *committed* rule
+      # stops routing -- that direction is a regression, this one is authoring.
+      #
+      # Checks every rule, not just the changed ones: removing a test job
+      # unroutes rules that nobody is touching in this push.
+      - name: Check every rule has a job that can run its test
+        if: steps.changes.outputs.has_rules == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/validate/check_test_routing.py \
+            --workflow .github/workflows/ci_dev_workflow.yml
 
       - name: Convert Sigma rules to Splunk SPL
         if: steps.changes.outputs.has_rules == 'true'
@@ -273,7 +403,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Commit converted SPL outputs to dev
-        if: github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev' &&
           steps.bundle.outputs.has_spl == 'true'
         shell: bash
         run: |
@@ -337,9 +467,11 @@ jobs:
             esac
           done
 
-          echo "has_atomic_tests=$has_atomic" >> "$GITHUB_OUTPUT"
-          echo "has_atomic_dc_tests=$has_atomic_dc" >> "$GITHUB_OUTPUT"
-          echo "has_emulation_tests=$has_emulation" >> "$GITHUB_OUTPUT"
+          {
+            echo "has_atomic_tests=$has_atomic"
+            echo "has_atomic_dc_tests=$has_atomic_dc"
+            echo "has_emulation_tests=$has_emulation"
+          } >> "$GITHUB_OUTPUT"
           echo "Test types in this batch: atomic (victim)=$has_atomic, atomic (DC)=$has_atomic_dc, emulation=$has_emulation"
 
       - name: Upload pipeline bundle
@@ -351,12 +483,63 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+      # Register item 2.20. The failure mode of a manual switch is forgetting to
+      # switch it back, and the symptom -- rules that quietly never reach Splunk
+      # and never get attacked -- looks exactly like a normal green run from the
+      # jobs list, because skipped jobs are not failures.
+      #
+      # So the run says so itself. This is the same reasoning as item 2.17: the
+      # pipeline is allowed to not do something, but never allowed to be quiet
+      # about it.
+      - name: Warn that the lab is switched off
+        if: vars.LAB_ONLINE == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "::warning title=Lab switched off::LAB_ONLINE is set to false, so the deploy, attack and verification jobs are being skipped. Rules converted by this run are committed to the repo but are NOT in Splunk and have NOT been tested."
+
+          {
+            echo "### Lab switched off"
+            echo ""
+            echo "\`LAB_ONLINE\` is \`false\`, so everything from **Deploy to Splunk** onwards was skipped."
+            echo ""
+            echo "This run converted and committed the SPL, but the rules in it:"
+            echo ""
+            echo "- are **not deployed** to Splunk,"
+            echo "- have **not been attacked**, so nothing was measured,"
+            echo "- were **not promoted**, and the dashboard was not republished."
+            echo ""
+            echo "Set \`LAB_ONLINE\` back to \`true\` (or delete the variable) once the lab is up, then start this workflow manually from the Actions tab -- a manual run rebuilds, redeploys and re-measures every rule, which is what brings the skipped ones back."
+          } >> "$GITHUB_STEP_SUMMARY"
+
   deploy_to_splunk:
     name: Deploy to Splunk
     needs: prepare_validate_convert
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
-      needs.prepare_validate_convert.outputs.has_spl == 'true'
+    # Register item 2.20, and the only place the lab switch appears: this job is
+    # the gateway to every self-hosted runner, so skipping it skips the whole
+    # lab half of the pipeline through the dependency graph rather than through
+    # five copies of the same condition that could drift apart.
+    #
+    # The cascade is explicit, not incidental: the three attack jobs need this
+    # job and carry no always(), so a skipped deploy skips them; splunk_verify
+    # does carry always() but requires `deploy_to_splunk.result == 'success'`;
+    # and both open_promotion_pr and deploy_pages require a splunk_verify result
+    # they will not get. Nothing is promoted or published off a run that
+    # measured nothing.
+    #
+    # Polarity is deliberate: only the literal string 'false' disables. An unset
+    # variable means the lab is up, so the normal state needs no configuration
+    # and a typo in the variable name fails towards running rather than towards
+    # silently skipping every deploy.
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev' &&
+      needs.prepare_validate_convert.outputs.has_spl == 'true' &&
+      vars.LAB_ONLINE != 'false'
     runs-on: [ self-hosted, linux, de-lab ]
+    # deploy_spl_to_splunk.py allows 30s per HTTP call and makes up to three per
+    # rule (create, update-on-conflict, ACL), so 27 rules bound at roughly 40
+    # minutes of legitimate network wait before anything is genuinely stuck.
+    timeout-minutes: 60
     environment: dev
 
     steps:
@@ -413,11 +596,17 @@ jobs:
   atomic_verify:
     name: Atomic Red Team Test
     needs: [ prepare_validate_convert, deploy_to_splunk ]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev' &&
       needs.prepare_validate_convert.outputs.has_spl == 'true' &&
       needs.prepare_validate_convert.outputs.has_atomic_tests == 'true'
     continue-on-error: true
     runs-on: [ self-hosted, X64, Windows, victim, atomic, windows-victim ]
+    # The attack step itself is already capped at 10 minutes; this covers that
+    # plus bundle download and the Defender failsafe teardown. Kept comfortably
+    # above the step cap so the *step* stays the thing that fires first -- a
+    # step timeout leaves the job alive to upload its progress markers, which
+    # is what tells pass_fail_eval.py "not measured" rather than "failed".
+    timeout-minutes: 25
 
     outputs:
       started_at: ${{ steps.mark_start.outputs.started_at }}
@@ -490,11 +679,14 @@ jobs:
   atomic_verify_dc:
     name: Atomic Red Team Test (DC)
     needs: [ prepare_validate_convert, deploy_to_splunk ]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev' &&
       needs.prepare_validate_convert.outputs.has_spl == 'true' &&
       needs.prepare_validate_convert.outputs.has_atomic_dc_tests == 'true'
     continue-on-error: true
     runs-on: [ self-hosted, X64, Windows, dc, windows-dc ]
+    # Same reasoning as the victim job: its attack step is capped at 10, and
+    # this stays well above it so the step timeout fires first.
+    timeout-minutes: 25
 
     outputs:
       started_at: ${{ steps.mark_start.outputs.started_at }}
@@ -562,11 +754,16 @@ jobs:
   emulation_verify:
     name: Script Emulation Test
     needs: [ prepare_validate_convert, deploy_to_splunk ]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev' &&
       needs.prepare_validate_convert.outputs.has_spl == 'true' &&
       needs.prepare_validate_convert.outputs.has_emulation_tests == 'true'
     continue-on-error: true
     runs-on: [ self-hosted, X64, Windows, victim, windows-victim ]
+    # This job shares the victim host with atomic_verify, so an unbounded run
+    # here does not just hang itself -- it holds the runner the atomic job
+    # needs. Its attack step had no cap at all (unlike the other two attack
+    # jobs); one is added below so the step still fires before the job does.
+    timeout-minutes: 25
 
     outputs:
       started_at: ${{ steps.mark_start.outputs.started_at }}
@@ -593,6 +790,11 @@ jobs:
           path: pipeline_bundle
 
       - name: Run Script Emulation tests embedded in deployed SPL metadata
+        # Matches the two atomic attack steps. Without it this step was the
+        # only unbounded attack execution in the pipeline: a rule's own
+        # emulation command hanging (a prompt, a wait, a blocked network call)
+        # would hold the shared victim runner indefinitely.
+        timeout-minutes: 10
         shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass
           -Command ". '{0}'"
         env:
@@ -619,18 +821,41 @@ jobs:
   splunk_verify:
     name: Splunk Verification
     needs: [ prepare_validate_convert, deploy_to_splunk, atomic_verify, atomic_verify_dc, emulation_verify ]
+    # Register item 2.1. This used to end with a disjunction over the three test
+    # jobs -- `success || skipped` for each, OR'd together -- which read like a
+    # gate and was not one: a batch almost never contains all three test types,
+    # so at least one job is normally `skipped` and the whole group is true
+    # regardless of what the others did.
+    #
+    # It did have exactly one effect, and removing it is a deliberate change of
+    # behaviour in that single case: when all three test jobs *failed* (not
+    # skipped), the group went false and verification was silently skipped
+    # along with everything downstream of it. Now it runs. The outcome is the
+    # same either way -- no promotion PR, because the verdict will not be a
+    # pass -- but the run leaves evidence: per-rule NOT_VERIFIED results, the
+    # regenerated stats, and a reconciliation report, instead of a job that
+    # simply never happened.
+    #
+    # What actually gates this job is above: the SPL had to be built, and the
+    # deploy had to succeed. Failure of a test job is not a reason to skip
+    # measurement -- those jobs are `continue-on-error: true` on purpose, and
+    # the progress-marker mechanism is what turns "the attack never ran" into
+    # an honest NOT_VERIFIED rather than a FAIL.
     if: |
       always() &&
-      github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev' &&
       needs.prepare_validate_convert.outputs.has_spl == 'true' &&
       needs.prepare_validate_convert.result == 'success' &&
-      needs.deploy_to_splunk.result == 'success' &&
-      (
-        needs.atomic_verify.result == 'success' || needs.atomic_verify.result == 'skipped' ||
-        needs.atomic_verify_dc.result == 'success' || needs.atomic_verify_dc.result == 'skipped' ||
-        needs.emulation_verify.result == 'success' || needs.emulation_verify.result == 'skipped'
-      )
+      needs.deploy_to_splunk.result == 'success'
     runs-on: [ self-hosted, linux, de-lab ]
+    # By far the longest job, and the one where a tight cap would do real harm:
+    # check_saved_search_hits.py allows 30s to dispatch, 120s of polling and 30s
+    # to read results *per rule*, so 27 rules bound at ~81 minutes of legitimate
+    # waiting -- before the 60s indexing wait, and before the commit step, whose
+    # 3 retry attempts each re-run generate_stats.py. A 60-minute cap would kill
+    # a slow-but-honest run and report it as a pipeline failure, which is the
+    # exact class of false verdict registers 1.4 and 1.5 were about.
+    timeout-minutes: 120
     environment: dev
 
     steps:
@@ -819,6 +1044,89 @@ jobs:
           retention-days: 90
           if-no-files-found: ignore
 
+      # Nothing else in this pipeline ever looks at Splunk and asks "is what is
+      # in there still what we asked for?". Deletions and title renames both
+      # leave objects behind that keep running and alerting, and no step
+      # notices. (Register items 1.7, 1.8; feeds 4.7.)
+      #
+      # Non-blocking on purpose. It reports a *pre-existing* condition of the
+      # Splunk instance, which has nothing to do with whether this particular
+      # run's rules are correct -- gating on it would block unrelated work on
+      # drift somebody else introduced. always() so drift is still reported when
+      # verification itself failed, and continue-on-error so a Splunk hiccup in
+      # this step cannot fail a run whose real work already succeeded.
+      #
+      # --apply cleans up rename orphans only. Since register item 1.8 was
+      # closed on 2026-08-04 by keeping the human-readable object name, every
+      # title edit leaves one behind, so this is routine housekeeping rather
+      # than a migration -- and it is safe unattended because the script refuses
+      # to delete an old object whose replacement is not live in Splunk (a
+      # failed deploy must not end in a rule with no saved search).
+      # --apply-removals is deliberately NOT passed here: a rule vanishing from
+      # the repo is not always intentional, so taking a detection out of service
+      # stays a human decision. Run it by hand when the report shows one.
+      - name: Reconcile Splunk state against the repo
+        if: always()
+        continue-on-error: true
+        shell: bash
+        env:
+          SPLUNK_BASE_URL: ${{ secrets.SPLUNK_BASE_URL }}
+          SPLUNK_USERNAME: ${{ secrets.SPLUNK_USERNAME }}
+          SPLUNK_PASSWORD: ${{ secrets.SPLUNK_PASSWORD }}
+          SPLUNK_APP: ${{ secrets.SPLUNK_APP }}
+          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS || 'false' }}
+        run: |
+          set -uo pipefail
+
+          # Wrapped in `if` rather than run bare with `rc="${PIPESTATUS[0]}"` on
+          # the next line. GitHub runs `shell: bash` as `bash --noprofile --norc
+          # -e -o pipefail`, so -e applies regardless of the `set` line above:
+          # the moment reconcile.py exited non-zero the step would die right
+          # here, skipping the step summary and the warning below -- the very
+          # diagnostics that exist to make a failed cleanup visible. A command
+          # in an `if` condition is exempt from -e, and PIPESTATUS still refers
+          # to that pipeline inside the branch.
+          if python scripts/state/reconcile.py \
+            --rules-dir rules/sigma \
+            --json outputs/state/reconcile.json \
+            --apply \
+            | tee reconcile_report.txt; then
+            rc=0
+          else
+            rc="${PIPESTATUS[0]}"
+          fi
+
+          {
+            echo "### Splunk state reconciliation"
+            echo
+            echo '```'
+            cat reconcile_report.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # The summary block is the last command, so without this the step's
+          # exit status would be `echo`'s and a failed cleanup would read as a
+          # clean run. continue-on-error keeps it from failing the workflow --
+          # this only makes it visible.
+          if [ "$rc" -ne 0 ]; then
+            echo "::warning::Reconciliation exited $rc -- a cleanup action may not have landed. See the step summary."
+          fi
+          exit "$rc"
+
+      # Not committed to the repo: this describes the Splunk instance at one
+      # moment, not the repo's own state, so it would add a commit on every run
+      # that says nothing about the code. Publishing it to the dashboard is
+      # register item 4.7, and that is where it should be decided.
+      - name: Upload reconciliation report
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: splunk-reconcile-${{ github.run_id }}
+          path: outputs/state/reconcile.json
+          retention-days: 30
+          if-no-files-found: ignore
+
       - name: Generate stats and update README
         shell: bash
         run: |
@@ -908,6 +1216,8 @@ jobs:
       always() &&
       needs.splunk_verify.result == 'success'
     runs-on: ubuntu-latest
+    # A handful of gh CLI calls and nothing else.
+    timeout-minutes: 15
     environment: dev
 
     steps:
@@ -960,9 +1270,13 @@ jobs:
     needs: [splunk_verify, atomic_verify, atomic_verify_dc, emulation_verify]
     if: |
       always() &&
-      github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev' &&
       (needs.splunk_verify.result == 'success' || needs.splunk_verify.result == 'failure')
     runs-on: ubuntu-latest
+    # Checkout plus two Pages actions. The cap also bounds how long this can
+    # hold the repo-wide `pages` concurrency group, which ci_code_checks.yml's
+    # publish job queues behind.
+    timeout-minutes: 15
     permissions:
       pages: write
       id-token: write

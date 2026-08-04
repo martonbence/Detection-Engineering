@@ -644,14 +644,17 @@
   <header class="masthead">
     <p class="eyebrow">
       <span>Detection-Engineering</span>
-      <span>branch: dev @ 22799a5</span>
-      <span>audit: 2026-07-26</span>
+      <span>audit: 2026-07-26 · dev @ 22799a5</span>
+      <span>állapot: 2026-08-04</span>
     </p>
     <h1>Fejlesztési register — pipeline audit</h1>
     <p class="standfirst">
-      Statikus átvizsgálás mindkét CI workflow-ra, mind a hét script-re, a Sigma sémára és a repo
-      tényleges állapotára. A tételek prioritás szerint állnak; a pipálás súlyozottan hajtja a
-      projektált minőségi pontszámot. Az állapot a böngészőben marad, nem kerül vissza a repóba.
+      Statikus átvizsgálás mindkét CI workflow-ra, mind a hét akkori script-re, a Sigma sémára és a
+      repo tényleges állapotára. A tételek prioritás szerint állnak; a pipálás súlyozottan hajtja a
+      projektált minőségi pontszámot. <b>A bepipált tételek az oldalba vannak sütve</b>, tehát azt
+      mutatják, ami valóban elkészült — az igazság forrása a repo
+      <code>audit/remediation-plan.md</code>-je, ez az oldal annak a képe. Amit te kattintasz hozzá,
+      az csak a saját böngésződben marad.
     </p>
   </header>
 
@@ -720,8 +723,11 @@
 
   <h2><span class="swatch sw-crit"></span>1 · Kritikus hibák<span class="h2-count">a repo jelenlegi állapotán bizonyítva</span></h2>
   <p class="sec-intro">
-    Mind a tizenkét tétel ma fennálló, valós hiba — nem elméleti kockázat. A „mérve" jelölés azt
-    jelenti, hogy az ellenőrzést konkrétan lefuttattam a repón.
+    Mind a tizenkét tétel valós, a repón bizonyított hiba volt — nem elméleti kockázat. A „mérve"
+    jelölés azt jelenti, hogy az ellenőrzést konkrétan lefuttattam. <b>2026-08-04-re mind a tizenkettő
+    lezárult</b>, kettő közülük nem javítással: az <b>1.1</b> kivizsgálás után nem bizonyult
+    kódhibának, az <b>1.8</b> javasolt javítását pedig tudatosan elutasítottuk, és a tünetét a
+    <b>3.3</b> kezeli.
   </p>
 
   <div class="register" data-sev="crit">
@@ -864,12 +870,13 @@
     </div>
 
     <div class="row sev-crit" data-sev="crit" data-weight="3">
-      <input class="row-check" type="checkbox" id="i-1-7" aria-labelledby="t-1-7">
+      <input class="row-check" type="checkbox" id="i-1-7" aria-labelledby="t-1-7" checked>
       <div class="row-main">
         <div class="row-head">
           <span class="id">1.7</span>
           <span class="row-title" id="t-1-7">Nincs törlés és kivezetés (retirement) az egész folyamatban</span>
           <span class="tag verified">mérve</span>
+          <span class="tag done">lezárva</span>
         </div>
         <p class="row-body">
           Négy tünet, egy gyökér: a <code>--diff-filter=AMRC</code> kizárja a törléseket; a törölt
@@ -881,16 +888,18 @@
           ugyanúgy kimegy prodba, mint a stable.
         </p>
         <p class="row-fix"><span class="fix-label">javítás</span>Ez a 3.3-as reconcile-scripttel egyben megoldódik; addig minimum a <code>deprecated</code> státusz kizárása a deployból.</p>
-        <div class="refs"><span class="ref">ci_dev_workflow.yml:89</span><span class="ref">sigma_schema.json status enum</span><span class="ref">3 árva result</span></div>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Lezárva, a kivezetés mindhárom rétegével.</b> <b>(1) Splunk-oldal:</b> a <b>3.3</b> <code>--apply</code>-ja törli az átnevezés-árvákat (automatikusan, minden dev futásban), az <code>--apply-removals</code> pedig kikapcsolja a törölt szabályok objektumait (kézzel). <b>(2) <code>status: deprecated</code>:</b> a deploy mostantól kihagyja — prodban is, mert a prod job regenerálja a meta sidecarokat és ugyanezt a scriptet futtatja. A kihagyás nem töröl: a reconcile desired state-jéből is kikerül a deprecated szabály, tehát az élő objektuma eltávolítás-árvaként jelenik meg, és szándékos lépéssel vezethető ki. A kézenfekvő alternatíva (bent hagyni a desired state-ben) örökre „missing"-ként jelentené, és olyan deployt sürgetne, ami sosem jön. <b>(3) Repo-oldal:</b> új <code>scripts/state/prune_orphans.py</code> takarítja a gazdátlan <code>.spl</code>-eket és result könyvtárakat — <b>saját CI-steppel és saját committal</b>, mert a meglévő commit-step a <code>has_rules</code> láncon lóg, amit a <code>--diff-filter=AMRC</code> táplál: egy tisztán törlő push nulla <code>rule_files</code>-t termel, minden job kimarad, és a takarítás sosem futna le. Állapot-összevetés, nem diff, tehát önjavító és idempotens. <b>Fail-safe:</b> üres szabálykönyvtárnál hibával megáll, nem minősíti árvának az egész repót. A deprecated szabály artefaktjai megmaradnak: a szabály a repóban van, a mérési előzménye a sajátja. 12 új teszt (összesen 65), köztük fake Splunkkal igazolva, hogy egy deprecated szabály <em>nulla</em> HTTP-hívást generál.</p>
+        <div class="refs"><span class="ref">scripts/state/prune_orphans.py</span><span class="ref">deploy: deprecated skip</span><span class="ref">65 teszt</span></div>
       </div>
     </div>
 
     <div class="row sev-crit" data-sev="crit" data-weight="3">
-      <input class="row-check" type="checkbox" id="i-1-8" aria-labelledby="t-1-8">
+      <input class="row-check" type="checkbox" id="i-1-8" aria-labelledby="t-1-8" checked>
       <div class="row-main">
         <div class="row-head">
           <span class="id">1.8</span>
           <span class="row-title" id="t-1-8">A title átírása árva saved search-öt hagy a Splunkban</span>
+          <span class="tag done">lezárva</span>
         </div>
         <p class="row-body">
           A Splunk objektumnév <code>detect_id + slug(title)</code>-ből képződik. A dokumentáció ezt
@@ -899,16 +908,18 @@
           régi pedig ott marad aktívan, ütemezetten, örökre.
         </p>
         <p class="row-fix"><span class="fix-label">javítás</span>Az objektumnév legyen csak a <code>detect_id</code> (stabil, séma-kényszerített); a title menjen a description elejére — ott már ma is ott van. Az analitikus olvashatóság megmarad, az identitás valóban immutable lesz.</p>
-        <div class="refs"><span class="ref">rule_naming.py:10</span><span class="ref">deploy_spl_to_splunk.py:259</span></div>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Lezárva — a javasolt javítást elutasítottuk, a tünet a 3.3-ra kerül.</b> A felhasználó döntése: a Splunk objektumnév <b>maradjon beszédes</b>, a <code>detect_id</code>-only név nem elfogadható. A register indoklása („az olvashatóság a description-ben megmarad") a keresőmezőben és a riasztás-listákban nem áll meg — az analitikus a <em>nevet</em> látja. Az azonosító-stabilitás tehát tudatosan felárazott: a title átírása továbbra is új objektumot hoz létre. <b>Amivel kezelve van:</b> a <b>3.3</b> reconcile <code>orphan_renamed</code> vödre pontosan ezt az esetet ismeri fel (a <code>detect_id</code> megvan, csak a slug mozdult), és a hozzá tartozó <code>--apply</code> törli a régi héjat. Ezzel az árvaság nem szűnik meg <em>keletkezni</em>, hanem <em>észlelt és takarított</em> állapottá válik — ami viszont azt is jelenti, hogy a renamed-vödör takarítása állandó üzemi mechanizmus, nem egyszeri migráció.</p>
+        <div class="refs"><span class="ref">rule_naming.py:10</span><span class="ref">deploy_spl_to_splunk.py:259</span><span class="ref">lezárva: won't fix → 3.3</span></div>
       </div>
     </div>
 
     <div class="row sev-crit" data-sev="crit" data-weight="3">
-      <input class="row-check" type="checkbox" id="i-1-9" aria-labelledby="t-1-9">
+      <input class="row-check" type="checkbox" id="i-1-9" aria-labelledby="t-1-9" checked>
       <div class="row-main">
         <div class="row-head">
           <span class="id">1.9</span>
           <span class="row-title" id="t-1-9">Egy hibás szabály megbuktatja az egész batch tesztelését</span>
+          <span class="tag done">kész</span>
         </div>
         <p class="row-body">
           A <code>throw "No atomic tests found"</code> <code>$ErrorActionPreference = "Stop"</code>
@@ -918,16 +929,18 @@
           meg, tehát <code>type: atomic</code> <code>atomics:</code> tömb nélkül átmegy a validáción.
         </p>
         <p class="row-fix"><span class="fix-label">javítás</span>JSON Schema <code>if/then</code>: <code>atomic</code> → kötelező <code>atomics</code> + <code>runner</code>, <code>emulation</code> → kötelező <code>custom</code>. A scriptben <code>throw</code> helyett <code>Write-Warning</code> + <code>continue</code>, hogy a hiba egy szabályra lokalizálódjon.</p>
+        <p class="row-fix"><span class="fix-label">kész 2026-08-03</span>Mindkét réteg megvan. A sémában <code>allOf</code> + <code>if/then</code> köti a <code>type</code>-ot ahhoz a tömbhöz, amire szüksége van — <code>enabled: true</code>-ra szűkítve, hogy egy leparkolt szabály ne kényszerüljön teszt-listát fenntartani. A <code>runner</code>-t szándékosan <em>nem</em> tettük kötelezővé: a script üres runner-mezőt „minden runnerre érvényes"-ként kezel, ez nem hibaállapot. A scriptben mind a négy <code>throw</code> (hiányzó <code>.spl</code>, hiányzó meta sidecar, üres <code>atomics</code>/<code>custom</code>, hiányzó <code>technique</code>) <code>Write-Warning</code> + <code>continue</code> lett, <code>$malformed</code> számlálóval és <code>::warning</code> annotációval. Az érintett szabály progress-marker nélkül marad, amit a <code>pass_fail_eval.py</code> már ma is „meg sem kíséreltük"-ként olvas, tehát a verdikt őszinte marad, nem találunk ki helyette semmit. Új ág: ha a batch <em>összes</em> szabálya hibás metaadatú, a script <code>exit 1</code> — a „nincs mit futtatni" és a „minden elromlott" ugyanúgy nulla teszt, de nem ugyanaz a kimenetel. Ellenőrizve: a séma önmagában érvényes, mind a 27 szabály átmegy rajta, és három szintetikus eset a várt módon viselkedik (<code>atomic</code> tömb nélkül → INVALID, <code>emulation</code> <code>custom</code> nélkül → INVALID, <code>enabled: false</code> tömb nélkül → OK).</p>
         <div class="refs"><span class="ref">run_atomic.ps1:313</span><span class="ref">run_atomic.ps1:338</span><span class="ref">sigma_schema.json testing.required</span></div>
       </div>
     </div>
 
     <div class="row sev-crit" data-sev="crit" data-weight="3">
-      <input class="row-check" type="checkbox" id="i-1-10" aria-labelledby="t-1-10">
+      <input class="row-check" type="checkbox" id="i-1-10" aria-labelledby="t-1-10" checked>
       <div class="row-main">
         <div class="row-head">
           <span class="id">1.10</span>
           <span class="row-title" id="t-1-10">Atomic higiénia: nincs <code>-GetPrereqs</code> és nincs <code>-Cleanup</code></span>
+          <span class="tag done">kész</span>
         </div>
         <p class="row-body">
           A teszt-invokáció se prerequisite-beszerzést, se cleanupot nem futtat. Két következmény: a
@@ -936,16 +949,18 @@
           legnagyobb flakiness-forrás.
         </p>
         <p class="row-fix"><span class="fix-label">javítás</span><code>Invoke-AtomicTest -GetPrereqs</code> a futás előtt, <code>-Cleanup</code> utána.</p>
+        <p class="row-fix"><span class="fix-label">kész 2026-08-03</span>Az <code>Invoke-AtomicTestCompat</code> kapott egy <code>-Mode</code> paramétert (<code>GetPrereqs</code> / <code>Run</code> / <code>Cleanup</code>), mert ezek az <code>Invoke-AtomicTest</code>-en <em>egymást kizáró</em> kapcsolók, nem összeadódó flagek — tehát tesztenként három külön invokáció, nem egy bővebb. A cleanup <code>finally</code>-ben fut, tehát akkor is, ha a teszt dobott, és sem a prereq-, sem a cleanup-hiba nem növeli a <code>$failures</code>-t: a verdikt a detekcióról szól, nem a háztartásról. A meglévő compat-minta megtartva — ha a telepített modul nem ismeri a kapcsolót, warning és kihagyás, nem hiba. <code>ATOMIC_SKIP_PREREQS</code> / <code>ATOMIC_SKIP_CLEANUP</code> a kikapcsoláshoz, mindkettő hangos figyelmeztetéssel.<br><strong>Verifikációs mellékhatás megvizsgálva:</strong> a cleanup nem ronthatja el a mérést, mert a Splunk a forwarder által már kiküldött eventekből dolgozik — az artifact utólagos törlése nem szedi vissza őket. A valódi kompromisszum az, hogy egy cleanup-parancs maga is üthet szabályt (kulcstörlés, fájltörlés); ez az Atomic Red Team cleanup-modelljéből következik, ezért van kapcsoló rá.</p>
         <div class="refs"><span class="ref">run_atomic.ps1:178-242</span></div>
       </div>
     </div>
 
     <div class="row sev-crit" data-sev="crit" data-weight="3">
-      <input class="row-check" type="checkbox" id="i-1-11" aria-labelledby="t-1-11">
+      <input class="row-check" type="checkbox" id="i-1-11" aria-labelledby="t-1-11" checked>
       <div class="row-main">
         <div class="row-head">
           <span class="id">1.11</span>
           <span class="row-title" id="t-1-11">A Defender kikapcsolva maradhat a victim hoston</span>
+          <span class="tag done">kész</span>
         </div>
         <p class="row-body">
           A <code>finally</code> blokk visszakapcsolja a real-time monitoringot — de ha a stepet a
@@ -953,17 +968,19 @@
           fut le, és a host védelem nélkül marad a következő futásig.
         </p>
         <p class="row-fix"><span class="fix-label">javítás</span>Független biztosíték: scheduled task vagy runner startup script, ami minden job elején visszaállítja a Defendert.</p>
+        <p class="row-fix"><span class="fix-label">kész 2026-08-03</span><strong>Ez élő kitettség volt, nem elméleti:</strong> az <code>ATOMIC_DISABLE_REALTIME_MONITORING</code> alapértelmezése mindkét atomic stepen <code>'true'</code>, tehát a Defender <em>minden</em> futáskor ki volt kapcsolva, és minden timeoutolt step védtelenül hagyta a hostot.<br>A garancia mostantól a folyamaton kívül él: a script a kikapcsolás <em>előtt</em> regisztrál egy <code>DetectionEngineering-RestoreDefenderRealtime</code> nevű scheduled taskot, ami SYSTEM-ként visszakapcsolja a real-time monitoringot. Két triggerrel, mert kétféleképpen lehet beragadni: <em>Once</em> most + 20 percre (a folyamatot megölték, a gép megy tovább — 20 perc jóval a step saját <code>timeout-minutes: 10</code>-je fölött van, tehát csak akkor süthet el, amikor a script már halott, sosem teszt közben), és <em>AtStartup</em> (a gépet újraindították, amíg a monitoring ki volt kapcsolva, így az egyszeri trigger sosem sült el). Tiszta lefutásnál a <code>finally</code> visszakapcsol és leszedi a taskot; ha a visszakapcsolás <em>maga</em> hibázik, a task szándékosan ott marad, mert onnantól ő az egyetlen, ami visszahozza a védelmet.<br><strong>Fail-closed:</strong> ha a task nem regisztrálható, a script nem kapcsolja ki a Defendert, hanem hibával áll meg — a felmentés <code>ATOMIC_ALLOW_UNPROTECTED_DISABLE=true</code>. Indulásnál egy leftover task <code>::warning</code>-ot kap: a puszta jelenléte bizonyítja, hogy az előző futás nem állt le rendesen, és a <code>-Force</code> különben némán felülírná ezt a nyomot.</p>
         <div class="refs"><span class="ref">run_atomic.ps1:496-498</span></div>
       </div>
     </div>
 
     <div class="row sev-crit" data-sev="crit" data-weight="3">
-      <input class="row-check" type="checkbox" id="i-1-12" aria-labelledby="t-1-12">
+      <input class="row-check" type="checkbox" id="i-1-12" aria-labelledby="t-1-12" checked>
       <div class="row-main">
         <div class="row-head">
           <span class="id">1.12</span>
           <span class="row-title" id="t-1-12">A MITRE hőtérkép soha nem mutat FAIL-t — egy bizonyítottan romlott detekció láthatatlan</span>
           <span class="tag verified">mérve</span>
+          <span class="tag done">kész</span>
         </div>
         <p class="row-body">
           A <code>best_verdict</code> a technikát fedő szabályok közül a <em>legjobb</em> verdiktet
@@ -977,6 +994,7 @@
           az, hogy a hőtérkép elrejti a megerősített hibát.
         </p>
         <p class="row-fix"><span class="fix-label">javítás</span>Eldöntendő, mit kérdez a hőtérkép. „Van működő lefedettség?" → best-verdict a helyes. „Van-e valami romlott?" → worst-verdict. Egy lefedettségi térkép valószínűleg mindkettőt akarja: a cella színe maradhat a best-verdict, de kapjon jelölést (sáv, pont), ha bármelyik fedő szabály FAIL — és a legend-szűrő ezt izolálja.</p>
+        <p class="row-fix"><span class="fix-label">kész 2026-08-03</span>Pontosan a javasolt megoldás él, csak nem ebben a körben készült el: a rule browser átdolgozása közben oldódott meg, ezért maradt itt bepipálatlanul. A cella megtartja a best-verdict színét, és <code>fail-flag</code> osztályt kap, ha bármelyik fedő szabály FAIL (<code>generate_stats.py:556,612</code>); a jelölés piros sarok-háromszög (<code>:2421-2428</code>), amit a saját rail-jük miatt a már eleve FAIL cellák kihagynak. A legend-szűrő nem halott többé: a <code>tcHasFail()</code> / <code>failAny</code> páros (<code>:5497,5506,5601</code>) keresztbe vág a best-verdict csoportosításon, tehát a FAIL szűrő azokat a cellákat is megtalálja, amiket zöldre színez a roll-up. Élesben igazolva a mai kimeneten: 5 cella visel <code>fail-flag</code>-et, köztük a <code>T1685.001</code> és <code>T1059.001</code> a <code>DETECT-2026-0012</code> miatt, a szülő <code>T1685</code>/<code>T1059</code> pedig tooltipet is kap. A <code>navigator_layer.json</code> exportban ugyanez a <code>⚠ 1 of N covering rule(s) FAILED verification</code> megjegyzésként jelenik meg.</p>
         <div class="refs"><span class="ref">generate_stats.py:368-399</span><span class="ref">generate_stats.py:475-481</span><span class="ref">navigator_layer.json: 19 zöld / 0 vörös</span></div>
       </div>
     </div>
@@ -985,26 +1003,29 @@
 
   <!-- ============ 2. KISEBB ============ -->
 
-  <h2><span class="swatch sw-minor"></span>2 · Kisebb hibák és optimalizálás<span class="h2-count">18 tétel</span></h2>
+  <h2><span class="swatch sw-minor"></span>2 · Kisebb hibák és optimalizálás<span class="h2-count">20 tétel</span></h2>
 
   <div class="register" data-sev="minor">
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-1" aria-labelledby="t-2-1">
+      <input class="row-check" type="checkbox" id="i-2-1" aria-labelledby="t-2-1" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.1</span><span class="row-title" id="t-2-1">A <code>splunk_verify</code> OR-lánca gyakorlatilag mindig igaz</span></div>
+        <div class="row-head"><span class="id">2.1</span><span class="row-title" id="t-2-1">A <code>splunk_verify</code> OR-lánca gyakorlatilag mindig igaz</span><span class="tag done">kész</span></div>
         <p class="row-body">Az atomic jobokra vonatkozó feltételek OR-ral vannak összekötve, mindegyik <code>success || skipped</code>. Ha bármelyik job skipped (a leggyakoribb eset), az egész kifejezés igaz — a feltétel nem kapu. Ártalmatlan, de félrevezető: aki olvassa, azt hiszi, van itt védelem.</p>
         <p class="row-fix"><span class="fix-label">javítás</span>Írd le annak, ami: <code>always()</code> + csak a <code>deploy_to_splunk.result == 'success'</code> ellenőrzés.</p>
-        <div class="refs"><span class="ref">ci_dev_workflow.yml:563-573</span></div>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Kész — de nem volt teljesen no-op, ezért ez tudatos viselkedésváltozás.</b> Az OR-blokk törölve; ami valóban kapuz, az fölötte marad: épült SPL és sikeres deploy. A csoportnak <em>egyetlen</em> hatása volt: ha mind a három teszt-job <em>elbukott</em> (nem skipped), hamisra fordult, és a verifikáció a rá épülő mindennel együtt némán kimaradt. Mostantól lefut. A végkimenetel ugyanaz — promóció így sem lesz, mert a verdikt nem pass —, a futás viszont <b>nyomot hagy</b>: per-szabály NOT_VERIFIED eredményeket, újragenerált statisztikát és reconcile-riportot, egy olyan job helyett, ami meg sem történt. Egy elbukott teszt-job amúgy sem ok a mérés kihagyására: azok szándékosan <code>continue-on-error</code>-osak, és a progress-marker mechanizmus pont attól őszinte, hogy a „a támadás le sem futott"-ból NOT_VERIFIED lesz, nem FAIL.</p>
+        <div class="refs"><span class="ref">ci_dev_workflow.yml: OR-blokk törölve</span></div>
       </div>
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-2" aria-labelledby="t-2-2">
+      <input class="row-check" type="checkbox" id="i-2-2" aria-labelledby="t-2-2" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.2</span><span class="row-title" id="t-2-2">Egyetlen jobon sincs <code>timeout-minutes</code></span></div>
+        <div class="row-head"><span class="id">2.2</span><span class="row-title" id="t-2-2">Egyetlen jobon sincs <code>timeout-minutes</code></span><span class="tag done">kész</span></div>
         <p class="row-body">A self-hosted <code>de-lab</code> runner egy beragadt Splunk-hívásnál korlátlanul foglalható — és mivel ugyanaz a runner szolgálja dev-et és prodot is, ez a prod deployt is blokkolja.</p>
-        <div class="refs"><span class="ref">mindkét workflow, job szint</span></div>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Kész — mind a 13 job fedve, mindhárom workflow-ban.</b> Az értékek nem tippek: minden job legrosszabb esetét a scriptek <em>saját</em> timeoutjaiból számoltam ki, és az érték e fölé van állítva. A <code>splunk_verify</code> kapta a legtöbbet (<b>120 perc</b>), mert a <code>check_saved_search_hits.py</code> szabályonként 30s dispatch + 120s poll + 30s eredményolvasást enged — 27 szabályra ez ~81 perc <em>legitim</em> várakozás, mielőtt bármi is beragadtnak számítana, és jön rá a 60s indexelési várakozás meg a commit-step három próbálkozása, amik mindegyike újrafuttatja a <code>generate_stats.py</code>-t. Egy 60 perces cap itt egy lassú, de működő futást ölne meg és pipeline-hibaként jelentene — pontosan az a hamis verdikt-osztály, amiről az <b>1.4</b> és az <b>1.5</b> szólt. A deploy-jobok 60 percet kaptak (27 szabály × max három 30s-es HTTP-hívás ≈ 40 perc); a prodnál ez külön is számít, mert egy futás közben elvágott deploy félig frissített Splunkot hagyna maga után.</p>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Menet közben talált plusz hiba, ami nincs a registerben.</b> Az <code>emulation_verify</code> támadó-stepjének <em>step-szintű</em> timeoutja sem volt — a másik két támadó-jobbal ellentétben, ahol <code>timeout-minutes: 10</code> áll. Ez volt a pipeline egyetlen korlátlan támadás-végrehajtása: egy szabály saját emulation-parancsa (egy prompt, egy várakozás, egy blokkolt hálózati hívás) korlátlanul tarthatta a <b>megosztott</b> victim runnert, amin az atomic job is sorra vár. Kapott egy <code>timeout-minutes: 10</code>-et, a másik kettővel azonosan. A step-cap szándékosan szűkebb a job-capnél: egy step-timeout életben hagyja a jobot, hogy feltölthesse a progress-markereit — ez mondja meg a <code>pass_fail_eval.py</code>-nak, hogy „nem mértük", nem pedig azt, hogy „megbukott".</p>
+        <div class="refs"><span class="ref">13/13 job</span><span class="ref">emulation step: +10 perc cap</span><span class="ref">splunk_verify: 120 perc</span></div>
       </div>
     </div>
 
@@ -1028,12 +1049,13 @@
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-5" aria-labelledby="t-2-5">
+      <input class="row-check" type="checkbox" id="i-2-5" aria-labelledby="t-2-5" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.5</span><span class="row-title" id="t-2-5">Deploy-script javítás nem jut ki prodba</span></div>
+        <div class="row-head"><span class="id">2.5</span><span class="row-title" id="t-2-5">Deploy-script javítás nem jut ki prodba</span><span class="tag done">kész</span></div>
         <p class="row-body">A prod <code>paths:</code> filter csak <code>rules/sigma/**</code>-ra szűkít, így egy <code>deploy_spl_to_splunk.py</code>-javítás merge-elése nem triggerel prod deployt — a fix addig alszik, míg valaki hozzá nem nyúl egy szabályhoz.</p>
         <p class="row-fix"><span class="fix-label">javítás</span>Legalább <code>workflow_dispatch</code> a manuális újradeployhoz.</p>
-        <div class="refs"><span class="ref">ci_prod_workflow.yml:6-9</span></div>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Kész.</b> <code>workflow_dispatch</code> a prod workflow-n, <b>input nélkül</b>: a job a fájllistát <code>git ls-files</code>-ból veszi, nem diffből, tehát egy manuális futás a <code>main</code> teljes aktuális könyvtárát deployolja — pontosan ez az „alkalmazd újra mindent a javított scripttel" jelentése. Ellenőrizve, hogy a job semmilyen push-specifikus kontextust nem használ (<code>github.event.before</code> és társai), tehát a manuális indítás nem tör el benne semmit. <b>Amit szándékosan nem tettem:</b> a <code>scripts/deploy/**</code> felvételét a <code>paths:</code> listára. Az minden deploy-script merge-nél <em>automatikusan</em> újradeployolna prodba mind a 27 szabályt — nagyobb viselkedésváltozás, mint amit ez a tétel kér, és külön döntést érdemel. Ami továbbra sincs megoldva: semmi nem jelzi, hogy a prod épp egy régebbi deploy-úton fut — az a <b>4.7</b> inventory dolga.</p>
+        <div class="refs"><span class="ref">ci_prod_workflow.yml: +workflow_dispatch</span><span class="ref">→ 4.7</span></div>
       </div>
     </div>
 
@@ -1067,11 +1089,12 @@
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-9" aria-labelledby="t-2-9">
+      <input class="row-check" type="checkbox" id="i-2-9" aria-labelledby="t-2-9" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.9</span><span class="row-title" id="t-2-9">Az index-prefix beszúrása elhasal pipe-pal kezdődő queryn</span></div>
+        <div class="row-head"><span class="id">2.9</span><span class="row-title" id="t-2-9">Az index-prefix beszúrása elhasal pipe-pal kezdődő queryn</span><span class="tag done">kész</span></div>
         <p class="row-body">Az <code>_inject_index_prefix</code> feltételezi, hogy a query search-kifejezéssel indul. Ha a backend <code>| tstats</code>-szal kezdődő queryt ad ki (a sysmon acceleration pipeline képes rá), az eredmény <code>index=x | tstats ...</code> — érvénytelen SPL. Ma egyetlen szabály sem esik ide (mind a 14 generált fájlt ellenőriztem), de a következő logsource-nál elsülhet.</p>
-        <div class="refs"><span class="ref">sigma_to_spl.py:162-185</span></div>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Kész.</b> A generáló paranccsal kezdődő query (<code>| tstats</code>, <code>| inputlookup</code>, <code>| from datamodel</code>) mostantól <b>változatlanul</b> megy tovább — a korábbi ág feltétel nélkül elé fűzte az indexet, amiből <code>index=x | tstats …</code> lett, ami nem érvényes SPL, és amit a Splunk csak deploykor vagy keresés közben utasított volna vissza, jóval a hiba elkövetése után. <b>Nem bukással oldottam meg:</b> egyes generáló parancsok jogosan nem nyúlnak indexhez (<code>| inputlookup</code>), tehát a konverzió elbuktatása helyes bemenetre találna ki hibát. Amiről viszont hangosan szól egy figyelmeztetés: ha a query <em>sem a saját indexét nem hozza, sem a miénket nem tudja fogadni</em> — az csendben mindent átfésül. Ma egyetlen szabály sem esik ide (mind a 27 hagyományos keresés), de a sysmon acceleration pipeline tud <code>tstats</code>-ot adni, és a <code>raw_query</code> szabályok bármit tartalmazhatnak. 10 új teszt, és a 27 committolt <code>.spl</code>-en ellenőrizve, hogy egyetlen kimenet sem változott.</p>
+        <div class="refs"><span class="ref">sigma_to_spl.py: generáló parancs</span><span class="ref">10 teszt</span></div>
       </div>
     </div>
 
@@ -1103,11 +1126,12 @@
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-13" aria-labelledby="t-2-13">
+      <input class="row-check" type="checkbox" id="i-2-13" aria-labelledby="t-2-13" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.13</span><span class="row-title" id="t-2-13">A <code>rule_documentations/</code> üres könyvtár</span></div>
+        <div class="row-head"><span class="id">2.13</span><span class="row-title" id="t-2-13">A <code>rule_documentations/</code> üres könyvtár</span><span class="tag done">lezárva</span></div>
         <p class="row-body">Semmi nem hivatkozik rá kódból. Vagy generálj bele (4.8), vagy töröld.</p>
-        <div class="refs"><span class="ref">rule_documentations/</span></div>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Lezárva a két javasolt út közül a törléssel.</b> A könyvtár már nincs a repóban — a tétel csak a registerben maradt nyitott, a valóságban rég megoldódott. A repo-leltár átnézésekor derült ki. A generálás mint lehetőség a <b>4.8</b> alatt él tovább: ha egyszer megvalósul, új könyvtárként jön létre, tartalommal — nem üres helyőrzőként. A <code>detection-content-reviewer</code> agent leírásából is kikerült a rá épülő rész, ami addig egy nem létező könyvtárba írt volna.</p>
+        <div class="refs"><span class="ref">törölve</span><span class="ref">a generálás: 4.8</span></div>
       </div>
     </div>
 
@@ -1141,11 +1165,13 @@
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-17" aria-labelledby="t-2-17">
+      <input class="row-check" type="checkbox" id="i-2-17" aria-labelledby="t-2-17" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.17</span><span class="row-title" id="t-2-17">Az <code>emulation</code> + <code>windows-dc</code> kombináció csendben kiesik</span><span class="tag new">új</span></div>
+        <div class="row-head"><span class="id">2.17</span><span class="row-title" id="t-2-17">Az <code>emulation</code> + <code>windows-dc</code> kombináció csendben kiesik</span><span class="tag done">kész</span></div>
         <p class="row-body">Az <code>emulation_verify</code> job fixen <code>windows-victim</code> runneren fut, a <code>run_atomic.ps1</code> pedig runner szerint szűr — egy <code>type: emulation</code> + <code>runner: windows-dc</code> szabályt így egyik job sem futtatna le, hibajelzés nélkül. Ma nincs ilyen szabály (16 atomic/victim, 3 atomic/DC, 8 emulation/victim), de a séma engedi.</p>
-        <div class="refs"><span class="ref">ci_dev_workflow.yml:527</span><span class="ref">run_atomic.ps1:300</span></div>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Tágabb volt, mint ahogy itt szerepelt.</b> A séma <code>runner</code> enumja <code>linux-victim</code>-et is enged, amihez <b>egyetlen job sincs</b> — tehát nem csak az emulation+DC esett ki némán. A <code>linux-victim</code> viszont <b>szándékos előretekintés</b> (a VM még nem létezik, de tervben van), ezért a megoldás nem a sémából való kivétel lett.</p>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Kész.</b> Új <code>scripts/validate/check_test_routing.py</code>. A kiszolgált kombinációkat <b>a workflow-ból vezeti le</b> — minden step, ami <code>ATOMIC_TESTER_TYPE</code>-ot <em>és</em> <code>ATOMIC_RUNNER</code>-t is állít —, nem egy beégetett listából: így a linux job későbbi hozzáadása nem igényel szerkesztést itt, és egy job törlése nem hagy maga után elavult allow-listát, ami továbbra is lefedettnek állítaná a szabályait. Ha egyetlen job sem állítja a két env-et, <code>exit 2</code> a 27 találat helyett — az az állapot a checker hibája, nem a szabályoké. <b>Két helyen, két szigorúsággal:</b> a dev workflow-ban <code>::warning</code> + step summary tábla, mert a detekció akkor is deployolandó, ha a tesztje még nem futtatható; a pytest-suite-ban viszont kemény bukás, mert egy <em>committolt</em> szabály kiesése már regresszió — job átnevezés vagy törlés. <b>Menet közben talált plusz hiba:</b> a hiányzó <code>runner</code> ugyanez a defekt — a converter csak nem-üresen írja ki a meta mezőt, a <code>run_atomic.ps1</code> pedig pontos egyezést vár, tehát a „nincs megadva" nem az alapértelmezettet jelenti, hanem egy olyan értéket, amit <em>minden</em> job szűrője eldob; a checker ezt is jelzi. 25 új teszt. <b>Ami nyitva marad:</b> a le nem futott emulation szabály verdiktje ettől még nem lesz NOT_VERIFIED — az a <b>2.8</b>.</p>
+        <div class="refs"><span class="ref">check_test_routing.py</span><span class="ref">25 teszt</span></div>
       </div>
     </div>
 
@@ -1155,6 +1181,29 @@
         <div class="row-head"><span class="id">2.18</span><span class="row-title" id="t-2-18">A <code>SPLUNK_APP</code> secretként van kezelve</span><span class="tag new">új</span></div>
         <p class="row-body">Nem érzékeny adat — <code>vars</code>-ba tartozik, így hibakereséskor a logokban is olvasható maradna.</p>
         <div class="refs"><span class="ref">mindkét workflow env blokk</span></div>
+      </div>
+    </div>
+
+    <div class="row sev-minor" data-sev="minor" data-weight="1">
+      <input class="row-check" type="checkbox" id="i-2-19" aria-labelledby="t-2-19" checked>
+      <div class="row-main">
+        <div class="row-head"><span class="id">2.19</span><span class="row-title" id="t-2-19">A teljes újraépítés kiváltó feltétele könyvtárra illeszt, nem kimeneti hatásra</span><span class="tag done">kész</span></div>
+        <p class="row-body">A <code>changes</code> lépés <code>mode=all</code>-ra vált — mind a 27 szabály újrakonvertálása, újradeployolása és <b>élő újratámadása</b> —, ha a push érint bármit a <code>scripts/validate/</code> alatt. A glob nem azt nézi, hogy a fájl képes-e egyáltalán megváltoztatni egy szabály kimenetét.</p>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Éles esetben derült ki, nem elemzésből.</b> A 2.17 <code>check_test_routing.py</code>-ja a <code>scripts/validate/</code> alá került, és ezzel teljes labor-futást indított: deploy + mind a három támadó job + verifikáció, 27 szabályra — egy scriptért, ami egyetlen <code>.spl</code>-t sem befolyásol, csak figyelmeztetéseket ír ki. A futás beragadt egy offline runnerre várva, és blokkolta a következő pusht is.</p>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Kész.</b> A feltétel explicit fájllistára cserélve: <code>sigma_schema.json</code>, <code>validate_sigma.py</code>, <code>validate_sigma.ps1</code>, <code>sigma_to_spl.py</code>, <code>rule_naming.py</code>. A <b>szándék változatlan</b> — ha a converter vagy a séma változik, minden korábban konvertált <code>.spl</code> érvénytelen, tehát mindent újra kell építeni és újra kell mérni; csak a kiváltó ok lett pontos. <b>Menet közben talált plusz hiba:</b> a <code>rule_naming.py</code> eddig <em>nem</em> volt a listán, holott a workflow <code>paths:</code>-ában igen — pedig a saved search <em>nevét</em> határozza meg, tehát a módosítása minden telepített objektumot átnevez. Ez volt az egyetlen eset, ami elindított egy futást, de aztán csak a diffet dolgozta fel; most már mind a 27-et. 14 esetre ellenőrizve, a mai valós esettel és a pontos illesztéssel együtt (<code>.bak</code>, <code>.pyc</code> nem húz be teljes futást).</p>
+        <div class="refs"><span class="ref">ci_dev_workflow.yml: changes</span><span class="ref">14 eset</span></div>
+      </div>
+    </div>
+
+    <div class="row sev-minor" data-sev="minor" data-weight="1">
+      <input class="row-check" type="checkbox" id="i-2-20" aria-labelledby="t-2-20" checked>
+      <div class="row-main">
+        <div class="row-head"><span class="id">2.20</span><span class="row-title" id="t-2-20">Kikapcsolt labor esetén a futás beragad és blokkolja a sávot</span><span class="tag done">kész</span></div>
+        <p class="row-body">A labor VM-jei nincsenek mindig bekapcsolva. Egy offline self-hosted runnerre váró job <b>nem fut timeoutra</b>: a <code>timeout-minutes</code> a job <em>indulásától</em> számol, a sorban állástól nem. A <code>cancel-in-progress: false</code> miatt az a futás ezután minden későbbi dev pusht blokkol, amíg a GitHub el nem dobja — nagyjából egy nap.</p>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Kész.</b> Új <code>vars.LAB_ONLINE</code> repo-változó: <code>false</code> esetén a laborhoz kötött jobok kimaradnak, a push viszont továbbra is validál, konvertál és committolja az SPL-t — sorban állás helyett. <b>Egyetlen kapun</b>, a <code>deploy_to_splunk</code>-on: az a belépési pont minden self-hosted runnerhez, és a függőségi gráf viszi tovább, ahelyett hogy ugyanaz a feltétel öt helyen létezne és elcsúszhatna. A kaszkád nem véletlen, hanem levezetett: a három támadó job függ tőle és nincs <code>always()</code>-ük; a <code>splunk_verify</code>-nak van, de <code>deploy_to_splunk.result == 'success'</code>-ot vár; a promóció és a Pages pedig olyan <code>splunk_verify</code> eredményt, amit nem fog megkapni. Semmi nem promótálódik és nem publikálódik olyan futásból, ami nem mért semmit. <b>A polaritás szándékos:</b> csak a szó szerinti <code>'false'</code> tilt — beállítatlan változó azt jelenti, hogy megy a labor, tehát a normál állapothoz nem kell konfiguráció, és egy elgépelt változónév a futás felé hibázik, nem a néma kihagyás felé.</p>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>A visszaút is kellett hozzá.</b> A kapcsoló önmagában lyukat hagyott: a labor lekapcsolt állapotában mergelt szabály <code>.spl</code>-je bekerül a repóba, de a Splunkba soha — és semmi nem viszi ki később, mert a dev workflow csak azt deployolja, ami az adott pushban változott, és a proddal ellentétben (2.5) nem volt <code>workflow_dispatch</code>-e. Most már van. Input nélkül: a dispatchnél üres a <code>github.event.before</code>, amitől a <code>changes</code> lépés <code>mode=all</code>-ba kerül — egy kézi indítás tehát az egész szabálykészletet újraépíti, újradeployolja és újraméri, ami pontosan a „hozd vissza, ami kimaradt" művelet. A kihagyásról <code>::warning</code> és step summary szól, mert a kihagyott job nem hiba, tehát a jobok listájában egy zöld futástól semmiben nem különbözne.</p>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>A prod is ugyanezt a változót nézi.</b> A <code>deploy_to_prod</code> ugyanazon a <code>de-lab</code> gépen fut, tehát pontosan ugyanazt örökölte — és a kihagyás szigorúan jobb, mint a sorban állás: mindkettő azt jelenti, hogy prod nem frissült, de az egyik egy percen belül meg is mondja, a másik meg egy napig foglaltnak látszik és blokkolja azt a futást, ami deployolt volna. A visszaút ott már készen volt, más okból: a 2.5-ös <code>workflow_dispatch</code> <code>git ls-files</code>-ból deployol, nem diffből, tehát egy kézi futás a <code>main</code> teljes aktuális könyvtárát kiteszi — beleértve azt is, ami a kikapcsolt kapcsoló alatt mergelődött. Mivel prodnak egyetlen valódi jobja van, és épp az marad ki, mellé került egy <code>announce_lab_offline</code> job <code>ubuntu-latest</code>-en, <b>pontosan komplementer feltétellel</b>: nélküle nem maradna semmi, ami jelentse, hogy prod nem frissült, és a teljesen kihagyott futás a futáslistában megkülönböztethetetlen lenne egy egészségestől. <b>Egy buktató:</b> a változó <em>repository</em> szintű kell legyen, nem environment — a job-szintű <code>if:</code> azelőtt értékelődik ki, hogy az <code>environment:</code> feloldódna, tehát egy environment-scope-os változót nem látna, és a kapu csendben nem működne.</p>
+        <div class="refs"><span class="ref">vars.LAB_ONLINE</span><span class="ref">workflow_dispatch</span><span class="ref">dev + prod</span></div>
       </div>
     </div>
 
@@ -1195,15 +1244,17 @@
     </div>
 
     <div class="row sev-arch" data-sev="arch" data-weight="2">
-      <input class="row-check" type="checkbox" id="i-3-3" aria-labelledby="t-3-3">
+      <input class="row-check" type="checkbox" id="i-3-3" aria-labelledby="t-3-3" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">3.3</span><span class="row-title" id="t-3-3">Nincs desired-state ↔ actual-state rekonciliáció</span></div>
+        <div class="row-head"><span class="id">3.3</span><span class="row-title" id="t-3-3">Nincs desired-state ↔ actual-state rekonciliáció</span><span class="tag done">lezárva</span></div>
         <p class="row-body">
           A pipeline push-alapú: események hatására tesz dolgokat. Nincs viszont olyan komponens,
           ami megkérdezné, hogy „a Splunkban most pontosan az van-e, aminek lennie kell".
         </p>
         <p class="row-fix"><span class="fix-label">javítás</span>Egy <code>scripts/state/reconcile.py</code>, ami kilistázza a CI-managed saved search-öket (a <code>ci_managed: true</code> sidecar-mező már megvan hozzá), összeveti a repo desired state-jével, és jelenti: <code>missing</code> / <code>orphan</code> / <code>drifted</code>. Két üzemmód: <code>--check</code> a CI-ban, <code>--apply</code> a törléshez. Egyetlen script, ami egyszerre lezárja az 1.1-et, az 1.7-et és az 1.8-at — a kimenete pedig a 4.7-es inventory.</p>
-        <div class="refs"><span class="ref">új: scripts/state/</span><span class="ref">sidecar ci_managed</span></div>
+        <p class="row-note"><span class="note-label">2026-08-03</span><b>Felderítés kész, beavatkozás nem — ezért nincs pipa.</b> Új, kizárólag olvasó <code>scripts/state/reconcile.py</code>. A desired state a <code>rules/sigma/*.yml</code> fájlokból jön (a <code>.meta.json</code> sidecarok gitignore-oltak, tehát CI-futáson kívül nem léteznek), és ugyanazzal a <code>saved_search_name()</code>-mel képzi a nevet, amit a deploy is használ. Az actual state a Splunk <code>servicesNS/{owner}/{app}/saved/searches</code> endpointjáról jön, <code>count=0</code>-val — enélkül a 30 soros alapértelmezett lapozás miatt minden 30. utáni szabály „hiányzónak" látszana. <b>Nem kellett új <code>ci_managed</code> sidecar-mező:</b> a deploy már ma minden leírásba beleírja, hogy „Managed by CI/CD (Detection-Engineering repo)", és a jelölőnek amúgy is a Splunk-objektumon a helye, nem a repóban — egy árva objektum épp az, amihez már nincs repo-oldali bejegyzés. <b>Öt vödör:</b> in sync, missing, <em>orphan_renamed</em> (a detect_id megvan, csak a title-slug mozdult → <b>1.8</b>), <em>orphan_removed</em> (a detect_id sincs meg → <b>1.7</b>), és unmanaged (nincs rajta CI-jelölő: jelentjük, de sosem nyúlunk hozzá, és nem számít driftnek). A két árva-vödör szándékosan külön: egy átnevezés maradéka biztonsággal törölhető, egy eltűnt szabály viszont ránézést érdemel. CI-ban a <code>splunk_verify</code> job végén fut, <code>always()</code> + <code>continue-on-error</code>, tehát sosem blokkol — meglévő Splunk-állapotról szól, nem erről a futásról. 15 teszt mockolt Splunkkal, plusz száraz futtatás a valós 27 szabályon. <b>Hátra:</b> a tényleges törlés (<code>--apply</code>) és a deprecated szabályok kizárása a deployból.</p>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Lezárva: megvan a beavatkozás is, két külön hatósugárral.</b> <code>--apply</code> — az átnevezés-árvákat törli, és <b>automatikusan fut a dev CI-ban</b>: az 1.8 lezárása (a beszédes objektumnév megtartása) óta a rename normál üzemi esemény, tehát a takarítás állandó mechanizmus, nem egyszeri migráció. <code>--apply-removals</code> — az eltávolítás-árvákat <em>kikapcsolja</em> (<code>disabled=1</code> + <code>[RETIRED dátum]</code> prefix a leírásban), nem törli: a törlés a Splunk-oldali ütemezést és riasztás-konfigurációt is elvinné, a kikapcsolás viszont visszafordítható. Ez a kapcsoló <b>kézi</b>, a CI nem kapja meg, és <code>--apply</code> nélkül nem is használható. <b>Menet közben talált saját hiba:</b> az „a szabály él az új néven" indoklás feltevés volt, nem ellenőrzés — ha a deploy elhasal, az új objektum sosem jön létre, és az automatikus törlés egy frissen szerkesztett szabályt hagyott volna nulla saved search-csel. Az <code>--apply</code> ezért csak akkor töröl, ha az utód bizonyítottan él Splunkban (<code>replacement_live</code>). <b>Idempotens:</b> a már kivezetett objektum nem kap második írást, és nem számít driftnek — enélkül a riport az első kivezetés után örökre piros maradna. Az <code>unmanaged</code> vödörhöz egyik kapcsoló sem nyúl. A CI-step mostantól továbbadja a script exit kódját, különben egy el nem szállt takarítás zöld pipát kapott volna. 13 új teszt (összesen 53) + végponttól végpontig száraz futtatás a valós 27 szabályon, 7 forgatókönyvre.</p>
+        <div class="refs"><span class="ref">scripts/state/reconcile.py</span><span class="ref">--apply / --apply-removals</span><span class="ref">53 teszt</span></div>
       </div>
     </div>
 
@@ -1356,14 +1407,18 @@
     </div>
 
     <div class="row sev-enh" data-sev="enh" data-weight="1.5">
-      <input class="row-check" type="checkbox" id="i-4-10" aria-labelledby="t-4-10">
+      <input class="row-check" type="checkbox" id="i-4-10" aria-labelledby="t-4-10" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">4.10</span><span class="row-title" id="t-4-10">Saját CI a pipeline-ra</span><span class="tag progress">részben kész</span></div>
+        <div class="row-head"><span class="id">4.10</span><span class="row-title" id="t-4-10">Saját CI a pipeline-ra</span><span class="tag done">kész</span></div>
         <p class="row-body">Egy külön kis workflow: ruff + pytest a Pythonra, actionlint a workflow YAML-ekre, PSScriptAnalyzer a PowerShellre, shellcheck a <code>run:</code> blokkokra, pip-audit a dependency-kre. Ez az 1.6-os hibát is orvosolja, és ez az a fajta dolog, amit egy szemlélő azonnal észrevesz.</p>
         <p class="row-note"><span class="note-label">2026-08-03</span><b>Az alap megvan, a lista fele még nincs — ezért nincs pipa.</b> Új <code>ci_code_checks.yml</code> három jobbal (<code>checks</code> → <code>regenerate_docs</code> → <code>deploy_pages</code>), és ezzel az <b>1.6 lezárva</b>. <b>Bent van:</b> ruff és pytest, pinelve a <code>.github/requirements-dev.txt</code>-ben (egy lebegő linter magától pirosít be egy nem kapcsolódó PR-t, és onnantól a kapu hiteltelen). <b>Még nincs:</b> actionlint, shellcheck, PSScriptAnalyzer, pip-audit.</p>
         <p class="row-note"><span class="note-label">2026-08-03</span><b>A ruff szándékosan szűkre van állítva:</b> csak <code>F</code> (pyflakes — valódi hibák: definiálatlan név, használatlan import, placeholder nélküli f-string) és <code>E9</code> (szintaxis/IO). A teljes szabálykészlet egy sosem lintelt repón, benne egy ~6000 soros fájllal, formázási véleményekbe fojtaná a valódi defekteket, és a kapuból az lenne, amit mindenki átugrik. A bővítés a <b>2.12</b> alatt marad. A szűk beállítás így is talált egyet: használatlan <code>sys</code> import a <code>generate_stats.py</code>-ban, javítva.</p>
         <p class="row-note"><span class="note-label">2026-08-03</span><b>Az „újragenerálva" nem egyenlő azzal, hogy „változott".</b> Kétszer lefuttatva a generátort ugyanabból a forrásból, minden futás eltérő fájlokat ír: időbélyeget és a HEAD sha-ját stempeli beléjük (<code>generated_at</code>, <code>Generated at</code>, <code>GENERATED_TS</code>, a <code>navigator_layer.json</code> description-je, a history-pontok <code>timestamp</code>/<code>git_sha</code> mezői). Egy sima <code>git diff --quiet</code> tehát <b>soha nem adna igazat</b>: minden dev-push után keletkezne egy „regenerálás" commit, és a <code>published</code> jelzés értelmét vesztené. Ezért a job az időbélyegeket és a sha-t <b>normalizálja</b>, és csak akkor committol, ha ezeken túl is eltér valami. <b>Szándékosan nem diff-sorok szűrésével:</b> az <code>index.html</code> a <code>COVERAGE_HISTORY</code>-t és a <code>RULE_GROWTH_HISTORY</code>-t egy-egy hatalmas sorban tartalmazza, amiben a valódi adat <em>és</em> egy időbélyeg is benne van — egy sorszintű szűrő némán eldobná a valódi lefedettség-változást. Öt esetre leteszteltem a workflow tényleges kódjával: byte-azonos → nem publikál; csak időbélyeg+sha → nem publikál; <code>pass_rate</code> változás → publikál; <b>a hosszú history-soron belüli</b> érték-változás → publikál; új napi history-pont → publikál.</p>
         <p class="row-note"><span class="note-label">2026-08-03</span><b>Az első valódi tesztek is megvannak</b> (eddig nulla volt, lásd <b>2.12</b>): 25 teszt a <code>tests/</code> alatt, a mai 1.4-es és 1.5-ös munkából. A Splunk-oldal mockolt sessionnel fut, tehát a suite ezredmásodpercek alatt lemegy bárhol. A <code>pyproject.toml</code> a repo gyökerébe került — ruff és pytest onnan találja meg magától, a <code>--config</code> kapcsolgatása minden lokális futtatást is megterhelne. A <code>__pycache__</code> és társai bekerültek a <code>.gitignore</code>-ba, mert a tesztek előtt semmi nem importált semmit, így eddig nem is keletkeztek.</p>
+        <p class="row-note"><span class="note-label">2026-08-03</span><b>PSScriptAnalyzer bekötve — négyből egy maradék letudva.</b> Közvetlen kiváltó ok: az 1.9–1.11 blokk 326 sornyi PowerShellt módosított, amit <em>semmi</em> nem ellenőrzött — ruff és pytest Python-only, lokálisan nincs <code>pwsh</code>, tehát a <code>run_atomic.ps1</code>-et először a Windows runner parse-olta volna egy élő atomic futás közben, a repo leglassabb visszacsatolási hurkában. Új <code>powershell_analysis</code> job, <code>ubuntu-latest</code>-en (Windows nem kell hozzá).<br><b>Külön job, nem két új step a meglévőben:</b> a stepek sorban futnak, tehát egy ruff-hiba elfedné a PowerShell-hibát a következő pushig, és egy <code>.ps1</code> parse-hibának semmi keresnivalója egy Python-tesztekről elnevezett job alatt. Párhuzamosan fut, tehát nem kerül falióra-időbe. A <code>regenerate_console</code> mostantól <code>needs: [static_analysis, powershell_analysis]</code>.<br><b>Két lépcső, szándékosan:</b> előbb egy <em>parse check</em> a PowerShell saját parserével (<code>[Parser]::ParseFile</code>) — ez független attól, hogy melyik analyzer-szabály van bekapcsolva, és pont az a hiba a célpontja, amit egy <code>pwsh</code> nélküli gépen írt szerkesztés hoz be —, utána a <code>PSScriptAnalyzer</code>. <b>Pinelve 1.25.0-ra</b> (a Gallery szerint ez a legfrissebb stabil, 2026-03-20), ugyanazon logika mentén, mint az <b>1.3</b> Python-pinjei.<br><b>A kapu szűk, a ruff-precedenst követve:</b> <code>Error</code> és <code>ParseError</code> buktat, a <code>Warning</code> csak annotáció. Három szabály kizárva a <code>.github/PSScriptAnalyzerSettings.psd1</code>-ben, mindegyik indoklással: <code>PSAvoidUsingWriteHost</code> (a scriptek szándékosan a CI-logba írnak, a <code>Write-Output</code> a pipeline-ra tenné a szöveget), <code>PSAvoidUsingInvokeExpression</code> (az emulation-executor lényege, hogy a szabály saját, sémával validált parancsát futtatja), <code>PSUseShouldProcessForStateChangingFunctions</code> (belső, nem exportált, sosem interaktív függvényekre ceremónia lenne).<br><b>Hátra a 4.10-ből:</b> actionlint, shellcheck, pip-audit — ezért továbbra is <code>részben kész</code>, pipa nélkül.</p>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Lezárva — mind a hat eszköz fut.</b> Új <code>workflow_analysis</code> job <b>actionlint 1.7.12</b>-vel, checksum-ellenőrzött letöltéssel; és vele érkezik a <b>shellcheck</b> is, mert az actionlint <em>maga</em> futtatja minden <code>run:</code> blokkon. Külön shellcheck-stepnek előbb ki kellene bányásznia a scripteket a YAML-ből, hogy egyáltalán lássa őket — cserébe viszont a shellcheck jelenléte teherhordóvá vált: ha eltűnne a runner-image-ből, az actionlint továbbra is zölden futna, csak szigorúan kevesebbet ellenőrizve. Ezért egy külön step <b>állítja</b>, hogy ott van, nem feltételezi. Közvetlen indok az egészre: a 2.2 és a 2.5 megint workflow-YAML-t és bash-t írt, amit semmi nem nézett át.</p>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Az actionlint helyben lefuttatva, mielőtt CI-ba került — és ez fogta meg, hogy a job különben azonnal pirosra váltott volna.</b> <b>10 találat, mind ugyanaz a téves riasztás:</b> a self-hosted runnerek egyedi címkéit (<code>de-lab</code>, <code>victim</code>, <code>atomic</code>, <code>windows-victim</code>, <code>dc</code>, <code>windows-dc</code>) nem ismeri, mert azokat semmilyen eszköz nem tudja kitalálni a repóból. Új <code>.github/actionlint.yaml</code> deklarálja őket; utána nulla találat. Mellékhaszon, amiért önmagában is megérte: ez az egyetlen hely a repóban, ahol a várt runner-címkék listaként le vannak írva, tehát egy elgépelt <code>runs-on:</code> — ami különben egy örökre sorban álló jobot eredményez, hibaüzenet nélkül — mostantól lint-hiba.</p>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>A pip-audit szándékosan nem kapu</b> (<code>continue-on-error</code>). Egy pinelt függőség ellen publikált sebezhetőség valós információ, de a világ ütemterve szerint érkezik, nem a repóé szerint: egy éjjel megjelent CVE különben másnap reggel <em>minden</em> független PR-t pirosra váltana, olyan problémáért, amit abban a PR-ben senki nem okozott és nem is tud megjavítani. A találat hangosan látszik (annotáció + step summary), a job failed-but-continued állapotban — ugyanaz a minta, amit a dev pipeline reconcile-stepje használ. <b>Ezt a döntést az első futás rögtön igazolta:</b> a pip-audit ma is <em>valós</em> találatot ad — <code>diskcache 5.6.3</code>, PYSEC-2026-2447 (CVE-2025-69872), unsafe pickle deserialization, <b>javított verzió nincs</b>, mert a sérülékenység minden kiadást érint az 5.6.3-ig, ami egyben a legfrissebb. A lánc: <code>pySigma 1.5.0</code> → <code>diskcache&gt;=5.6.3,&lt;6.0.0</code>. Kapuként a CI most azonnal piros volna, elérhető javítás nélkül. Amikor a diskcache kiad javítást, a <code>&lt;6.0.0</code> tartomány miatt magától bejön — a tranzitív lebegés, amit a <b>2.11</b> hiányosságként tart nyilván, itt épp a javunkra dolgozik. <b>Gyakorlati kockázat:</b> a támadáshoz írási jog kell a cache-könyvtárhoz; a <code>ubuntu-latest</code> runnereken a fájlrendszer futásonként eldobódik, a <em>prod self-hosted runner</em> viszont perzisztens lemezen futtat pySigmát a re-konverziókor. Szűk, de nem nulla.</p>
       </div>
     </div>
 
@@ -1399,7 +1454,7 @@
   </p>
   <ul class="gaps">
     <li><b>A 27 szabály detekciós logikájának tartalmi minősége.</b> Csak a <code>0019</code>-et olvastam végig. FP-kockázat, átfedések, ATT&amp;CK-tag helyesség: ez a <code>detection-content-reviewer</code> dolga.</li>
-    <li><b>A <code>docs/index.html</code> 3287 sora front-endként.</b> Csak szerkezetileg. Nem futtattam Playwright-ot, nem auditáltam accessibility/perf szempontból. <em>Korrekció:</em> az első kiadásban itt az állt, hogy a „Navigator elrejti a FAIL verdikteket" megállapítás nem igazolható — ez téves volt. A <code>.tc.fail</code> stílus létezik, de elérhetetlen; a megállapítás igaz és ma is él, lásd az <b>1.12</b> tételt.</li>
+    <li><b>A <code>docs/index.html</code> 3287 sora front-endként.</b> Csak szerkezetileg. Nem futtattam Playwright-ot, nem auditáltam accessibility/perf szempontból. <em>Korrekció:</em> az első kiadásban itt az állt, hogy a „Navigator elrejti a FAIL verdikteket" megállapítás nem igazolható — ez téves volt. A <code>.tc.fail</code> stílus létezett, de elérhetetlen volt; a megállapítás igaznak bizonyult, <b>1.12</b> néven került fel, és 2026-08-03-ra lezárult (a <code>fail-flag</code> jelölés és a keresztbe vágó FAIL-szűrő azóta él).</li>
     <li><b>A tábla sormagasság-hibája sok technika-badge esetén</b> (korábbi Playwright-megfigyelés: <code>vertical-align: middle</code> + ~183px-es sor a <code>DETECT-2026-0022</code>-nél). Ezt nem ellenőriztem újra ebben a körben — vagy javítva lett a rule browser átdolgozásakor, vagy még él.</li>
     <li><b>Az élő CI-futások logjai.</b> Minden megállapítás statikus elemzés. A tényleges flakiness-mintákat — mennyi futás hasal el és min — csak a run history mutatná meg.</li>
     <li><b>A Splunk tényleges állapota.</b> A drift-megállapítások repo-oldali következtetések; hogy mi van <em>valóban</em> kint, csak a Splunk API mondaná meg.</li>
@@ -1417,7 +1472,7 @@
   </div>
 
   <footer>
-    <span>49 tétel · 12 kritikus · 2 kész</span>
+    <span>49 tétel · 14 kész · a 12 kritikusból 12</span>
     <span>statikus audit, futtatás nélkül</span>
     <span>az állapot a repo remediation-plan.md-jében</span>
   </footer>

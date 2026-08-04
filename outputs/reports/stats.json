@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-03T17:21:16.804462+00:00",
+  "generated_at": "2026-08-04T09:21:31.022871+00:00",
   "total_rules": 27,
   "total_sigma_rules": 27,
   "total_compiled_sigma_rules": 26,
@@ -54,8 +54,8 @@
       "status": "test",
       "source": "native_spl",
       "verdict": "PASS",
-      "run_id": "30151948301",
-      "verdict_at": "2026-07-25T08:58:38.914774+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.4",
       "tactics": [
         "Execution"
@@ -104,8 +104,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30151948301",
-      "verdict_at": "2026-07-25T08:58:38.914774+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.7",
       "tactics": [
         "Execution",
@@ -162,8 +162,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30151948301",
-      "verdict_at": "2026-07-25T08:58:38.914774+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.8",
       "tactics": [
         "Execution",
@@ -216,8 +216,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30151948301",
-      "verdict_at": "2026-07-25T08:58:38.914774+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.19",
       "tactics": [
         "Execution",
@@ -275,8 +275,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30151948301",
-      "verdict_at": "2026-07-25T08:58:38.914774+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.7",
       "tactics": [
         "Execution",
@@ -335,8 +335,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30151948301",
-      "verdict_at": "2026-07-25T08:58:38.914774+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.9",
       "tactics": [
         "Execution",
@@ -396,8 +396,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30151948301",
-      "verdict_at": "2026-07-25T08:58:38.914774+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.7",
       "tactics": [
         "Execution"
@@ -450,8 +450,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30157694300",
-      "verdict_at": "2026-07-25T12:18:42.427709+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.6",
       "tactics": [
         "Execution",
@@ -497,8 +497,8 @@
       "status": "experimental",
       "source": "sigma",
       "verdict": "FAIL",
-      "run_id": "30835491986",
-      "verdict_at": "2026-08-03T17:12:17.831457+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.16",
       "tactics": [
         "Execution",
@@ -545,8 +545,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30155968878",
-      "verdict_at": "2026-07-25T11:22:26.048326+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.6",
       "tactics": [
         "Execution",
@@ -593,8 +593,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30155968878",
-      "verdict_at": "2026-07-25T11:22:26.048326+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.8",
       "tactics": [
         "Execution",
@@ -641,8 +641,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30155968878",
-      "verdict_at": "2026-07-25T11:22:26.048326+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.7",
       "tactics": [
         "Execution",
@@ -696,8 +696,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30833501859",
-      "verdict_at": "2026-08-03T16:47:40.447432+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.8",
       "tactics": [
         "Execution",
@@ -745,8 +745,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30833501859",
-      "verdict_at": "2026-08-03T16:47:40.447432+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.11",
       "tactics": [
         "Execution"
@@ -791,8 +791,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30833501859",
-      "verdict_at": "2026-08-03T16:47:40.447432+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.5",
       "tactics": [
         "Credential Access"
@@ -837,8 +837,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30833501859",
-      "verdict_at": "2026-08-03T16:47:40.447432+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.6",
       "tactics": [
         "Credential Access",
@@ -891,8 +891,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30834423548",
-      "verdict_at": "2026-08-03T17:02:34.863551+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.6",
       "tactics": [
         "Credential Access"
@@ -944,8 +944,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30834423548",
-      "verdict_at": "2026-08-03T17:02:34.863551+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.9",
       "tactics": [
         "Credential Access"
@@ -1020,8 +1020,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30834423548",
-      "verdict_at": "2026-08-03T17:02:34.863551+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.7",
       "tactics": [
         "Credential Access"
@@ -1083,8 +1083,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30836170848",
-      "verdict_at": "2026-08-03T17:21:12.336573+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.5",
       "tactics": [
         "Credential Access"
@@ -1144,8 +1144,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30834423548",
-      "verdict_at": "2026-08-03T17:02:34.863551+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.2",
       "tactics": [
         "Credential Access"
@@ -1191,8 +1191,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30834423548",
-      "verdict_at": "2026-08-03T17:02:34.863551+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.3",
       "tactics": [
         "Credential Access"
@@ -1246,8 +1246,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30834423548",
-      "verdict_at": "2026-08-03T17:02:34.863551+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.5",
       "tactics": [
         "Credential Access"
@@ -1302,8 +1302,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30834423548",
-      "verdict_at": "2026-08-03T17:02:34.863551+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.2",
       "tactics": [
         "Credential Access"
@@ -1357,8 +1357,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30834423548",
-      "verdict_at": "2026-08-03T17:02:34.863551+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.3",
       "tactics": [
         "Credential Access"
@@ -1412,8 +1412,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30834423548",
-      "verdict_at": "2026-08-03T17:02:34.863551+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.2",
       "tactics": [
         "Credential Access"
@@ -1464,8 +1464,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "30834423548",
-      "verdict_at": "2026-08-03T17:02:34.863551+00:00",
+      "run_id": "30838963048",
+      "verdict_at": "2026-08-03T18:07:18.808164+00:00",
       "verdict_rule_version": "1.3",
       "tactics": [
         "Credential Access"
