@@ -249,6 +249,27 @@ jobs:
             -Files $rules `
             -MaxErrors $maxErrors
 
+      # Register item 2.17. Schema validation above accepts a `runner` that no
+      # job here services (`linux-victim` is in the enum deliberately, ahead of
+      # the VM existing), and run_atomic.ps1 matches the runner exactly -- so
+      # such a rule deploys, its test job skips it with one Write-Host line, and
+      # the job still exits 0. Nothing else in the pipeline ever says so.
+      #
+      # A warning rather than a gate: the detection is worth deploying even when
+      # its test cannot run yet. The hard version of this check lives in
+      # ci_code_checks.yml, where the pytest suite fails if a *committed* rule
+      # stops routing -- that direction is a regression, this one is authoring.
+      #
+      # Checks every rule, not just the changed ones: removing a test job
+      # unroutes rules that nobody is touching in this push.
+      - name: Check every rule has a job that can run its test
+        if: steps.changes.outputs.has_rules == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/validate/check_test_routing.py \
+            --workflow .github/workflows/ci_dev_workflow.yml
+
       - name: Convert Sigma rules to Splunk SPL
         if: steps.changes.outputs.has_rules == 'true'
         shell: bash

@@ -21,7 +21,7 @@ Nincs menetrend — a tempó ad-hoc, tételenként.
 
 ## Pontszám
 
-Jelenlegi: **6,5 / 10** (kiindulás). Mai állás: **7,8 / 10**, kész súly 44,5/86,5.
+Jelenlegi: **6,5 / 10** (kiindulás). Mai állás: **7,8 / 10**, kész súly 45,5/86,5.
 Minden tétel elvégzése után: **9,0 / 10**.
 A register meterének súlyozása: kritikus ×3, architektúra ×2, feature ×1,5, kisebb ×1
 (összesen **88** súlypont a 4.11 felvétele óta; korábban 85).
@@ -97,7 +97,7 @@ pip-audit), a **2.x** blokk olcsó darabjai (**2.2** `timeout-minutes`, **2.14**
 - [ ] **2.14** A TLS-verifikáció csendben kikapcsol, ha a secret nincs beállítva · `ci_dev_workflow.yml:386`, `ci_prod_workflow.yml:69` · fix: fail-closed
 - [ ] **2.15** A `fields:` metaadat halott (séma kötelezi, converter kidobja, SPL nem használja) · `sigma_to_spl.py:255` · fix: `| table` vagy kivenni a sémából
 - [ ] **2.16** Nyers Splunk-eventek 90 napig publikusan letölthető artifactban · `ci_dev_workflow.yml:691-698` · fix: rövidebb retention vagy mezőszűrés
-- [ ] **2.17** Az `emulation` + `windows-dc` kombináció csendben kiesik · `ci_dev_workflow.yml:527`, `run_atomic.ps1:300` · **tágabb, mint ahogy itt szerepel** (2026-08-04): a séma `runner` enumja `linux-victim`-et is enged, amihez **egyetlen job sincs** — tehát nem csak az emulation+DC esik ki némán. A `linux-victim` **szándékos előretekintés** (a VM még nem létezik, de tervben van), ezért a megoldás *nem* a sémából való kivétel, hanem hogy a pipeline hangosan jelezze, ha egy szabály olyan runnert kér, amihez nincs futtató job
+- [x] **2.17** Az `emulation` + `windows-dc` kombináció csendben kiesik · `ci_dev_workflow.yml:527`, `run_atomic.ps1:300` · **tágabb volt, mint ahogy itt szerepelt:** a séma `runner` enumja `linux-victim`-et is enged, amihez **egyetlen job sincs** — tehát nem csak az emulation+DC esett ki némán. A `linux-victim` **szándékos előretekintés** (a VM még nem létezik, de tervben van), ezért a megoldás nem a sémából való kivétel lett. · **kész 2026-08-04:** új `scripts/validate/check_test_routing.py`. A kiszolgált kombinációkat **a workflow-ból vezeti le** (minden step, ami `ATOMIC_TESTER_TYPE`-ot *és* `ATOMIC_RUNNER`-t is állít), nem egy beégetett listából — így a linux job későbbi hozzáadása nem igényel szerkesztést itt, és egy job törlése nem hagy maga után elavult allow-listát, ami továbbra is lefedettnek állítja a szabályait. Ha egyetlen job sem állítja a két env-et, `exit 2` a 27 találat helyett: az az állapot a checker hibája, nem a szabályoké. **Két helyen, két szigorúsággal:** a dev workflow-ban `::warning` + step summary tábla (a detekció akkor is deployolandó, ha a tesztje még nem futtatható), a pytest-suite-ban viszont kemény bukás, mert egy *committolt* szabály kiesése regresszió — job átnevezés vagy törlés. **Menet közben talált plusz hiba:** a hiányzó `runner` ugyanez a defekt — a converter csak nem-üresen írja ki a meta mezőt, a `run_atomic.ps1` pedig pontos egyezést vár, tehát a „nincs megadva" nem az alapértelmezettet jelenti, hanem egy olyan értéket, amit *minden* job szűrője eldob; a checker ezt is jelzi. Ma mind a 27 szabály valós jobra irányul (16 atomic/victim, 3 atomic/DC, 8 emulation/victim), tehát a rés lappangó volt. 25 új teszt. **Ami nyitva marad:** a nem-futtatott emulation szabály verdiktje ettől még nem lesz NOT_VERIFIED — az a **2.8**
 - [ ] **2.18** A `SPLUNK_APP` secretként van kezelve, holott `vars`-ba tartozik
 
 ## 3 · Architektúra (8)
