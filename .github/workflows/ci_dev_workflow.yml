@@ -158,6 +158,62 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r .github/requirements.txt
 
+      # Register item 1.7, repo side. Deleting a Sigma rule leaves its converted
+      # .spl behind (and prod deploys from `git ls-files`, so it keeps going to
+      # production) plus its outputs/results/ directory (which keeps counting
+      # towards the dashboard's coverage).
+      #
+      # This needs its own step and its own commit rather than riding along with
+      # "Commit converted SPL outputs": that step is gated on has_spl, which
+      # comes from has_rules, which is built from --diff-filter=AMRC -- so a
+      # commit that only *deletes* a rule produces no rule_files, skips every
+      # job below, and would never reach it. The orphan is created by precisely
+      # the event the rest of the pipeline cannot see.
+      #
+      # Deliberately not gated on has_rules for the same reason, and safe to run
+      # unconditionally because it compares current state rather than a diff:
+      # with nothing orphaned it prints one line and exits.
+      - name: Prune repo artefacts of deleted rules
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # "Install Python deps" above is gated on has_rules, and the case this
+          # step exists for -- a commit that only deletes a rule -- is exactly
+          # the case where has_rules is false and that step was skipped. Same
+          # pinned file, so this cannot drift from what the rest of the job uses.
+          python -c "import yaml" 2>/dev/null || python -m pip install -r .github/requirements.txt
+
+          python scripts/state/prune_orphans.py --apply
+
+          # -A so deletions are staged; the paths are scoped so nothing else
+          # this job produced can ride along in the commit.
+          git add -A rules/splunk outputs/results
+
+          if git diff --cached --quiet; then
+            echo "No orphaned artefacts to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(prune): remove artefacts of deleted rules [skip ci]"
+
+          for i in 1 2 3; do
+            git fetch origin dev
+            git pull --rebase origin dev || true
+            if git push origin HEAD:dev; then
+              echo "Push succeeded."
+              exit 0
+            fi
+            echo "Push failed (attempt $i), retrying..."
+            sleep 2
+          done
+
+          echo "Push failed after 3 attempts."
+          exit 1
+
       - name: Validate Sigma rules
         if: steps.changes.outputs.has_rules == 'true'
         shell: pwsh
@@ -826,13 +882,22 @@ jobs:
       # leave objects behind that keep running and alerting, and no step
       # notices. (Register items 1.7, 1.8; feeds 4.7.)
       #
-      # Read-only and non-blocking on purpose. It reports a *pre-existing*
-      # condition of the Splunk instance, which has nothing to do with whether
-      # this particular run's rules are correct -- gating on it would block
-      # unrelated work on drift somebody else introduced. always() so drift is
-      # still reported when verification itself failed, and continue-on-error
-      # so a Splunk hiccup in a reporting step cannot fail a run whose real
-      # work already succeeded.
+      # Non-blocking on purpose. It reports a *pre-existing* condition of the
+      # Splunk instance, which has nothing to do with whether this particular
+      # run's rules are correct -- gating on it would block unrelated work on
+      # drift somebody else introduced. always() so drift is still reported when
+      # verification itself failed, and continue-on-error so a Splunk hiccup in
+      # this step cannot fail a run whose real work already succeeded.
+      #
+      # --apply cleans up rename orphans only. Since register item 1.8 was
+      # closed on 2026-08-04 by keeping the human-readable object name, every
+      # title edit leaves one behind, so this is routine housekeeping rather
+      # than a migration -- and it is safe unattended because the script refuses
+      # to delete an old object whose replacement is not live in Splunk (a
+      # failed deploy must not end in a rule with no saved search).
+      # --apply-removals is deliberately NOT passed here: a rule vanishing from
+      # the repo is not always intentional, so taking a detection out of service
+      # stays a human decision. Run it by hand when the report shows one.
       - name: Reconcile Splunk state against the repo
         if: always()
         continue-on-error: true
@@ -849,7 +914,9 @@ jobs:
           python scripts/state/reconcile.py \
             --rules-dir rules/sigma \
             --json outputs/state/reconcile.json \
+            --apply \
             | tee reconcile_report.txt
+          rc="${PIPESTATUS[0]}"
 
           {
             echo "### Splunk state reconciliation"
@@ -858,6 +925,15 @@ jobs:
             cat reconcile_report.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+          # The summary block is the last command, so without this the step's
+          # exit status would be `echo`'s and a failed cleanup would read as a
+          # clean run. continue-on-error keeps it from failing the workflow --
+          # this only makes it visible.
+          if [ "$rc" -ne 0 ]; then
+            echo "::warning::Reconciliation exited $rc -- a cleanup action may not have landed. See the step summary."
+          fi
+          exit "$rc"
 
       # Not committed to the repo: this describes the Splunk instance at one
       # moment, not the repo's own state, so it would add a commit on every run

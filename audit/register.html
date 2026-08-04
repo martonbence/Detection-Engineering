@@ -864,13 +864,13 @@
     </div>
 
     <div class="row sev-crit" data-sev="crit" data-weight="3">
-      <input class="row-check" type="checkbox" id="i-1-7" aria-labelledby="t-1-7">
+      <input class="row-check" type="checkbox" id="i-1-7" aria-labelledby="t-1-7" checked>
       <div class="row-main">
         <div class="row-head">
           <span class="id">1.7</span>
           <span class="row-title" id="t-1-7">Nincs törlés és kivezetés (retirement) az egész folyamatban</span>
           <span class="tag verified">mérve</span>
-          <span class="tag progress">részben kész</span>
+          <span class="tag done">lezárva</span>
         </div>
         <p class="row-body">
           Négy tünet, egy gyökér: a <code>--diff-filter=AMRC</code> kizárja a törléseket; a törölt
@@ -882,17 +882,18 @@
           ugyanúgy kimegy prodba, mint a stable.
         </p>
         <p class="row-fix"><span class="fix-label">javítás</span>Ez a 3.3-as reconcile-scripttel egyben megoldódik; addig minimum a <code>deprecated</code> státusz kizárása a deployból.</p>
-        <div class="refs"><span class="ref">ci_dev_workflow.yml:89</span><span class="ref">sigma_schema.json status enum</span><span class="ref">3 árva result</span></div>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Lezárva, a kivezetés mindhárom rétegével.</b> <b>(1) Splunk-oldal:</b> a <b>3.3</b> <code>--apply</code>-ja törli az átnevezés-árvákat (automatikusan, minden dev futásban), az <code>--apply-removals</code> pedig kikapcsolja a törölt szabályok objektumait (kézzel). <b>(2) <code>status: deprecated</code>:</b> a deploy mostantól kihagyja — prodban is, mert a prod job regenerálja a meta sidecarokat és ugyanezt a scriptet futtatja. A kihagyás nem töröl: a reconcile desired state-jéből is kikerül a deprecated szabály, tehát az élő objektuma eltávolítás-árvaként jelenik meg, és szándékos lépéssel vezethető ki. A kézenfekvő alternatíva (bent hagyni a desired state-ben) örökre „missing"-ként jelentené, és olyan deployt sürgetne, ami sosem jön. <b>(3) Repo-oldal:</b> új <code>scripts/state/prune_orphans.py</code> takarítja a gazdátlan <code>.spl</code>-eket és result könyvtárakat — <b>saját CI-steppel és saját committal</b>, mert a meglévő commit-step a <code>has_rules</code> láncon lóg, amit a <code>--diff-filter=AMRC</code> táplál: egy tisztán törlő push nulla <code>rule_files</code>-t termel, minden job kimarad, és a takarítás sosem futna le. Állapot-összevetés, nem diff, tehát önjavító és idempotens. <b>Fail-safe:</b> üres szabálykönyvtárnál hibával megáll, nem minősíti árvának az egész repót. A deprecated szabály artefaktjai megmaradnak: a szabály a repóban van, a mérési előzménye a sajátja. 12 új teszt (összesen 65), köztük fake Splunkkal igazolva, hogy egy deprecated szabály <em>nulla</em> HTTP-hívást generál.</p>
+        <div class="refs"><span class="ref">scripts/state/prune_orphans.py</span><span class="ref">deploy: deprecated skip</span><span class="ref">65 teszt</span></div>
       </div>
     </div>
 
     <div class="row sev-crit" data-sev="crit" data-weight="3">
-      <input class="row-check" type="checkbox" id="i-1-8" aria-labelledby="t-1-8">
+      <input class="row-check" type="checkbox" id="i-1-8" aria-labelledby="t-1-8" checked>
       <div class="row-main">
         <div class="row-head">
           <span class="id">1.8</span>
           <span class="row-title" id="t-1-8">A title átírása árva saved search-öt hagy a Splunkban</span>
-          <span class="tag progress">részben kész</span>
+          <span class="tag done">lezárva</span>
         </div>
         <p class="row-body">
           A Splunk objektumnév <code>detect_id + slug(title)</code>-ből képződik. A dokumentáció ezt
@@ -901,7 +902,8 @@
           régi pedig ott marad aktívan, ütemezetten, örökre.
         </p>
         <p class="row-fix"><span class="fix-label">javítás</span>Az objektumnév legyen csak a <code>detect_id</code> (stabil, séma-kényszerített); a title menjen a description elejére — ott már ma is ott van. Az analitikus olvashatóság megmarad, az identitás valóban immutable lesz.</p>
-        <div class="refs"><span class="ref">rule_naming.py:10</span><span class="ref">deploy_spl_to_splunk.py:259</span></div>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Lezárva — a javasolt javítást elutasítottuk, a tünet a 3.3-ra kerül.</b> A felhasználó döntése: a Splunk objektumnév <b>maradjon beszédes</b>, a <code>detect_id</code>-only név nem elfogadható. A register indoklása („az olvashatóság a description-ben megmarad") a keresőmezőben és a riasztás-listákban nem áll meg — az analitikus a <em>nevet</em> látja. Az azonosító-stabilitás tehát tudatosan felárazott: a title átírása továbbra is új objektumot hoz létre. <b>Amivel kezelve van:</b> a <b>3.3</b> reconcile <code>orphan_renamed</code> vödre pontosan ezt az esetet ismeri fel (a <code>detect_id</code> megvan, csak a slug mozdult), és a hozzá tartozó <code>--apply</code> törli a régi héjat. Ezzel az árvaság nem szűnik meg <em>keletkezni</em>, hanem <em>észlelt és takarított</em> állapottá válik — ami viszont azt is jelenti, hogy a renamed-vödör takarítása állandó üzemi mechanizmus, nem egyszeri migráció.</p>
+        <div class="refs"><span class="ref">rule_naming.py:10</span><span class="ref">deploy_spl_to_splunk.py:259</span><span class="ref">lezárva: won't fix → 3.3</span></div>
       </div>
     </div>
 
@@ -1205,16 +1207,17 @@
     </div>
 
     <div class="row sev-arch" data-sev="arch" data-weight="2">
-      <input class="row-check" type="checkbox" id="i-3-3" aria-labelledby="t-3-3">
+      <input class="row-check" type="checkbox" id="i-3-3" aria-labelledby="t-3-3" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">3.3</span><span class="row-title" id="t-3-3">Nincs desired-state ↔ actual-state rekonciliáció</span><span class="tag progress">részben kész</span></div>
+        <div class="row-head"><span class="id">3.3</span><span class="row-title" id="t-3-3">Nincs desired-state ↔ actual-state rekonciliáció</span><span class="tag done">lezárva</span></div>
         <p class="row-body">
           A pipeline push-alapú: események hatására tesz dolgokat. Nincs viszont olyan komponens,
           ami megkérdezné, hogy „a Splunkban most pontosan az van-e, aminek lennie kell".
         </p>
         <p class="row-fix"><span class="fix-label">javítás</span>Egy <code>scripts/state/reconcile.py</code>, ami kilistázza a CI-managed saved search-öket (a <code>ci_managed: true</code> sidecar-mező már megvan hozzá), összeveti a repo desired state-jével, és jelenti: <code>missing</code> / <code>orphan</code> / <code>drifted</code>. Két üzemmód: <code>--check</code> a CI-ban, <code>--apply</code> a törléshez. Egyetlen script, ami egyszerre lezárja az 1.1-et, az 1.7-et és az 1.8-at — a kimenete pedig a 4.7-es inventory.</p>
         <p class="row-note"><span class="note-label">2026-08-03</span><b>Felderítés kész, beavatkozás nem — ezért nincs pipa.</b> Új, kizárólag olvasó <code>scripts/state/reconcile.py</code>. A desired state a <code>rules/sigma/*.yml</code> fájlokból jön (a <code>.meta.json</code> sidecarok gitignore-oltak, tehát CI-futáson kívül nem léteznek), és ugyanazzal a <code>saved_search_name()</code>-mel képzi a nevet, amit a deploy is használ. Az actual state a Splunk <code>servicesNS/{owner}/{app}/saved/searches</code> endpointjáról jön, <code>count=0</code>-val — enélkül a 30 soros alapértelmezett lapozás miatt minden 30. utáni szabály „hiányzónak" látszana. <b>Nem kellett új <code>ci_managed</code> sidecar-mező:</b> a deploy már ma minden leírásba beleírja, hogy „Managed by CI/CD (Detection-Engineering repo)", és a jelölőnek amúgy is a Splunk-objektumon a helye, nem a repóban — egy árva objektum épp az, amihez már nincs repo-oldali bejegyzés. <b>Öt vödör:</b> in sync, missing, <em>orphan_renamed</em> (a detect_id megvan, csak a title-slug mozdult → <b>1.8</b>), <em>orphan_removed</em> (a detect_id sincs meg → <b>1.7</b>), és unmanaged (nincs rajta CI-jelölő: jelentjük, de sosem nyúlunk hozzá, és nem számít driftnek). A két árva-vödör szándékosan külön: egy átnevezés maradéka biztonsággal törölhető, egy eltűnt szabály viszont ránézést érdemel. CI-ban a <code>splunk_verify</code> job végén fut, <code>always()</code> + <code>continue-on-error</code>, tehát sosem blokkol — meglévő Splunk-állapotról szól, nem erről a futásról. 15 teszt mockolt Splunkkal, plusz száraz futtatás a valós 27 szabályon. <b>Hátra:</b> a tényleges törlés (<code>--apply</code>) és a deprecated szabályok kizárása a deployból.</p>
-        <div class="refs"><span class="ref">új: scripts/state/</span><span class="ref">sidecar ci_managed</span></div>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Lezárva: megvan a beavatkozás is, két külön hatósugárral.</b> <code>--apply</code> — az átnevezés-árvákat törli, és <b>automatikusan fut a dev CI-ban</b>: az 1.8 lezárása (a beszédes objektumnév megtartása) óta a rename normál üzemi esemény, tehát a takarítás állandó mechanizmus, nem egyszeri migráció. <code>--apply-removals</code> — az eltávolítás-árvákat <em>kikapcsolja</em> (<code>disabled=1</code> + <code>[RETIRED dátum]</code> prefix a leírásban), nem törli: a törlés a Splunk-oldali ütemezést és riasztás-konfigurációt is elvinné, a kikapcsolás viszont visszafordítható. Ez a kapcsoló <b>kézi</b>, a CI nem kapja meg, és <code>--apply</code> nélkül nem is használható. <b>Menet közben talált saját hiba:</b> az „a szabály él az új néven" indoklás feltevés volt, nem ellenőrzés — ha a deploy elhasal, az új objektum sosem jön létre, és az automatikus törlés egy frissen szerkesztett szabályt hagyott volna nulla saved search-csel. Az <code>--apply</code> ezért csak akkor töröl, ha az utód bizonyítottan él Splunkban (<code>replacement_live</code>). <b>Idempotens:</b> a már kivezetett objektum nem kap második írást, és nem számít driftnek — enélkül a riport az első kivezetés után örökre piros maradna. Az <code>unmanaged</code> vödörhöz egyik kapcsoló sem nyúl. A CI-step mostantól továbbadja a script exit kódját, különben egy el nem szállt takarítás zöld pipát kapott volna. 13 új teszt (összesen 53) + végponttól végpontig száraz futtatás a valós 27 szabályon, 7 forgatókönyvre.</p>
+        <div class="refs"><span class="ref">scripts/state/reconcile.py</span><span class="ref">--apply / --apply-removals</span><span class="ref">53 teszt</span></div>
       </div>
     </div>
 
