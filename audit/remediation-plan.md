@@ -21,7 +21,7 @@ Nincs menetrend — a tempó ad-hoc, tételenként.
 
 ## Pontszám
 
-Jelenlegi: **6,5 / 10** (kiindulás). Mai állás: **7,4 / 10**, kész súly 30/86,5.
+Jelenlegi: **6,5 / 10** (kiindulás). Mai állás: **7,6 / 10**, kész súly 38/86,5.
 Minden tétel elvégzése után: **9,0 / 10**.
 A register meterének súlyozása: kritikus ×3, architektúra ×2, feature ×1,5, kisebb ×1
 (összesen **88** súlypont a 4.11 felvétele óta; korábban 85).
@@ -34,29 +34,33 @@ hitelesség 4→9 · karbantarthatóság 5→8 · biztonság 6→8.
 ## Javasolt sorrend
 
 ~~1.1~~ → ~~1.2~~ → ~~1.3~~ → ~~1.4~~ → ~~1.5~~ → ~~1.6~~ → ~~1.12~~ → ~~1.11~~ → ~~1.10~~ →
-~~1.9~~ → **3.3 (= 1.7 + 1.8).**
-A 12 kritikus tételből **tíz kész**, és a maradék kettő ugyanannak az egy hiánynak a két tünete.
-A prod trust boundary bizonyított (pinelt konverter + drift-gate), a verify-ablak a valós
+~~1.9~~ → ~~1.8~~ → ~~3.3~~ → ~~1.7~~ → **a következő kör szabadon választható.**
+**Mind a 12 kritikus tétel kész.** A prod trust boundary bizonyított (pinelt konverter + drift-gate), a verify-ablak a valós
 tesztfázishoz horgonyzott, a mérés-oldali bizonytalanság már nem FAIL-nek álcázza magát, a
 pipeline saját kódjára is fut végre CI (**4.10** részben kész), a hőtérkép nem rejti el a
 megerősített hibát, és a runner oldalán sem egy hibás szabály, sem egy megölt step nem visz
 magával mást (**1.9–1.11**).
 
-A **3.3** reconcile `--check` fele megvan (2026-08-03), tehát az 1.7 és az 1.8 mostantól
-*láthatóvá* válik — de egyik sincs lezárva, mert a beavatkozás hiányzik. A három tétel egyben
-mozog tovább, és két, egymást feltételező lépés maradt:
+A **3.3** 2026-08-04-én lezárult: a `--check` mellé megvan a beavatkozás is, kétféle hatósugárral
+(`--apply` automatikusan a CI-ban, `--apply-removals` kézzel). Az eredeti terv egy második lépést
+is tartalmazott (objektumnév csak `detect_id`-ból, `rule_naming.py`), ami az **1.8**-at zárta
+volna. **Ezt elutasítottuk** — a Splunk objektumnév marad beszédes —, tehát az 1.8 tünetét
+(title-átírás → árva objektum) tartósan a reconcile `orphan_renamed` vödre kezeli. Ebből
+következik, hogy a renamed-vödör takarítása nem egyszeri migráció, hanem **állandó üzemi
+mechanizmus** — ezért fut az `--apply` felügyelet nélkül minden dev futásban.
 
-1. **`--apply`** a reconcile-hoz (törli az árva objektumokat) — ez zárja az **1.7**-et.
-2. **Objektumnév csak `detect_id`-ból** (`rule_naming.py`) — ez zárja az **1.8**-at.
+Az **1.7** ugyanaznap zárult, a kivezetés mindhárom rétegével: Splunk-oldal (fent), `deprecated`
+státusz (a deploy kihagyja, a reconcile nem-kívántként kezeli), és repo-oldal (`prune_orphans.py`).
+A tünetek 2026-08-03 óta **nullák** (27 sigma / 27 spl / 27 result, nincs árva semmi, nincs
+deprecated szabály) — a mechanizmusok tehát tiszta állapotból indulnak, és mostantól nem is
+engedik felgyűlni a szemetet.
 
-A sorrend nem cserélhető fel: a 2. lépés egyszeri jelleggel **minden** meglévő saved search-öt
-árvává tesz (mind a 27 név megváltozik), tehát csak akkor biztonságos, ha a törlési útvonal már
-létezik és bizonyított. Addig a reconcile riportja megmutatja, mi keletkezne.
-
-A 2026-08-03-i teljes workflow-futás után az 1.7 **tünetei pillanatnyilag nullák** (27 sigma /
-27 spl / 27 result, nincs árva `.spl`, nincs árva result, nincs `status: deprecated`) — a
-reconcile tiszta állapotból indul, nincs mögötte felhalmozódott szemét. A defekt maga viszont
-megvan: az első átnevezés vagy törlés újratermeli.
+**A következő kör szabadon választható**, és érdemes újra megnézni, mi maradt valóban nyitott: a
+register a 2026-07-26-i állapotra készült, azóta több tétel a saját munkája mellékhatásaként
+oldódott meg (lásd az 1.12-t). Kézenfekvő jelöltek: a **4.10** maradéka (actionlint, shellcheck,
+pip-audit), a **2.x** blokk olcsó darabjai (**2.2** `timeout-minutes`, **2.14** fail-closed TLS,
+**2.5** `workflow_dispatch` a prodnak), vagy a nagyobb architektúra-lépések (**3.2** artifact-promóció,
+**3.1** manifest, **3.4** a monolit bontása).
 
 ---
 
@@ -68,8 +72,8 @@ megvan: az első átnevezés vagy törlés újratermeli.
 - [x] **1.4** Az `-5m` verify-ablak rövidebb az atomic tesztek futásidejénél · `ci_dev_workflow.yml:428,670` · **kész 2026-08-03:** mindhárom teszt-job első stepként lebélyegzi az indulását (epoch), a `splunk_verify` a minimumukat veszi −60s margóval `--earliest`-nek; fallback `-15m` + warning. A `check_saved_search_hits.py` érintetlen (a Splunk elfogadja az epochot). A szabályok `custom.splunk.earliest` mezője más dolog — a prod saved search ütemezési ablaka —, nem változott
 - [x] **1.5** A Splunk-lekérdezés timeoutja hamis FAIL-ként jelenik meg (+ `FINALIZING` részleges eredmény) · `check_saved_search_hits.py:120-164,138` · **kész 2026-08-03:** explicit timeout-error, olvasás csak `DONE`-nál, plusz a hibák `error_kind`-ot kapnak (`unmeasured` → NOT_VERIFIED, `rule_error` → FAIL) — a script javítása önmagában kevés lett volna, mert az `evaluate()` minden hibát FAIL-re képezett. A legend és a `VERDICT_RANK` komment is átírva
 - [x] **1.6** A `scripts/docs/**` nincs a trigger-path-ok között · `ci_dev_workflow.yml:7-28` · **kész 2026-08-03:** a 4.10 útján, mert a path felvétele önmagában nem működött volna (a run elindulna, majd `has_rules=false` miatt mindent átugrana). Új `ci_code_checks.yml`: ruff + pytest minden kód-változásra, plusz `regenerate_docs` és `deploy_pages` job — a Pages ugyanis artifactból publikál, nem a branchről, tehát a commit önmagában nem frissítette volna az élő oldalt
-- [~] **1.7** Nincs törlés/kivezetés: `--diff-filter=AMRC`, árva `.spl`, árva saved search, 3 árva result, holt `status: deprecated` · `ci_dev_workflow.yml:89` · **részben kész 2026-08-03:** a 3.3 reconcile `--check` mostantól *láthatóvá* teszi az árva saved search-öket (`orphan_removed` vödör), de nem töröl. Hátra: a tényleges kivezetés és a deprecated kizárása a deployból
-- [~] **1.8** A title átírása árva saved search-öt hagy a Splunkban · `rule_naming.py:10` · **részben kész 2026-08-03:** a reconcile `orphan_renamed` vödre külön néven jelenti ezt az esetet (a `detect_id` megvan, csak a title-slug mozdult). A *kiváltó ok* viszont változatlan: az objektumnév továbbra is tartalmazza a title-slugot. Hátra: név csak `detect_id`-ból — de figyelem, ez a váltás egyszeri jelleggel **minden** meglévő saved search-öt árvává tesz, tehát a törlési útvonallal együtt érdemes
+- [x] **1.7** Nincs törlés/kivezetés: `--diff-filter=AMRC`, árva `.spl`, árva saved search, 3 árva result, holt `status: deprecated` · `ci_dev_workflow.yml:89` · **kész 2026-08-04, három rétegben:** (1) Splunk-oldal — a 3.3 `--apply` / `--apply-removals` kivezeti az árva objektumokat; (2) `status: deprecated` — a deploy kihagyja (dev és prod egyaránt, mert a prod is regenerálja a meta sidecarokat és ugyanezt a scriptet futtatja), a reconcile pedig nem-kívántként kezeli, tehát az élő objektuma eltávolítás-árvaként kivezethető; (3) repo-oldal — új `scripts/state/prune_orphans.py` takarítja a törölt szabály `.spl`-jét és result könyvtárát, **saját CI-steppel és saját committal**, mert a `--diff-filter=AMRC` miatt egy tisztán törlő push a többi jobot el sem indítja
+- [x] **1.8** A title átírása árva saved search-öt hagy a Splunkban · `rule_naming.py:10` · **lezárva 2026-08-04: a javasolt javítást elutasítottuk.** A `detect_id`-only objektumnév nem elfogadható — az analitikus a Splunk keresőmezőjében és a riasztás-listákban a *nevet* látja, nem a description-t, tehát a beszédes név megmarad. A kiváltó ok ezzel tudatosan felárazott állapot, nem nyitott defekt. A tünetet a **3.3** `orphan_renamed` vödre + `--apply` kezeli: az árvaság nem szűnik meg keletkezni, hanem észlelt és takarított lesz
 - [x] **1.9** Egy hibás szabály `throw`-ja megbuktatja az egész batch tesztelését · `run_atomic.ps1:313,338`, `sigma_schema.json` · **kész 2026-08-03:** séma `allOf`+`if/then` (`enabled: true`-ra szűkítve), és mind a négy `throw` → `Write-Warning` + `continue` `$malformed` számlálóval; új `exit 1` ág, ha a batch minden szabálya hibás
 - [x] **1.10** Atomic higiénia: nincs `-GetPrereqs` és nincs `-Cleanup` · `run_atomic.ps1:178-242` · **kész 2026-08-03:** `Invoke-AtomicTestCompat -Mode GetPrereqs|Run|Cleanup` (egymást kizáró kapcsolók, tehát három invokáció), cleanup `finally`-ben, egyik segédfázis hibája sem számít `$failures`-nek; `ATOMIC_SKIP_PREREQS` / `ATOMIC_SKIP_CLEANUP`
 - [x] **1.11** A Defender kikapcsolva maradhat, ha a stepet a timeout hard-kill-eli · `run_atomic.ps1:496-498` · **kész 2026-08-03:** scheduled task deadman (Once +20p **és** AtStartup), a kikapcsolás *előtt* regisztrálva, fail-closed (`ATOMIC_ALLOW_UNPROTECTED_DISABLE` a felmentés), leftover task `::warning`-gal jelezve
@@ -100,7 +104,7 @@ megvan: az első átnevezés vagy törlés újratermeli.
 
 - [ ] **3.1** Egy manifest helyett négyszer parse-olt metaadat · `sigma_to_spl.py`, `run_atomic.ps1:26-43`, `deploy:46`, `verify:56` · fix: `manifest.json` a converterből, a workflow `jq`-val olvassa (≈60-80 sorral rövidebb dev workflow)
 - [ ] **3.2** Artifact-promóció újraépítés helyett (a bundle legyen az artifact, digesttel) · fix: release asset / build provenance, a prod letölti és ellenőrzi
-- [~] **3.3** Nincs desired-state ↔ actual-state rekonciliáció · **részben kész 2026-08-03:** `scripts/state/reconcile.py` megvan, **csak `--check`** (kizárólag olvasó, nincs `--apply`). Öt vödör: in sync / missing / orphan_renamed / orphan_removed / unmanaged. Új `ci_managed` sidecar-mező **nem kellett** — a deploy leírás-prefixe már ma is CI-jelölő. CI-ban a `splunk_verify` végén, `always()` + `continue-on-error`. Hátra: `--apply`
+- [x] **3.3** Nincs desired-state ↔ actual-state rekonciliáció · **kész 2026-08-04:** a `--check` mellé `--apply` (átnevezés-árvák törlése, a dev CI-ban automatikusan) és `--apply-removals` (eltávolítás-árvák kikapcsolása + `[RETIRED …]` jelölés, kézi opt-in). Alább a 2026-08-03-i `--check` fele változatlanul: `scripts/state/reconcile.py` megvan, akkor még **csak `--check`** (kizárólag olvasó, nincs `--apply`). Öt vödör: in sync / missing / orphan_renamed / orphan_removed / unmanaged. Új `ci_managed` sidecar-mező **nem kellett** — a deploy leírás-prefixe már ma is CI-jelölő. CI-ban a `splunk_verify` végén, `always()` + `continue-on-error`. Hátra: `--apply` — és az **1.8** 2026-08-04-i lezárása óta ez viseli az ottani tünetet is, tehát a `orphan_renamed` takarítása állandó mechanizmus, nem egyszeri migráció
 - [ ] **3.4** A `generate_stats.py` 4392 soros monolit (~3300 sor inline HTML) · `generate_stats.py:986-4275` · fix: template + assetek külön fájlba, egy JSON-blokk a 16 placeholder helyett
 - [ ] **3.5** A verziózás a git history-hoz kötött, két helyen duplikálva · `sigma_to_spl.py:219`, `generate_stats.py:590` · fix: explicit `version:` a YAML-ben + CI-check a bumpra
 - [ ] **3.6** A `scripts/lib/` alulhasznált (meta IO és verzió 2-2 példányban, nincs `SplunkClient`)
@@ -503,3 +507,90 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   **A pontszám nem mozdul: 30/86,5, 7,4 / 10.** A három érintett tétel (**1.7**, **1.8**, **3.3**)
   mind `[~]`, mert a register saját szabálya szerint félkész tétel nem kap súlyt — és ez itt
   pontos: a felderítés kész, a beavatkozás nem.
+- **2026-08-04** — **1.8 lezárva, nem javítással: a javasolt fix elutasítva.** Felhasználói döntés a
+  következő tétel kiválasztásakor: a Splunk objektumnév **nem** lehet csak a `detect_id`, maradjon
+  beszédes (`detect_id + slug(title)`). A register indoklása — „az olvashatóság a description-ben
+  megmarad" — a gyakorlatban nem áll meg: a Splunk keresőmezőjében, a saved-search listában és a
+  riasztás-hivatkozásokban az analitikus a *nevet* látja, a leírást csak akkor, ha külön megnyitja.
+  Az immutable identitás ára itt magasabb, mint a haszna.
+  **Amit ez jelent:** a kiváltó ok tudatosan vállalt állapot lett, nem nyitott defekt — a title
+  átírása továbbra is új objektumot hoz létre, és a régi ott marad. A tünet kezelése teljes egészében
+  a **3.3**-ra kerül: az `orphan_renamed` vödör pontosan ezt az esetet azonosítja (a `detect_id`
+  megvan a repóban, csak a slug mozdult), az `--apply` pedig törli a régi héjat. Az árvaság tehát nem
+  megszűnik keletkezni, hanem **észlelt és takarított** állapottá válik.
+  **Következmény az `--apply` tervezésére, amit külön ki kell mondani:** eredetileg a renamed-vödör
+  törlése egyszeri migrációnak indult (a névséma-váltás után mind a 27 objektum árvává vált volna).
+  A séma-váltás elmaradásával viszont a rename **normál üzemi esemény** — minden title-átfogalmazás
+  termel egy árvát —, tehát a renamed-vödör takarításának rutinszerűen, a deploy után futtathatónak
+  kell lennie, nem csak kézi `workflow_dispatch`-ként. Ez a `removed` vödörre **nem** vonatkozik: ott
+  a `detect_id` is eltűnt a repóból, ami nem mindig szándékos, tehát az marad kézi döntés.
+  Ezzel a 12 kritikus tételből 11 kész, egyedül az **1.7** maradt.
+  Kész súly: 33/86,5, projektált pontszám **7,5 / 10**.
+- **2026-08-04** — **3.3 kész: a reconcile `--apply`.** A tegnapi olvasó riport mellé megvan a
+  beavatkozás, **két külön hatósugárral**, mert a két árva-vödör nem ugyanaz a kockázat.
+  **`--apply` — átnevezés-árvák törlése, automatikusan a dev CI-ban.** Az 1.8 lezárása után a
+  rename normál üzemi esemény: minden title-átfogalmazás termel egy árvát, tehát ennek felügyelet
+  nélkül kell mennie, különben a Splunk lassan megtelik holt objektumokkal.
+  **`--apply-removals` — eltávolítás-árvák kikapcsolása, kézzel.** Nem törlés: `disabled=1` plusz
+  `[RETIRED <dátum>]` prefix a leírás elejére. A törlés a Splunk-oldali ütemezést és
+  riasztás-konfigurációt is elvinné, a kikapcsolás viszont visszafordítható — és egy szabály
+  eltűnése a repóból nem mindig szándékos. A CI **nem** kapja meg ezt a kapcsolót; `argparse`
+  szinten is kikényszerítve, hogy `--apply` nélkül ne legyen használható.
+  **Menet közben talált saját hiba, ami nélkül a tétel kárt okozott volna:** az „a szabály él az új
+  néven" indoklás *feltevés* volt, nem ellenőrzés. Ha a deploy elhasal, az új nevű objektum sosem
+  jön létre, a régi viszont árvaként azonosítható — az automatikus törlés így pont egy frissen
+  szerkesztett szabályt hagyott volna **nulla saved search-csel**, csendben. A `reconcile()` ezért
+  minden rename-árvához eltárolja az utódja nevét és azt, hogy az él-e (`replacement_live`), és az
+  `--apply` élő utód nélkül nem töröl, hanem kiírja, miért nem.
+  **Idempotencia és a riport hitelessége:** egy már kivezetett objektum újbóli látásakor nincs
+  második írás (a `[RETIRED` prefix a jel), és `has_drift()` nem számítja driftnek — enélkül az
+  első kivezetés után a riport örökre piros maradna, és három futás után senki nem nézné.
+  **A `unmanaged` vödörhöz egyik kapcsoló sem nyúl:** amit nem a pipeline hozott létre, arról nincs
+  véleménye.
+  **CI-bekötés:** a meglévő `Reconcile Splunk state` step kapott egy `--apply`-t, plusz a step
+  mostantól **továbbadja a script exit kódját** (`PIPESTATUS` + `exit "$rc"`). Enélkül a
+  step utolsó parancsa a step-summary `echo` volt, tehát egy el nem szállt takarítás zöld pipát
+  kapott volna. A `continue-on-error` marad, tehát a run nem bukik el rajta — csak látszik.
+  **Tesztelés:** 13 új teszt (összesen 53), köztük külön eset arra, hogy élő utód nélkül nem törlünk,
+  hogy a `removed` vödörhöz `--apply` egyedül nem nyúl, hogy a kivezetés POST-ja `disabled=1`-et
+  küld és **megőrzi a CI-jelölőt** a leírásban (különben a következő futás már nem ismerné fel
+  sajátjaként), és hogy a `--apply-removals` `--apply` nélkül `SystemExit`. Plusz egy végponttól
+  végpontig száraz futtatás a valós 27 szabályon, szimulált Splunkkal, 7 forgatókönyvre.
+  **Az 1.7 nincs kipipálva**, mert a Splunk-oldali kivezetés csak az egyik fele: a `deprecated`
+  státusz kizárása a deployból és a törölt szabály repo-oldali `.spl`/result maradványai hátravannak.
+  Kész súly: 35/86,5, projektált pontszám **7,5 / 10**.
+- **2026-08-04** — **1.7 kész. Ezzel mind a 12 kritikus tétel lezárult.** A délelőtti `--apply`
+  után a maradék két repo-oldali darab is megvan.
+  **(a) `status: deprecated` kizárása a deployból.** A séma kezdettől engedte, de egyetlen script
+  sem olvasta — egy leparkolt szabály ugyanúgy kiment és futott, mint egy stable. A deploy
+  mostantól kihagyja (`deploy_spl_to_splunk.py`), **prodban is**: a prod job regenerálja a
+  `.meta.json` sidecarokat és ugyanezt a scriptet futtatja, tehát nem kellett külön prod-ág.
+  A kihagyás **nem** töröl: egy már fent lévő objektumot csak akkor vezetünk ki, ha valaki
+  szándékosan megteszi. Ehhez a `reconcile.py` desired state-jéből is kikerült a deprecated
+  szabály — így az élő objektuma *eltávolítás-árvaként* jelenik meg, amit az `--apply-removals`
+  kikapcsol. A kézenfekvő alternatíva (bent hagyni a desired state-ben) rosszabb lett volna:
+  örökre „missing"-ként jelentené, és olyan deployt sürgetne, ami definíció szerint sosem jön.
+  **(b) Repo-oldali maradványok.** Új `scripts/state/prune_orphans.py`: törli a `rules/splunk/*.spl`
+  fájlokat és az `outputs/results/<detect_id>/` könyvtárakat, amikhez már nincs szabály. A kettő
+  külön kulcsra megy — az `.spl` a *fájlnevet* tükrözi, a result könyvtár a *detect_id*-t —, ezért
+  egy fájl-átnevezés csak az elsőt árvítja el; ez tesztként is rögzítve van.
+  **Miért saját CI-step és saját commit:** a meglévő „Commit converted SPL outputs" step a
+  `has_spl` → `has_rules` láncon lóg, ami a `--diff-filter=AMRC`-ból jön. Egy *tisztán törlő* push
+  tehát nulla `rule_files`-t termel, minden job kimarad, és a takarítás sosem futna le — pont az az
+  esemény hozza létre az árvát, amit a pipeline többi része nem lát. A step ezért nincs
+  `has_rules`-ra kötve, és a Python-deps telepítése is meg van benne oldva külön (az `Install
+  Python deps` szintén `has_rules`-gated).
+  **Miért állapot-összevetés és nem diff:** a diff azt mondja meg, mit csinált egy commit; itt
+  viszont az a kérdés, mi az, ami *most* gazdátlan. Így önjavító (a korábban elmaradt takarítást is
+  behozza) és idempotens.
+  **Fail-safe:** üres `rules/sigma/` esetén a script hibával megáll ahelyett, hogy az egész
+  könyvtárat árvának minősítené — egy rossz útvonal vagy féloldalas checkout nem törölheti le a
+  teljes szabálykönyvtárat. Egy értelmezhetetlen szabály szintén megállítja: az egy *létező*
+  szabály, ami csak hibás, nem pedig egy törölt.
+  **A deprecated szabály artefaktjai megmaradnak** — a szabály a repóban van, a mérési előzménye a
+  sajátja; a deprecation azt változtatja meg, hogy a Splunkban ne fusson, nem azt, hogy a története
+  eltűnjön.
+  **Tesztelés:** 12 új teszt (összesen 65, mind zöld), köztük három a deploy-kihagyásra fake
+  Splunkkal (deprecated → *nulla* HTTP-hívás; stable → változatlanul deployol; a kihagyás nem
+  számít hibának), és a prune fail-safe ágai. Száraz futtatás a valós repón: nulla árva.
+  Kész súly: 38/86,5, projektált pontszám **7,6 / 10**.

@@ -11,7 +11,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-for _sub in ("scripts/verify", "scripts/docs", "scripts/convert", "scripts/state"):
+for _sub in ("scripts/verify", "scripts/docs", "scripts/convert", "scripts/state", "scripts/deploy"):
     _path = str(REPO_ROOT / _sub)
     if _path not in sys.path:
         sys.path.insert(0, _path)

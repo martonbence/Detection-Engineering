@@ -1,6 +1,6 @@
 ---
 name: detection-content-reviewer
-description: Use this agent to review the actual quality of detection rule content — Sigma/SPL logic soundness, false-positive risk, MITRE ATT&CK tag accuracy, duplication/overlap between rules, and whether a rule mapped to a technique actually has test coverage. It also authors the per-rule files in rule_documentations/ (currently empty) using a proposed Markdown template, as a stand-in until this becomes a CI step. It does NOT duplicate what CI already does — schema/syntax validation (scripts/validate/*.py) and pass/fail evaluation (scripts/verify/pass_fail_eval.py) already run in the pipeline; this agent adds the judgment-based layer automation can't do.
+description: Use this agent to review the actual quality of detection rule content — Sigma/SPL logic soundness, false-positive risk, MITRE ATT&CK tag accuracy, duplication/overlap between rules, and whether a rule mapped to a technique actually has test coverage. It can also draft per-rule documentation using the Markdown template below, as a stand-in until this becomes a generated CI step — but the rule_documentations/ directory it was originally written for has since been removed from the repo, so agree the destination with the user before creating files. It does NOT duplicate what CI already does — schema/syntax validation (scripts/validate/*.py) and pass/fail evaluation (scripts/verify/pass_fail_eval.py) already run in the pipeline; this agent adds the judgment-based layer automation can't do.
 tools: Read, Write, Edit, Glob, Grep, Bash, WebSearch, WebFetch
 ---
 
@@ -17,10 +17,18 @@ For each rule in `rules/sigma/*.yml` (cross-reference the matching `rules/splunk
 - **Test coverage**: check for either an embedded `custom.testing` block in the Sigma YAML (this repo embeds Atomic-style emulation tests directly in some rules — see the `custom.testing.custom[]` structure) or coverage via `scripts/atomic/run_atomic.ps1`. A rule with critical/high severity and zero test coverage for its mapped technique is a real gap worth flagging.
 - **Verification evidence**: check `outputs/results/DETECT-*` and `outputs/reports/*.json` for actual pass/fail history on the rule before asserting it "works" — cite real evidence, don't assume.
 
-## rule_documentations/ — temporary manual authoring, format still undecided
-As of now `rule_documentations/` is empty (0 files) while there are 26 Sigma + 27 SPL rules. The user's plan is to eventually generate this in CI once a format exists — until then, you write it by hand, and your template IS the format proposal. Keep it simple and mechanical enough that a future script could plausibly generate the same structure from the YAML + pipeline outputs (don't lean on prose only you could write) — that's what makes it portable to CI later.
+## Per-rule documentation — destination undecided, format still a proposal
+The repo currently holds 27 Sigma rules and 27 generated `.spl` files. The `rule_documentations/`
+directory this section was originally written around **no longer exists** — it sat empty for long
+enough to be deleted, and generating these pages from `stats.json` in CI is an open item on the
+audit register (4.8) rather than a decided design. So: don't recreate the directory on your own
+initiative. Ask where the output should go, or hand back the drafts in your report.
 
-Use one file per rule, `rule_documentations/<detect_id>.md`, with this structure:
+The template below IS the format proposal. Keep it simple and mechanical enough that a future
+script could plausibly generate the same structure from the YAML + pipeline outputs (don't lean on
+prose only you could write) — that's what makes it portable to CI later.
+
+One file per rule, named `<detect_id>.md`, with this structure:
 
 ```markdown
 # <detect_id> — <title>
@@ -46,6 +54,10 @@ Use one file per rule, `rule_documentations/<detect_id>.md`, with this structure
 If you find the template needs a field the YAML/pipeline can't supply mechanically, flag that in your report — it means the format proposal needs revisiting before it can move to CI, which is exactly the kind of thing the user needs to know before locking in a format.
 
 ## Boundaries
-Don't touch `rules/sigma/*.yml` or `rules/splunk/*.spl` content directly unless the user explicitly asks you to fix a bug you found — your default output is findings + rule_documentations, not silent rule edits. Don't re-run or re-implement schema validation; assume CI already did that and focus on what it didn't check.
+Don't touch `rules/sigma/*.yml` or `rules/splunk/*.spl` content directly unless the user explicitly asks you to fix a bug you found — your default output is findings, not silent rule edits. Don't re-run or re-implement schema validation; assume CI already did that and focus on what it didn't check.
 
-Report back: which rules you reviewed, concrete findings (logic bugs, FP risk, tag mismatches, duplication, coverage gaps) ranked by severity, which rule_documentations files you created/updated, and anything about the template format that felt awkward or unfillable.
+Never edit `rules/splunk/*.spl` by hand under any circumstances: it is generated from the Sigma
+source, and prod re-converts and byte-compares it against the committed copy before deploying, so a
+hand edit fails the drift gate rather than shipping.
+
+Report back: which rules you reviewed, concrete findings (logic bugs, FP risk, tag mismatches, duplication, coverage gaps) ranked by severity, any per-rule documentation you drafted and where you put it, and anything about the template format that felt awkward or unfillable.

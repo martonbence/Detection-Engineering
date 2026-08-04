@@ -14,11 +14,16 @@ import pytest
 
 from reconcile import (
     CI_MARKER,
+    RETIRED_MARKER,
     ReconcileError,
+    apply_changes,
+    delete_saved_search,
     fetch_actual,
     has_drift,
     load_desired,
+    main,
     reconcile,
+    retire_saved_search,
 )
 
 
@@ -138,6 +143,30 @@ def test_desired_state_reproduces_the_deploy_naming(tmp_path):
     assert "DETECT-2026-0001_LSASS-Dump-via-ProcDump" in desired
 
 
+def test_deprecated_rule_is_not_wanted_in_splunk(tmp_path):
+    """
+    The deploy skips deprecated rules, so keeping one in the desired state would
+    report it as forever "missing" and ask for a deployment that never comes.
+    Dropping it instead makes any object still live show up as a removal orphan,
+    which is what it is: running, and not supposed to be.
+    """
+    write_rule(tmp_path, "live.yml", "DETECT-2026-0001", "Alpha")
+    (tmp_path / "parked.yml").write_text(
+        "title: Beta\ndetect_id: DETECT-2026-0002\nstatus: deprecated\n", encoding="utf-8"
+    )
+
+    desired = load_desired(tmp_path)
+
+    assert list(desired) == ["DETECT-2026-0001_Alpha"]
+
+    report = reconcile(desired, {
+        "DETECT-2026-0001_Alpha": managed(),
+        "DETECT-2026-0002_Beta": managed(),
+    })
+    assert report["counts"]["missing"] == 0
+    assert [i["detect_id"] for i in report["orphan_removed"]] == ["DETECT-2026-0002"]
+
+
 def test_rule_without_detect_id_is_skipped_not_guessed(tmp_path, capsys):
     (tmp_path / "broken.yml").write_text("title: No Id Here\n", encoding="utf-8")
 
@@ -231,3 +260,186 @@ def test_report_is_json_serialisable():
     report = reconcile(desired, {"DETECT-2026-0099_Gone": managed()})
 
     assert json.loads(json.dumps(report))["counts"]["orphan_removed"] == 1
+
+
+# --- applying: the write path ----------------------------------------------
+
+
+class RecordingSession:
+    """Records writes instead of making them, and replays canned responses."""
+
+    def __init__(self, delete_status=200, post_status=200):
+        self.delete_status = delete_status
+        self.post_status = post_status
+        self.deleted = []
+        self.posted = []
+
+    def delete(self, url, timeout=None):
+        self.deleted.append(url)
+        return FakeResponse(self.delete_status, {}, "err")
+
+    def post(self, url, data=None, timeout=None):
+        self.posted.append({"url": url, "data": data})
+        return FakeResponse(self.post_status, {}, "err")
+
+
+def retired(description_extra=""):
+    """An object a previous --apply-removals already took out of service."""
+    return {
+        "description": f"{RETIRED_MARKER} 2026-08-01] {CI_MARKER}\n{description_extra}",
+        "managed": True,
+        "disabled": "1",
+    }
+
+
+def removal_report(actual):
+    desired = {"DETECT-2026-0001_Alpha": {"detect_id": "DETECT-2026-0001", "title": "Alpha", "path": "a.yml"}}
+    return reconcile(desired, actual)
+
+
+def test_apply_deletes_rename_orphans():
+    report = removal_report({
+        "DETECT-2026-0001_Alpha": managed(),
+        "DETECT-2026-0001_Old-Title": managed(),
+    })
+    session = RecordingSession()
+
+    result = apply_changes(session, "https://splunk:8089", "svc", "app", report, include_removals=False)
+
+    assert result["failures"] == 0
+    assert len(session.deleted) == 1
+    assert "DETECT-2026-0001_Old-Title" in session.deleted[0]
+    assert "/servicesNS/svc/app/saved/searches/" in session.deleted[0]
+
+
+def test_apply_will_not_delete_the_old_object_if_the_new_one_is_not_live():
+    """
+    The deploy failed, so the rule's new name was never created. Deleting the
+    old object here would leave a just-edited rule with no detection at all.
+    """
+    report = removal_report({"DETECT-2026-0001_Old-Title": managed()})
+    session = RecordingSession()
+
+    result = apply_changes(session, "https://splunk:8089", "svc", "app", report, include_removals=False)
+
+    assert report["counts"]["orphan_renamed"] == 1
+    assert report["counts"]["missing"] == 1
+    assert session.deleted == []
+    assert result["failures"] == 0
+
+
+def test_apply_leaves_removal_orphans_alone_without_the_second_flag():
+    """A rule vanishing from the repo is not always intentional."""
+    report = removal_report({
+        "DETECT-2026-0001_Alpha": managed(),
+        "DETECT-2026-0099_Gone": managed(),
+    })
+    session = RecordingSession()
+
+    apply_changes(session, "https://splunk:8089", "svc", "app", report, include_removals=False)
+
+    assert session.deleted == []
+    assert session.posted == []
+
+
+def test_apply_removals_disables_rather_than_deletes():
+    report = removal_report({
+        "DETECT-2026-0001_Alpha": managed(),
+        "DETECT-2026-0099_Gone": managed("Detects something"),
+    })
+    session = RecordingSession()
+
+    apply_changes(session, "https://splunk:8089", "svc", "app", report, include_removals=True)
+
+    # Reversible: no DELETE was issued for it.
+    assert session.deleted == []
+    assert len(session.posted) == 1
+    payload = session.posted[0]["data"]
+    assert payload["disabled"] == 1
+    assert payload["description"].startswith(RETIRED_MARKER)
+    # The CI marker has to survive, or the next run reads this as somebody's
+    # hand-built search and stops recognising it as ours.
+    assert CI_MARKER in payload["description"]
+    assert "Detects something" in payload["description"]
+
+
+def test_retiring_is_idempotent():
+    """Re-running must not stack a second marker onto an already-retired object."""
+    report = removal_report({
+        "DETECT-2026-0001_Alpha": managed(),
+        "DETECT-2026-0099_Gone": retired(),
+    })
+    session = RecordingSession()
+
+    apply_changes(session, "https://splunk:8089", "svc", "app", report, include_removals=True)
+
+    assert session.posted == []
+
+
+def test_already_retired_removal_is_not_drift():
+    """Otherwise the report stays red forever after the first retirement."""
+    report = removal_report({
+        "DETECT-2026-0001_Alpha": managed(),
+        "DETECT-2026-0099_Gone": retired(),
+    })
+
+    assert report["counts"]["orphan_removed"] == 1
+    assert not has_drift(report)
+
+
+def test_live_removal_orphan_is_still_drift():
+    report = removal_report({
+        "DETECT-2026-0001_Alpha": managed(),
+        "DETECT-2026-0099_Gone": managed(),
+    })
+
+    assert has_drift(report)
+
+
+def test_delete_treats_a_missing_object_as_success():
+    """A concurrent run or a manual cleanup got there first -- same end state."""
+    session = RecordingSession(delete_status=404)
+
+    ok, detail = delete_saved_search(session, "https://splunk:8089", "svc", "app", "X")
+
+    assert ok
+    assert "absent" in detail
+
+
+def test_delete_failure_is_counted():
+    report = removal_report({
+        "DETECT-2026-0001_Alpha": managed(),
+        "DETECT-2026-0001_Old": managed(),
+    })
+    session = RecordingSession(delete_status=500)
+
+    result = apply_changes(session, "https://splunk:8089", "svc", "app", report, include_removals=False)
+
+    assert result["failures"] == 1
+    assert result["actions"][0]["ok"] is False
+
+
+def test_retire_failure_is_reported():
+    session = RecordingSession(post_status=403)
+
+    ok, detail = retire_saved_search(session, "https://splunk:8089", "svc", "app", "X", "desc")
+
+    assert not ok
+    assert "403" in detail
+
+
+def test_unmanaged_objects_are_never_written_to():
+    """Not created by the pipeline, so not the pipeline's to disable or delete."""
+    report = reconcile({}, {"Analyst search": unmanaged()})
+    session = RecordingSession()
+
+    apply_changes(session, "https://splunk:8089", "svc", "app", report, include_removals=True)
+
+    assert session.deleted == []
+    assert session.posted == []
+
+
+def test_apply_removals_requires_apply():
+    """The dangerous half must not be reachable without the deliberate one."""
+    with pytest.raises(SystemExit):
+        main(["--apply-removals"])

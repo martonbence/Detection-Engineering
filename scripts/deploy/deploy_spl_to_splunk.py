@@ -243,6 +243,21 @@ def main(argv: list[str]) -> int:
         meta = extract_meta(f)
         search_name = saved_search_name(meta)
 
+        # Register item 1.7: the schema has always allowed `status: deprecated`,
+        # but nothing read it -- a rule parked as deprecated deployed and ran
+        # exactly like a stable one, which made the field decorative and left
+        # retirement with no expression anywhere in the pipeline.
+        #
+        # Skipping only stops it being (re)created or updated. An object already
+        # in Splunk stays until it is retired deliberately: reconcile.py sees a
+        # deprecated rule as no longer desired, reports it as a removal orphan,
+        # and `--apply-removals` disables it. Deleting from here would be the
+        # wrong place for it -- this script deploys one file at a time and has
+        # no view of the whole desired state.
+        if str(meta.get("status") or "").strip().lower() == "deprecated":
+            print(f"SKIP: {search_name} is deprecated -- not deployed (retire it with reconcile.py --apply-removals)")
+            continue
+
         try:
             search_query = read_spl_query(f)
         except Exception as e:

@@ -15,16 +15,36 @@ angles:
 This script answers the question those share: what is the difference between
 desired and actual state?
 
-READ-ONLY BY DESIGN. It issues GETs and nothing else -- there is deliberately
-no --apply. Making the deletions automatic is a separate decision with a
-separate blast radius, and it should be taken with this report already in hand,
-not at the same time as building the thing that produces it.
+Read-only unless asked otherwise. Plain `--check` (the default) issues GETs and
+nothing else; the write path is behind explicit flags, and the two kinds of
+orphan are treated differently on purpose:
+
+  --apply            deletes orphans left behind by a RENAME. Safe enough to
+                     run on every deploy: the detect_id is still in the repo, so
+                     the rule demonstrably lives on under its new name and this
+                     object is the abandoned shell of the old one.
+  --apply-removals   additionally RETIRES orphans whose rule is gone from the
+                     repo entirely -- disabled, not deleted, and marked in the
+                     description. Deliberately a second, separate opt-in: a rule
+                     disappearing from the repo is not always intentional, and
+                     silently stopping a detection is exactly the failure this
+                     whole area is about. Disabling is reversible; deleting the
+                     object would also throw away its Splunk-side scheduling and
+                     alert configuration.
+
+1.8 was closed on 2026-08-04 by deciding NOT to change the naming scheme: the
+object name stays human-readable (`detect_id + slug(title)`), because that is
+what an analyst sees in Splunk's search bar and alert lists. The consequence is
+that renames keep producing orphans forever, so cleaning the rename bucket is a
+standing mechanism rather than a one-off migration -- which is why --apply is
+built to run unattended and --apply-removals is not.
 """
 
 import argparse
 import json
 import os
 import sys
+from datetime import date
 from pathlib import Path
 from urllib.parse import quote
 
@@ -42,6 +62,12 @@ from lib.rule_naming import saved_search_name  # noqa: E402
 # the repo could only describe rules the repo still has -- and an orphan is
 # precisely a rule the repo no longer has.
 CI_MARKER = "Managed by CI/CD (Detection-Engineering repo)"
+
+# Written to the front of a retired object's description, and matched on the
+# prefix alone so the date can vary without breaking idempotency. Its job is to
+# make the state legible in the Splunk UI -- a disabled search with no
+# explanation invites someone to helpfully switch it back on.
+RETIRED_MARKER = "[RETIRED"
 
 
 class ReconcileError(RuntimeError):
@@ -86,6 +112,15 @@ def load_desired(rules_dir: Path) -> dict[str, dict]:
 
         detect_id = str(rule.get("detect_id") or "").strip()
         title = str(rule.get("title") or "").strip()
+
+        # A deprecated rule is still in the repo but is no longer wanted in
+        # Splunk -- the deploy skips it (deploy_spl_to_splunk.py), so leaving it
+        # in the desired state here would report it as permanently "missing" and
+        # ask for a deployment that will never happen. Dropping it instead makes
+        # any object that still exists show up as a removal orphan, which is the
+        # accurate description: it is live, and it should not be.
+        if str(rule.get("status") or "").strip().lower() == "deprecated":
+            continue
 
         if not detect_id:
             # Not this script's job to enforce -- the schema already requires
@@ -154,6 +189,22 @@ def fetch_actual(
     return actual
 
 
+def is_disabled(value: str) -> bool:
+    """
+    Splunk reports `disabled` as a JSON bool on some endpoints and as "0"/"1" on
+    others, and fetch_actual() str()s whatever arrives -- so this has to accept
+    both spellings rather than comparing against one of them.
+    """
+    return str(value).strip().lower() in ("1", "true")
+
+
+def is_retired(info: dict) -> bool:
+    """An object already taken out of service by a previous --apply-removals."""
+    return is_disabled(info.get("disabled", "")) and str(
+        info.get("description", "")
+    ).lstrip().startswith(RETIRED_MARKER)
+
+
 def reconcile(desired: dict[str, dict], actual: dict[str, dict]) -> dict:
     """
     Sort every name into exactly one bucket.
@@ -167,7 +218,8 @@ def reconcile(desired: dict[str, dict], actual: dict[str, dict]) -> dict:
     before anything is deleted, because a rule vanishing from the repo is not
     always intentional.
     """
-    desired_ids = {info["detect_id"] for info in desired.values()}
+    desired_by_id = {info["detect_id"]: name for name, info in desired.items()}
+    desired_ids = set(desired_by_id)
 
     in_sync, missing, renamed, removed, unmanaged = [], [], [], [], []
 
@@ -193,9 +245,31 @@ def reconcile(desired: dict[str, dict], actual: dict[str, dict]) -> dict:
         detect_id = name.split("_", 1)[0]
 
         if detect_id in desired_ids:
-            renamed.append({"name": name, "detect_id": detect_id})
+            # Whether the successor is actually live decides if this is safe to
+            # delete. "The rule lives on under its new name" is the entire
+            # justification for the automatic deletion, so it is checked rather
+            # than assumed: if the deploy that was meant to create the new
+            # object failed, deleting the old one would leave the rule with no
+            # saved search at all -- silently, and precisely for a rule someone
+            # just edited.
+            replacement = desired_by_id[detect_id]
+            renamed.append({
+                "name": name,
+                "detect_id": detect_id,
+                "replacement": replacement,
+                "replacement_live": replacement in actual,
+            })
         else:
-            removed.append({"name": name, "detect_id": detect_id})
+            # description travels with the item because retiring rewrites it
+            # (prefix, never replace -- dropping the CI marker would make the
+            # object unrecognisable to the next run and it would show up as
+            # somebody's hand-built search).
+            removed.append({
+                "name": name,
+                "detect_id": detect_id,
+                "description": info.get("description", ""),
+                "retired": is_retired(info),
+            })
 
     return {
         "in_sync": in_sync,
@@ -216,10 +290,121 @@ def reconcile(desired: dict[str, dict], actual: dict[str, dict]) -> dict:
 
 
 def has_drift(report: dict) -> bool:
+    """
+    Already-retired removals are not drift. They are the resolved state of a
+    removal: disabled, marked, and deliberately kept for reversibility. Counting
+    them would leave the report permanently red after the first --apply-removals
+    and train everyone to ignore it.
+    """
     counts = report["counts"]
-    return any(
-        counts[key] for key in ("missing", "orphan_renamed", "orphan_removed")
+    if counts["missing"] or counts["orphan_renamed"]:
+        return True
+    return any(not item["retired"] for item in report["orphan_removed"])
+
+
+def object_url(base_url: str, owner: str, app: str, name: str) -> str:
+    return (
+        f"{base_url}/servicesNS/{quote(owner, safe='')}/{quote(app, safe='')}"
+        f"/saved/searches/{quote(name, safe='')}?output_mode=json"
     )
+
+
+def delete_saved_search(
+    session: requests.Session, base_url: str, owner: str, app: str, name: str
+) -> tuple[bool, str]:
+    """Remove a rename orphan. Its replacement is already deployed and running."""
+    response = session.delete(object_url(base_url, owner, app, name), timeout=30)
+
+    if response.status_code in (200, 201):
+        return True, "deleted"
+    if response.status_code == 404:
+        # Someone got there first, by hand or in a concurrent run. The end state
+        # is the one we wanted, so this is not a failure.
+        return True, "already absent"
+    return False, f"HTTP {response.status_code}: {response.text[:200]}"
+
+
+def retire_saved_search(
+    session: requests.Session,
+    base_url: str,
+    owner: str,
+    app: str,
+    name: str,
+    description: str,
+) -> tuple[bool, str]:
+    """
+    Take a removal orphan out of service without destroying it: disable the
+    schedule and say why in the description.
+
+    Both fields go in one POST rather than using the /disable action endpoint
+    plus a second write -- a half-applied retirement (disabled but unexplained,
+    or explained but still firing) is worse than either end state.
+    """
+    marked = f"{RETIRED_MARKER} {date.today().isoformat()}] {description}".rstrip()
+
+    response = session.post(
+        object_url(base_url, owner, app, name),
+        data={"disabled": 1, "description": marked},
+        timeout=30,
+    )
+
+    if response.status_code in (200, 201):
+        return True, "disabled and marked"
+    return False, f"HTTP {response.status_code}: {response.text[:200]}"
+
+
+def apply_changes(
+    session: requests.Session,
+    base_url: str,
+    owner: str,
+    app: str,
+    report: dict,
+    include_removals: bool,
+) -> dict:
+    """
+    Act on the orphan buckets. Never touches `unmanaged` (not ours) or `missing`
+    (a deploy's job, not a cleanup's).
+    """
+    actions: list[dict] = []
+    failures = 0
+
+    print("\n=== Applying ===")
+
+    for item in report["orphan_renamed"]:
+        if not item["replacement_live"]:
+            print(
+                f"  SKIP delete {item['name']} -- its replacement "
+                f"{item['replacement']} is not in Splunk yet; deleting now would "
+                "leave the rule with no saved search at all."
+            )
+            continue
+
+        ok, detail = delete_saved_search(session, base_url, owner, app, item["name"])
+        actions.append({"action": "delete", "name": item["name"], "ok": ok, "detail": detail})
+        failures += 0 if ok else 1
+        print(f"  {'OK  ' if ok else 'FAIL'} delete {item['name']} -- {detail}")
+
+    if not report["orphan_renamed"]:
+        print("  No rename orphans to delete.")
+
+    if include_removals:
+        for item in report["orphan_removed"]:
+            if item["retired"]:
+                print(f"  SKIP retire {item['name']} -- already retired")
+                continue
+            ok, detail = retire_saved_search(
+                session, base_url, owner, app, item["name"], item["description"]
+            )
+            actions.append({"action": "retire", "name": item["name"], "ok": ok, "detail": detail})
+            failures += 0 if ok else 1
+            print(f"  {'OK  ' if ok else 'FAIL'} retire {item['name']} -- {detail}")
+    elif any(not item["retired"] for item in report["orphan_removed"]):
+        print(
+            "  Removal orphans left untouched (pass --apply-removals to disable them).\n"
+            "  A rule vanishing from the repo is not always intentional, so this one is manual."
+        )
+
+    return {"actions": actions, "failures": failures}
 
 
 def print_report(report: dict, app: str) -> None:
@@ -243,10 +428,16 @@ def print_report(report: dict, app: str) -> None:
             print(f"  - {item['name']}")
             print(f"      {item['detect_id']} still exists in the repo under a different title,")
             print("      so this object is the abandoned shell of its previous name.")
+            if not item["replacement_live"]:
+                print(f"      NOTE: its replacement {item['replacement']} is not in Splunk yet,")
+                print("      so --apply will leave this one in place for now.")
 
     if report["orphan_removed"]:
         print(f"\nORPHANED BY REMOVAL -- audit item 1.7 ({counts['orphan_removed']}):")
         for item in report["orphan_removed"]:
+            if item["retired"]:
+                print(f"  - {item['name']}  [already retired -- disabled, kept for reversibility]")
+                continue
             print(f"  - {item['name']}")
             print(f"      {item['detect_id']} is not in the repo at all. It is still live in Splunk")
             print("      and will keep running and alerting until someone removes it.")
@@ -285,7 +476,27 @@ def main(argv: list[str] | None = None) -> int:
             "to CI reports a pre-existing condition without blocking the pipeline on it."
         ),
     )
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help=(
+            "Delete saved searches orphaned by a rename. Safe to run unattended: the "
+            "rule is alive under its new name, this is the shell of the old one."
+        ),
+    )
+    parser.add_argument(
+        "--apply-removals",
+        action="store_true",
+        help=(
+            "Also retire orphans whose rule left the repo entirely -- disabled and marked, "
+            "not deleted. Requires --apply. Separate on purpose: a rule disappearing from "
+            "the repo is not always intentional."
+        ),
+    )
     args = parser.parse_args(argv)
+
+    if args.apply_removals and not args.apply:
+        parser.error("--apply-removals requires --apply")
 
     try:
         base_url = env_required("SPLUNK_BASE_URL").rstrip("/")
@@ -315,6 +526,17 @@ def main(argv: list[str] | None = None) -> int:
     report = reconcile(desired, actual)
     print_report(report, app)
 
+    applied = None
+    if args.apply:
+        try:
+            applied = apply_changes(
+                session, base_url, owner, app, report, args.apply_removals
+            )
+        except requests.RequestException as exc:
+            print(f"ERROR: could not reach Splunk while applying: {exc}", file=sys.stderr)
+            return 2
+        report["applied"] = applied
+
     if args.json_path:
         out_path = Path(args.json_path)
         out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -322,6 +544,13 @@ def main(argv: list[str] | None = None) -> int:
             json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
         print(f"Report written to {out_path}")
+
+    # A write that did not land is an error in its own right, and outranks the
+    # drift gate: the report describes the state *before* the apply, so staying
+    # quiet here would hide a failed cleanup behind a green --check.
+    if applied and applied["failures"]:
+        print(f"ERROR: {applied['failures']} action(s) failed.", file=sys.stderr)
+        return 2
 
     if has_drift(report) and args.fail_on_drift:
         return 1

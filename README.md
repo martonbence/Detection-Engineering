@@ -145,10 +145,11 @@ Note: `ci_prod_workflow.yml`'s single job (`deploy_to_prod`) also runs on `self-
 |---|---|
 | [`rules/sigma/`](rules/sigma/) | Source-of-truth Sigma detection rules (`DETECT-*.yml`) |
 | [`rules/splunk/`](rules/splunk/) | Deployable SPL — pure query text (`*.spl`), no embedded metadata, for every rule regardless of authoring style |
-| [`scripts/validate/`](scripts/validate/), [`convert/`](scripts/convert/), [`deploy/`](scripts/deploy/), [`atomic/`](scripts/atomic/), [`verify/`](scripts/verify/), [`docs/`](scripts/docs/), [`lib/`](scripts/lib/) | The pipeline itself, one directory per stage, plus a small shared library |
+| [`scripts/validate/`](scripts/validate/), [`convert/`](scripts/convert/), [`deploy/`](scripts/deploy/), [`atomic/`](scripts/atomic/), [`verify/`](scripts/verify/), [`docs/`](scripts/docs/), [`state/`](scripts/state/), [`lib/`](scripts/lib/) | The pipeline itself, one directory per stage, plus state reconciliation and a small shared library. Every file is described in [`docs/architecture/scripts_reference.md`](docs/architecture/scripts_reference.md) |
+| [`tests/`](tests/) | pytest suite over the Python scripts, with Splunk faked — run by `ci_code_checks.yml` |
 | [`docs/schemas/`](docs/schemas/) | JSON Schema that gates every rule (`sigma_schema.json`) |
 | [`docs/index.html`](docs/index.html) | The rule browser / MITRE Navigator published to GitHub Pages |
-| [`docs/architecture/`](docs/architecture/) | Deeper technical references with Mermaid diagrams: pipeline overview, data flow, threat model |
+| [`docs/architecture/`](docs/architecture/) | Deeper technical references: pipeline overview, data flow and threat model with Mermaid diagrams, plus a per-file [scripts reference](docs/architecture/scripts_reference.md) |
 | [`outputs/reports/`](outputs/reports/) | Generated aggregate JSON (`stats.json`, `mitre_technique_map.json`, `navigator_layer.json`) |
 | [`outputs/results/`](outputs/results/) | Per-rule `DETECT-*` pass/fail verification results |
 | [`.github/workflows/`](.github/workflows/) | The CI/CD workflows described above (`ci_dev_workflow.yml`, `ci_prod_workflow.yml`) |
