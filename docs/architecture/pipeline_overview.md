@@ -62,7 +62,12 @@ The exact GitHub Actions mechanism connecting an upstream-skip several hops back
 
 Normally only the rules the push changed are processed. The run widens to *every* rule in the repo when the push touches one of five files that can change what a rule converts to or what it is called in Splunk — `sigma_schema.json`, `validate_sigma.py`, `validate_sigma.ps1`, `sigma_to_spl.py`, `rule_naming.py` — because each of those invalidates every `.spl` already converted. That is an explicit list, not a directory glob: widening the run means re-deploying and re-attacking all 27 rules on the lab VMs, so it should happen for files that genuinely change rule output and no others. See the `mode` logic in the `Determine changed Sigma files` step.
 
-A manual run (`workflow_dispatch`, Actions tab) widens the same way and takes no inputs — it rebuilds, redeploys and re-measures the whole rule set. That is the way to catch up after rules were merged while the lab was switched off; see `LAB_ONLINE` below.
+A manual run (`workflow_dispatch`, Actions tab) picks its own scope, because it has no before/after to diff:
+
+- **`unverified`** (the default) — only rules whose verification is missing or stale. Each committed `outputs/results/<detect_id>/result.json` records the `rule_version` it was measured against, and a rule's version is its commit count, so "needs a run" is answerable without a diff. This is the normal way to catch up after rules were merged while the lab was switched off; see `LAB_ONLINE` below. Selecting nothing is a legitimate outcome and the run says so.
+- **`all`** — every rule. Still the right choice after a converter or schema change, because those invalidate previously converted SPL *without* changing any rule's version, so the staleness check cannot see them.
+
+The selection is computed by `scripts/state/select_unverified.py`, which biases towards selecting: if the current version cannot be established at all — no git history, a shallow clone, an unreadable rule — the rule is included rather than skipped. A needless re-run costs lab time; a wrong skip leaves a rule everyone believes was verified and was not.
 
 **3. Convert — `scripts/convert/sigma_to_spl.py`.** Compiles each validated rule into `rules/splunk/<name>.spl` (pure query text, via `pysigma` with the Splunk backend, or emitted verbatim for `custom.splunk.raw_query` rules) plus a `<name>.meta.json` sidecar carrying the metadata that deploy/verify/atomic-runner need (`detect_id`, title, severity, MITRE tags, testing config), all sourced from the Sigma YAML. Only the `.spl` file is committed to git (back to `dev`, by the `Commit converted SPL outputs to dev` step); `.meta.json` is regenerated fresh on every run and never committed.
 
@@ -360,7 +365,7 @@ Only the literal string `false` disables. An unset variable means the lab is up,
 
 Two things to know about the switch:
 
-- A rule merged while it is `false` reaches the repo but **never reaches Splunk**, because a normal push only deploys what that push changed. The way back is a manual run (`workflow_dispatch`) once the lab is up, which rebuilds and re-measures everything.
+- A rule merged while it is `false` reaches the repo but **never reaches Splunk**, because a normal push only deploys what that push changed. The way back is a manual run (`workflow_dispatch`) once the lab is up; its default `unverified` scope picks up exactly those rules, however many accumulated.
 - Skipped jobs are not failures, so a run with the lab off looks green in the jobs list. The `Warn that the lab is switched off` step in `prepare_validate_convert` therefore emits a `::warning` and a step-summary block spelling out what did not happen.
 
 **`ci_prod_workflow.yml` honours the same variable**, because `deploy_to_prod` runs on that same `de-lab` machine and inherits the problem exactly. Skipping is strictly better than queueing there too: both mean prod is not updated, but one of them says so within a minute instead of looking busy for a day, and does not block the run that would have deployed. Prod's recovery path already existed for a different reason — its `workflow_dispatch` (item 2.5) deploys from `git ls-files` rather than from a diff, so one manual run applies the full current library on `main`, including whatever was merged while the switch was off.
