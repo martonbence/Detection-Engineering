@@ -1129,13 +1129,26 @@ jobs:
           EVAL_EXIT=$?
           echo "exit_code=$EVAL_EXIT" >> "$GITHUB_OUTPUT"
 
+      # Register item 2.16. Each hits.json carries the raw Splunk events behind a
+      # verdict -- command lines, usernames, hostnames, paths from the lab hosts
+      # -- and artifacts on a public repository are downloadable by anyone.
+      #
+      # Kept rather than filtered, because the raw event *is* the debugging
+      # value: when a count looks wrong, the command line is the thing you need
+      # to read. What was wrong was the window. These exist to explain one run,
+      # and nobody debugs a three-month-old run, so 90 days was retention with
+      # no use case attached. 14 covers a long weekend plus a holiday.
+      #
+      # The exposure that actually matters here is not the synthetic attack
+      # traffic but the lab's naming -- hosts, domain, service accounts -- which
+      # has reconnaissance value to the extent the lab mirrors production.
       - name: Upload matched events artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: matched-events-sigma-${{ github.run_id }}
           path: ${{ env.matched_events_dir }}
-          retention-days: 90
+          retention-days: 14
           if-no-files-found: ignore
 
       # Nothing else in this pipeline ever looks at Splunk and asks "is what is

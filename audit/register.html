@@ -1160,12 +1160,14 @@
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-16" aria-labelledby="t-2-16">
+      <input class="row-check" type="checkbox" id="i-2-16" aria-labelledby="t-2-16" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.16</span><span class="row-title" id="t-2-16">Nyers Splunk-eventek 90 napig publikusan letölthető artifactban</span><span class="tag new">új</span></div>
+        <div class="row-head"><span class="id">2.16</span><span class="row-title" id="t-2-16">Nyers Splunk-eventek 90 napig publikusan letölthető artifactban</span><span class="tag done">kész</span></div>
         <p class="row-body">A <code>matched-events-*</code> artifact nyers eventeket tárol — command line-okkal, felhasználónevekkel, hostnevekkel. Publikus repóban az artifactok bárki számára letölthetők.</p>
         <p class="row-fix"><span class="fix-label">javítás</span>A lab adataira ez valószínűleg vállalható, de tudatos döntés legyen, ne mellékhatás: retention 7 napra, vagy mezőszűrés az eventeken.</p>
-        <div class="refs"><span class="ref">ci_dev_workflow.yml:691-698</span></div>
+        <p class="row-note"><span class="note-label">2026-08-05</span><b>Kész: retention 90 → 14 nap.</b> A két javasolt út közül a rövidebb megőrzés, <b>nem</b> a mezőszűrés — a nyers esemény <em>maga</em> a hibakeresési érték: ha egy találatszám gyanús, épp a parancssort akarod elolvasni. Nem a tartalom volt rossz, hanem az ablak. Ezek egyetlen futás magyarázatára készülnek, és három hónapos futást senki nem debugol, tehát a 90 nap olyan megőrzés volt, amihez nem tartozott használati eset; a 14 átfog egy hosszú hétvégét és egy szabadságot is.</p>
+        <p class="row-note"><span class="note-label">2026-08-05</span><b>Ami valóban ki volt téve,</b> az nem a szintetikus támadás-forgalom, hanem a <b>labor névtana</b> — gépnevek, domain, szolgáltatásfiókok —, aminek felderítési értéke van annyiban, amennyiben a labor a valós elnevezéseket tükrözi. A döntés tudatos volt, nem mellékhatás, ahogy a tétel kérte. A szomszédos artifactok érintetlenek: a pipeline bundle és a progress markerek 1 nap, a reconcile-riport 30, a prod deploy-riport (2.4) 90 — az utóbbi szándékosan, mert nyers Splunk-adatot nem tartalmaz, csak a repóból is levezethető tényeket.</p>
+        <div class="refs"><span class="ref">retention-days: 14</span></div>
       </div>
     </div>
 
