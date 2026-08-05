@@ -322,7 +322,7 @@ For rules with `testing.type: emulation` (8 of the current 27), `emulation_verif
 | Job | Runner | Key steps |
 |---|---|---|
 | `announce_lab_offline` | `ubuntu-latest` | Runs only when `LAB_ONLINE` is `false`. Say that prod was not updated — exists because prod's only real job is on the runner being skipped, and an entirely skipped run is indistinguishable from a healthy one in the runs list. |
-| `deploy_to_prod` | `self-hosted, linux, de-lab` | Checkout, Setup Python, Install deps (pinned, from `.github/requirements.txt`), **Regenerate SPL + meta sidecars from Sigma source**, **Fail if regenerated SPL drifted from what was reviewed** (`git diff --exit-code -- rules/splunk`), **Deploy all SPL files to prod Splunk** |
+| `deploy_to_prod` | `self-hosted, linux, de-lab` | Checkout, Setup Python, Install deps (pinned, from `.github/requirements.txt`), **Regenerate SPL + meta sidecars from Sigma source**, **Fail if regenerated SPL drifted from what was reviewed** (`git diff --exit-code -- rules/splunk`), **Deploy all SPL files to prod Splunk** (`--report`, which also renders the per-rule table into the step summary), Upload prod deploy report (`always()`, 90 days) |
 
 ### `ci_code_checks.yml`
 

@@ -82,6 +82,14 @@ reproducibility claim mean anything.
 
 `main` never attacks anything or verifies anything; it trusts what `dev` proved.
 
+It leaves a record of what it did. The deploy runs with `--report`, which writes the per-rule
+outcome — created / updated / skipped (deprecated) / failed, with the rule version — to
+`outputs/deploy/prod_deploy_report.json`, uploaded as an artifact for 90 days, and renders the same
+table into the step summary. The upload runs under `always()`, because a *failed* deploy is when the
+record matters most: it names which rules reached production before the run stopped, which the exit
+code alone cannot say. The report carries repo-side facts only — no Splunk URL, app name or account
+— since the artifact is downloadable from a public repository.
+
 It also honours the `LAB_ONLINE` repository variable, because its deploy job runs on the same
 `de-lab` machine dev uses and would otherwise queue against an offline runner rather than fail. A
 second job, `announce_lab_offline` on `ubuntu-latest`, runs under the exactly complementary
@@ -341,6 +349,7 @@ in this repo: the real one is a full pipeline run with live attacks.
 | [`tests/test_reconcile.py`](../../tests/test_reconcile.py) | Bucket classification, and the write path: that a rename orphan is not deleted when its replacement is not live, that removals are disabled rather than deleted, that the CI marker survives, that unmanaged objects are never written to |
 | [`tests/test_prune_orphans.py`](../../tests/test_prune_orphans.py) | Which artefacts count as orphaned, the fail-safes, idempotency |
 | [`tests/test_deploy_deprecated.py`](../../tests/test_deploy_deprecated.py) | That a deprecated rule generates *zero* HTTP calls, and that everything else still deploys |
+| [`tests/test_deploy_report.py`](../../tests/test_deploy_report.py) | What the deploy writes down: every outcome including skips and failures, and that no connection detail reaches the artifact |
 | [`tests/test_sigma_to_spl.py`](../../tests/test_sigma_to_spl.py) | Index-prefix injection, including that a query opening with a generating command is left alone rather than turned into invalid SPL |
 | [`tests/test_check_test_routing.py`](../../tests/test_check_test_routing.py) | That the serviced matrix is derived from the workflow rather than hardcoded, and — against the real repo — that every committed rule still has a job that can run its test |
 | [`tests/test_select_unverified.py`](../../tests/test_select_unverified.py) | Which rules a manual run picks up, including that an unknown version selects rather than skips, and — in a real temp git repo — that editing a rule makes it selectable again |

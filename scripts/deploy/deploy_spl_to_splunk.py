@@ -1,3 +1,5 @@
+import argparse
+import datetime
 import os
 import sys
 import json
@@ -198,7 +200,100 @@ def set_acl(
     return False, f"ACL update failed HTTP {r.status_code}: {r.text[:300]}"
 
 
+# Register item 2.4. A prod run used to leave nothing behind: the deploy printed
+# per-rule lines into a job log that ages out, and afterwards nothing said which
+# rules had gone to production, which were created versus updated, or at what
+# version. The log is where you look when you already suspect something; this is
+# what tells you what happened without having to.
+#
+# What deliberately never goes in here: the Splunk URL, the app name, and the
+# account. Those are secrets or secret-adjacent, and this report is uploaded as
+# an artifact on a public repository. Everything recorded below is derivable
+# from the repo itself -- it says what *we* did, not where we did it.
+def write_report(path: Path, records: list[dict]) -> None:
+    totals: dict[str, int] = {}
+    for r in records:
+        totals[r["outcome"]] = totals.get(r["outcome"], 0) + 1
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "deployed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "totals": totals,
+                "rules": records,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+OUTCOME_LABELS = {
+    "created": "created",
+    "updated": "updated",
+    "skipped_deprecated": "skipped (deprecated)",
+    "failed": "FAILED",
+}
+
+
+def write_step_summary(records: list[dict]) -> None:
+    """Put the same facts where a human sees them without downloading anything."""
+    summary_path = os.getenv("GITHUB_STEP_SUMMARY")
+    if not summary_path or not records:
+        return
+
+    totals: dict[str, int] = {}
+    for r in records:
+        totals[r["outcome"]] = totals.get(r["outcome"], 0) + 1
+
+    counts = ", ".join(f"{OUTCOME_LABELS.get(k, k)}: {v}" for k, v in sorted(totals.items()))
+
+    lines = [
+        "### Splunk deploy",
+        "",
+        f"{len(records)} rule(s) — {counts}",
+        "",
+        "| Rule | Saved search | Version | Outcome |",
+        "| --- | --- | --- | --- |",
+    ]
+    for r in records:
+        detail = f" — {r['detail']}" if r.get("detail") else ""
+        lines.append(
+            f"| `{r['detect_id'] or '-'}` | `{r['search_name'] or '-'}` | "
+            f"`{r['rule_version'] or '-'}` | {OUTCOME_LABELS.get(r['outcome'], r['outcome'])}{detail} |"
+        )
+    lines.append("")
+
+    try:
+        with open(summary_path, "a", encoding="utf-8") as fh:
+            fh.write("\n".join(lines) + "\n")
+    except OSError as ex:
+        print(f"WARNING: could not write the step summary: {ex}", file=sys.stderr)
+
+
 def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(description="Deploy .spl files to Splunk as saved searches.")
+    parser.add_argument("--report", help="Write a JSON record of what was deployed to this path")
+    parser.add_argument("files", nargs="*", help="The .spl files to deploy")
+    args = parser.parse_args(argv)
+
+    # Every rule's outcome, in the order they were attempted.
+    records: list[dict] = []
+
+    def record(outcome: str, path: Path, meta: dict | None = None, name: str = "", detail: str = "") -> None:
+        records.append(
+            {
+                "detect_id": str((meta or {}).get("detect_id") or ""),
+                "search_name": name,
+                "file": str(path).replace("\\", "/"),
+                "rule_version": str((meta or {}).get("rule_version") or ""),
+                "outcome": outcome,
+                "detail": detail,
+            }
+        )
+
     base_url = env_required("SPLUNK_BASE_URL").rstrip("/")
     username = env_required("SPLUNK_USERNAME")
     password = env_required("SPLUNK_PASSWORD")
@@ -217,9 +312,13 @@ def main(argv: list[str]) -> int:
     perms_read = (os.getenv("SPLUNK_PERMS_READ") or "*").strip()
     perms_write = (os.getenv("SPLUNK_PERMS_WRITE") or "admin").strip()
 
-    files = [Path(a) for a in argv]
+    files = [Path(a) for a in args.files]
     if not files:
         print("No input files.")
+        # Still write the report, so a run that deployed nothing is
+        # distinguishable from a run whose report failed to appear.
+        if args.report:
+            write_report(Path(args.report), records)
         return 0
 
     s = requests.Session()
@@ -237,6 +336,7 @@ def main(argv: list[str]) -> int:
     for f in files:
         if not f.exists():
             print(f"ERROR: file not found: {f}", file=sys.stderr)
+            record("failed", f, detail="file not found")
             failed += 1
             continue
 
@@ -256,17 +356,20 @@ def main(argv: list[str]) -> int:
         # no view of the whole desired state.
         if str(meta.get("status") or "").strip().lower() == "deprecated":
             print(f"SKIP: {search_name} is deprecated -- not deployed (retire it with reconcile.py --apply-removals)")
+            record("skipped_deprecated", f, meta, search_name)
             continue
 
         try:
             search_query = read_spl_query(f)
         except Exception as e:
             print(f"ERROR: failed reading SPL file {f}: {e}", file=sys.stderr)
+            record("failed", f, meta, search_name, f"unreadable SPL: {e}")
             failed += 1
             continue
 
         if not search_query:
             print(f"ERROR: empty SPL query after preprocessing: {f}", file=sys.stderr)
+            record("failed", f, meta, search_name, "empty SPL query")
             failed += 1
             continue
 
@@ -314,12 +417,14 @@ def main(argv: list[str]) -> int:
             ok, msg = set_acl(s, base_url, owner, app, search_name, sharing, perms_read, perms_write)
             if not ok:
                 print(f"WARNING: {search_name}: {msg}", file=sys.stderr)
+            record("created", f, meta, search_name, "" if ok else f"ACL warning: {msg}")
             continue
 
         # If auth/permission error -> fail fast (do not mask with update attempt)
         if r.status_code in (401, 403):
             print(f"ERROR: auth/permission error creating {search_name} (HTTP {r.status_code})", file=sys.stderr)
             print(f"Response (first 800 chars): {r.text[:800]}", file=sys.stderr)
+            record("failed", f, meta, search_name, f"auth/permission error (HTTP {r.status_code})")
             failed += 1
             continue
 
@@ -344,17 +449,24 @@ def main(argv: list[str]) -> int:
                 ok, msg = set_acl(s, base_url, owner, app, search_name, sharing, perms_read, perms_write)
                 if not ok:
                     print(f"WARNING: {search_name}: {msg}", file=sys.stderr)
+                record("updated", f, meta, search_name, "" if ok else f"ACL warning: {msg}")
                 continue
 
             print(f"ERROR: failed updating {search_name}. Update={r2.status_code}", file=sys.stderr)
             print(f"Update response (first 800 chars): {r2.text[:800]}", file=sys.stderr)
+            record("failed", f, meta, search_name, f"update failed (HTTP {r2.status_code})")
             failed += 1
             continue
 
         # Other create failures -> report and fail
         print(f"ERROR: failed creating {search_name}. Create={r.status_code}", file=sys.stderr)
         print(f"Create response (first 800 chars): {r.text[:800]}", file=sys.stderr)
+        record("failed", f, meta, search_name, f"create failed (HTTP {r.status_code})")
         failed += 1
+
+    if args.report:
+        write_report(Path(args.report), records)
+    write_step_summary(records)
 
     return 2 if failed else 0
 
