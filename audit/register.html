@@ -1030,12 +1030,14 @@
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-3" aria-labelledby="t-2-3">
+      <input class="row-check" type="checkbox" id="i-2-3" aria-labelledby="t-2-3" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.3</span><span class="row-title" id="t-2-3">A várakozási idő konfigurálhatónak látszik, de nem az</span></div>
+        <div class="row-head"><span class="id">2.3</span><span class="row-title" id="t-2-3">A várakozási idő konfigurálhatónak látszik, de nem az</span><span class="tag done">kész</span></div>
         <p class="row-body"><code>WAIT=${SPLUNK_VERIFY_WAIT_SECONDS:-60}</code> — ez a változó soha nincs beállítva egyetlen <code>env:</code> blokkban sem, tehát mindig fix 60s sleep.</p>
         <p class="row-fix"><span class="fix-label">javítás</span>Cseréld pollra (15s-onként, max 3 perc, amíg megjön az első hit) — általában gyorsabb <em>és</em> kevésbé flaky.</p>
-        <div class="refs"><span class="ref">ci_dev_workflow.yml:636</span></div>
+        <p class="row-note"><span class="note-label">2026-08-05</span><b>Kész.</b> Új <code>scripts/verify/wait_for_indexing.py</code> a <code>sleep 60</code> helyett. A fix várakozás <b>mindkét irányban rossz volt:</b> elvitt egy teljes percet akkor is, ha az indexer nyolc másodperc alatt kész lett, és <b>csendben feladta</b> hatvannál, ha kilencven kellett volna — nulla találat, és olyan verdikt, ami szerint a detekció bukott, holott csak senki nem várt eleget. Ugyanaz a hamis-verdikt osztály, mint az 1.4 és az 1.5.</p>
+        <p class="row-note"><span class="note-label">2026-08-05</span><b>Amit kérdez, az nem az, hogy „land-elt-e a támadás".</b> Azt maga a verifikáció méri, és attól egy jogosan nulla eseményt hozó szabály végigvárná a teljes timeoutot. Azt kérdezi, hogy <em>utolérte-e az indexer a teszt-ablakot</em> — arra bármelyik esemény válasz a vizsgált indexekben. Az indexeket a bundle meta sidecarjaiból veszi, tehát egy csendes, ebben a körben nem használt index nem elégítheti ki a várakozást. 10 másodpercenként kérdez, legfeljebb 180-ig. <b>Tanácsadó, nem kapu:</b> timeoutnál <code>::warning</code> és megy tovább — a blokkolás egy lassú indexerből pipeline-hibát csinálna, holott az őszinte kimenetel az, hogy a verifikáció jelentse, amit talál. A hibázó próba (HTTP-hiba, nem-JSON válasz, hálózati hiba) szándékosan megkülönböztethetetlen a „még nincs indexelve"-től: mindkettő azt jelenti, hogy várni kell — a fail-open itt egy Splunk-hikkanásnál teljesen kihagyná a várakozást. A lépés a window-számítás mögé került, mert a próbának tudnia kell, mikor kezdődött a teszt-fázis. 13 új teszt.</p>
+        <div class="refs"><span class="ref">wait_for_indexing.py</span><span class="ref">13 teszt</span></div>
       </div>
     </div>
 
@@ -1147,12 +1149,13 @@
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-15" aria-labelledby="t-2-15">
+      <input class="row-check" type="checkbox" id="i-2-15" aria-labelledby="t-2-15" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.15</span><span class="row-title" id="t-2-15">A <code>fields:</code> metaadat halott</span><span class="tag new">új</span></div>
+        <div class="row-head"><span class="id">2.15</span><span class="row-title" id="t-2-15">A <code>fields:</code> metaadat halott</span><span class="tag done">nem áll fenn</span></div>
         <p class="row-body">A séma kötelezővé teszi (<code>minItems: 1</code>), mind a 27 szabály kitölti — a converter viszont explicit kidobja a metából, és a generált SPL soha nem használja.</p>
         <p class="row-fix"><span class="fix-label">javítás</span>Vagy legyen belőle <code>| table _time ComputerName ...</code> a queryben (ez adná a SOC-nak a rendes oszlopokat), vagy vedd ki a sémából. Ma csak látszat-metaadat.</p>
-        <div class="refs"><span class="ref">sigma_to_spl.py:255</span><span class="ref">sigma_schema.json fields</span></div>
+        <p class="row-note"><span class="note-label">2026-08-05</span><b>A tétel premisszája téves volt — teendő nincs.</b> A <code>fields:</code> <b>él</b>: a pySigma Splunk backendje olvassa, és <code>| table ...</code> klauzulát generál belőle. A <code>sigma_to_spl.py:278</code> csak a <em>meta sidecarból</em> hagyja ki — ahol tényleg nem kell, mert a query már hordozza —, nem a query-generálásból. A „converter kidobja" ezt a sort olvasta félre. Ellenőrizve mind a 27 szabályra: mindegyik deklarál <code>fields:</code>-t, és mind a 26 meglévő <code>.spl</code> <code>| table</code> klauzulája <b>pontosan, sorrendhelyesen</b> egyezik vele; a 27. a <code>DETECT-2026-0008</code>, aminek a fájlját a végpontvédelem ismét karanténba tette. A SOC tehát már ma is megkapja a rendes oszlopokat. Bence szúrta ki, a <code>DETECT-2026-0012</code> kimenetéből.</p>
+        <div class="refs"><span class="ref">pySigma backend</span><span class="ref">27/27 ellenőrizve</span></div>
       </div>
     </div>
 
