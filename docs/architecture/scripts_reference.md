@@ -30,6 +30,7 @@ The manual entry points are called out explicitly where they exist.
 | [`scripts/deploy/deploy_spl_to_splunk.py`](../../scripts/deploy/deploy_spl_to_splunk.py) | Creates/updates the Splunk saved searches | dev + prod workflows |
 | [`scripts/atomic/run_atomic.ps1`](../../scripts/atomic/run_atomic.ps1) | Executes the attack that is supposed to trigger each rule | dev workflow, 3 jobs |
 | [`scripts/verify/check_saved_search_hits.py`](../../scripts/verify/check_saved_search_hits.py) | Asks Splunk how many events each deployed search matched | dev workflow |
+| [`scripts/verify/wait_for_indexing.py`](../../scripts/verify/wait_for_indexing.py) | Polls Splunk until the test window's events are indexed, instead of sleeping a fixed minute | dev workflow |
 | [`scripts/verify/pass_fail_eval.py`](../../scripts/verify/pass_fail_eval.py) | Turns those counts into a per-rule PASS / FAIL / NOT_VERIFIED verdict | dev workflow |
 | [`scripts/docs/generate_stats.py`](../../scripts/docs/generate_stats.py) | Aggregates everything into `stats.json`, the README block and the rule browser | dev workflow + code checks |
 | **Shared and state** | | |
@@ -350,6 +351,7 @@ in this repo: the real one is a full pipeline run with live attacks.
 | [`tests/test_prune_orphans.py`](../../tests/test_prune_orphans.py) | Which artefacts count as orphaned, the fail-safes, idempotency |
 | [`tests/test_deploy_deprecated.py`](../../tests/test_deploy_deprecated.py) | That a deprecated rule generates *zero* HTTP calls, and that everything else still deploys |
 | [`tests/test_deploy_report.py`](../../tests/test_deploy_report.py) | What the deploy writes down: every outcome including skips and failures, and that no connection detail reaches the artifact |
+| [`tests/test_wait_for_indexing.py`](../../tests/test_wait_for_indexing.py) | When the wait stops: on the first indexed event, at the timeout, and that a failed probe means "keep waiting" rather than "go ahead" |
 | [`tests/test_sigma_to_spl.py`](../../tests/test_sigma_to_spl.py) | Index-prefix injection, including that a query opening with a generating command is left alone rather than turned into invalid SPL |
 | [`tests/test_check_test_routing.py`](../../tests/test_check_test_routing.py) | That the serviced matrix is derived from the workflow rather than hardcoded, and — against the real repo — that every committed rule still has a job that can run its test |
 | [`tests/test_select_unverified.py`](../../tests/test_select_unverified.py) | Which rules a manual run picks up, including that an unknown version selects rather than skips, and — in a real temp git repo — that editing a rule makes it selectable again |

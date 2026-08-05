@@ -971,13 +971,6 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install requests pyyaml
 
-      - name: Wait for Splunk indexing
-        shell: bash
-        run: |
-          WAIT=${SPLUNK_VERIFY_WAIT_SECONDS:-60}
-          echo "Waiting ${WAIT}s for Splunk to index atomic test events..."
-          sleep "$WAIT"
-
       - name: Compute verification time window
         id: window
         shell: bash
@@ -1036,6 +1029,50 @@ jobs:
           echo "Test phase began at epoch ${starts[*]} (earliest, minus ${MARGIN}s margin: $earliest)"
           echo "Searching Splunk from $earliest to now."
           echo "earliest=$earliest" >> "$GITHUB_OUTPUT"
+
+      # Register item 2.3. This used to be `sleep ${SPLUNK_VERIFY_WAIT_SECONDS:-60}`
+      # -- a variable nothing ever set, so it was always exactly 60 seconds and
+      # the name only suggested it was tunable.
+      #
+      # A fixed sleep is wrong in both directions: it costs a full minute even
+      # when the indexer was ready in eight seconds, and it silently gives up
+      # after sixty when the indexer needed ninety, producing zero hits and a
+      # verdict that reads as "the detection failed" when what happened is that
+      # nobody waited long enough. That is the same class of false verdict as
+      # registers 1.4 and 1.5.
+      #
+      # Deliberately placed *after* the window step, which it did not used to
+      # be: the probe needs to know when the test phase began to ask anything
+      # meaningful. The window step touches no lab resource, so moving the wait
+      # below it changes nothing else.
+      - name: Wait for Splunk indexing
+        shell: bash
+        env:
+          SPLUNK_BASE_URL: ${{ secrets.SPLUNK_BASE_URL }}
+          SPLUNK_USERNAME: ${{ secrets.SPLUNK_USERNAME }}
+          SPLUNK_PASSWORD: ${{ secrets.SPLUNK_PASSWORD }}
+          SPLUNK_APP: ${{ secrets.SPLUNK_APP }}
+          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS || 'false' }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t spl_files <<'EOF'
+          ${{ needs.prepare_validate_convert.outputs.spl_files }}
+          EOF
+
+          bundle_files=()
+          for spl_file in "${spl_files[@]}"; do
+            [[ -z "$spl_file" ]] && continue
+            bundle_files+=("pipeline_bundle/$spl_file")
+          done
+
+          # The sidecars name the indexes to watch, so a quiet index nobody in
+          # this batch writes to cannot satisfy the wait.
+          python scripts/verify/wait_for_indexing.py \
+            --since "${{ steps.window.outputs.earliest }}" \
+            --timeout 180 \
+            --interval 10 \
+            "${bundle_files[@]}"
 
       - name: Query Splunk for matched events
         id: fetch
