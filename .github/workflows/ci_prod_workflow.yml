@@ -166,6 +166,7 @@ jobs:
           echo "No drift: regenerated SPL is byte-identical to the reviewed, committed files."
 
       - name: Deploy all SPL files to prod Splunk
+        id: deploy
         shell: bash
         env:
           SPLUNK_BASE_URL: ${{ secrets.SPLUNK_BASE_URL }}
@@ -186,4 +187,26 @@ jobs:
             exit 0
           fi
 
-          python scripts/deploy/deploy_spl_to_splunk.py "${spl_files[@]}"
+          # Register item 2.4. --report writes the per-rule outcome (created /
+          # updated / skipped / failed, with the rule version) to a file that
+          # outlives this log, and the script renders the same table into the
+          # step summary. Both carry repo-side facts only -- no URL, app name or
+          # account -- because the artifact is downloadable from a public repo.
+          python scripts/deploy/deploy_spl_to_splunk.py \
+            --report outputs/deploy/prod_deploy_report.json \
+            "${spl_files[@]}"
+
+      # always(): a failed deploy is exactly when the record matters most -- it
+      # names which rules made it to production before the run stopped, which
+      # the exit code alone cannot say.
+      - name: Upload prod deploy report
+        if: always() && steps.deploy.outcome != 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-deploy-report-${{ github.run_id }}
+          path: outputs/deploy/prod_deploy_report.json
+          if-no-files-found: warn
+          # This is the audit trail, so it is kept: unlike the dev pipeline's
+          # matched-events artifacts it holds no raw Splunk data, only facts
+          # already public in the repo.
+          retention-days: 90
