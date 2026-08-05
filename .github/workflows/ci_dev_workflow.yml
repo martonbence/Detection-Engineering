@@ -36,11 +36,30 @@ on:
   #
   # `vars.LAB_ONLINE: false` skips the lab-bound jobs so a push still validates,
   # converts and commits its SPL instead of queueing. This is the way back:
-  # a manual run once the lab is up. No inputs -- an empty `github.event.before`
-  # already puts the `changes` step in `mode=all`, so a dispatch re-converts,
-  # re-deploys and re-measures the whole rule set, which is exactly what is
-  # needed after rules were merged while the lab was down.
+  # a manual run once the lab is up.
   workflow_dispatch:
+    inputs:
+      # Register item 2.21. A push knows what changed; a manual run has no
+      # before..after to work from, so it used to widen to every rule -- which
+      # meant re-attacking all 27 on the lab VMs to catch up two.
+      #
+      # The baseline that does exist is in the committed results: each
+      # result.json records the rule_version it was measured against, and a
+      # rule's version is its commit count. "Needs a run" is therefore
+      # answerable without a diff -- no result, or a result belonging to an
+      # older version of itself.
+      scope:
+        description: "Which rules to process"
+        type: choice
+        default: unverified
+        options:
+          # Only rules whose verification is missing or stale. The normal way
+          # to catch up after rules were merged while the lab was down.
+          - unverified
+          # Every rule. Keep using this after a converter or schema change:
+          # those invalidate previously converted SPL without changing any
+          # rule's version, so the staleness check cannot see them.
+          - all
 
 concurrency:
   group: detection-pipeline-${{ github.ref }}
@@ -90,6 +109,12 @@ jobs:
       - name: Determine changed Sigma files
         id: changes
         shell: bash
+        env:
+          # Passed as an environment variable rather than interpolated into the
+          # script body: the value reaches bash as data instead of becoming
+          # shell source, which is both the safer pattern in general and what
+          # keeps the default (`unverified`) visible in the script itself.
+          DISPATCH_SCOPE: ${{ inputs.scope }}
         run: |
           set -euo pipefail
 
@@ -109,6 +134,14 @@ jobs:
 
           if [[ -z "${BASE_SHA}" || "${BASE_SHA}" =~ ^0+$ ]]; then
             mode="all"
+          fi
+
+          # Register item 2.21. A manual run says what it wants explicitly,
+          # rather than falling into `all` as a side effect of workflow_dispatch
+          # having no `github.event.before`.
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            mode="${DISPATCH_SCOPE:-unverified}"
+            echo "Manual run, scope: $mode"
           fi
 
           mapfile -t files < <(git diff --name-only --diff-filter=AMRC "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true)
@@ -156,7 +189,19 @@ jobs:
           fi
 
           rule_files=()
-          if [[ "$mode" == "all" ]]; then
+          if [[ "$mode" == "unverified" ]]; then
+            # This step runs before "Install Python deps" -- that one is gated on
+            # has_rules, which is what is being computed here. Same conditional
+            # install the prune step uses, from the same pinned file.
+            python -c "import yaml" 2>/dev/null || python -m pip install -r .github/requirements.txt
+
+            # Diagnostics go to stderr, so stdout is the selection and nothing
+            # else. Selecting nothing is a legitimate answer: it means every
+            # rule is already verified at its current version.
+            while IFS= read -r rf; do
+              [[ -n "$rf" ]] && rule_files+=("$rf")
+            done < <(python scripts/state/select_unverified.py)
+          elif [[ "$mode" == "all" ]]; then
             while IFS= read -r rf; do
               [[ -n "$rf" ]] && rule_files+=("$rf")
             done < <(git ls-files "rules/sigma/*.yml" "rules/sigma/**/*.yml" "rules/sigma/*.yaml" "rules/sigma/**/*.yaml" || true)
@@ -169,7 +214,19 @@ jobs:
           fi
 
           if [[ "${#rule_files[@]}" -eq 0 ]]; then
-            echo "No Sigma rule files to process."
+            if [[ "$mode" == "unverified" ]]; then
+              # Not "nothing to do because nothing changed" -- this one is a
+              # positive result, and worth saying so rather than looking like an
+              # empty run somebody has to interpret.
+              echo "Every rule is already verified at its current version. Nothing to run."
+              {
+                echo "### Nothing to verify"
+                echo ""
+                echo "Every rule already has a verification result matching its current version. Choose the \`all\` scope to force a full rebuild anyway."
+              } >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "No Sigma rule files to process."
+            fi
             {
               echo "mode=none"
               echo "has_rules=false"

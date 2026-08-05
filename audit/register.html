@@ -1003,7 +1003,7 @@
 
   <!-- ============ 2. KISEBB ============ -->
 
-  <h2><span class="swatch sw-minor"></span>2 · Kisebb hibák és optimalizálás<span class="h2-count">20 tétel</span></h2>
+  <h2><span class="swatch sw-minor"></span>2 · Kisebb hibák és optimalizálás<span class="h2-count">21 tétel</span></h2>
 
   <div class="register" data-sev="minor">
 
@@ -1204,6 +1204,17 @@
         <p class="row-note"><span class="note-label">2026-08-04</span><b>A visszaút is kellett hozzá.</b> A kapcsoló önmagában lyukat hagyott: a labor lekapcsolt állapotában mergelt szabály <code>.spl</code>-je bekerül a repóba, de a Splunkba soha — és semmi nem viszi ki később, mert a dev workflow csak azt deployolja, ami az adott pushban változott, és a proddal ellentétben (2.5) nem volt <code>workflow_dispatch</code>-e. Most már van. Input nélkül: a dispatchnél üres a <code>github.event.before</code>, amitől a <code>changes</code> lépés <code>mode=all</code>-ba kerül — egy kézi indítás tehát az egész szabálykészletet újraépíti, újradeployolja és újraméri, ami pontosan a „hozd vissza, ami kimaradt" művelet. A kihagyásról <code>::warning</code> és step summary szól, mert a kihagyott job nem hiba, tehát a jobok listájában egy zöld futástól semmiben nem különbözne.</p>
         <p class="row-note"><span class="note-label">2026-08-04</span><b>A prod is ugyanezt a változót nézi.</b> A <code>deploy_to_prod</code> ugyanazon a <code>de-lab</code> gépen fut, tehát pontosan ugyanazt örökölte — és a kihagyás szigorúan jobb, mint a sorban állás: mindkettő azt jelenti, hogy prod nem frissült, de az egyik egy percen belül meg is mondja, a másik meg egy napig foglaltnak látszik és blokkolja azt a futást, ami deployolt volna. A visszaút ott már készen volt, más okból: a 2.5-ös <code>workflow_dispatch</code> <code>git ls-files</code>-ból deployol, nem diffből, tehát egy kézi futás a <code>main</code> teljes aktuális könyvtárát kiteszi — beleértve azt is, ami a kikapcsolt kapcsoló alatt mergelődött. Mivel prodnak egyetlen valódi jobja van, és épp az marad ki, mellé került egy <code>announce_lab_offline</code> job <code>ubuntu-latest</code>-en, <b>pontosan komplementer feltétellel</b>: nélküle nem maradna semmi, ami jelentse, hogy prod nem frissült, és a teljesen kihagyott futás a futáslistában megkülönböztethetetlen lenne egy egészségestől. <b>Egy buktató:</b> a változó <em>repository</em> szintű kell legyen, nem environment — a job-szintű <code>if:</code> azelőtt értékelődik ki, hogy az <code>environment:</code> feloldódna, tehát egy environment-scope-os változót nem látna, és a kapu csendben nem működne.</p>
         <div class="refs"><span class="ref">vars.LAB_ONLINE</span><span class="ref">workflow_dispatch</span><span class="ref">dev + prod</span></div>
+      </div>
+    </div>
+
+    <div class="row sev-minor" data-sev="minor" data-weight="1">
+      <input class="row-check" type="checkbox" id="i-2-21" aria-labelledby="t-2-21" checked>
+      <div class="row-main">
+        <div class="row-head"><span class="id">2.21</span><span class="row-title" id="t-2-21">A kézi indítás mindig az összes szabályt futtatja</span><span class="tag done">kész</span></div>
+        <p class="row-body">A 2.20-ban bevezetett <code>workflow_dispatch</code> <em>mellékhatásból</em> került <code>mode=all</code>-ba: a dispatchnél üres a <code>github.event.before</code>. Két utólag behozandó szabály miatt is mind a 27-et újrakonvertálta, újradeployolta és <b>élőben újratámadta</b> a labor VM-jein.</p>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Kész.</b> A <code>scope</code> input: <code>unverified</code> (alapértelmezett) és <code>all</code>. A push tudja, mi változott, a kézi indítás nem — <b>de a viszonyítási alap megvan a repóban:</b> minden <code>result.json</code> rögzíti, melyik <code>rule_version</code>-nel mértek, a szabály verziója pedig a commitszáma. A „kell-e futtatni" tehát diff nélkül is megválaszolható: nincs eredménye, vagy egy korábbi verziójához tartozik. Ugyanaz a drift, amit a rule browser már ma is mutat — csak eddig nem lehetett vele <em>indítani</em>. Új <code>scripts/state/select_unverified.py</code>, 17 teszt.</p>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>A válogatás felé hibázik.</b> Ha a verzió egyáltalán nem állapítható meg — nincs git history, shallow clone, olvashatatlan szabály —, a szabály <em>bekerül</em>. Egy fölösleges újrafuttatás labor-idő; egy téves kihagyás viszont olyan szabály, amiről mindenki azt hiszi, ellenőrizve van, és nincs. A deprecated szabályok kimaradnak (nincsenek deployolva, tehát nincs mit mérni rajtuk), a FAIL viszont ellenőrzöttnek számít az adott verzión: ez munkát válogat, nem verdikteket bírál felül. <b>Az <code>all</code> megmarad</b>, és converter- vagy sémaváltozás után továbbra is az a helyes: az úgy érvényteleníti a korábban konvertált SPL-t, hogy közben egyetlen szabály verziója sem változik — azt a staleness-vizsgálat elvből nem látja. Ha semmi nem szorul mérésre, a futás ezt ki is mondja, ahelyett hogy értelmezendő üres futásnak látszana.</p>
+        <div class="refs"><span class="ref">select_unverified.py</span><span class="ref">scope input</span><span class="ref">17 teszt</span></div>
       </div>
     </div>
 

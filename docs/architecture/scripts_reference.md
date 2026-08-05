@@ -36,6 +36,7 @@ The manual entry points are called out explicitly where they exist.
 | [`scripts/lib/rule_naming.py`](../../scripts/lib/rule_naming.py) | The one function deciding a rule's Splunk object name | deploy, verify, reconcile |
 | [`scripts/state/reconcile.py`](../../scripts/state/reconcile.py) | Compares the repo against live Splunk, and cleans up what no longer belongs | dev workflow (+ manual for removals) |
 | [`scripts/state/prune_orphans.py`](../../scripts/state/prune_orphans.py) | Deletes repo-side artefacts of rules that no longer exist | dev workflow |
+| [`scripts/state/select_unverified.py`](../../scripts/state/select_unverified.py) | Picks the rules whose verification is missing or stale, for a manual run | dev workflow (`workflow_dispatch`) |
 | **Tests** | | |
 | [`tests/`](../../tests/) | pytest suite over the Python scripts, with Splunk faked | `ci_code_checks.yml` |
 
@@ -302,6 +303,28 @@ and its measurement history is still its own.
 
 `--apply` to actually delete; without it, it just names what would go.
 
+### `scripts/state/select_unverified.py`
+
+Answers "which rules still need a lab run?" for a manual `workflow_dispatch`, which has no
+before/after to diff.
+
+The baseline it uses already exists in the repo: each committed
+`outputs/results/<detect_id>/result.json` records the `rule_version` it was measured against, and a
+rule's version is its commit count (`git log --follow` on the Sigma source, the same scheme
+`sigma_to_spl.py` and `generate_stats.py` use). A rule therefore needs a run when it has no result
+at all, or when its result belongs to an older version of itself — the same "drift" the rule browser
+already displays, made into something you can *start* a run from.
+
+Deprecated rules are skipped, because they are not deployed and measuring them would measure nothing.
+A FAIL still counts as verified at that version: this selects work, it does not re-litigate verdicts.
+
+**Biases towards selecting.** If the current version cannot be established — no git history, a
+shallow clone, an unreadable rule — the rule is included. A needless re-run costs lab time; a wrong
+skip leaves a rule everyone believes was verified and was not.
+
+stdout carries the selected rule paths and nothing else, so the workflow reads it straight into an
+array; everything explanatory goes to stderr. `--json` writes the full per-rule reasoning.
+
 ---
 
 ## Tests
@@ -320,6 +343,7 @@ in this repo: the real one is a full pipeline run with live attacks.
 | [`tests/test_deploy_deprecated.py`](../../tests/test_deploy_deprecated.py) | That a deprecated rule generates *zero* HTTP calls, and that everything else still deploys |
 | [`tests/test_sigma_to_spl.py`](../../tests/test_sigma_to_spl.py) | Index-prefix injection, including that a query opening with a generating command is left alone rather than turned into invalid SPL |
 | [`tests/test_check_test_routing.py`](../../tests/test_check_test_routing.py) | That the serviced matrix is derived from the workflow rather than hardcoded, and — against the real repo — that every committed rule still has a job that can run its test |
+| [`tests/test_select_unverified.py`](../../tests/test_select_unverified.py) | Which rules a manual run picks up, including that an unknown version selects rather than skips, and — in a real temp git repo — that editing a rule makes it selectable again |
 
 ---
 
