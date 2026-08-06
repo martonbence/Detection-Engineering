@@ -19,7 +19,7 @@ import json
 import re
 import subprocess
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import yaml
@@ -309,7 +309,7 @@ def fetch_mitre_techniques(
     ref_at = disk_at  # only trust disk cache timestamp, not the count-only stats.json timestamp
     if cached_count and cached_map and ref_at:
         try:
-            age = datetime.now(timezone.utc) - datetime.fromisoformat(ref_at)
+            age = datetime.now(UTC) - datetime.fromisoformat(ref_at)
             if age < timedelta(days=MITRE_CACHE_DAYS):
                 return cached_count, cached_map, False
         except Exception:
@@ -358,7 +358,7 @@ def fetch_mitre_techniques(
 
         technique_map = sorted(main_techs.values(), key=lambda x: x["id"])
         count = len(main_techs)
-        now_iso = datetime.now(timezone.utc).isoformat()
+        now_iso = datetime.now(UTC).isoformat()
 
         try:
             MITRE_MAP_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -414,9 +414,9 @@ def _verdict_age_days(iso: str) -> int | None:
     except ValueError:
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    then = parsed.astimezone(timezone.utc).date()
-    return (datetime.now(timezone.utc).date() - then).days
+        parsed = parsed.replace(tzinfo=UTC)
+    then = parsed.astimezone(UTC).date()
+    return (datetime.now(UTC).date() - then).days
 
 
 def build_technique_coverage(rules_detail: list, repo: str) -> dict:
@@ -706,7 +706,7 @@ def compute_rule_version(file_path: str) -> str:
     if not file_path:
         return ""
     raw = _git(["log", "--follow", "--format=%H", "--", file_path])
-    count = len([l for l in raw.splitlines() if l.strip()])
+    count = len([line for line in raw.splitlines() if line.strip()])
     if count <= 0:
         return ""
     return f"1.{max(0, count - 1)}"
@@ -835,7 +835,7 @@ def update_trend_history(stats: dict) -> tuple[list[dict], list[dict]]:
     from git history first if a cache file doesn't exist yet), writes the
     caches back to disk, and returns (coverage_points, growth_points) for
     rendering into the Dashboards charts."""
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now_iso = datetime.now(UTC).isoformat()
     today = now_iso[:10]
     current_sha = _git(["rev-parse", "HEAD"]).strip()
 
@@ -1078,7 +1078,7 @@ def generate_stats() -> dict:
 
     mitre_total, technique_map, was_fetched = fetch_mitre_techniques(cached_total, cached_at)
     mitre_pct = round(covered_count / mitre_total * 100, 1) if mitre_total > 0 else 0.0
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now_iso = datetime.now(UTC).isoformat()
 
     result = {
         "generated_at": now_iso,
@@ -6033,8 +6033,7 @@ def render_html_summary(stats: dict, repo: str) -> str:
         f"({pass_rate:.0f}% pass rate across the {verified_current} of {total} rules "
         f"verified against their current version) and {mitre_covered} techniques covered."
     ).replace('"', "&quot;")
-    html = html.replace("@@META_DESC@@", meta_desc)
-    return html
+    return html.replace("@@META_DESC@@", meta_desc)
 def update_html_summary(content: str) -> None:
     out_path = REPO_ROOT / "docs" / "index.html"
     out_path.parent.mkdir(parents=True, exist_ok=True)

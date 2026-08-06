@@ -1,13 +1,13 @@
 # scripts/convert/sigma_to_spl.py
 import argparse
+import datetime
+import json
 import os
 import re
 import subprocess
-import datetime
-import json
-from zoneinfo import ZoneInfo
 import sys
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import yaml
 
@@ -233,7 +233,7 @@ def _git_commit_count_for_path(rule_path: Path) -> int:
             capture_output=True,
             text=True,
         )
-        lines = [l for l in res.stdout.splitlines() if l.strip()]
+        lines = [line for line in res.stdout.splitlines() if line.strip()]
         return len(lines)
     except Exception:
         return 0

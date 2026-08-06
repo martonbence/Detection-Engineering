@@ -34,12 +34,12 @@ Exit code:
   1  One or more rules FAIL or NOT_VERIFIED
 """
 
-import re
-import sys
+import argparse
 import json
 import os
-import argparse
-from datetime import datetime, timezone
+import re
+import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 PASS = "PASS"
@@ -214,7 +214,7 @@ def main(argv: list[str]) -> int:
 
     progress_dir: Path | None = Path(args.progress_dir) if args.progress_dir else None
 
-    run_ts = datetime.now(timezone.utc).isoformat()
+    run_ts = datetime.now(UTC).isoformat()
 
     summaries: list[dict] = []
     seen_detect_ids: set[str] = set()

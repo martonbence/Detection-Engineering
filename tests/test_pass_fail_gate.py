@@ -16,7 +16,6 @@ pure `evaluate()` function.
 import json
 
 import pytest
-
 from pass_fail_eval import FAIL, NOT_VERIFIED, PASS, main
 
 

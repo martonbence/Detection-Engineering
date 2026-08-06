@@ -9,7 +9,6 @@ milliseconds.
 """
 
 import pytest
-
 from check_saved_search_hits import ERR_RULE, ERR_UNMEASURED, dispatch_saved_search
 
 
@@ -83,7 +82,7 @@ def test_search_that_never_finishes_is_unmeasured_not_zero_events():
 def test_finalizing_does_not_end_the_poll_loop():
     """FINALIZING still has an incomplete result set. Reading it there returns
     an undercount, which can push a working rule below the pass threshold."""
-    events, error, kind = dispatch(FakeSession(["FINALIZING"], {"results": [{"a": 1}]}))
+    events, _error, kind = dispatch(FakeSession(["FINALIZING"], {"results": [{"a": 1}]}))
     assert events == []
     assert kind == ERR_UNMEASURED
 

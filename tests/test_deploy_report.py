@@ -9,9 +9,8 @@ Splunk is faked throughout; what is asserted is what gets written down.
 
 import json
 
-import pytest
-
 import deploy_spl_to_splunk as deploy
+import pytest
 
 
 class FakeResponse:

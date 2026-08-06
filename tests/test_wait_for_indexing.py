@@ -12,7 +12,6 @@ Splunk and the clock are both faked; what is asserted is when it stops waiting.
 import json
 
 import pytest
-
 import wait_for_indexing as wait
 from wait_for_indexing import build_probe_search, indexes_from_meta, main, parse_count
 
@@ -140,7 +139,7 @@ def test_it_keeps_checking_until_events_appear(splunk):
 
 
 def test_it_gives_up_after_the_timeout_and_says_so(splunk, capsys):
-    session, _ = splunk([FakeResponse(0)])
+    splunk([FakeResponse(0)])
 
     assert main(["--since", "100", "--interval", "10", "--timeout", "30"]) == 0
 

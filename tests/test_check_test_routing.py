@@ -9,7 +9,6 @@ import json
 
 import pytest
 import yaml
-
 from check_test_routing import check_rule, derive_matrix, main
 
 # The three combinations the dev workflow actually services today.
@@ -292,3 +291,89 @@ def test_the_schema_allows_combinations_the_workflow_does_not_service(runner):
 
     assert runner in allowed
     assert ("emulation", runner) not in MATRIX
+
+# --- job flags for the workflow (item 2.10) ----------------------------------
+
+
+def test_job_flags_report_which_jobs_have_work(tmp_path, capsys):
+    """Replaces 54 `python3 -c` processes with one lookup in the matrix."""
+    wf = _workflow_file(tmp_path)
+    r = write_rule(tmp_path)
+
+    assert main(["--workflow", str(wf), "--job-flags", str(r)]) == 0
+
+    out = capsys.readouterr().out
+    assert "has_atomic_tests=true" in out
+
+
+def test_a_job_with_no_rules_in_this_batch_is_false(tmp_path, capsys):
+    wf = _workflow_file(tmp_path)  # services atomic/windows-victim only
+    r = write_rule(tmp_path)
+
+    main(["--workflow", str(wf), "--job-flags", str(r)])
+
+    out = capsys.readouterr().out
+    assert "has_atomic_dc_tests=false" in out
+    assert "has_emulation_tests=false" in out
+
+
+def test_a_disabled_rule_starts_no_job(tmp_path, capsys):
+    wf = _workflow_file(tmp_path)
+    r = write_rule(tmp_path, enabled=False)
+
+    main(["--workflow", str(wf), "--job-flags", str(r)])
+
+    assert "has_atomic_tests=false" in capsys.readouterr().out
+
+
+def test_an_unrouted_rule_starts_no_job(tmp_path, capsys):
+    """Stricter than the bash it replaces, and deliberately so.
+
+    A rule asking for an unserviced runner used to set has_atomic_tests and
+    start the victim job, which then skipped it -- a job spun up for work that
+    does not exist.
+    """
+    wf = _workflow_file(tmp_path)
+    r = write_rule(tmp_path, runner="linux-victim")
+
+    main(["--workflow", str(wf), "--job-flags", str(r)])
+
+    assert "has_atomic_tests=false" in capsys.readouterr().out
+
+
+def test_flag_mode_does_not_repeat_the_routing_warnings(tmp_path, capsys):
+    """The dedicated routing step already reported these, over more rules."""
+    wf = _workflow_file(tmp_path)
+    r = write_rule(tmp_path, runner="linux-victim")
+
+    main(["--workflow", str(wf), "--job-flags", str(r)])
+
+    assert "::warning" not in capsys.readouterr().out
+
+
+def test_the_flags_are_written_to_github_output(tmp_path, monkeypatch):
+    wf = _workflow_file(tmp_path)
+    r = write_rule(tmp_path)
+    out_file = tmp_path / "gh_output"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(out_file))
+
+    main(["--workflow", str(wf), "--job-flags", str(r)])
+
+    written = out_file.read_text(encoding="utf-8").splitlines()
+    assert "has_atomic_tests=true" in written
+    assert len(written) == 3
+
+
+def test_job_flags_maps_the_real_workflows_jobs():
+    """The job->output names are the workflow's own; a rename must be noticed."""
+    import yaml as _yaml
+    from check_test_routing import JOB_OUTPUT_FLAGS
+
+    with open(".github/workflows/ci_dev_workflow.yml", encoding="utf-8") as fh:
+        workflow = _yaml.safe_load(fh)
+
+    jobs = workflow["jobs"]
+    outputs = jobs["prepare_validate_convert"]["outputs"]
+    for job_name, flag in JOB_OUTPUT_FLAGS.items():
+        assert job_name in jobs
+        assert flag in outputs
