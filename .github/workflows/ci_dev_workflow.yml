@@ -683,7 +683,26 @@ jobs:
           # (deploy_spl_to_splunk.py exit 1, wait_for_indexing.py and
           # reconcile.py exit 2, check_saved_search_hits.py exit 1).
           SPLUNK_APP: ${{ vars.SPLUNK_APP }}
-          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS || 'false' }}
+          # Register item 2.14, and the reference copy of this line -- the three
+          # other uses below and the one in ci_prod_workflow.yml must stay
+          # identical in form.
+          #
+          # The `|| 'false'` fallback that used to close this line is gone. It
+          # did not mean "no preference": it translated a *missing* secret into
+          # a positive instruction to skip certificate verification, one layer
+          # above the code that had already decided the safe answer. All four
+          # consumers call env_bool("SPLUNK_VERIFY_TLS", default=True), so an
+          # unset value already meant verify; the workflow overrode that safe
+          # default with its opposite, and did so silently.
+          #
+          # Now an unset secret renders empty, env_bool falls through to
+          # default=True, and the connection either verifies or fails loudly.
+          # That is the intended trade: a run that dies on an untrusted
+          # certificate is a fixable, visible problem, while a run that quietly
+          # stops checking is a problem nobody sees. Turning verification off
+          # for a self-signed lab cert stays possible -- it just has to be said
+          # out loud, by setting the secret to `false`.
+          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS }}
           SPLUNK_SHARING: app
           SPLUNK_PERMS_READ: "*"
           SPLUNK_PERMS_WRITE: admin,ci_deploy_savedsearches
@@ -1136,7 +1155,9 @@ jobs:
           # Register item 2.18: environment-scoped variable, not a secret.
           # See the deploy_to_splunk step above for why.
           SPLUNK_APP: ${{ vars.SPLUNK_APP }}
-          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS || 'false' }}
+          # Register item 2.14: no `|| 'false'` fallback -- an unset secret must
+          # not read as "skip verification". See deploy_to_splunk above for why.
+          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS }}
         run: |
           set -euo pipefail
 
@@ -1168,7 +1189,9 @@ jobs:
           # Register item 2.18: environment-scoped variable, not a secret.
           # See the deploy_to_splunk step above for why.
           SPLUNK_APP: ${{ vars.SPLUNK_APP }}
-          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS || 'false' }}
+          # Register item 2.14: no `|| 'false'` fallback -- an unset secret must
+          # not read as "skip verification". See deploy_to_splunk above for why.
+          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS }}
         run: |
           set -euo pipefail
 
@@ -1269,7 +1292,9 @@ jobs:
           # Register item 2.18: environment-scoped variable, not a secret.
           # See the deploy_to_splunk step above for why.
           SPLUNK_APP: ${{ vars.SPLUNK_APP }}
-          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS || 'false' }}
+          # Register item 2.14: no `|| 'false'` fallback -- an unset secret must
+          # not read as "skip verification". See deploy_to_splunk above for why.
+          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS }}
         run: |
           set -uo pipefail
 

@@ -183,7 +183,17 @@ jobs:
           # job-level `if:`, which is evaluated before that and would see
           # nothing (the trap register item 2.20 hit with LAB_ONLINE).
           SPLUNK_APP: ${{ vars.SPLUNK_APP }}
-          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS || 'false' }}
+          # Register item 2.14. The `|| 'false'` fallback is gone: it turned a
+          # *missing* secret into a positive instruction to skip certificate
+          # verification, overriding -- silently -- the default=True that
+          # env_bool had already chosen in every consumer. Unset now renders
+          # empty, env_bool falls through to verify, and the connection either
+          # checks the certificate or fails visibly. It matters more here than
+          # in dev: this step is the one that writes to the production app, and
+          # it authenticates with the same credentials over the same link.
+          # Skipping verification stays available, but has to be stated by
+          # setting the secret to `false`.
+          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS }}
           SPLUNK_SHARING: app
           SPLUNK_PERMS_READ: "*"
           SPLUNK_PERMS_WRITE: admin,ci_deploy_savedsearches

@@ -231,6 +231,15 @@ def main(argv: list[str]) -> int:
     # rather than reading a separate SPLUNK_OWNER secret.
     owner = username
     verify_tls = env_bool("SPLUNK_VERIFY_TLS", default=True)
+    # Register item 2.14 -- see deploy_spl_to_splunk.py's main() for why
+    # this is a print rather than a silent assignment.
+    if verify_tls:
+        print("TLS certificate verification: on.")
+    else:
+        print(
+            "::warning title=TLS verification disabled::SPLUNK_VERIFY_TLS is set to a "
+            "false value, so Splunk server certificates are NOT verified for this run."
+        )
 
     output_dir = Path(args.output_dir)
 

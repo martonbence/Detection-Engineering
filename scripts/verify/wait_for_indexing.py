@@ -141,6 +141,15 @@ def main(argv: list[str] | None = None) -> int:
     password = env_required("SPLUNK_PASSWORD")
     app = env_required("SPLUNK_APP")
     verify_tls = env_bool("SPLUNK_VERIFY_TLS", default=True)
+    # Register item 2.14 -- see deploy_spl_to_splunk.py's main() for why
+    # this is a print rather than a silent assignment.
+    if verify_tls:
+        print("TLS certificate verification: on.")
+    else:
+        print(
+            "::warning title=TLS verification disabled::SPLUNK_VERIFY_TLS is set to a "
+            "false value, so Splunk server certificates are NOT verified for this run."
+        )
 
     indexes = indexes_from_meta(args.spl_files)
     search = build_probe_search(indexes, str(args.since))
