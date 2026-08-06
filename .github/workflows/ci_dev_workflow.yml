@@ -8,7 +8,16 @@ on:
       - "rules/sigma/**/*.yaml"
       - "docs/schemas/sigma_schema.json"
       - "scripts/validate/**"
-      - "scripts/convert/sigma_to_spl.py"
+      # A glob, not the single file it used to name. Register item 3.7 split
+      # the converter's backend choice out into backend_config.py + a config
+      # file, and a list that names one module by hand goes stale the moment a
+      # second one appears -- a backends.yml edit changes every rule's SPL and
+      # would not have started a run at all. Broad is right *here*: the cost of
+      # a false positive on this filter is one cheap validate-and-convert run.
+      # The full-rebuild trigger below stays an explicit list for the opposite
+      # reason -- there a false positive re-attacks all 27 rules on the lab.
+      - "scripts/convert/**"
+      - "config/**"
       - "scripts/deploy/deploy_spl_to_splunk.py"
       - "scripts/lib/rule_naming.py"
       - "scripts/atomic/run_atomic.ps1"
@@ -21,7 +30,16 @@ on:
       - "rules/sigma/**/*.yaml"
       - "docs/schemas/sigma_schema.json"
       - "scripts/validate/**"
-      - "scripts/convert/sigma_to_spl.py"
+      # A glob, not the single file it used to name. Register item 3.7 split
+      # the converter's backend choice out into backend_config.py + a config
+      # file, and a list that names one module by hand goes stale the moment a
+      # second one appears -- a backends.yml edit changes every rule's SPL and
+      # would not have started a run at all. Broad is right *here*: the cost of
+      # a false positive on this filter is one cheap validate-and-convert run.
+      # The full-rebuild trigger below stays an explicit list for the opposite
+      # reason -- there a false positive re-attacks all 27 rules on the lab.
+      - "scripts/convert/**"
+      - "config/**"
       - "scripts/deploy/deploy_spl_to_splunk.py"
       - "scripts/lib/rule_naming.py"
       - "scripts/atomic/run_atomic.ps1"
@@ -195,12 +213,25 @@ jobs:
           # name, so changing it renames every deployed object -- the strongest
           # reason there is to rebuild everything, and it was the one case that
           # started a run and then only processed the diff.
+          # Register item 3.7 added the last two. Both decide what the converter
+          # emits without being the converter: backend_config.py resolves which
+          # backend and pipeline every rule is built with, and backends.yml is
+          # the data it resolves from -- editing either changes all 27 outputs
+          # while sigma_to_spl.py itself stays untouched.
+          #
+          # Still an explicit list rather than the `scripts/convert/**` glob used
+          # by the path filter above: item 2.19 was exactly a glob here matching
+          # a file that changes no output, and the cost of being wrong at this
+          # point is a full lab run against every rule. A new file under
+          # scripts/convert/ has to be judged and added by hand.
           rebuild_all_files=(
             "docs/schemas/sigma_schema.json"
             "scripts/validate/validate_sigma.py"
             "scripts/validate/validate_sigma.ps1"
             "scripts/convert/sigma_to_spl.py"
             "scripts/lib/rule_naming.py"
+            "scripts/convert/backend_config.py"
+            "config/backends.yml"
           )
 
           if [[ "$mode" != "all" ]]; then

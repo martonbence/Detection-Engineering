@@ -1,0 +1,53 @@
+# Which pySigma backend the converter targets, and which pipeline each rule is
+# converted with. Register item 3.7.
+#
+# Both facts used to be code: a `-t splunk` literal in the argument list and an
+# if/elif chain over two module constants (sigma_to_spl.py:14-15, 41-47). That
+# is not wrong for one backend -- it is wrong for the second one, because the
+# only way to add it was to edit the file every rule in the repo is converted
+# by, and to re-prove byte-identical output afterwards. Here it is data: a new
+# backend is a new block below, and the converter's code path is unchanged.
+#
+# The values in the `splunk` block are the ones that were hardcoded, character
+# for character. That is the point -- this file was introduced to move the
+# decision, not to change it.
+#
+# What is deliberately NOT here: the index prefix (`custom.splunk.index`, burned
+# into the query by enforce_index_prefix) and the meta sidecar's field names.
+# Those are Splunk-shaped too, but they are not what item 3.7 flags, and a knob
+# nothing reads yet is the dead metadata of item 2.15.
+
+# Used when the converter is invoked without --backend, which is how both
+# workflows invoke it. Must name one of the keys under `backends:`; if it does
+# not, the run stops rather than picking whatever is first.
+default_backend: splunk
+
+backends:
+  splunk:
+    # Passed straight through as `sigma convert -t <target>`.
+    target: splunk
+
+    # Optional. A rule may name its own pipeline under `custom:` with this key
+    # (`custom.splunk_pipeline: <name>`), which then wins over the routing
+    # below. Omit the key here and the backend simply has no per-rule override.
+    # No rule in the repo uses one today; it exists for the rule that needs a
+    # pipeline the service mapping cannot express.
+    pipeline_override_key: splunk_pipeline
+
+    pipelines:
+      # Sigma `logsource.service` -> pipeline name, matched case-insensitively.
+      by_service:
+        sysmon: splunk_sysmon_acceleration
+        security: splunk_windows
+
+      # Everything the mapping above does not name. An empty value means the
+      # rule is converted with `--without-pipeline`, which is what these rules
+      # already got -- the CIM field mapping is not universal, so forcing a
+      # pipeline on an unknown log source would rename fields that were never
+      # CIM to begin with.
+      #
+      # Required to be written out, even empty: "no pipeline" is a decision
+      # about this backend, and an absent key would make it look like an
+      # oversight that the converter quietly papered over. Which is the shape
+      # of the bug this file exists to remove.
+      default: ""
