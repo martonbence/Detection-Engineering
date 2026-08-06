@@ -13,6 +13,8 @@ flowchart LR
         gitlog["git history of rules/sigma/*.yml\n(git log --follow -> current rule_version)"]
         reports["outputs/reports/{stats,mitre_technique_map,navigator_layer}.json\n(committed)"]
         pages["docs/index.html\n(generated rule browser + Navigator)"]
+        backends["config/backends.yml\n(which pySigma backend + which pipeline\nper logsource.service)"]
+        assets["scripts/docs/assets/\npage.template.html + page.css + page.js\n(the page source, with @@MARKER@@ slots)"]
     end
 
     subgraph runtime["CI-runtime only, never committed"]
@@ -30,6 +32,9 @@ flowchart LR
     sigma -->|validate_sigma.py| sigma
     sigma -->|sigma_to_spl.py| spl
     sigma -->|sigma_to_spl.py| meta
+    backends -->|backend_config.py\nread before the conversion loop,\nexit 2 on any problem| spl
+    reports -->|check_mitre_tags.py reads\nmitre_technique_map.json offline\n(advisory tag validation)| sigma
+    assets -->|generate_stats.py\nload_page_template()| pages
     spl --> bundle
     meta --> bundle
     bundle -->|deploy_spl_to_splunk.py\n+ rule_naming.py| savedsearch
@@ -46,6 +51,14 @@ flowchart LR
 ## Rules with no compiled Sigma logic still live in `rules/sigma/*.yml`
 
 There is one authoring format, not two. A rule whose detection logic can't be expressed as a Sigma `detection:` block still gets a `rules/sigma/DETECT-*.yml` file — the `detection:` key is present (the schema requires it) but is a never-evaluated placeholder. What actually carries the query is `custom.splunk.raw_query`, a literal SPL string. `sigma_to_spl.py` checks for that field and, when present, emits it into the `.spl` file **verbatim** instead of running the Sigma→SPL compiler. Every other field — `title`, `severity`, `tags` (MITRE), `falsepositives`, `custom.testing` — is read from the same YAML the same way regardless of which path was taken. Downstream, `validate_sigma.py`, the `.meta.json` sidecar, deploy, and verify all treat converted and raw-query rules identically; there is no separate "native SPL" file format or pipeline branch left in the current workflows (both `ci_dev_workflow.yml` and `ci_prod_workflow.yml` only ever glob `rules/sigma/**/*.yml`).
+
+## Three inputs that are not rules, and one loop that runs backwards
+
+Most of the diagram above flows left to right, rule to verdict to report. Three files break that shape and are easy to miss:
+
+- **`config/backends.yml` → the converter.** Since audit item 3.7, `sigma_to_spl.py` does not know which backend it targets; `scripts/convert/backend_config.py` reads that from `config/backends.yml` — the `sigma convert -t <target>` target, the `logsource.service` → pipeline map, the per-rule override key, and the default for everything unmapped. The file is read once, **before** the conversion loop, and any problem with it (missing, unknown backend name, unknown key) exits `2` before a single `.spl` is written: a partially rewritten `rules/splunk/` is precisely what the prod drift gate diffs byte for byte. Nothing falls back to a built-in default, so this file is a hard input rather than an optional override. It is *not* in `rules/`, but editing it changes all 27 `.spl` outputs — which is why it appears both in the dev workflow's `paths:` trigger and in that workflow's explicit `rebuild_all_files` list.
+- **`outputs/reports/mitre_technique_map.json` → back into validation.** This is the one edge that runs backwards: a *report* artefact is an *input* to a validation step. `generate_stats.py` writes the technique map (7-day TTL) to draw the coverage matrix; `scripts/validate/check_mitre_tags.py` (audit item 4.3) reads that committed file to decide whether a rule's `attack.*` tags name techniques and tactics that exist. It makes no network call of any kind, so the check works offline and cannot pass for the wrong reason on a day the upstream fetch silently fails — the cost is that its knowledge is exactly as fresh as the last stats run, and a cache older than 30 days is called out in the output. If the map is missing or unusable the checker exits `2` (its own failure) rather than declaring every rule broken.
+- **`scripts/docs/assets/{page.template.html,page.css,page.js}` → `docs/index.html`.** The rule browser's source is three asset files next to the generator, not a string literal inside it (audit item 3.4 phase 1). `load_page_template()` reads them verbatim, inlines the CSS and JS into the markup at the `@@INLINE_CSS@@` / `@@INLINE_JS@@` markers — so the published page stays one self-contained file — and `render_html_summary()` fills the remaining `@@MARKER@@` placeholders with the run's data. Paths resolve against `__file__`, not the working directory; a missing asset stops the run naming the file rather than writing half a page.
 
 ## `rule_version`: the one field that travels the whole chain
 
@@ -119,5 +132,7 @@ The reconciliation report is deliberately **not** among them — see the artifac
 
 - **Saved search name**: computed once by `scripts/lib/rule_naming.py` from `detect_id` + title, imported by `deploy_spl_to_splunk.py` (to know what to create/update), `check_saved_search_hits.py` (to know what to query) and `scripts/state/reconcile.py` (to know what *should* exist) — this is the single point of agreement that keeps the three from drifting apart if a rule's filename changes. Because the name includes the title slug, editing a title produces a new object and orphans the old one; that is a deliberate trade for a name an analyst can read, and the reconcile step is what cleans up after it.
 - **The CI ownership marker**: every description the deploy writes begins with `Managed by CI/CD (Detection-Engineering repo)`. It is not decoration — it is how `reconcile.py` tells the pipeline's own objects from a search someone built by hand in the same app, and it is why retiring an object rewrites the description by *prefixing* rather than replacing it. A retired object's description starts `[RETIRED <date>]` and keeps the marker behind it.
-- **Sharing/permissions**: `deploy_spl_to_splunk.py` is invoked with `SPLUNK_SHARING=app`, `SPLUNK_PERMS_READ="*"`, `SPLUNK_PERMS_WRITE=admin,ci_deploy_savedsearches` in both the dev and prod deploy steps — identical policy in both environments, only the target Splunk app namespace differs — via `SPLUNK_APP`, an environment-scoped GitHub Actions *variable* (audit item 2.18); the URL and credentials are repository secrets shared by both.
-- **Dev vs. prod instances are physically separate Splunk deployments** reachable from the same `self-hosted, linux, de-lab` runner — the environment selection is what determines which one a given job talks to, not the runner itself.
+- **Sharing/permissions**: `deploy_spl_to_splunk.py` is invoked with `SPLUNK_SHARING=app`, `SPLUNK_PERMS_READ="*"`, `SPLUNK_PERMS_WRITE=admin,ci_deploy_savedsearches` in both the dev and prod deploy steps — identical policy in both environments, only the target Splunk app namespace differs — via `SPLUNK_APP`, an environment-scoped GitHub Actions *variable* (audit item 2.18); the URL, the credentials and `SPLUNK_VERIFY_TLS` are repository secrets shared by both.
+- **Dev and prod are two apps on one Splunk instance**, not two servers, both reached from the same `self-hosted, linux, de-lab` runner. The GitHub Actions `environment:` (`dev` / `prod`) selects `vars.SPLUNK_APP` and that value alone decides which app namespace a job writes to — see [`threat_model.md`](threat_model.md) for what that does and does not isolate.
+- **`SPLUNK_APP` carries the app's directory name, not its Splunk label**: `detection_engineering` on dev (whose label in Splunk's app list is `dev`) and `prod` on prod. The REST path is `servicesNS/{owner}/{app}/…`, built from the directory name, so the label would 404.
+- **TLS verification**: every Splunk client (`deploy_spl_to_splunk.py`, `check_saved_search_hits.py`, `wait_for_indexing.py`, `reconcile.py`) resolves `SPLUNK_VERIFY_TLS` through `env_bool(..., default=True)` and prints the mode it resolved — a `::warning` when verification is off. The workflows no longer pass a `|| 'false'` fallback anywhere (audit item 2.14), so an unset secret means *verify*, not *skip*.

@@ -21,18 +21,21 @@ The manual entry points are called out explicitly where they exist.
 | **Workflows** | | |
 | [`.github/workflows/ci_dev_workflow.yml`](../../.github/workflows/ci_dev_workflow.yml) | The whole dev loop: validate → convert → deploy → attack → verify → report | push/PR to any branch but `main` |
 | [`.github/workflows/ci_prod_workflow.yml`](../../.github/workflows/ci_prod_workflow.yml) | Deploys already-verified rules to the prod Splunk app (same server as dev, different app) | push to `main` |
-| [`.github/workflows/ci_code_checks.yml`](../../.github/workflows/ci_code_checks.yml) | CI for the pipeline's *own* code: ruff, pytest, PowerShell analysis, Console republish | push/PR touching `scripts/`, `tests/`, workflows, config |
+| [`.github/workflows/ci_code_checks.yml`](../../.github/workflows/ci_code_checks.yml) | CI for the pipeline's *own* code: ruff, pytest, PowerShell analysis, actionlint, `pip-audit`, Console republish | push/PR touching `scripts/`, `tests/`, `pyproject.toml`, the requirements files, `.github/workflows/**`, `.github/PSScriptAnalyzerSettings.psd1`, `.github/actionlint.yaml` |
 | **Pipeline stages** | | |
 | [`scripts/validate/validate_sigma.ps1`](../../scripts/validate/validate_sigma.ps1) | Thin wrapper that feeds the rule list to the Python validator in one process | dev workflow |
 | [`scripts/validate/validate_sigma.py`](../../scripts/validate/validate_sigma.py) | Validates each Sigma rule against the JSON Schema | the wrapper above |
 | [`scripts/validate/check_test_routing.py`](../../scripts/validate/check_test_routing.py) | Warns when a rule's test runner has no job that services it, and tells the workflow which test jobs a batch needs | dev workflow (twice), pytest |
+| [`scripts/validate/check_mitre_tags.py`](../../scripts/validate/check_mitre_tags.py) | Checks every rule's ATT&CK tags against the committed technique map — offline, advisory in CI | dev workflow, pytest |
 | [`scripts/convert/sigma_to_spl.py`](../../scripts/convert/sigma_to_spl.py) | Sigma YAML → `.spl` query + `.meta.json` sidecar | dev + prod workflows |
+| [`scripts/convert/backend_config.py`](../../scripts/convert/backend_config.py) | Loads `config/backends.yml` — which backend the converter targets and which pipeline each rule gets | `sigma_to_spl.py`, pytest |
 | [`scripts/deploy/deploy_spl_to_splunk.py`](../../scripts/deploy/deploy_spl_to_splunk.py) | Creates/updates the Splunk saved searches | dev + prod workflows |
 | [`scripts/atomic/run_atomic.ps1`](../../scripts/atomic/run_atomic.ps1) | Executes the attack that is supposed to trigger each rule | dev workflow, 3 jobs |
 | [`scripts/verify/check_saved_search_hits.py`](../../scripts/verify/check_saved_search_hits.py) | Asks Splunk how many events each deployed search matched | dev workflow |
 | [`scripts/verify/wait_for_indexing.py`](../../scripts/verify/wait_for_indexing.py) | Polls Splunk until the test window's events are indexed, instead of sleeping a fixed minute | dev workflow |
 | [`scripts/verify/pass_fail_eval.py`](../../scripts/verify/pass_fail_eval.py) | Turns those counts into a per-rule PASS / FAIL / NOT_VERIFIED verdict | dev workflow |
 | [`scripts/docs/generate_stats.py`](../../scripts/docs/generate_stats.py) | Aggregates everything into `stats.json`, the README block and the rule browser | dev workflow + code checks |
+| [`scripts/docs/assets/`](../../scripts/docs/assets/) | `page.template.html` + `page.css` + `page.js` — the rule browser's source, inlined into `docs/index.html` | `generate_stats.py` |
 | **Shared and state** | | |
 | [`scripts/lib/rule_naming.py`](../../scripts/lib/rule_naming.py) | The one function deciding a rule's Splunk object name | deploy, verify, reconcile |
 | [`scripts/state/reconcile.py`](../../scripts/state/reconcile.py) | Compares the repo against live Splunk, and cleans up what no longer belongs | dev workflow (+ manual for removals) |
@@ -54,7 +57,7 @@ that get genuinely attacked.
 
 | Job | Runner | Does |
 |---|---|---|
-| `prepare_validate_convert` | `ubuntu-latest` | Works out which rules changed, prunes orphans, validates, converts, commits the `.spl`, builds the *pipeline bundle* artefact the later jobs consume |
+| `prepare_validate_convert` | `ubuntu-latest` | Works out which rules changed, prunes orphans, validates, checks test routing and ATT&CK tags, converts, commits the `.spl`, builds the *pipeline bundle* artefact the later jobs consume |
 | `deploy_to_splunk` | self-hosted Linux | Deploys the bundle's SPL to the dev Splunk app |
 | `atomic_verify` | self-hosted Windows (victim) | Runs the Atomic Red Team tests |
 | `atomic_verify_dc` | self-hosted Windows (DC) | Same, for rules that must be attacked on a domain controller |
@@ -72,6 +75,14 @@ Two things worth knowing before editing it:
 - **Deletions are invisible to it.** The diff uses `--diff-filter=AMRC`, which excludes removals,
   so a commit that only deletes a rule produces no work at all. That is why the prune step has its
   own trigger conditions and its own commit.
+- **The `paths:` trigger and the full-rebuild list are deliberately different shapes.** The trigger
+  uses globs (`scripts/validate/**`, `scripts/convert/**`, `config/**`, …) because a hand-listed
+  module goes stale the moment a second one appears — register item 3.7 added exactly that, and a
+  `config/backends.yml` edit changes every rule's SPL while starting no run at all under the old
+  single-file entry. The `rebuild_all_files` list inside the `Determine changed Sigma files` step
+  stays an explicit list of seven paths (schema, `validate_sigma.py`, `validate_sigma.ps1`,
+  `sigma_to_spl.py`, `rule_naming.py`, `backend_config.py`, `config/backends.yml`) because a false
+  positive there re-deploys and re-attacks all 27 rules on the lab VMs.
 
 ### `ci_prod_workflow.yml` — production deploy
 
@@ -102,14 +113,20 @@ report that production was not updated. See the `LAB_ONLINE` section in
 ### `ci_code_checks.yml` — CI for the pipeline itself
 
 Exists because the dev workflow only does real work when a *rule* changes, so the code running the
-pipeline was never itself exercised. Four jobs:
+pipeline was never itself exercised. Six jobs, each a separate job rather than a step so one
+linter's failure cannot mask another's:
 
 | Job | Does |
 |---|---|
 | `static_analysis` | `ruff check .` and `pytest` on `ubuntu-latest` — no Splunk, no lab, no live attacks |
-| `powershell_analysis` | Parses every `.ps1` with PowerShell's own parser, then runs PSScriptAnalyzer. Separate job so a ruff failure cannot mask a PowerShell one |
+| `powershell_analysis` | Parses every `.ps1` with PowerShell's own parser, then runs PSScriptAnalyzer |
+| `workflow_analysis` | Runs a pinned, checksum-verified `actionlint` over `.github/workflows/**` (self-hosted runner labels come from `.github/actionlint.yaml`), after asserting `shellcheck` is on PATH — actionlint delegates every `run:` block to it, so its silent absence would mean checking strictly less while still passing |
+| `dependency_audit` | `pip-audit` over both pinned requirements files. Advisory by design: findings become a `::warning` and a step-summary report, while pip-audit failing to *run* still fails the job |
 | `regenerate_console` | Re-runs `generate_stats.py` and commits if the output changed by more than its embedded timestamps |
 | `publish_console` | Publishes the regenerated site, because Pages serves an uploaded artefact rather than the branch — a commit alone would update the repo but not the live page |
+
+`regenerate_console` gates on `[static_analysis, powershell_analysis, workflow_analysis]` — not on
+`dependency_audit`, which is advisory and must not hold up a republish.
 
 Pages therefore has two publishers: this workflow's `publish_console` and the dev pipeline's
 `deploy_pages`. They share the repo-wide `pages` concurrency group so the two deployments queue
@@ -181,19 +198,89 @@ One behaviour change worth knowing: a rule requesting an unserviced runner used 
 `has_atomic_tests` and start the victim job, which then skipped it. Now no job is started for work
 that does not exist.
 
+### `scripts/validate/check_mitre_tags.py`
+
+Answers the other question the schema cannot: **do this rule's ATT&CK tags mean anything?**
+
+The schema *looks* like it validates them — there is a tactic enum and a
+`^attack\.[Tt]\d{4}(\.\d{3})?$` technique pattern — but both sit in an `anyOf` whose last branch is
+plain `{"type": "string"}`, so they are suggestions, not gates: `attack.t1059.999`,
+`attack.t1O59.001` and `attack.defense_evasion` all validate today. Downstream is looser still —
+`generate_stats.py`'s `extract_techniques()` turns anything matching `attack\.t\d+` into a badge and
+a Navigator cell. A mistyped technique therefore does not vanish; it renders as *covered*.
+
+What it flags as errors: unknown technique, revoked/withdrawn sub-technique, malformed tag, unknown
+tactic, tactic mismatch. As warnings: a technique whose tactic the rule never declares, and a parent
+technique listed redundantly alongside its own sub-technique.
+
+Three properties worth knowing:
+
+- **Zero network I/O.** It reads the technique map `generate_stats.py` already caches at
+  `outputs/reports/mitre_technique_map.json` (committed, 7-day TTL) — a validator that fetches would
+  go green for the wrong reason the day the fetch quietly fails. A missing or unusable cache is exit
+  `2` (the checker's own failure), not "every rule is broken". A cache older than 30 days is noted
+  and nothing more.
+- **Revoked vs. mistyped is answered honestly, and only where it can be.** The cache drops revoked
+  objects, so a withdrawn technique is absent exactly like a typo. Sub-technique numbering under a
+  parent is dense, so an absent sub *inside* the parent's allocated range was allocated once and
+  withdrawn; one *above* it never existed. Main technique IDs are sparse, so for those the script
+  makes no such claim.
+- **The tactic vocabulary is derived from the cache, not from upstream ATT&CK.** This repo's map
+  uses `Stealth` and `Defense Impairment` where upstream has Defense Evasion; a hardcoded upstream
+  list would have reported a third of the library as wrong on the first run. `attack.stealth` is
+  valid here for that reason, not as a carve-out.
+
+Run over **every** rule, not just the changed ones, because what invalidates a tag is usually
+upstream (a technique revoked, the cache refreshed) rather than this push. In CI it is deliberately
+advisory — invoked without `--strict` from the `Check MITRE ATT&CK tags against the technique map`
+step, so findings arrive as annotations and a step-summary table while the exit code stays `0`. A
+wrong tag misfiles a working detection on the matrix; it does not break it, and the rule is worth
+deploying while the tag is argued about.
+
+Exit codes: `0` clean or advisory, `1` error-severity findings under `--strict`, `2` the checker
+could not run. `--json` writes the full findings, `--quiet` drops the per-rule OK lines, `--cache`
+points at a different map.
+
 ### `scripts/convert/sigma_to_spl.py`
 
 **In:** Sigma YAML. **Out:** `rules/splunk/<same stem>.spl` plus a `<same stem>.meta.json` sidecar.
 
-Picks the pySigma pipeline from the rule's log source (`sysmon` → `splunk_sysmon_acceleration`,
-`security` → `splunk_windows`, anything else → no pipeline), overridable with
-`custom.splunk.splunk_pipeline`. A rule that sets `custom.splunk.raw_query` bypasses conversion
-entirely and is emitted verbatim — the escape hatch for detections too sophisticated to express as
-a Sigma `detection:` block.
+The backend and the pipeline routing are **not** in this file any more — they are loaded from
+`config/backends.yml` through `backend_config.py` (see below). The precedence is unchanged: a rule
+naming its own pipeline under the backend's override key (`custom.splunk_pipeline` for Splunk) wins,
+otherwise `logsource.service` is looked up in the backend's routing (`sysmon` →
+`splunk_sysmon_acceleration`, `security` → `splunk_windows`), and anything unmapped gets the
+backend's declared default — for Splunk deliberately empty, i.e. `--without-pipeline`. A rule that
+sets `custom.splunk.raw_query` bypasses conversion entirely and is emitted verbatim — the escape
+hatch for detections too sophisticated to express as a Sigma `detection:` block.
+
+`--backend` selects a backend by name; `--backends-config` points at a different config file. Both
+workflows invoke the converter with neither, so both use `config/backends.yml`'s `default_backend`.
+The config is loaded **before the conversion loop**, and a problem with it exits `2` before the
+first file is written: a half-converted `rules/splunk/` is what the prod drift gate compares byte
+for byte.
 
 The **sidecar is the important output**: it carries `detect_id`, title, description, deploy mode,
 cron, severity, status and the testing block forward to the deploy and the runners, and it is
 gitignored — it exists only during a run, which is why prod re-converts before deploying.
+
+### `scripts/convert/backend_config.py`
+
+The loader for [`config/backends.yml`](../../config/backends.yml) (register item 3.7). It returns a
+frozen `BackendConfig` — the `sigma convert -t <target>` target, the per-rule pipeline override key,
+the `logsource.service` → pipeline map and the default for everything unmapped — and raises
+`BackendConfigError` for anything it cannot resolve.
+
+**Nothing falls back to a built-in default**, and that is the design rather than an omission. A
+converter that shrugs off a missing or misspelled config and converts with some remembered setting
+emits SPL that looks fine, passes the prod drift gate on the next run because prod misreads the same
+file the same way, and reaches Splunk before anyone can say which pipeline produced it. Unknown keys
+are rejected for the same reason: `by_services:` instead of `by_service:` is valid YAML and would
+route every rule to the default pipeline, silently.
+
+The config path resolves against `__file__`, not the working directory, so "which config did it
+read" does not depend on where the shell happened to be. Adding a second backend is a new block in
+the YAML — the tests introduce an `elastic`/`esql` backend purely from config, with no code change.
 
 ### `scripts/deploy/deploy_spl_to_splunk.py`
 
@@ -225,6 +312,17 @@ deployed before — is now one call instead of two.
 A create still gets a follow-up POST to the object endpoint, because Splunk does not reliably persist
 `is_scheduled`/`cron_schedule` on the same request that creates the object. The update path needs no
 such follow-up: it already *is* that request.
+
+**It states which TLS mode it is running in** (register item 2.14). `env_bool("SPLUNK_VERIFY_TLS",
+default=True)` had always chosen the safe answer for an unset value; what was missing was the
+sentence, so a run that skipped certificate verification looked exactly like one that did not. It
+now prints `TLS certificate verification: on.` when verification is on and a `::warning` annotation
+when it is off. The same four lines appear verbatim in `check_saved_search_hits.py`,
+`wait_for_indexing.py` and `reconcile.py` — the four Splunk clients, each with its own copy of
+`env_bool` (register item 3.6). Turning verification off for a self-signed lab certificate is still
+possible; it just has to be said out loud by setting the secret to `false`, because the workflows'
+`|| 'false'` fallback — which turned a *missing* secret into a positive instruction to skip
+verification — is gone from all five call sites.
 
 ### `scripts/atomic/run_atomic.ps1`
 
@@ -283,11 +381,18 @@ it is what gates the promotion PR.
 
 ### `scripts/docs/generate_stats.py`
 
-The reporting layer, and by a wide margin the longest file in the repo (~6000 lines, most of it
-inline HTML for the rule browser — [register item 3.4](../../audit/remediation-plan.md) is about
-splitting that up).
+The reporting layer. It used to be ~6000 lines, 4709 of them a single `_PAGE_TEMPLATE` string
+literal holding the rule browser's HTML, CSS and ~2800 lines of JavaScript — which meant no tool
+looked at the front end at all: `ruff` lints the Python around the literal and sees the literal
+itself as one opaque token, so a JS typo was found by the user rather than by CI. Phase 1 of
+[register item 3.4](../../audit/remediation-plan.md) moved the page out to
+`scripts/docs/assets/page.template.html`, `page.css` and `page.js`, leaving the generator at 1425
+lines. Phase 2 (folding 16 of the 20 `@@MARKER@@` placeholders into one JSON block) is deliberately
+still open, because it necessarily changes the generated HTML and so cannot be proven by
+byte-identity the way phase 1 was.
 
-**Reads** every Sigma rule, the `.spl` count and every `result.json`. **Writes**
+**Reads** every Sigma rule, the `.spl` count, every `result.json`, and the three page assets.
+**Writes**
 `outputs/reports/stats.json` (which the README badges read), `mitre_technique_map.json`,
 `navigator_layer.json` (a portable ATT&CK Navigator layer), the stats block inside `README.md`, and
 the whole of `docs/index.html`.
@@ -297,6 +402,30 @@ git history, compares it to the version recorded in the result file, and checks 
 against the 180-day review interval — so the published pass rate only counts measurements still
 valid for the rule as it stands today. Because the expiry depends on when the page is opened, the
 browser recomputes it client-side too; `stats.json` is the build-time snapshot.
+
+`mitre_technique_map.json` is not only an output: `check_mitre_tags.py` reads it back as its offline
+source of truth about which techniques exist, which is the one place the reporting layer feeds the
+validation layer.
+
+### `scripts/docs/assets/page.template.html`, `page.css`, `page.js`
+
+The rule browser's markup, styling and behaviour, split out of `generate_stats.py` by register item
+3.4 phase 1. They are **not** servable on their own: they still carry the `@@MARKER@@` placeholders
+`render_html_summary()` substitutes, and `load_page_template()` inlines the stylesheet and the
+script into the markup (`@@INLINE_CSS@@` / `@@INLINE_JS@@`, each alone on its line, newline
+included) so the published page stays one self-contained file.
+
+They are read verbatim — no escaping, no interpolation — exactly as the old `r"""…"""` literal held
+them, so a backslash in a JS regex is still a backslash. Line endings are normalised on read, so a
+CRLF checkout renders the same bytes as an LF one. The path resolves against `__file__` rather than
+the working directory, because the workflows invoke the script by path. A missing asset is
+`SystemExit` naming the file: assembling half a page and writing it would be worse than not writing
+one.
+
+The extraction was done from the original module's runtime `_PAGE_TEMPLATE` value rather than by
+cutting text out of the source, and the resulting `docs/index.html` is byte-identical (with the
+clock frozen — the generator stamps `datetime.now()` and the HEAD sha into the page, so a naive
+diff shows the same three lines for an unmodified generator too).
 
 ---
 
@@ -389,6 +518,9 @@ in this repo: the real one is a full pipeline run with live attacks.
 | [`tests/test_deploy_upsert.py`](../../tests/test_deploy_upsert.py) | That create-vs-update comes from the status code: none of the old magic phrases steer anything, and an unexpected response fails instead of falling through to create |
 | [`tests/test_wait_for_indexing.py`](../../tests/test_wait_for_indexing.py) | When the wait stops: on the first indexed event, at the timeout, and that a failed probe means "keep waiting" rather than "go ahead" |
 | [`tests/test_sigma_to_spl.py`](../../tests/test_sigma_to_spl.py) | Index-prefix injection, including that a query opening with a generating command is left alone rather than turned into invalid SPL |
+| [`tests/test_backend_config.py`](../../tests/test_backend_config.py) | That the backend really is data: a second backend (`elastic`/`esql`) is introduced from config alone, and that nothing falls back — a missing file, an unknown backend name, a misspelled key all raise rather than convert with a remembered default |
+| [`tests/test_check_mitre_tags.py`](../../tests/test_check_mitre_tags.py) | The tag findings and their severities, and — asserted against the script's own source — that it performs no network call, so the day someone adds a fallback fetch is the day this fails rather than the day the check starts going green for the wrong reason |
+| [`tests/test_tls_verification.py`](../../tests/test_tls_verification.py) | Both halves of register item 2.14: a workflow guard requiring the `||`-free form at all five call sites (and failing if it does not find exactly five), and that all four `env_bool` consumers fail closed on empty, missing and unrecognisable values |
 | [`tests/test_check_test_routing.py`](../../tests/test_check_test_routing.py) | That the serviced matrix is derived from the workflow rather than hardcoded, and — against the real repo — that every committed rule still has a job that can run its test |
 | [`tests/test_select_unverified.py`](../../tests/test_select_unverified.py) | Which rules a manual run picks up, including that an unknown version selects rather than skips, and — in a real temp git repo — that editing a rule makes it selectable again |
 | [`tests/test_resolve_rule_selection.py`](../../tests/test_resolve_rule_selection.py) | Mostly the failure path: that an unknown id stops the run, lists the valid ones, and never lets a partial selection through |
@@ -401,7 +533,9 @@ Not scripts, but they decide how the scripts behave.
 
 | File | Role |
 |---|---|
-| [`docs/schemas/sigma_schema.json`](../../docs/schemas/sigma_schema.json) | The contract every rule must satisfy. Conditionally requires the right testing block for the declared test type (only for `enabled: true` rules, so a parked rule need not maintain a test list) |
+| [`docs/schemas/sigma_schema.json`](../../docs/schemas/sigma_schema.json) | The contract every rule must satisfy. Conditionally requires the right testing block for the declared test type (only for `enabled: true` rules, so a parked rule need not maintain a test list). Note its `tags` pattern is *not* a gate — it sits beside a free-text `anyOf` branch, which is why `check_mitre_tags.py` exists |
+| [`config/backends.yml`](../../config/backends.yml) | Which pySigma backend the converter targets and which pipeline each `logsource.service` gets — the values that used to be constants in `sigma_to_spl.py`, moved character for character. Editing it changes every rule's SPL, which is why it is in the dev workflow's `paths:` trigger, in the full-rebuild list, and — since the test that guards it lives in `tests/test_backend_config.py` — in `ci_code_checks.yml`'s `paths:` as well |
+| [`.github/actionlint.yaml`](../../.github/actionlint.yaml) | Declares the self-hosted runner labels to `actionlint`; without it every `runs-on:` in the dev and prod workflows reports as an unknown label |
 | [`.github/requirements.txt`](../../.github/requirements.txt) | Pinned pipeline toolchain, installed by both dev and prod. `pySigma` is pinned separately from `sigma-cli` because it is what actually serialises the query |
 | [`.github/dependabot.yml`](../../.github/dependabot.yml) | Weekly bumps for the pinned Python toolchain and the SHA-pinned actions. Targets `dev`, not the default branch — a bump landing on `main` would deploy to production without ever being validated, attacked or measured |
 | [`.github/requirements-dev.txt`](../../.github/requirements-dev.txt) | Pinned `pytest` and `ruff`, for the code-checks workflow only |
@@ -413,8 +547,9 @@ have no effect on CI.
 
 ## What is *not* a script
 
-- [`docs/index.html`](../../docs/index.html) — generated output, never edited by hand. Its source
-  is the HTML embedded in `generate_stats.py`.
+- [`docs/index.html`](../../docs/index.html) — generated output, never edited by hand. Its source is
+  `scripts/docs/assets/page.template.html` + `page.css` + `page.js`, assembled and filled in by
+  `generate_stats.py`. (It used to be a string literal *inside* that script; it no longer is.)
 - [`rules/splunk/*.spl`](../../rules/splunk/) — generated from Sigma, committed so that prod
   deploys exactly what was reviewed.
 - [`outputs/`](../../outputs/) — verification results and reports, written by the pipeline.
