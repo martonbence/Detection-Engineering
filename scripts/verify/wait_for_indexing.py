@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 import time
 from pathlib import Path
@@ -35,25 +34,27 @@ DEFAULT_TIMEOUT = 180
 DEFAULT_INTERVAL = 10
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from lib.env import announce_tls_mode, env_bool, env_reader
+
+
 def eprint(msg: str) -> None:
     print(msg, file=sys.stderr)
 
 
-def env_required(name: str) -> str:
-    value = (os.getenv(name) or "").strip()
-    if not value:
-        eprint(f"ERROR: missing required env var: {name}")
-        raise SystemExit(2)
-    return value
+# Register item 3.6: the reading is shared, the exit policy stays here. Exit 2
+# rather than the deploy's 1 is deliberate and predates this change -- a wait
+# step that never got to start is a setup failure, not a verification result.
+def _fail(msg: str) -> None:
+    eprint(f"ERROR: {msg}")
+    raise SystemExit(2)
 
 
-def env_bool(name: str, default: bool = True) -> bool:
-    value = (os.getenv(name) or "").strip().lower()
-    if value in ("true", "1", "yes", "y", "on"):
-        return True
-    if value in ("false", "0", "no", "n", "off"):
-        return False
-    return default
+env_required = env_reader(_fail)
+
+
+
+
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -141,15 +142,7 @@ def main(argv: list[str] | None = None) -> int:
     password = env_required("SPLUNK_PASSWORD")
     app = env_required("SPLUNK_APP")
     verify_tls = env_bool("SPLUNK_VERIFY_TLS", default=True)
-    # Register item 2.14 -- see deploy_spl_to_splunk.py's main() for why
-    # this is a print rather than a silent assignment.
-    if verify_tls:
-        print("TLS certificate verification: on.")
-    else:
-        print(
-            "::warning title=TLS verification disabled::SPLUNK_VERIFY_TLS is set to a "
-            "false value, so Splunk server certificates are NOT verified for this run."
-        )
+    announce_tls_mode(verify_tls)
 
     indexes = indexes_from_meta(args.spl_files)
     search = build_probe_search(indexes, str(args.since))

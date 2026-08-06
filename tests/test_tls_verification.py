@@ -40,8 +40,11 @@ WORKFLOWS = (
 # have already answered.
 EXPECTED = "${{ secrets.SPLUNK_VERIFY_TLS }}"
 
-# Each script carries its own copy of env_bool (register item 3.6), so a fix
-# applied to one proves nothing about the other three.
+# These four were separate implementations when this file was written, which is
+# why it checks all of them rather than one. Register item 3.6 has since made
+# them the same object from scripts/lib/env.py -- the parametrisation is kept
+# because it is what would notice a local copy being reintroduced, and
+# test_lib_env.py asserts the identity directly.
 ENV_BOOLS = pytest.mark.parametrize(
     "env_bool",
     [
