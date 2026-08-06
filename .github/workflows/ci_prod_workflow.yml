@@ -172,7 +172,17 @@ jobs:
           SPLUNK_BASE_URL: ${{ secrets.SPLUNK_BASE_URL }}
           SPLUNK_USERNAME: ${{ secrets.SPLUNK_USERNAME }}
           SPLUNK_PASSWORD: ${{ secrets.SPLUNK_PASSWORD }}
-          SPLUNK_APP: ${{ secrets.SPLUNK_APP }}
+          # Register item 2.18. A variable, not a secret: an app namespace is a
+          # routing label, not a credential -- it grants nothing on its own, and
+          # masking it only made the one value that decides dev-vs-prod
+          # unreadable in the logs of the job it aims. Environment-scoped
+          # (`environment: prod` above), which is what makes this resolve to the
+          # prod app while the dev workflow's identical expression resolves to
+          # the dev one. Safe to reference here because it is read in a step
+          # `env:` block, after the environment is resolved -- unlike a
+          # job-level `if:`, which is evaluated before that and would see
+          # nothing (the trap register item 2.20 hit with LAB_ONLINE).
+          SPLUNK_APP: ${{ vars.SPLUNK_APP }}
           SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS || 'false' }}
           SPLUNK_SHARING: app
           SPLUNK_PERMS_READ: "*"
