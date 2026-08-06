@@ -309,6 +309,19 @@ def main(argv: list[str]) -> int:
     # perms.read/perms.write below, not by who nominally owns the object.
     owner = username
     verify_tls = env_bool("SPLUNK_VERIFY_TLS", default=True)
+    # Register item 2.14. The defect that item closes was never that
+    # verification *can* be off -- a self-signed lab certificate is a real
+    # reason to turn it off -- but that nothing anywhere said which mode the
+    # run was in. env_bool already defaults to True; what was missing was the
+    # sentence. Repeated verbatim at all four call sites because env_bool
+    # itself is duplicated four times (register item 3.6).
+    if verify_tls:
+        print("TLS certificate verification: on.")
+    else:
+        print(
+            "::warning title=TLS verification disabled::SPLUNK_VERIFY_TLS is set to a "
+            "false value, so Splunk server certificates are NOT verified for this run."
+        )
 
     sharing = (os.getenv("SPLUNK_SHARING") or "app").strip().lower()
     perms_read = (os.getenv("SPLUNK_PERMS_READ") or "*").strip()
