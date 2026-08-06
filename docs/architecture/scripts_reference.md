@@ -20,12 +20,12 @@ The manual entry points are called out explicitly where they exist.
 |---|---|---|
 | **Workflows** | | |
 | [`.github/workflows/ci_dev_workflow.yml`](../../.github/workflows/ci_dev_workflow.yml) | The whole dev loop: validate → convert → deploy → attack → verify → report | push/PR to any branch but `main` |
-| [`.github/workflows/ci_prod_workflow.yml`](../../.github/workflows/ci_prod_workflow.yml) | Deploys already-verified rules to the prod Splunk | push to `main` |
+| [`.github/workflows/ci_prod_workflow.yml`](../../.github/workflows/ci_prod_workflow.yml) | Deploys already-verified rules to the prod Splunk app (same server as dev, different app) | push to `main` |
 | [`.github/workflows/ci_code_checks.yml`](../../.github/workflows/ci_code_checks.yml) | CI for the pipeline's *own* code: ruff, pytest, PowerShell analysis, Console republish | push/PR touching `scripts/`, `tests/`, workflows, config |
 | **Pipeline stages** | | |
 | [`scripts/validate/validate_sigma.ps1`](../../scripts/validate/validate_sigma.ps1) | Thin wrapper that feeds the rule list to the Python validator in one process | dev workflow |
 | [`scripts/validate/validate_sigma.py`](../../scripts/validate/validate_sigma.py) | Validates each Sigma rule against the JSON Schema | the wrapper above |
-| [`scripts/validate/check_test_routing.py`](../../scripts/validate/check_test_routing.py) | Warns when a rule's test runner has no job that services it | dev workflow, pytest |
+| [`scripts/validate/check_test_routing.py`](../../scripts/validate/check_test_routing.py) | Warns when a rule's test runner has no job that services it, and tells the workflow which test jobs a batch needs | dev workflow (twice), pytest |
 | [`scripts/convert/sigma_to_spl.py`](../../scripts/convert/sigma_to_spl.py) | Sigma YAML → `.spl` query + `.meta.json` sidecar | dev + prod workflows |
 | [`scripts/deploy/deploy_spl_to_splunk.py`](../../scripts/deploy/deploy_spl_to_splunk.py) | Creates/updates the Splunk saved searches | dev + prod workflows |
 | [`scripts/atomic/run_atomic.ps1`](../../scripts/atomic/run_atomic.ps1) | Executes the attack that is supposed to trigger each rule | dev workflow, 3 jobs |
@@ -38,6 +38,7 @@ The manual entry points are called out explicitly where they exist.
 | [`scripts/state/reconcile.py`](../../scripts/state/reconcile.py) | Compares the repo against live Splunk, and cleans up what no longer belongs | dev workflow (+ manual for removals) |
 | [`scripts/state/prune_orphans.py`](../../scripts/state/prune_orphans.py) | Deletes repo-side artefacts of rules that no longer exist | dev workflow |
 | [`scripts/state/select_unverified.py`](../../scripts/state/select_unverified.py) | Picks the rules whose verification is missing or stale, for a manual run | dev workflow (`workflow_dispatch`) |
+| [`scripts/state/resolve_rule_selection.py`](../../scripts/state/resolve_rule_selection.py) | Turns a hand-typed list of detect_ids into rule paths, or fails loudly | dev workflow (`workflow_dispatch`) |
 | **Tests** | | |
 | [`tests/`](../../tests/) | pytest suite over the Python scripts, with Splunk faked | `ci_code_checks.yml` |
 
@@ -54,7 +55,7 @@ that get genuinely attacked.
 | Job | Runner | Does |
 |---|---|---|
 | `prepare_validate_convert` | `ubuntu-latest` | Works out which rules changed, prunes orphans, validates, converts, commits the `.spl`, builds the *pipeline bundle* artefact the later jobs consume |
-| `deploy_to_splunk` | self-hosted Linux | Deploys the bundle's SPL to the dev Splunk |
+| `deploy_to_splunk` | self-hosted Linux | Deploys the bundle's SPL to the dev Splunk app |
 | `atomic_verify` | self-hosted Windows (victim) | Runs the Atomic Red Team tests |
 | `atomic_verify_dc` | self-hosted Windows (DC) | Same, for rules that must be attacked on a domain controller |
 | `emulation_verify` | self-hosted Windows (victim) | Runs `emulation`-type rules' own commands; shares the victim host with `atomic_verify`, so these run in sequence |
@@ -163,6 +164,22 @@ summary table — a detection is worth deploying even when its test cannot run y
 *committed* rule that stops routing means a job was renamed or removed.
 
 Exit codes: `0` clean or advisory, `1` findings under `--strict`, `2` the checker could not run.
+
+**`--job-flags` reuses the same matrix to answer a second question** (register item 2.10): which of
+the three test jobs does this batch actually need? The workflow used to work that out in bash, by
+spawning *two* `python3 -c` one-liners per rule — 54 processes for 27 rules — to read two fields from
+one file, each ending in `2>/dev/null || true`, so a rule whose YAML failed to parse silently became
+an empty tester and dropped out of routing with nothing said.
+
+Since the matrix already maps `(tester, runner)` to the job that services it, "does this job have
+work?" is a lookup rather than a second parse. `JOB_OUTPUT_FLAGS` maps job name to the workflow
+output the jobs gate on — the only part that cannot be derived, because it is the workflow's own
+naming. Flag mode is deliberately quiet: the dedicated routing step earlier in the same job already
+reported any findings, over a superset of these rules.
+
+One behaviour change worth knowing: a rule requesting an unserviced runner used to set
+`has_atomic_tests` and start the victim job, which then skipped it. Now no job is started for work
+that does not exist.
 
 ### `scripts/convert/sigma_to_spl.py`
 
@@ -374,6 +391,7 @@ in this repo: the real one is a full pipeline run with live attacks.
 | [`tests/test_sigma_to_spl.py`](../../tests/test_sigma_to_spl.py) | Index-prefix injection, including that a query opening with a generating command is left alone rather than turned into invalid SPL |
 | [`tests/test_check_test_routing.py`](../../tests/test_check_test_routing.py) | That the serviced matrix is derived from the workflow rather than hardcoded, and — against the real repo — that every committed rule still has a job that can run its test |
 | [`tests/test_select_unverified.py`](../../tests/test_select_unverified.py) | Which rules a manual run picks up, including that an unknown version selects rather than skips, and — in a real temp git repo — that editing a rule makes it selectable again |
+| [`tests/test_resolve_rule_selection.py`](../../tests/test_resolve_rule_selection.py) | Mostly the failure path: that an unknown id stops the run, lists the valid ones, and never lets a partial selection through |
 
 ---
 
@@ -385,8 +403,9 @@ Not scripts, but they decide how the scripts behave.
 |---|---|
 | [`docs/schemas/sigma_schema.json`](../../docs/schemas/sigma_schema.json) | The contract every rule must satisfy. Conditionally requires the right testing block for the declared test type (only for `enabled: true` rules, so a parked rule need not maintain a test list) |
 | [`.github/requirements.txt`](../../.github/requirements.txt) | Pinned pipeline toolchain, installed by both dev and prod. `pySigma` is pinned separately from `sigma-cli` because it is what actually serialises the query |
+| [`.github/dependabot.yml`](../../.github/dependabot.yml) | Weekly bumps for the pinned Python toolchain and the SHA-pinned actions. Targets `dev`, not the default branch — a bump landing on `main` would deploy to production without ever being validated, attacked or measured |
 | [`.github/requirements-dev.txt`](../../.github/requirements-dev.txt) | Pinned `pytest` and `ruff`, for the code-checks workflow only |
-| [`pyproject.toml`](../../pyproject.toml) | ruff and pytest config. ruff is deliberately narrow (`F` + `E9`) for now — see the comment in the file |
+| [`pyproject.toml`](../../pyproject.toml) | ruff and pytest config. ruff's selection is curated rather than "everything" — `F, E9, E7, B, I, UP, C4, SIM, RET, PIE, RUF`, with `E501`, `ARG` and `PTH` deliberately left out and each omission justified against measured findings in the file's own comment |
 | [`.github/PSScriptAnalyzerSettings.psd1`](../../.github/PSScriptAnalyzerSettings.psd1) | PowerShell lint rules, with three exclusions and the reasoning for each in the file |
 
 `.vscode/settings.json` and `.claude/settings.json` are local editor and agent configuration; they

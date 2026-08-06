@@ -1,0 +1,62 @@
+# Register item 2.11. Automated version bumps for the two things this repo
+# pins: the Python toolchain and the GitHub Actions it calls.
+#
+# The pins exist because prod re-runs the converter over the same Sigma source
+# dev already converted, and only produces the reviewed bytes if both ran the
+# same version (see .github/requirements.txt). Pinning without a bump mechanism
+# is how a repo ends up on a converter nobody has looked at in two years, and
+# how a CVE like the one pip-audit reported against diskcache goes unnoticed.
+version: 2
+
+updates:
+  # ---------------------------------------------------------------------------
+  # Python toolchain
+  #
+  # target-branch is the important line here. Dependabot defaults to the
+  # repository's default branch, which is `main` -- and `main` is the branch
+  # that deploys straight to production Splunk without validating, attacking or
+  # verifying anything, because it trusts what `dev` already proved. A bump
+  # landing there would bypass the entire proving path.
+  #
+  # Pointed at `dev` instead, a bump goes through the same loop a rule change
+  # does: convert, deploy to the dev Splunk, attack, measure. A pySigma bump
+  # that changes generated SPL shows up as a diff in the PR *and* gets attacked
+  # before anyone merges it, which is exactly the check that matters.
+  - package-ecosystem: pip
+    directory: /.github
+    target-branch: dev
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    # One PR for the test/lint tooling, one for the pipeline toolchain. They
+    # carry very different risk: a ruff bump can only turn CI red, while a
+    # pySigma bump can change what gets deployed to Splunk. Reviewing them
+    # together invites waving through the second while looking at the first.
+    groups:
+      dev-tooling:
+        patterns:
+          - pytest
+          - ruff
+      pipeline-toolchain:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - pytest
+          - ruff
+
+  # ---------------------------------------------------------------------------
+  # GitHub Actions
+  #
+  # All eight are first-party `actions/*` pinned to major tags, so these bumps
+  # are low-risk and mostly informational -- but a major tag silently moving is
+  # precisely the thing nobody notices, and this makes each move a diff.
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      github-actions:
+        patterns:
+          - "*"

@@ -9,9 +9,8 @@ Splunk is faked: the assertion is about which requests are made at all.
 
 import json
 
-import pytest
-
 import deploy_spl_to_splunk as deploy
+import pytest
 
 
 class FakeResponse:

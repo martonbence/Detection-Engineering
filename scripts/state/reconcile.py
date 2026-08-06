@@ -52,7 +52,7 @@ import requests
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from lib.rule_naming import saved_search_name  # noqa: E402
+from lib.rule_naming import saved_search_name
 
 # The deploy script stamps this into every description it writes
 # (deploy_spl_to_splunk.py: build_savedsearch_description). It is therefore

@@ -12,9 +12,8 @@ happen: no inference from prose, and no guessing past an unexpected response.
 
 import json
 
-import pytest
-
 import deploy_spl_to_splunk as deploy
+import pytest
 from test_deploy_report import FakeResponse, FakeSession, write_rule
 
 

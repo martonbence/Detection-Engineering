@@ -1110,29 +1110,36 @@
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-10" aria-labelledby="t-2-10">
+      <input class="row-check" type="checkbox" id="i-2-10" aria-labelledby="t-2-10" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.10</span><span class="row-title" id="t-2-10">Szabályonként két Python-process indul egy mező kiolvasásához</span></div>
+        <div class="row-head"><span class="id">2.10</span><span class="row-title" id="t-2-10">Szabályonként két Python-process indul egy mező kiolvasásához</span><span class="tag done">kész</span></div>
         <p class="row-body">A „Detect test types" step szabályonként két <code>python3 -c</code>-t hív, csak a <code>type</code> és <code>runner</code> mezőért. Ez a metaadat-parsing negyedik implementációja a repóban — lásd 3.1.</p>
-        <div class="refs"><span class="ref">ci_dev_workflow.yml:323-324</span></div>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>Kész — és nem új scripttel.</b> Az épp az lett volna, amit ez a tétel kifogásol: egy <em>negyedik</em> parser ugyanarra a metaadatra. A <b>2.17-es <code>check_test_routing.py</code></b> már ma is beolvassa ezeket a szabályokat <em>és</em> tudja, melyik job szolgál ki melyik <code>(tester, runner)</code> párt — a flag tehát <b>keresés egy már felépített táblában</b>, nem második olvasás. Új <code>--job-flags</code> mód, <code>JOB_OUTPUT_FLAGS</code> táblával (job-név → workflow-output), mert az az egyetlen rész, ami nem vezethető le: a workflow saját elnevezése. 27 szabályra <b>54 processz helyett 1</b>.</p>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>Rejtett hiba menet közben:</b> a régi egysorosok <code>2>/dev/null || true</code>-val zárultak, tehát egy hibás YAML <em>csendben</em> üres testerré vált és kiesett a routingból. <b>Egy tudatos viselkedésváltozás:</b> egy nem kiszolgált runnert kérő szabály eddig <code>has_atomic_tests=true</code>-t állított és elindította a victim jobot, ami aztán kihagyta — most nem indul job olyan munkára, ami nincs. A flag-mód <b>néma</b>: a dedikált routing-lépés ugyanabban a jobban már jelentette a találatokat, egy bővebb szabályhalmazon, tehát a duplikálás csak zaj lenne. 7 új teszt. <b>A 3.1-et nem váltja ki</b>, de nem is akadályozza — a logika a YAML-ből egy tesztelhető scriptbe került, ami a manifest bevezetését inkább könnyíti.</p>
+        <div class="refs"><span class="ref">check_test_routing.py --job-flags</span><span class="ref">7 teszt</span></div>
       </div>
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-11" aria-labelledby="t-2-11">
+      <input class="row-check" type="checkbox" id="i-2-11" aria-labelledby="t-2-11" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.11</span><span class="row-title" id="t-2-11">Hiányzó repo-higiénia</span><span class="tag verified">mérve</span></div>
+        <div class="row-head"><span class="id">2.11</span><span class="row-title" id="t-2-11">Hiányzó repo-higiénia</span><span class="tag done">kész</span></div>
         <p class="row-body">Nincs <code>requirements.txt</code>, <code>pyproject.toml</code>, <code>Makefile</code>, <code>.pre-commit-config.yaml</code>, <code>CODEOWNERS</code>, PR template, <code>dependabot.yml</code>. A GitHub Actions verziók csak major taggel vannak pinelve (<code>@v4</code>), nem SHA-val.</p>
-        <div class="refs"><span class="ref">repo gyökér</span><span class="ref">.github/</span></div>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>Kész — de nem a lista letudásával.</b> A <code>requirements.txt</code>, <code>requirements-dev.txt</code> és <code>pyproject.toml</code> korábbi körökben már megvolt. Új a <b><code>.github/dependabot.yml</code></b>: a pinelés bump-mechanizmus nélkül oda vezet, hogy a repó két éve nem nézett converteren ül, és így marad észrevétlen egy olyan CVE, mint amit a pip-audit a <code>diskcache</code>-re jelentett. <b>A kritikus beállítás a <code>target-branch: dev</code>:</b> a dependabot alapból az alapértelmezett ágra (<code>main</code>) nyit PR-t, az pedig <em>validálás, támadás és mérés nélkül</em> deployol prod Splunkba — egy oda érkező bump megkerülné a teljes bizonyítási utat. A <code>dev</code>-re irányítva ugyanazon a körön megy át, mint egy szabályváltozás. Két külön pip-csoport, mert eltérő a kockázatuk: egy <code>ruff</code> bump legfeljebb pirosra váltja a CI-t, egy <code>pySigma</code> bump viszont megváltoztathatja, mi kerül a Splunkba.</p>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>Mind a 39 <code>uses:</code> sor commit-SHA-ra pinelve</b>, a pontos verzióval kommentben. Az indok egy pontosítás volt, nem elv: <b>major taggel a dependabot nem szól</b> a <code>v4 → v4.1</code> mozgásról, csak <code>v5</code> megjelenésekor — vagyis épp azt nem fogja el, hogy „a tag csendben elmozdult". SHA-val minden mozgás diff lesz, és a dependabot onnantól karban is tartja. A tagek a GitHub API-ról feloldva, nem kézzel másolva.</p>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>Tudatosan elutasítva, indoklással.</b> <em>Makefile</em>: a <code>make</code> nincs a karbantartó gépén (ellenőrizve) — futtathatatlan fájl lenne; a két parancs amúgy <code>ruff check .</code> és <code>pytest</code>. <em>pre-commit</em>: amit ellenőrizne, azt a CI már kapuzza, cserébe klónonként telepíteni kell. <em>CODEOWNERS</em>: egyszemélyes repóban saját magától kérne review-t a saját PR-en. <em>PR-sablon</em>: a promóciós PR-eket a CI nyitja saját szöveggel. Ezek nem elmaradtak — checklist-ballasztként lettek elvetve.</p>
+        <div class="refs"><span class="ref">dependabot.yml</span><span class="ref">39 SHA-pin</span></div>
       </div>
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-12" aria-labelledby="t-2-12">
+      <input class="row-check" type="checkbox" id="i-2-12" aria-labelledby="t-2-12" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.12</span><span class="row-title" id="t-2-12">Nulla teszt és nulla linter</span><span class="tag verified">mérve</span></div>
+        <div class="row-head"><span class="id">2.12</span><span class="row-title" id="t-2-12">Nulla teszt és nulla linter</span><span class="tag done">kész</span></div>
         <p class="row-body">Se pytest, se ruff, se actionlint, se PSScriptAnalyzer, se shellcheck. Egy detection-as-code repo, ami a „minden ellenőrzött" narratívát viszi, saját magára nem alkalmazza ezt. A megvalósítás a 4.10-es tételben.</p>
-        <div class="refs"><span class="ref">egész repo</span></div>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>Lezárva a linter kiszélesítésével.</b> A válogatás <b>kurált, nem „minden"</b> — az első kör tanulsága áll: egy kapu, amit megtanulnak átugrani, kevesebbet ér egy szűknél, amiben megbíznak. Bekapcsolva: <code>F, E9, E7, B, I, UP, C4, SIM, RET, PIE, RUF</code>.</p>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>Minden kihagyást megmértem, nem feltételeztem.</b> <code>E501</code> (sorhossz): <b>181 találat</b>, és azok a <em>kommentek</em> — ez a repó szándékosan prózában indokolja magát a kód fölött, 120 oszlopra tördelni pont azt rontaná el, amitől olvasható. <code>ARG</code>: 15 találat, gyakorlatilag mind tesztben, ahol egy fake szignatúrájának egyeznie <em>kell</em> a valódival — a nem használt paraméter maga a lényeg. <code>PTH</code>: 6 találat olyan <code>open()</code>-ökre, amik a step summaryhez fűznek vagy egy fájlt olvasnak egyszer; a <code>Path.open()</code> nem tenné biztonságosabbá, csak mássá. A <code>RUF001-003</code> ignorálva: minden találat szándékos tipográfia. <b>36 automatikus javítás</b> (importrendezés, <code>datetime.UTC</code>) és <b>6 kézi</b> — kétértelmű <code>l</code> változónevek, felesleges értékadás <code>return</code> előtt, nem használt kicsomagolt változók, egy ternary. Ellenőrizve, hogy a <code>datetime.UTC</code> átírás biztonságos: mind a <b>hét</b> <code>python-version</code> pin <code>3.11</code>. A lefedettség másik fele közben magától lezárult: <b>25 tesztről 181-re</b> nőtt a suite.</p>
+        <div class="refs"><span class="ref">pyproject.toml</span><span class="ref">181 teszt</span></div>
       </div>
     </div>
 

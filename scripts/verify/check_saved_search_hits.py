@@ -17,12 +17,12 @@ Output per rule:
 Exit code is always 0 — per-rule errors are captured inside the JSON files.
 """
 
+import argparse
+import json
 import os
 import sys
-import json
 import time
-import argparse
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import quote
 
@@ -239,7 +239,7 @@ def main(argv: list[str]) -> int:
     session.auth = (username, password)
     session.headers.update({"Accept": "application/json"})
 
-    run_ts = datetime.now(timezone.utc).isoformat()
+    run_ts = datetime.now(UTC).isoformat()
 
     for spl_path_str in args.spl_files:
         path = Path(spl_path_str.strip())

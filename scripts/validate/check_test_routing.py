@@ -58,6 +58,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Exit 1 when a rule is unrouted, instead of only warning",
     )
+    p.add_argument(
+        "--job-flags",
+        action="store_true",
+        help="Also emit has_*_tests flags to $GITHUB_OUTPUT: which test jobs this batch needs",
+    )
     p.add_argument("rules", nargs="*", help="Rule files to check (default: every rule in rules/sigma)")
     return p.parse_args(argv)
 
@@ -99,14 +104,27 @@ def describe(matrix: dict[tuple[str, str], str]) -> str:
     return ", ".join(f"{t}/{r}" for t, r in sorted(matrix)) or "(none)"
 
 
+def testing_block(data: object) -> dict:
+    """The rule's `custom.testing` mapping, or an empty one.
+
+    Shared so the routing check and the job flags read the rule exactly the
+    same way -- two readers disagreeing about what "tested" means is how a rule
+    ends up starting a job that then skips it.
+    """
+    if not isinstance(data, dict):
+        return {}
+    custom = data.get("custom") or {}
+    testing = (custom.get("testing") if isinstance(custom, dict) else None) or {}
+    return testing if isinstance(testing, dict) else {}
+
+
 def check_rule(path: Path, data: object, matrix: dict[tuple[str, str], str]) -> dict | None:
     """Return a finding for this rule, or None when it routes to a real job."""
     if not isinstance(data, dict):
         return None
 
-    custom = data.get("custom") or {}
-    testing = (custom.get("testing") if isinstance(custom, dict) else None) or {}
-    if not isinstance(testing, dict) or not testing.get("enabled"):
+    testing = testing_block(data)
+    if not testing.get("enabled"):
         return None
 
     detect_id = str(data.get("detect_id") or path.stem)
@@ -145,6 +163,57 @@ def check_rule(path: Path, data: object, matrix: dict[tuple[str, str], str]) -> 
         }
 
     return None
+
+
+# Register item 2.10. The workflow used to answer "which test jobs does this
+# batch need?" in bash, by spawning *two* `python3 -c` one-liners per rule -- 54
+# processes for 27 rules -- each ending in `2>/dev/null || true`, so a rule whose
+# YAML failed to parse silently became an empty tester and dropped out of routing
+# with nothing said.
+#
+# The question is already answered here: the matrix maps (tester, runner) to the
+# job that services it, so "does this job have work?" is a lookup, not a second
+# parse. This is the mapping from that job name to the workflow output the jobs
+# gate on -- the only part that cannot be derived, because it is the workflow's
+# own naming.
+#
+# A job missing from this table simply gets no flag; item 2.17's warning is what
+# reports a rule that routes nowhere. Note this is stricter than the old bash in
+# a way that matters: a rule requesting an unserviced runner used to set
+# has_atomic_tests and start the victim job, which then skipped it. Now no job is
+# started for work that does not exist.
+JOB_OUTPUT_FLAGS = {
+    "atomic_verify": "has_atomic_tests",
+    "atomic_verify_dc": "has_atomic_dc_tests",
+    "emulation_verify": "has_emulation_tests",
+}
+
+
+def job_flags(entries: list[dict], matrix: dict[tuple[str, str], str]) -> dict[str, bool]:
+    """Which of the workflow's test jobs have at least one rule to run."""
+    flags = dict.fromkeys(JOB_OUTPUT_FLAGS.values(), False)
+    for entry in entries:
+        job = matrix.get((entry["type"].lower(), entry["runner"].lower()))
+        flag = JOB_OUTPUT_FLAGS.get(job)
+        if flag:
+            flags[flag] = True
+    return flags
+
+
+def write_job_flags(flags: dict[str, bool]) -> None:
+    lines = [f"{name}={'true' if value else 'false'}" for name, value in sorted(flags.items())]
+    for line in lines:
+        print(line)
+
+    output_path = os.environ.get("GITHUB_OUTPUT")
+    if not output_path:
+        return
+    try:
+        with open(output_path, "a", encoding="utf-8") as fh:
+            for line in lines:
+                fh.write(line + "\n")
+    except OSError as ex:
+        eprint(f"WARNING: could not write the job flags: {ex}")
 
 
 def write_step_summary(findings: list[dict]) -> None:
@@ -213,12 +282,14 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    if args.rules:
-        rule_paths = [Path(r) for r in args.rules]
-    else:
-        rule_paths = sorted(Path("rules/sigma").rglob("*.yml"))
+    rule_paths = (
+        [Path(r) for r in args.rules]
+        if args.rules
+        else sorted(Path("rules/sigma").rglob("*.yml"))
+    )
 
     findings: list[dict] = []
+    tested: list[dict] = []
     checked = 0
 
     for path in rule_paths:
@@ -235,13 +306,30 @@ def main(argv: list[str] | None = None) -> int:
         if finding:
             findings.append(finding)
 
-    print(f"Serviced test combinations: {describe(matrix)}")
-    print(f"Checked {checked} rule(s); {len(findings)} with no runner to execute them.")
+        testing = testing_block(data)
+        if testing.get("enabled"):
+            tested.append(
+                {
+                    "type": str(testing.get("type") or "").strip(),
+                    "runner": str(testing.get("runner") or "").strip(),
+                }
+            )
 
-    for f in findings:
-        print(f"::warning file={f['rule']},title=No runner for this test::{f['message']}")
+    # --job-flags is the workflow asking "which test jobs does this batch need?",
+    # not a human asking "is anything unrouted?". The dedicated routing step
+    # earlier in the same job already answered the second question over a
+    # superset of these rules, so repeating the annotations and the summary
+    # table here would only duplicate them.
+    reporting = not args.job_flags
 
-    write_step_summary(findings)
+    if reporting:
+        print(f"Serviced test combinations: {describe(matrix)}")
+        print(f"Checked {checked} rule(s); {len(findings)} with no runner to execute them.")
+
+        for f in findings:
+            print(f"::warning file={f['rule']},title=No runner for this test::{f['message']}")
+
+        write_step_summary(findings)
 
     if args.json_out:
         out = Path(args.json_out)
@@ -260,6 +348,9 @@ def main(argv: list[str] | None = None) -> int:
             encoding="utf-8",
         )
         print(f"Wrote {out}")
+
+    if args.job_flags:
+        write_job_flags(job_flags(tested, matrix))
 
     if findings and args.strict:
         return 1

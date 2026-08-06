@@ -11,7 +11,6 @@ milliseconds.
 import json
 
 import pytest
-
 from reconcile import (
     CI_MARKER,
     RETIRED_MARKER,

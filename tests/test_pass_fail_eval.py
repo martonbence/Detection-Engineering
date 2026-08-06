@@ -7,7 +7,6 @@ missing data.
 """
 
 import pytest
-
 from pass_fail_eval import FAIL, NOT_VERIFIED, PASS, evaluate
 
 MIN_PASS = 1

@@ -13,9 +13,8 @@ import json
 import subprocess
 
 import pytest
-import yaml
-
 import select_unverified
+import yaml
 from select_unverified import classify, main, verified_version
 
 

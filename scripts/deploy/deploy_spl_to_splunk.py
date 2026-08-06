@@ -1,8 +1,8 @@
 import argparse
 import datetime
+import json
 import os
 import sys
-import json
 from pathlib import Path
 from urllib.parse import quote
 
@@ -221,7 +221,7 @@ def write_report(path: Path, records: list[dict]) -> None:
     path.write_text(
         json.dumps(
             {
-                "deployed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "deployed_at": datetime.datetime.now(datetime.UTC).isoformat(),
                 "totals": totals,
                 "rules": records,
             },
