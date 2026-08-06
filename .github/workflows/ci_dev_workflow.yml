@@ -659,7 +659,30 @@ jobs:
           SPLUNK_BASE_URL: ${{ secrets.SPLUNK_BASE_URL }}
           SPLUNK_USERNAME: ${{ secrets.SPLUNK_USERNAME }}
           SPLUNK_PASSWORD: ${{ secrets.SPLUNK_PASSWORD }}
-          SPLUNK_APP: ${{ secrets.SPLUNK_APP }}
+          # Register item 2.18, and the reference copy of this line -- the three
+          # other uses in splunk_verify below and the one in
+          # ci_prod_workflow.yml must stay identical in form.
+          #
+          # A variable, not a secret: an app namespace is a routing label, not a
+          # credential. It grants nothing on its own, and masking it only made
+          # the single value that decides dev-vs-prod unreadable in the logs of
+          # the job it aims -- while leaving the two environments' values
+          # impossible to compare, which is exactly the cross-check
+          # threat_model.md notes is missing.
+          #
+          # Environment-scoped (`environment: dev` above), so this expression
+          # and the byte-identical one in the prod workflow resolve to different
+          # apps. That resolution happens when the job starts, which is why this
+          # is only ever read from a step `env:` block: a job-level `if:` is
+          # evaluated before the environment exists and would silently see an
+          # empty string -- the trap register item 2.20 hit with LAB_ONLINE.
+          #
+          # Unset fails closed rather than deploying into a nameless namespace:
+          # every consumer calls env_required(), which rejects empty and
+          # whitespace-only values and exits non-zero before the first HTTP call
+          # (deploy_spl_to_splunk.py exit 1, wait_for_indexing.py and
+          # reconcile.py exit 2, check_saved_search_hits.py exit 1).
+          SPLUNK_APP: ${{ vars.SPLUNK_APP }}
           SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS || 'false' }}
           SPLUNK_SHARING: app
           SPLUNK_PERMS_READ: "*"
@@ -1110,7 +1133,9 @@ jobs:
           SPLUNK_BASE_URL: ${{ secrets.SPLUNK_BASE_URL }}
           SPLUNK_USERNAME: ${{ secrets.SPLUNK_USERNAME }}
           SPLUNK_PASSWORD: ${{ secrets.SPLUNK_PASSWORD }}
-          SPLUNK_APP: ${{ secrets.SPLUNK_APP }}
+          # Register item 2.18: environment-scoped variable, not a secret.
+          # See the deploy_to_splunk step above for why.
+          SPLUNK_APP: ${{ vars.SPLUNK_APP }}
           SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS || 'false' }}
         run: |
           set -euo pipefail
@@ -1140,7 +1165,9 @@ jobs:
           SPLUNK_BASE_URL: ${{ secrets.SPLUNK_BASE_URL }}
           SPLUNK_USERNAME: ${{ secrets.SPLUNK_USERNAME }}
           SPLUNK_PASSWORD: ${{ secrets.SPLUNK_PASSWORD }}
-          SPLUNK_APP: ${{ secrets.SPLUNK_APP }}
+          # Register item 2.18: environment-scoped variable, not a secret.
+          # See the deploy_to_splunk step above for why.
+          SPLUNK_APP: ${{ vars.SPLUNK_APP }}
           SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS || 'false' }}
         run: |
           set -euo pipefail
@@ -1239,7 +1266,9 @@ jobs:
           SPLUNK_BASE_URL: ${{ secrets.SPLUNK_BASE_URL }}
           SPLUNK_USERNAME: ${{ secrets.SPLUNK_USERNAME }}
           SPLUNK_PASSWORD: ${{ secrets.SPLUNK_PASSWORD }}
-          SPLUNK_APP: ${{ secrets.SPLUNK_APP }}
+          # Register item 2.18: environment-scoped variable, not a secret.
+          # See the deploy_to_splunk step above for why.
+          SPLUNK_APP: ${{ vars.SPLUNK_APP }}
           SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS || 'false' }}
         run: |
           set -uo pipefail
