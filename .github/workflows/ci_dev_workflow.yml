@@ -439,6 +439,31 @@ jobs:
           python scripts/validate/check_test_routing.py \
             --workflow .github/workflows/ci_dev_workflow.yml
 
+      # Register item 4.3. The schema does not catch this: the tag pattern in
+      # sigma_schema.json sits in an `anyOf` whose third branch is free text, so
+      # `attack.t123` validates -- and extract_techniques() in generate_stats.py
+      # matches an even looser `attack\.t\d+`, which means a mistyped technique
+      # is rendered as a badge and a Navigator cell as though it were covered.
+      #
+      # Advisory, not a gate, and deliberately without --strict: a wrong tag
+      # misfiles a working detection on the matrix, it does not break it, and a
+      # rule is worth deploying while its tag is argued about. The exit code
+      # stays 0; the finding arrives as an annotation and a step summary row.
+      #
+      # Reads the technique map committed under outputs/reports/ -- no network
+      # call, and none is wanted: a validator that fetches would go green for
+      # the wrong reason on the day the fetch quietly fails.
+      #
+      # Every rule, not just the changed ones, for the same reason as the
+      # routing check above: what invalidates a tag is usually upstream (a
+      # technique revoked, the cache refreshed), not this push.
+      - name: Check MITRE ATT&CK tags against the technique map
+        if: steps.changes.outputs.has_rules == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/validate/check_mitre_tags.py
+
       - name: Convert Sigma rules to Splunk SPL
         if: steps.changes.outputs.has_rules == 'true'
         shell: bash
