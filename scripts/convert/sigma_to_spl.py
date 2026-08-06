@@ -10,10 +10,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import yaml
-
-PIPELINE_WINDOWS = "splunk_windows"
-PIPELINE_SYSMON = "splunk_sysmon_acceleration"
-
+from backend_config import BackendConfig, BackendConfigError, load_backend
 
 
 def _normalize_service(rule: dict) -> str:
@@ -21,30 +18,28 @@ def _normalize_service(rule: dict) -> str:
     return str(ls.get("service") or "").strip().lower()
 
 
-def pick_pipeline(rule: dict) -> str:
+def pick_pipeline(rule: dict, backend: BackendConfig) -> str:
     """
-    Pipeline selection:
-      - service == "sysmon"     -> splunk_sysmon_acceleration
-      - service == "security"   -> splunk_windows
-      - anything else / missing -> NO pipeline (fallback to --without-pipeline)
+    Pipeline selection, driven by config/backends.yml (register item 3.7).
 
-    Optional override:
-      custom:
-        splunk_pipeline: <pipeline_name>
+    The rule side of the decision lives here because it is about the shape of a
+    Sigma document -- where the service is written down, and where a rule may
+    override it. The mapping itself is the backend's, and is data:
+
+      - a rule naming its own pipeline under the backend's override key wins
+      - otherwise `logsource.service` is looked up in the backend's routing
+      - anything unmapped gets the backend's default, which for Splunk is
+        empty, i.e. --without-pipeline
+
+    The precedence is unchanged from the hardcoded version; only where the
+    table is written down moved.
     """
-    custom = rule.get("custom") or {}
-    if isinstance(custom, dict) and custom.get("splunk_pipeline"):
-        return str(custom["splunk_pipeline"]).strip()
+    if backend.pipeline_override_key:
+        custom = rule.get("custom") or {}
+        if isinstance(custom, dict) and custom.get(backend.pipeline_override_key):
+            return str(custom[backend.pipeline_override_key]).strip()
 
-    service = _normalize_service(rule)
-
-    if service == "sysmon":
-        return PIPELINE_SYSMON
-    if service == "security":
-        return PIPELINE_WINDOWS
-
-    # everything else: no pipeline
-    return ""
+    return backend.pipeline_for_service(_normalize_service(rule))
 
 
 def output_name_for_rule(rule_path: Path) -> str:
@@ -59,11 +54,14 @@ def output_name_for_rule(rule_path: Path) -> str:
     return f"{name}.spl"
 
 
-def run_sigma_convert(rule_path: Path, out_path: Path, pipeline: str) -> None:
-    cmd = ["sigma", "convert", "-t", "splunk"]
+def run_sigma_convert(rule_path: Path, out_path: Path, pipeline: str, backend: BackendConfig) -> None:
+    cmd = ["sigma", "convert", "-t", backend.target]
 
-    # pipeline is required for some backends, but CIM pipeline is not universal.
-    # For non-security/sysmon rules, we intentionally fall back to --without-pipeline.
+    # An empty pipeline is a decision, not a gap: the backend's config declares
+    # what unmapped log sources get, and for Splunk that is deliberately nothing
+    # (config/backends.yml explains why). It still has to be spelled out:
+    # sigma-cli refuses to convert with neither -p nor --without-pipeline, so
+    # "no pipeline" is a flag you pass, not an argument you leave off.
     if pipeline:
         cmd += ["-p", pipeline]
     else:
@@ -345,8 +343,32 @@ def write_meta_sidecar(out_path: Path, meta: dict) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--outdir", required=True)
+    ap.add_argument(
+        "--backend",
+        default="",
+        help="Backend name from config/backends.yml. Defaults to that file's default_backend.",
+    )
+    ap.add_argument(
+        "--backends-config",
+        default="",
+        help="Path to the backend config. Defaults to config/backends.yml next to the repo root.",
+    )
     ap.add_argument("rules", nargs="+")
     args = ap.parse_args()
+
+    # Loaded before anything is written, and fatal on any problem. A converter
+    # that started producing files and only then discovered it did not know
+    # which backend it was targeting would leave a half-converted rules/splunk/
+    # behind -- and the prod drift gate compares that directory byte for byte.
+    # Exit 2 rather than 1: this is the converter failing to set itself up, not
+    # a rule failing to convert, the same distinction validate_sigma.py draws.
+    try:
+        backend = load_backend(args.backend, Path(args.backends_config) if args.backends_config else None)
+    except BackendConfigError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 2
+
+    print(f"Backend: {backend.name} (sigma target '{backend.target}') from {backend.source}")
 
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
@@ -369,7 +391,7 @@ def main() -> int:
             failed += 1
             continue
 
-        pipeline = pick_pipeline(rule)
+        pipeline = pick_pipeline(rule, backend)
         out_path = outdir / output_name_for_rule(rule_path)
         # deploy_mode must come from the Sigma rule's custom.splunk.mode (report|alert)
         custom = rule.get("custom") or {}
@@ -387,6 +409,10 @@ def main() -> int:
         service = _normalize_service(rule)
 
         if raw_query:
+            # A raw_query rule never reaches the backend: the SPL is written by
+            # hand in the Sigma file and copied out verbatim. The backend is
+            # still loaded for it, because the run either knows its target or
+            # should not have started.
             print(f"Converting: {rule_path} -> {out_path} (raw_query, mode={deploy_mode})")
             write_raw_query(out_path, raw_query)
         else:
@@ -394,7 +420,7 @@ def main() -> int:
             print(f"Converting: {rule_path} -> {out_path} ({print_mode}, service={service or 'N/A'}, mode={deploy_mode})")
 
             try:
-                run_sigma_convert(rule_path, out_path, pipeline)
+                run_sigma_convert(rule_path, out_path, pipeline, backend)
             except subprocess.CalledProcessError as e:
                 print(f"ERROR: sigma convert failed for {rule_path}: {e}", file=sys.stderr)
                 failed += 1
