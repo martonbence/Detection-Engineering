@@ -109,7 +109,15 @@ function Write-AtomicProgressMarker {
 
         [Parameter(Mandatory = $true)]
         [ValidateSet("started", "completed")]
-        [string]$Status
+        [string]$Status,
+
+        # Register item 2.8. Recorded so pass_fail_eval.py can name the right
+        # thing when a marker exists but no hits.json does -- before emulation
+        # rules had markers at all, that case could only ever be atomic, and
+        # the tester was assumed rather than known.
+        [Parameter(Mandatory = $false)]
+        [ValidateSet("atomic", "emulation")]
+        [string]$Tester = "atomic"
     )
 
     if (-not (Test-Path -LiteralPath $ProgressDir)) {
@@ -122,6 +130,7 @@ function Write-AtomicProgressMarker {
     $payload = [ordered]@{
         detect_id  = $DetectId
         status     = $Status
+        tester     = $Tester
         updated_at = (Get-Date).ToUniversalTime().ToString("o")
     } | ConvertTo-Json -Compress
 
@@ -465,9 +474,20 @@ $collectedCustom = [System.Collections.Generic.List[pscustomobject]]::new()
 $matchedFiles = 0
 
 # detect_id -> HashSet[string] of "TECHNIQUE|TESTNUM" keys required for that rule
-# to be considered "completed" (only populated for tester == atomic; emulation
-# tests are not part of the NOT_VERIFIED progress-marker mechanism).
+# to be considered "completed" (tester == atomic).
 $detectIdTestKeys = @{}
+
+# Register item 2.8. The same thing for emulation-tested rules, which used to be
+# outside this mechanism entirely: no marker was ever written for them, so
+# pass_fail_eval.py could not tell "the emulation command never ran" from "it
+# ran and Splunk saw nothing" and scored both as FAIL. That is exactly the
+# false-verdict class NOT_VERIFIED exists to prevent, and 8 of 27 rules sat
+# outside it.
+#
+# Keyed "detect_id|index" rather than by test name: names are free text and two
+# tests in one rule may share one, which a name-keyed set would silently
+# collapse into a rule that completes early.
+$detectIdCustomKeys = @{}
 # "TECHNIQUE|TESTNUM" -> HashSet[string] of detect_ids that key belongs to
 # (a technique/test can be shared by more than one rule).
 $testKeyToDetectIds = @{}
@@ -523,14 +543,29 @@ foreach ($splFile in $SplFiles) {
         $matchedFiles++
         Write-Host "Collected custom emulation tests from $splFile"
 
+        if (-not $detectIdCustomKeys.Contains($detectId)) {
+            $detectIdCustomKeys[$detectId] = [System.Collections.Generic.HashSet[string]]::new()
+        }
+
+        $customIndex = 0
         foreach ($test in $meta.'custom tests') {
+            # Register item 2.8: the detect_id has to travel with the test.
+            # $collectedCustom used to be a flat list of commands with no idea
+            # which rule they belonged to, which is why no marker could be
+            # written for them.
+            $customKey = "$detectId|$customIndex"
+            [void]$detectIdCustomKeys[$detectId].Add($customKey)
+
             $collectedCustom.Add([pscustomobject]@{
                 Name          = [string]$test.name
                 Executor      = [string]$test.executor
                 Command       = [string]$test.command
                 Cleanup       = [string]$test.cleanup
                 Prerequisites = $test.prerequisites
+                DetectId      = $detectId
+                CustomKey     = $customKey
             })
+            $customIndex++
         }
         continue
     }
@@ -626,9 +661,13 @@ if (Test-Path -LiteralPath $ProgressDir) {
 # never reached "completed") rather than FAIL if the whole step gets killed by
 # GitHub Actions' timeout-minutes partway through. Written synchronously so
 # whatever is on disk at the moment of a hard kill is the ground truth.
-Write-Host "Writing 'started' progress markers for $($detectIdTestKeys.Count) atomic-tested rule(s) to $ProgressDir"
+$markedRules = $detectIdTestKeys.Count + $detectIdCustomKeys.Count
+Write-Host "Writing 'started' progress markers for $markedRules tested rule(s) to $ProgressDir"
 foreach ($dId in $detectIdTestKeys.Keys) {
     Write-AtomicProgressMarker -ProgressDir $ProgressDir -DetectId $dId -Status "started"
+}
+foreach ($dId in $detectIdCustomKeys.Keys) {
+    Write-AtomicProgressMarker -ProgressDir $ProgressDir -DetectId $dId -Status "started" -Tester "emulation"
 }
 
 # Remaining required "TECHNIQUE|TESTNUM" keys per detect_id -- a rule is
@@ -637,6 +676,12 @@ foreach ($dId in $detectIdTestKeys.Keys) {
 $remainingTestKeys = @{}
 foreach ($dId in $detectIdTestKeys.Keys) {
     $remainingTestKeys[$dId] = [System.Collections.Generic.HashSet[string]]::new($detectIdTestKeys[$dId])
+}
+
+# Same, for the emulation side (register item 2.8).
+$remainingCustomKeys = @{}
+foreach ($dId in $detectIdCustomKeys.Keys) {
+    $remainingCustomKeys[$dId] = [System.Collections.Generic.HashSet[string]]::new($detectIdCustomKeys[$dId])
 }
 
 $failures = 0
@@ -780,6 +825,19 @@ try {
                 }
                 catch {
                     Write-Warning "Cleanup failed for '$($test.Name)': $($_.Exception.Message)"
+                }
+            }
+
+            # Register item 2.8, and in `finally` on purpose: the marker records
+            # that the emulation command *ran*, not that it worked. A command
+            # that threw was still attempted, and the verdict for that is FAIL
+            # on the Splunk evidence -- not NOT_VERIFIED, which is reserved for
+            # "we never got to try". Mirrors how the atomic side treats a test
+            # that ran and failed.
+            if ($test.DetectId -and $remainingCustomKeys.Contains($test.DetectId)) {
+                [void]$remainingCustomKeys[$test.DetectId].Remove($test.CustomKey)
+                if ($remainingCustomKeys[$test.DetectId].Count -eq 0) {
+                    Write-AtomicProgressMarker -ProgressDir $ProgressDir -DetectId $test.DetectId -Status "completed" -Tester "emulation"
                 }
             }
         }

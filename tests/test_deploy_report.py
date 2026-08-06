@@ -23,22 +23,39 @@ class FakeResponse:
         return {"entry": [{"name": "x"}]}
 
 
+def endpoint_kind(url):
+    """Which of the three endpoints a URL addresses.
+
+    Order matters: the ACL URL also contains `saved/searches/`, and the object
+    URL differs from the collection URL only by `/` versus `?` after it.
+    """
+    if "/acl" in url:
+        return "acl"
+    if "saved/searches?" in url:
+        return "create"
+    return "update"
+
+
 class FakeSession:
-    """Responds per URL fragment so create/update/ACL can be steered separately."""
+    """Responds per endpoint, so create/update/ACL can be steered separately."""
 
     def __init__(self, responses=None):
         self.headers = {}
         self.verify = True
         self.auth = None
         self.posts = []
-        self.responses = responses or {}
+        # Default: the object exists, so an update succeeds -- the common case
+        # for a rule that has been deployed before.
+        self.responses = {"update": FakeResponse(), "create": FakeResponse(), "acl": FakeResponse()}
+        self.responses.update(responses or {})
 
     def post(self, url, data=None, timeout=None):
-        self.posts.append({"url": url, "data": data})
-        for fragment, response in self.responses.items():
-            if fragment in url:
-                return response
-        return FakeResponse()
+        kind = endpoint_kind(url)
+        self.posts.append({"url": url, "data": data, "kind": kind})
+        return self.responses[kind]
+
+    def kinds(self):
+        return [p["kind"] for p in self.posts]
 
 
 @pytest.fixture
@@ -87,7 +104,7 @@ def read_report(path):
 
 
 def test_a_created_rule_is_recorded_with_its_version(tmp_path, splunk):
-    splunk()
+    splunk({"update": FakeResponse(404), "create": FakeResponse(201)})
     spl = write_rule(tmp_path)
     report = tmp_path / "out" / "deploy.json"
 
@@ -102,8 +119,8 @@ def test_a_created_rule_is_recorded_with_its_version(tmp_path, splunk):
 
 
 def test_an_existing_rule_is_recorded_as_updated(tmp_path, splunk):
-    """A 409 on create means the object was already there."""
-    splunk({"saved/searches?": FakeResponse(409, "already exists")})
+    """200 from the object endpoint means it was there and is now updated."""
+    splunk()
     spl = write_rule(tmp_path)
     report = tmp_path / "deploy.json"
 
@@ -136,7 +153,7 @@ def test_a_missing_file_is_recorded_as_failed(tmp_path, splunk):
 
 
 def test_a_failed_create_records_the_status_code(tmp_path, splunk):
-    splunk({"saved/searches?": FakeResponse(500, "boom")})
+    splunk({"update": FakeResponse(404), "create": FakeResponse(500, "boom")})
     spl = write_rule(tmp_path)
     report = tmp_path / "deploy.json"
 
@@ -198,7 +215,7 @@ def test_the_step_summary_lists_the_rules(tmp_path, splunk, monkeypatch):
 
     text = summary.read_text(encoding="utf-8")
     assert "DETECT-2026-0001" in text
-    assert "created" in text
+    assert "updated" in text
 
 
 def test_no_step_summary_is_written_when_github_provides_none(tmp_path, splunk):

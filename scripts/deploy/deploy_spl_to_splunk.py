@@ -159,10 +159,12 @@ def splunk_post(session: requests.Session, url: str, data: dict) -> requests.Res
     return session.post(url, data=data, timeout=30)
 
 
-def is_already_exists(resp_text: str) -> bool:
-    # Splunk error messages vary by version; this catches the common ones.
-    t = (resp_text or "").lower()
-    return ("already exists" in t) or ("conflict" in t) or ("in use" in t)
+# Register item 2.6 removed is_already_exists() from here. It decided whether a
+# saved search already existed by searching Splunk's error *text* for "already
+# exists" / "conflict" / "in use" -- wording that varies by Splunk version and
+# is not part of any contract, and which three unrelated failures could also
+# contain. The deploy now asks the object endpoint instead and reads the status
+# code, which is the contract.
 
 
 def set_acl(
@@ -382,31 +384,83 @@ def main(argv: list[str]) -> int:
 
         runtime_payload = build_splunk_runtime_payload_from_header(f)
 
+        # Register item 2.6. This used to POST to the collection endpoint first
+        # and then work out from the *error text* whether the object already
+        # existed -- matching "already exists" / "conflict" / "in use", none of
+        # which Splunk promises, all of which vary by version, and any of which
+        # an unrelated failure could contain. A rephrased conflict was reported
+        # as a create failure; an unrelated error carrying one of those words
+        # sent the deploy down the update path to fail again, more confusingly.
+        #
+        # The object endpoint answers the same question by contract: 200 means
+        # it was there and is now updated, 404 means it is not there yet.
+        # Nothing is inferred from prose, and the common case -- a rule that has
+        # been deployed before -- now takes one call instead of two.
+        object_url = (
+            f"{base_url}/servicesNS/{quote(owner, safe='')}/{quote(app, safe='')}"
+            f"/saved/searches/{quote(search_name, safe='')}?output_mode=json"
+        )
+
+        # `name` belongs in the URL here, not the body: this endpoint addresses
+        # an existing object rather than creating one.
+        payload_update = {
+            "search": search_query,
+            "description": final_desc,
+            **runtime_payload,
+        }
+
+        r = splunk_post(s, object_url, payload_update)
+
+        if r.status_code == 200:
+            print(f"Updated: {search_name}")
+            ok, msg = set_acl(s, base_url, owner, app, search_name, sharing, perms_read, perms_write)
+            if not ok:
+                print(f"WARNING: {search_name}: {msg}", file=sys.stderr)
+            record("updated", f, meta, search_name, "" if ok else f"ACL warning: {msg}")
+            continue
+
+        if r.status_code in (401, 403):
+            print(f"ERROR: auth/permission error updating {search_name} (HTTP {r.status_code})", file=sys.stderr)
+            print(f"Response (first 800 chars): {r.text[:800]}", file=sys.stderr)
+            record("failed", f, meta, search_name, f"auth/permission error (HTTP {r.status_code})")
+            failed += 1
+            continue
+
+        if r.status_code != 404:
+            # Deliberately not falling through to create. Anything that is
+            # neither "updated" nor "not found" is a real error, and guessing
+            # past it is what the old error-text matching did.
+            print(
+                f"ERROR: unexpected response updating {search_name} (HTTP {r.status_code}); "
+                f"expected 200 (updated) or 404 (does not exist yet).",
+                file=sys.stderr,
+            )
+            print(f"Response (first 800 chars): {r.text[:800]}", file=sys.stderr)
+            record("failed", f, meta, search_name, f"unexpected update response (HTTP {r.status_code})")
+            failed += 1
+            continue
+
+        # 404: the saved search does not exist yet, so create it.
         payload_create = {
             "name": search_name,
             "search": search_query,
             "description": final_desc,
             **runtime_payload,
-
         }
 
-        r = splunk_post(s, create_url, payload_create)
+        r_create = splunk_post(s, create_url, payload_create)
 
-        if r.status_code in (200, 201):
+        if r_create.status_code in (200, 201):
             print(f"Created: {search_name}")
 
             # Splunk's savedsearch creation endpoint doesn't reliably apply
             # scheduling fields (is_scheduled/cron_schedule) on the same POST
-            # that creates the object -- a brand-new search can come back
-            # with Next scheduled time = None even though the create call
-            # succeeded. A follow-up edit POST with the same runtime payload
-            # forces Splunk to actually persist them, mirroring what already
-            # happens for the "already exists" (update) path below.
-            create_update_url = (
-                f"{base_url}/servicesNS/{quote(owner, safe='')}/{quote(app, safe='')}"
-                f"/saved/searches/{quote(search_name, safe='')}?output_mode=json"
-            )
-            r_reapply = splunk_post(s, create_update_url, runtime_payload)
+            # that creates the object -- a brand-new search can come back with
+            # Next scheduled time = None even though the create call succeeded.
+            # A follow-up edit POST with the same runtime payload forces Splunk
+            # to actually persist them. The update path above needs no such
+            # follow-up: it is already that same edit POST.
+            r_reapply = splunk_post(s, object_url, runtime_payload)
             if r_reapply.status_code != 200:
                 print(
                     f"WARNING: {search_name}: failed to reapply scheduling fields after create "
@@ -420,48 +474,16 @@ def main(argv: list[str]) -> int:
             record("created", f, meta, search_name, "" if ok else f"ACL warning: {msg}")
             continue
 
-        # If auth/permission error -> fail fast (do not mask with update attempt)
-        if r.status_code in (401, 403):
-            print(f"ERROR: auth/permission error creating {search_name} (HTTP {r.status_code})", file=sys.stderr)
-            print(f"Response (first 800 chars): {r.text[:800]}", file=sys.stderr)
-            record("failed", f, meta, search_name, f"auth/permission error (HTTP {r.status_code})")
+        if r_create.status_code in (401, 403):
+            print(f"ERROR: auth/permission error creating {search_name} (HTTP {r_create.status_code})", file=sys.stderr)
+            print(f"Response (first 800 chars): {r_create.text[:800]}", file=sys.stderr)
+            record("failed", f, meta, search_name, f"auth/permission error (HTTP {r_create.status_code})")
             failed += 1
             continue
 
-        update_url = (
-            f"{base_url}/servicesNS/{quote(owner, safe='')}/{quote(app, safe='')}"
-            f"/saved/searches/{quote(search_name, safe='')}?output_mode=json"
-        )
-
-        if r.status_code in (409,) or is_already_exists(r.text):
-
-            runtime_payload = build_splunk_runtime_payload_from_header(f)
-
-            payload_update = {
-                "search": search_query,
-                "description": final_desc,
-                **runtime_payload,
-            }
-            r2 = splunk_post(s, update_url, payload_update)
-
-            if r2.status_code == 200:
-                print(f"Updated: {search_name}")
-                ok, msg = set_acl(s, base_url, owner, app, search_name, sharing, perms_read, perms_write)
-                if not ok:
-                    print(f"WARNING: {search_name}: {msg}", file=sys.stderr)
-                record("updated", f, meta, search_name, "" if ok else f"ACL warning: {msg}")
-                continue
-
-            print(f"ERROR: failed updating {search_name}. Update={r2.status_code}", file=sys.stderr)
-            print(f"Update response (first 800 chars): {r2.text[:800]}", file=sys.stderr)
-            record("failed", f, meta, search_name, f"update failed (HTTP {r2.status_code})")
-            failed += 1
-            continue
-
-        # Other create failures -> report and fail
-        print(f"ERROR: failed creating {search_name}. Create={r.status_code}", file=sys.stderr)
-        print(f"Create response (first 800 chars): {r.text[:800]}", file=sys.stderr)
-        record("failed", f, meta, search_name, f"create failed (HTTP {r.status_code})")
+        print(f"ERROR: failed creating {search_name}. Create={r_create.status_code}", file=sys.stderr)
+        print(f"Create response (first 800 chars): {r_create.text[:800]}", file=sys.stderr)
+        record("failed", f, meta, search_name, f"create failed (HTTP {r_create.status_code})")
         failed += 1
 
     if args.report:

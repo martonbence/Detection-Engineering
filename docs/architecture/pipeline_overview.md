@@ -289,16 +289,49 @@ The rule browser used to carry two separate facets asking overlapping questions 
 
 The same value is what the table's markers encode (hollow verdict badge for either lapse, `△` for superseded, `●` for expired) and what CSV/JSON exports carry in a single `Evidence` column, replacing the former `Review Status` + `Verdict Sync` pair. The per-rule `verdict_at` timestamp and both version fields remain exported alongside it, so a consumer can re-derive the classification independently.
 
-### Known gap: the NOT VERIFIED gate is atomic-only
+### The NOT VERIFIED gate, and how it reaches every tested rule
 
-`pass_fail_eval.py` applies the progress-marker gate only when a rule's `tester` is `atomic`:
+`pass_fail_eval.py` runs a gate *before* scoring a rule's event count, because the two answer
+different questions. The count answers "did the detection fire?"; the gate answers "was it even
+attacked?" Without it, an attack that never ran produces zero events, and zero events read as FAIL —
+a confirmed negative manufactured from something that never happened.
 
 ```python
-if tester == "atomic" and not atomic_test_completed(progress_dir, detect_id):
+if (
+    summary.get("testing_enabled")
+    and tester in ("atomic", "emulation")
+    and not atomic_test_completed(progress_dir, detect_id)
+):
     verdict = NOT_VERIFIED
 ```
 
-For rules with `testing.type: emulation` (8 of the current 27), `emulation_verify` runs `run_atomic.ps1` on the victim host but nothing consults a completion marker for them — so an emulation test that never started, or was killed mid-batch, produces zero matched events and is scored **FAIL**. For those rules, "the infrastructure didn't run the test" and "the detection didn't fire" are currently indistinguishable in the published numbers. Tracked as audit item 2.8.
+**This used to read `tester == "atomic"`**, which left the 8 emulation-tested rules (of 27) outside
+it entirely: `emulation_verify` ran their commands but nothing recorded whether it got to them, so
+"the infrastructure didn't run the test" and "the detection didn't fire" were indistinguishable in
+the published numbers. Register item 2.8 closed that, and the fix had to go bottom-up rather than
+just widening the condition — on its own, that would have parked all 8 rules at NOT_VERIFIED
+forever, because no marker was ever written for them:
+
+1. `run_atomic.ps1` now carries the `detect_id` through emulation collection and writes markers for
+   those rules too. The collected commands used to be a flat list with no idea which rule they
+   belonged to, which is *why* no marker could be written. Keys are `detect_id|index`, not the test
+   name — names are free text, and two tests in one rule may share one.
+2. The marker is written in a `finally`, so a command that threw still counts as *attempted*. The
+   marker records that the attack ran, not that it worked; a failed command deserves FAIL on the
+   Splunk evidence, and NOT_VERIFIED is reserved for "we never got to try".
+3. `emulation_verify` uploads the markers — it had no upload step at all, unlike the two atomic jobs.
+4. `splunk_verify` downloads them into the same directory as the atomic ones; the three jobs cover
+   disjoint sets of rules and the markers are per-`detect_id` files, so they pool cleanly.
+
+The gate also requires `testing_enabled` now. A rule with `type: atomic, enabled: false` is attacked
+by nothing, so no marker is written for it, and the old condition would have parked it at
+NOT_VERIFIED permanently. No rule is in that state today; the condition should still say what it
+means.
+
+Markers additionally record their own `tester`, which matters for the one case where a marker exists
+but a `hits.json` does not — `check_saved_search_hits.py` never got to query that rule. The
+synthesized summary used to assume `atomic`, which was true by construction while emulation rules
+had no markers, and stopped being true here.
 
 ## Named workflow jobs and steps
 
@@ -310,8 +343,8 @@ For rules with `testing.type: emulation` (8 of the current 27), `emulation_verif
 | `deploy_to_splunk` | `self-hosted, linux, de-lab` | Download pipeline bundle, Setup Python, Install deploy deps, **Deploy selected SPL files to Splunk** |
 | `atomic_verify` | `self-hosted, X64, Windows, victim, atomic, windows-victim` | **Mark test-phase start** (epoch seconds, exposed as the `started_at` job output — first step so a job later killed by `timeout-minutes` still reports when it began), Download pipeline bundle, **Run Atomic Red Team tests embedded in deployed SPL metadata**, Upload atomic progress markers |
 | `atomic_verify_dc` | `self-hosted, X64, Windows, dc, windows-dc` | **Mark test-phase start** (own host, own clock — hence a separate stamp), Download pipeline bundle, **Run Atomic Red Team tests on Domain Controller**, Upload atomic progress markers |
-| `emulation_verify` | `self-hosted, X64, Windows, victim, windows-victim` | **Mark test-phase start** (shares the victim runner with `atomic_verify`, so the two serialise — which is what stretches the test phase past any fixed window), Download pipeline bundle, **Run Script Emulation tests embedded in deployed SPL metadata** |
-| `splunk_verify` | `self-hosted, linux, de-lab` | Checkout (`fetch-depth: 0` — not shallow, on purpose: `generate_stats.py`'s `compute_rule_version()` runs `git log --follow` per rule file later in this same job, and a shallow checkout silently made every rule's version come out `1.0` regardless of real history), Download pipeline bundle, Download atomic progress markers (victim), Download atomic progress markers (DC), Setup Python, Install deps, **Compute verification time window** (takes the earliest `started_at` across the three test jobs, minus a 60s clock-skew margin, as `--earliest`; falls back to `-15m` with a warning if none reported), **Wait for Splunk indexing** (polls until an event at or after the window start appears in the indexes under test, up to 180s, then warns and continues), **Query Splunk for matched events**, **Evaluate Pass/Fail**, Upload matched events artifact, **Reconcile Splunk state against the repo** (`always()` + `continue-on-error`; runs with `--apply`, which cleans up rename orphans only — the step re-exits the script's code via `PIPESTATUS` so a cleanup that failed to land is visible instead of hidden behind the step-summary `echo`), Upload reconciliation report, **Generate stats and update README**, Commit verification results and stats, **Report verification verdict** (re-exits `pass_fail_eval.py`'s exit code — makes the job's own `result` the PASS/FAIL verdict) |
+| `emulation_verify` | `self-hosted, X64, Windows, victim, windows-victim` | **Mark test-phase start** (shares the victim runner with `atomic_verify`, so the two serialise — which is what stretches the test phase past any fixed window), Download pipeline bundle, **Run Script Emulation tests embedded in deployed SPL metadata**, Upload emulation progress markers |
+| `splunk_verify` | `self-hosted, linux, de-lab` | Checkout (`fetch-depth: 0` — not shallow, on purpose: `generate_stats.py`'s `compute_rule_version()` runs `git log --follow` per rule file later in this same job, and a shallow checkout silently made every rule's version come out `1.0` regardless of real history), Download pipeline bundle, Download atomic progress markers (victim), Download atomic progress markers (DC), Download emulation progress markers, Setup Python, Install deps, **Compute verification time window** (takes the earliest `started_at` across the three test jobs, minus a 60s clock-skew margin, as `--earliest`; falls back to `-15m` with a warning if none reported), **Wait for Splunk indexing** (polls until an event at or after the window start appears in the indexes under test, up to 180s, then warns and continues), **Query Splunk for matched events**, **Evaluate Pass/Fail**, Upload matched events artifact, **Reconcile Splunk state against the repo** (`always()` + `continue-on-error`; runs with `--apply`, which cleans up rename orphans only — the step re-exits the script's code via `PIPESTATUS` so a cleanup that failed to land is visible instead of hidden behind the step-summary `echo`), Upload reconciliation report, **Generate stats and update README**, Commit verification results and stats, **Report verification verdict** (re-exits `pass_fail_eval.py`'s exit code — makes the job's own `result` the PASS/FAIL verdict) |
 | `open_promotion_pr` | `ubuntu-latest` | `needs: splunk_verify`, `if: always() && needs.splunk_verify.result == 'success'`, no checkout step. **Open promotion PR to main and mark it In review** (single step: `gh pr create` then `gh project item-add`/`item-edit`) |
 | `deploy_pages` | `ubuntu-latest` | `needs: [splunk_verify, atomic_verify, atomic_verify_dc, emulation_verify]`. Checkout (ref: `dev`), configure-pages, upload-pages-artifact, deploy-pages (no explicit step `name:`s — these are third-party actions). The sole GitHub Pages publish path — see the note above. |
 
