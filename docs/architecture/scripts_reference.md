@@ -192,6 +192,23 @@ from searches an analyst built by hand.
 retiring one that already exists is `reconcile.py --apply-removals`, deliberately a separate,
 manual act.
 
+**Create-vs-update is decided by status code, never by error text.** The deploy POSTs to the
+*object* endpoint first: `200` means the saved search was there and is now updated, `404` means it
+does not exist yet and gets created on the collection endpoint. Anything else — including a `500`
+whose body happens to say "already exists" — is a real error, reported with the status and what was
+expected, rather than guessed past.
+
+That is the point of the design. It previously created first and then matched Splunk's error *prose*
+(`already exists` / `conflict` / `in use`) to detect the conflict: wording that is not part of any
+contract, varies by version, and that unrelated failures can contain. A rephrased conflict was
+reported as a create failure; an unrelated error carrying one of those words was sent down the
+update path to fail again, more confusingly. As a side effect the common case — a rule that has been
+deployed before — is now one call instead of two.
+
+A create still gets a follow-up POST to the object endpoint, because Splunk does not reliably persist
+`is_scheduled`/`cron_schedule` on the same request that creates the object. The update path needs no
+such follow-up: it already *is* that request.
+
 ### `scripts/atomic/run_atomic.ps1`
 
 The largest single script, and the only one that runs on the Windows lab machines. Reads each
@@ -347,10 +364,12 @@ in this repo: the real one is a full pipeline run with live attacks.
 | [`tests/conftest.py`](../../tests/conftest.py) | Puts `scripts/*` on `sys.path`. The scripts are standalone CLI entry points invoked by path, not an installable package, and this is what makes them importable without restructuring that |
 | [`tests/test_check_saved_search_hits.py`](../../tests/test_check_saved_search_hits.py) | The Splunk polling loop: timeouts, `FINALIZING` handling, `error_kind` classification |
 | [`tests/test_pass_fail_eval.py`](../../tests/test_pass_fail_eval.py) | Verdict logic, including which errors soften to NOT_VERIFIED and which stay FAIL |
+| [`tests/test_pass_fail_gate.py`](../../tests/test_pass_fail_gate.py) | The progress-marker gate that runs before scoring: that it now covers emulation as well as atomic, and the cases where it must *not* fire |
 | [`tests/test_reconcile.py`](../../tests/test_reconcile.py) | Bucket classification, and the write path: that a rename orphan is not deleted when its replacement is not live, that removals are disabled rather than deleted, that the CI marker survives, that unmanaged objects are never written to |
 | [`tests/test_prune_orphans.py`](../../tests/test_prune_orphans.py) | Which artefacts count as orphaned, the fail-safes, idempotency |
 | [`tests/test_deploy_deprecated.py`](../../tests/test_deploy_deprecated.py) | That a deprecated rule generates *zero* HTTP calls, and that everything else still deploys |
 | [`tests/test_deploy_report.py`](../../tests/test_deploy_report.py) | What the deploy writes down: every outcome including skips and failures, and that no connection detail reaches the artifact |
+| [`tests/test_deploy_upsert.py`](../../tests/test_deploy_upsert.py) | That create-vs-update comes from the status code: none of the old magic phrases steer anything, and an unexpected response fails instead of falling through to create |
 | [`tests/test_wait_for_indexing.py`](../../tests/test_wait_for_indexing.py) | When the wait stops: on the first indexed event, at the timeout, and that a failed probe means "keep waiting" rather than "go ahead" |
 | [`tests/test_sigma_to_spl.py`](../../tests/test_sigma_to_spl.py) | Index-prefix injection, including that a query opening with a generating command is left alone rather than turned into invalid SPL |
 | [`tests/test_check_test_routing.py`](../../tests/test_check_test_routing.py) | That the serviced matrix is derived from the workflow rather than hardcoded, and — against the real repo — that every committed rule still has a job that can run its test |

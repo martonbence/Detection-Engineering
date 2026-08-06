@@ -875,6 +875,20 @@ jobs:
 
           .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles
 
+      # Register item 2.8. This job had no upload step at all, unlike the two
+      # atomic jobs -- so even once run_atomic.ps1 started writing markers for
+      # emulation rules, nothing carried them to splunk_verify. always(), for
+      # the same reason as the atomic jobs: a step killed by its timeout is
+      # precisely the case the markers exist to describe.
+      - name: Upload emulation progress markers
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emulation-progress-${{ github.run_id }}
+          path: outputs/verify/atomic_progress
+          if-no-files-found: ignore
+          retention-days: 1
+
   splunk_verify:
     name: Splunk Verification
     needs: [ prepare_validate_convert, deploy_to_splunk, atomic_verify, atomic_verify_dc, emulation_verify ]
@@ -956,6 +970,17 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: atomic-progress-dc-${{ github.run_id }}
+          path: outputs/verify/atomic_progress
+
+      # Register item 2.8. Same directory as the two above on purpose: the
+      # markers are per-detect_id files, the three jobs cover disjoint sets of
+      # rules, and pass_fail_eval.py reads the directory as one pool.
+      - name: Download emulation progress markers
+        if: needs.prepare_validate_convert.outputs.has_emulation_tests == 'true'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: emulation-progress-${{ github.run_id }}
           path: outputs/verify/atomic_progress
 
       - name: Setup Python

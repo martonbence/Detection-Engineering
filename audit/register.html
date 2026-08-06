@@ -1064,31 +1064,38 @@
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-6" aria-labelledby="t-2-6">
+      <input class="row-check" type="checkbox" id="i-2-6" aria-labelledby="t-2-6" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.6</span><span class="row-title" id="t-2-6">A „már létezik" detektálás a hibaszöveget stringkeresi</span></div>
+        <div class="row-head"><span class="id">2.6</span><span class="row-title" id="t-2-6">A „már létezik" detektálás a hibaszöveget stringkeresi</span><span class="tag done">kész</span></div>
         <p class="row-body">Az <code>is_already_exists()</code> a HTTP válasz szövegében keres <code>"already exists"</code> / <code>"conflict"</code> / <code>"in use"</code> részstringet — Splunk-verzió- és nyelvfüggő, törékeny.</p>
         <p class="row-fix"><span class="fix-label">javítás</span>Közvetlenül a <code>saved/searches/{name}</code> endpointra POST (upsert), és csak 404-nél create.</p>
-        <div class="refs"><span class="ref">deploy_spl_to_splunk.py:160-163</span></div>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>Kész, pontosan a javasolt úton.</b> Az <code>is_already_exists()</code> törölve. A deploy most az <em>objektum</em>-endpointra POST-ol előbb: <b>200</b> = ott volt, frissítve; <b>404</b> = még nincs, létrehozás a kollekció-endpointon. A státuszkód szerződés, a hibaszöveg nem az — az <code>already exists</code> / <code>conflict</code> / <code>in use</code> egyikét sem ígéri a Splunk, verziónként változnak, és három független hiba is tartalmazhatja őket. A régi viselkedésben egy másképp fogalmazott ütközés create-hibaként jelent meg, egy ezeket a szavakat véletlenül tartalmazó, teljesen más hiba pedig az update-ágra küldte a deployt, hogy ott bukjon el, még zavarosabban.</p>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>Váratlan válasznál nem esik át létrehozásba</b> — pont az volt a régi hibás minta. Minden, ami nem 200 és nem 404, valódi hiba, és a státuszkóddal <em>együtt azzal is</em> jelentjük, mit vártunk. <b>Mellékhatás:</b> a gyakori eset — egy korábban már deployolt szabály — most <b>egy hívás kettő helyett</b>. A create utáni „scheduling újraalkalmazás" megmarad, mert a Splunk nem tartja meg megbízhatóan az <code>is_scheduled</code>/<code>cron_schedule</code> mezőket a létrehozó kérésen; az update-útnak nem kell, mert az <em>maga</em> az a kérés. 16 új teszt, a meglévő deploy-tesztek pedig átálltak az új protokollra. <b>Éles Splunk ellen nem tesztelt</b> (a labor le van kapcsolva), ezért a váratlan-státusz üzenete szándékosan kimondja, mit várt — az első valódi futás így öndiagnosztizáló.</p>
+        <div class="refs"><span class="ref">objektum-endpoint upsert</span><span class="ref">16 teszt</span></div>
       </div>
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-7" aria-labelledby="t-2-7">
+      <input class="row-check" type="checkbox" id="i-2-7" aria-labelledby="t-2-7" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.7</span><span class="row-title" id="t-2-7">A pass-ablak globális, holott szabály-szintű adat</span></div>
+        <div class="row-head"><span class="id">2.7</span><span class="row-title" id="t-2-7">A pass-ablak globális, holott szabály-szintű adat</span><span class="tag done">elvetve</span></div>
         <p class="row-body">A <code>--max-pass 10</code> mindenkire ugyanaz. Egy zajos technika (pl. PowerShell parent process) legitim módon 30 eventet gerjeszt, egy másiknál a 3 is sok.</p>
         <p class="row-fix"><span class="fix-label">javítás</span><code>custom.testing.expected_events: {min: 1, max: 25}</code> a szabályban.</p>
-        <div class="refs"><span class="ref">pass_fail_eval.py:167</span></div>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>A fejlesztést elvetettük</b> — a javasolt fixet és az alternatíváit is. Bence indoka a <code>custom.testing.expected_events</code> ellen: a Sigma szabályban már így is túl sok a metaérték, és egy újabb csak a tünetet mozgatná a YAML-be. Az elemzés ezt megerősítette: <b>a felső korlát rossz eszköz.</b> A verdikt két kérdést mos össze — „elsült-e a detekció?" (<code>&gt;= 1</code>, ez a verifikáció kérdése) és „pontos-e a szabály?" —, de a másodikra a <em>támadási ablak</em> adata elvből nem tud válaszolni: 40 esemény jelenthet túl tág szabályt és olyan technikát is, ami tényleg 40 process-eseményt generál. Amit a zaj <em>bizonyít</em>, az az, ha a szabály <b>támadás nélkül is</b> elsül. Így bármilyen szabályonkénti konstans — YAML-ben vagy CLI-n — eseményszámra tippel, ami OS-verzióval, naplózási beállítással és a teszt tartalmával együtt vándorol.</p>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>Amit tudatosan vállalunk:</b> a globális 1–10 ablak marad, és három szabály — <code>DETECT-2026-0027</code>, <code>DETECT-2026-0019</code>, <code>DETECT-2026-0014</code> — <b>pontosan 10 eseményen áll</b>, tehát egyetlen extra eseménytől hamis FAIL-t kapna. Ellenőrizve, hogy ez nem lekérdezési plafon: a <code>--max-events</code> alapértéke 100, és a CI nem írja felül — valódi 10-esek. Felajánlott alternatívák, mind Sigma-mező nélkül, mind elvetve: a korlát kivétele a verdiktből figyelmeztetésként megtartva; csendes ablak referenciaként; a szabály saját eredmény-története mint kiugrás-detektor. A valódi megoldás a <b>4.1</b> (noise budget), nem egy újabb metaadat.</p>
+        <div class="refs"><span class="ref">elvetve — lásd 4.1</span></div>
       </div>
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-8" aria-labelledby="t-2-8">
+      <input class="row-check" type="checkbox" id="i-2-8" aria-labelledby="t-2-8" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.8</span><span class="row-title" id="t-2-8">A <code>NOT_VERIFIED</code> kapu csak az atomic szabályokra vonatkozik</span><span class="tag verified">mérve</span></div>
+        <div class="row-head"><span class="id">2.8</span><span class="row-title" id="t-2-8">A <code>NOT_VERIFIED</code> kapu csak az atomic szabályokra vonatkozik</span><span class="tag done">kész</span></div>
         <p class="row-body">8 szabály <code>emulation</code> típusú — ezeknél egy megölt teszt-job FAIL-ként jelenik meg, nem „nem tudjuk"-ként. A marker-mechanizmus típusfüggetlenül működne.</p>
-        <div class="refs"><span class="ref">pass_fail_eval.py:244</span><span class="ref">8 emulation szabály</span></div>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>Kész.</b> A kapu a pontszámítás <em>előtt</em> fut, mert más kérdésre válaszol: nem azt, hogy „elsült-e a detekció", hanem azt, hogy „megtámadtuk-e egyáltalán". Nélküle a le nem futott támadás nulla eseményt hagy, a nulla esemény pedig FAIL — megerősített negatívum abból, ami meg sem történt.</p>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>A javítás alulról felfelé ment, nem a feltétel kiszélesítésével</b> — az önmagában mind a 8 szabályt <em>örökre</em> NOT_VERIFIED-be tette volna, mert markert soha nem írt hozzájuk semmi. (1) A <code>run_atomic.ps1</code> átviszi a <code>detect_id</code>-t az emulation-gyűjtésen és ír markert — a <code>$collectedCustom</code> addig lapos parancslista volt, ami nem tudta, melyik szabályhoz tartozik, és <em>ezért</em> nem lehetett markert írni; a kulcs <code>detect_id|index</code>, nem a teszt neve, mert a név szabad szöveg és egy szabályon belül ismétlődhet. (2) A marker <code>finally</code>-ben íródik, tehát egy dobó parancs is <em>megkíséreltnek</em> számít: a marker azt rögzíti, hogy a támadás lefutott, nem azt, hogy sikerült. (3) Az <code>emulation_verify</code> feltölti — eddig <b>egyáltalán nem volt</b> upload lépése, a két atomic jobbal ellentétben. (4) A <code>splunk_verify</code> letölti, ugyanabba a könyvtárba.</p>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>Két plusz hiba menet közben.</b> A kapu most már <code>testing_enabled</code>-et is megkövetel: egy <code>type: atomic, enabled: false</code> szabályt semmi nem támad, tehát markert sem kap, és a régi feltétel örökre NOT_VERIFIED-ben tartotta volna (ma egy szabály sincs ilyen állapotban). A másikat <b>én okoztam és javítottam</b>: a szintetizált összegzés — marker van, <code>hits.json</code> nincs — <code>testing_enabled</code> nélkül készült, tehát az új feltétellel FAIL-be esett volna; most <code>True</code>-t kap, és a <b>marker maga rögzíti a tester típusát</b>, mert a korábbi „ez csak atomic lehet" feltevés épp itt szűnt meg igaznak lenni. <b>16 új teszt</b> — a marker-kapunak eddig <em>nulla</em> lefedettsége volt, a meglévő suite csak a tiszta <code>evaluate()</code> függvényt fogta.</p>
+        <div class="refs"><span class="ref">run_atomic.ps1 + workflow + pass_fail_eval</span><span class="ref">16 teszt</span></div>
       </div>
     </div>
 
