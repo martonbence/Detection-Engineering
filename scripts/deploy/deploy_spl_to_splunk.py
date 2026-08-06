@@ -9,6 +9,7 @@ from urllib.parse import quote
 import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from lib.env import announce_tls_mode, env_bool, env_reader
 from lib.rule_naming import saved_search_name
 
 
@@ -17,20 +18,10 @@ def die(msg: str, code: int = 1) -> None:
     raise SystemExit(code)
 
 
-def env_required(name: str) -> str:
-    v = (os.getenv(name) or "").strip()
-    if not v:
-        die(f"Missing required env var: {name}")
-    return v
-
-
-def env_bool(name: str, default: bool = True) -> bool:
-    v = (os.getenv(name) or "").strip().lower()
-    if v in ("true", "1", "yes", "y", "on"):
-        return True
-    if v in ("false", "0", "no", "n", "off"):
-        return False
-    return default
+# Register item 3.6: the reading is shared, the exit policy stays here. Exit 1
+# is this script's convention for any setup failure, and env_reader keeps every
+# call site below unchanged while the parsing itself lives in one place.
+env_required = env_reader(die)
 
 
 def read_spl_query(path: Path) -> str:
@@ -309,19 +300,7 @@ def main(argv: list[str]) -> int:
     # perms.read/perms.write below, not by who nominally owns the object.
     owner = username
     verify_tls = env_bool("SPLUNK_VERIFY_TLS", default=True)
-    # Register item 2.14. The defect that item closes was never that
-    # verification *can* be off -- a self-signed lab certificate is a real
-    # reason to turn it off -- but that nothing anywhere said which mode the
-    # run was in. env_bool already defaults to True; what was missing was the
-    # sentence. Repeated verbatim at all four call sites because env_bool
-    # itself is duplicated four times (register item 3.6).
-    if verify_tls:
-        print("TLS certificate verification: on.")
-    else:
-        print(
-            "::warning title=TLS verification disabled::SPLUNK_VERIFY_TLS is set to a "
-            "false value, so Splunk server certificates are NOT verified for this run."
-        )
+    announce_tls_mode(verify_tls)
 
     sharing = (os.getenv("SPLUNK_SHARING") or "app").strip().lower()
     perms_read = (os.getenv("SPLUNK_PERMS_READ") or "*").strip()
