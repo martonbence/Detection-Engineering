@@ -121,6 +121,7 @@ def test_rename_and_removal_are_distinguished_in_the_same_run():
         "orphan_renamed": 1,
         "orphan_removed": 1,
         "unmanaged": 1,
+        "duplicate_names": 0,
     }
 
 
@@ -442,3 +443,110 @@ def test_apply_removals_requires_apply():
     """The dangerous half must not be reachable without the deliberate one."""
     with pytest.raises(SystemExit):
         main(["--apply-removals"])
+
+
+# --- duplicate names ---------------------------------------------------------
+#
+# Splunk namespaces objects by owner as well as app, so an app-shared object and
+# a user-private one can carry the same name and both come back in one listing.
+# fetch_actual used to assign straight into a dict keyed by name, which silently
+# kept whichever arrived last.
+#
+# On 2026-08-07 that hid a live object: `test3` existed twice -- app-shared and
+# enabled, plus a private copy this script had itself disabled and marked
+# [RETIRED]. Only the private one survived the dict, so the report said "already
+# retired" and then "RESULT: Splunk matches the repo", while the enabled
+# app-shared object sat there untouched.
+
+
+def two_copies_payload():
+    """The test3 situation, as Splunk returned it."""
+    return {
+        "entry": [
+            {
+                "name": "test3",
+                "content": {"description": CI_MARKER, "disabled": "0", "is_scheduled": "0"},
+                "acl": {"sharing": "app", "owner": "ci_splunk_deploy"},
+            },
+            {
+                "name": "test3",
+                "content": {"description": f"[RETIRED 2026-08-07] {CI_MARKER}", "disabled": "1"},
+                "acl": {"sharing": "user", "owner": "ci_splunk_deploy"},
+            },
+        ]
+    }
+
+
+def test_both_copies_of_a_duplicated_name_are_kept():
+    session = FakeSession(FakeResponse(200, two_copies_payload()))
+
+    actual = fetch_actual(session, "https://splunk:8089", "svc", "app")
+
+    assert len(actual) == 1, "still keyed by name"
+    assert len(actual["test3"]["copies"]) == 2, "but no longer forgets the other one"
+    assert {c["sharing"] for c in actual["test3"]["copies"]} == {"app", "user"}
+
+
+def test_the_visible_record_is_still_the_last_one_seen():
+    """Behaviour-preserving: no name may change the bucket it lands in."""
+    session = FakeSession(FakeResponse(200, two_copies_payload()))
+
+    actual = fetch_actual(session, "https://splunk:8089", "svc", "app")
+
+    # The last entry in the payload is the retired private copy -- exactly what
+    # the old `actual[name] = ...` loop would have left behind.
+    assert actual["test3"]["disabled"] == "1"
+    assert actual["test3"]["sharing"] == "user"
+
+
+def test_reconcile_reports_the_duplicate():
+    actual = {
+        "test3": {
+            "managed": True,
+            "disabled": "1",
+            "description": "x",
+            "copies": [
+                {"sharing": "app", "owner": "svc", "disabled": "0", "is_scheduled": "0"},
+                {"sharing": "user", "owner": "svc", "disabled": "1", "is_scheduled": "0"},
+            ],
+        }
+    }
+
+    report = reconcile({}, actual)
+
+    assert report["counts"]["duplicate_names"] == 1
+    assert report["duplicates"][0]["name"] == "test3"
+    assert len(report["duplicates"][0]["copies"]) == 2
+
+
+def test_a_single_copy_is_not_a_duplicate():
+    session = FakeSession(FakeResponse(200, {
+        "entry": [{"name": "solo", "content": {"description": CI_MARKER}, "acl": {"sharing": "app"}}]
+    }))
+
+    actual = fetch_actual(session, "https://splunk:8089", "svc", "app")
+    report = reconcile({}, actual)
+
+    assert actual["solo"]["copies"] == [actual["solo"]["copies"][0]]
+    assert report["counts"]["duplicate_names"] == 0
+    assert report["duplicates"] == []
+
+
+def test_duplicates_are_reported_but_do_not_count_as_drift():
+    """A duplicate name is a namespace problem, not a desired-vs-actual one.
+
+    Making it drift would turn the gate red for a pre-existing condition across
+    every rule at once -- the exact shape of alarm people learn to click past.
+    """
+    report = reconcile({}, {
+        "test3": {
+            "managed": True,
+            "disabled": "1",
+            "description": "x",
+            "copies": [{"sharing": "app"}, {"sharing": "user"}],
+        }
+    })
+    report["orphan_removed"] = [{"name": "test3", "retired": True, "detect_id": "test3", "description": ""}]
+
+    assert report["counts"]["duplicate_names"] == 1
+    assert has_drift(report) is False
