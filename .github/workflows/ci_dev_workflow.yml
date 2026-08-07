@@ -1611,8 +1611,37 @@ jobs:
                - [((.applied.actions // [])[] | select(.action == "delete" and .ok) | .name)])
               | length' outputs/state/reconcile.json)"
             missing="$(jq '.counts.missing' outputs/state/reconcile.json)"
-            if [[ "$unresolved" -gt 0 || "$renamed" -gt 0 || "$missing" -gt 0 ]]; then
-              echo "::warning title=Splunk state drift::${unresolved} live saved search(es) whose rule is gone from the repo, ${renamed} left by a rename, ${missing} missing. They keep running and alerting until retired. Re-run this workflow with 'retire_orphans' checked to disable and mark them (reversible)."
+            dupes="$(jq '.counts.duplicate_names // 0' outputs/state/reconcile.json)"
+
+            # One clause per condition, and only for conditions that occurred.
+            # The old single sentence was a template that named all three counts
+            # and then gave the remedy for exactly one of them: it told the
+            # operator that a *missing* object "keeps running and alerting until
+            # retired" and to re-run with retire_orphans -- for an object that
+            # does not exist, is not running, and needs deploying rather than
+            # retiring. It also mis-described `test3`, an enabled but unscheduled
+            # report that never fired anything.
+            #
+            # Plain `if` blocks rather than `[[ ... ]] && parts+=(...)`: the
+            # latter returns 1 when the test is false, and GitHub runs this with
+            # -e, so a false condition would kill the step.
+            parts=()
+            if [[ "$unresolved" -gt 0 ]]; then
+              parts+=("${unresolved} object(s) whose rule left the repo, still live -- re-run with 'retire_orphans' to disable and mark them (reversible)")
+            fi
+            if [[ "$renamed" -gt 0 ]]; then
+              parts+=("${renamed} left behind by a rename -- --apply deletes these unattended, so one surviving means the deletion did not land")
+            fi
+            if [[ "$missing" -gt 0 ]]; then
+              parts+=("${missing} rule(s) the repo defines but Splunk does not have -- these need a deploy, not a retirement")
+            fi
+            if [[ "$dupes" -gt 0 ]]; then
+              parts+=("${dupes} name(s) answered by more than one object -- every other line above describes only one of each, and --apply acts on only one too")
+            fi
+
+            if [[ "${#parts[@]}" -gt 0 ]]; then
+              message="$(printf '%s; ' "${parts[@]}")"
+              echo "::warning title=Splunk state drift::${message%; }"
             fi
           fi
 

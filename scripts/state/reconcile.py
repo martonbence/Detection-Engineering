@@ -178,19 +178,45 @@ def fetch_actual(
     except ValueError as exc:
         raise ReconcileError(f"Splunk returned a non-JSON response: {exc}") from exc
 
-    actual: dict[str, dict] = {}
+    # Grouped by name rather than assigned straight into a dict, because a name
+    # is NOT unique in this listing. Splunk namespaces objects by owner as well
+    # as app, so an app-shared object and a user-private one can carry the same
+    # name and both come back here. The old `actual[name] = ...` silently kept
+    # whichever arrived last and dropped the other.
+    #
+    # That is not hypothetical, and it hid a real fault for a long time. On
+    # 2026-08-07 `test3` existed twice -- app-shared and enabled, plus a private
+    # copy this script had itself disabled and marked [RETIRED]. Only the
+    # private one survived the dict, so the report read "already retired" and
+    # then "RESULT: Splunk matches the repo", while the live app-shared object
+    # sat there untouched. A clean bill of health from the exact mechanism built
+    # to prevent one.
+    by_name: dict[str, list[dict]] = {}
     for entry in payload.get("entry") or []:
         name = str(entry.get("name") or "").strip()
         if not name:
             continue
         content = entry.get("content") or {}
+        acl = entry.get("acl") or {}
         description = str(content.get("description") or "")
-        actual[name] = {
+        by_name.setdefault(name, []).append({
             "description": description,
             "managed": CI_MARKER in description,
             "disabled": str(content.get("disabled", "")),
             "is_scheduled": str(content.get("is_scheduled", "")),
-        }
+            # Carried so a duplicate report can say which copy is which. This is
+            # the difference between "there are two" and "there are two, and the
+            # live one is the app-shared alert".
+            "sharing": str(acl.get("sharing") or ""),
+            "owner": str(acl.get("owner") or ""),
+        })
+
+    actual: dict[str, dict] = {}
+    for name, records in by_name.items():
+        # The visible record stays the LAST one seen -- exactly what the previous
+        # loop left behind -- so no name changes the bucket it lands in. The only
+        # new information is `copies`; nothing existing moves.
+        actual[name] = {**records[-1], "copies": records}
 
     return actual
 
@@ -275,7 +301,22 @@ def reconcile(desired: dict[str, dict], actual: dict[str, dict]) -> dict:
                 "detect_id": detect_id,
                 "description": info.get("description", ""),
                 "retired": is_retired(info),
+                # Carried so the report can say what this object actually does.
+                # An unscheduled saved search is a report: it exists, it can be
+                # run by hand, and it fires nothing on its own. Calling that
+                # "still running and alerting" -- as this report did until
+                # 2026-08-07 -- overstates an orphan into an incident.
+                "is_scheduled": str(info.get("is_scheduled", "")).strip() in ("1", "true", "True"),
             })
+
+    # Reported, never actioned. A duplicate name is a namespace problem, not a
+    # desired-vs-actual difference, and nothing here can safely pick which copy
+    # to remove -- see has_drift() for why it also stays out of the drift gate.
+    duplicates = [
+        {"name": name, "copies": info["copies"]}
+        for name, info in sorted(actual.items())
+        if len(info.get("copies") or []) > 1
+    ]
 
     return {
         "in_sync": in_sync,
@@ -283,6 +324,7 @@ def reconcile(desired: dict[str, dict], actual: dict[str, dict]) -> dict:
         "orphan_renamed": renamed,
         "orphan_removed": removed,
         "unmanaged": unmanaged,
+        "duplicates": duplicates,
         "counts": {
             "desired": len(desired),
             "actual": len(actual),
@@ -291,6 +333,8 @@ def reconcile(desired: dict[str, dict], actual: dict[str, dict]) -> dict:
             "orphan_renamed": len(renamed),
             "orphan_removed": len(removed),
             "unmanaged": len(unmanaged),
+            # Names, not objects: 27 duplicated names means 54 objects.
+            "duplicate_names": len(duplicates),
         },
     }
 
@@ -418,8 +462,26 @@ def print_report(report: dict, app: str) -> None:
 
     print(f"\n=== Splunk state reconciliation (app: {app}) ===")
     print(f"Repo wants : {counts['desired']} saved search(es)")
-    print(f"Splunk has : {counts['actual']} saved search(es) in this app")
+    print(f"Splunk has : {counts['actual']} distinct name(s) in this app")
     print(f"In sync    : {counts['in_sync']}")
+
+    # Printed before the buckets, not after: when a name has two objects, every
+    # line below it describes only one of them, and the reader needs to know
+    # that before believing any of it.
+    if report.get("duplicates"):
+        n = counts.get("duplicate_names", len(report["duplicates"]))
+        print(f"\nDUPLICATE NAMES -- more than one object answers to the same name ({n}):")
+        for item in report["duplicates"]:
+            print(f"  - {item['name']}  ({len(item['copies'])} objects)")
+            for copy in item["copies"]:
+                state = "disabled" if is_disabled(copy.get("disabled", "")) else "enabled"
+                sched = "scheduled" if str(copy.get("is_scheduled", "")).strip() in ("1", "true", "True") else "not scheduled"
+                sharing = copy.get("sharing") or "?"
+                owner = copy.get("owner") or "?"
+                print(f"      sharing={sharing:<8} owner={owner:<18} {state}, {sched}")
+        print("  Splunk namespaces objects by owner as well as app, so an app-shared")
+        print("  object and a private one can share a name. Everything below reports")
+        print("  only ONE of each pair, and --apply acts on only one of them too.")
 
     if report["missing"]:
         print(f"\nMISSING -- the repo defines these, Splunk does not have them ({counts['missing']}):")
@@ -445,8 +507,12 @@ def print_report(report: dict, app: str) -> None:
                 print(f"  - {item['name']}  [already retired -- disabled, kept for reversibility]")
                 continue
             print(f"  - {item['name']}")
-            print(f"      {item['detect_id']} is not in the repo at all. It is still live in Splunk")
-            print("      and will keep running and alerting until someone removes it.")
+            print(f"      {item['detect_id']} is not in the repo at all.")
+            if item.get("is_scheduled"):
+                print("      It is scheduled, so it keeps running and alerting until removed.")
+            else:
+                print("      It is not scheduled, so it fires nothing on its own -- but it is")
+                print("      still there, and still says CI manages it.")
 
     if report["unmanaged"]:
         print(f"\nNOT MANAGED BY CI -- reported only, never actioned ({counts['unmanaged']}):")
