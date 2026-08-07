@@ -21,13 +21,13 @@ Nincs menetrend — a tempó ad-hoc, tételenként.
 
 ## Pontszám
 
-Jelenlegi: **6,5 / 10** (kiindulás). Mai állás: **8,4 / 10**, kész súly 68/88 (39 tétel az 53-ból).
-(A korábbi „66/90,5" nevezője nem stimmelt: a lenti képlet **88**-cal számol, és a 8,3-as érték is
-abból jött ki — `6,5 + 2,5 × 66/88 = 8,375`. A 90,5 elírás volt, javítva.) (A nevező nőtt: a 2.19, 2.20 és 2.21 új, munka közben talált tétel — a súlyuk a kész oldalon *és* a teljes oldalon is beleszámít. A **2.22** szintén így került be, a 4.3 munkája közben, és egyelőre csak a teljes oldalon számít.)
+Jelenlegi: **6,5 / 10** (kiindulás). Mai állás: **8,4 / 10**, kész súly **69,5 / 90,5**
+(39 tétel az 53-ból). (A nevező nőtt: a 2.19, 2.20 és 2.21 új, munka közben talált tétel — a súlyuk a kész oldalon *és* a teljes oldalon is beleszámít. A **2.22** szintén így került be, a 4.3 munkája közben, és egyelőre csak a teljes oldalon számít.)
 Minden tétel elvégzése után: **9,0 / 10**.
-A register meterének súlyozása: kritikus ×3, architektúra ×2, feature ×1,5, kisebb ×1
-(összesen **88** súlypont a 4.11 felvétele óta; korábban 85).
-Projektált pontszám = `6,5 + 2,5 × (kész súly / 88)`.
+A register meterének súlyozása: kritikus ×3, architektúra ×2, feature ×1,5, kisebb ×1.
+A teljes súly ma **90,5** = 12×3 + 22×1 + 8×2 + 11×1,5; a korábban itt szereplő **88** a 2.22
+felvétele előtti állapot volt, és a szöveg nem követte.
+Projektált pontszám = `6,5 + 2,5 × (kész súly / 90,5)`.
 A register JS-e a súlyokat a DOM-ból számolja, tehát új tétel felvételekor magától újraskálázódik.
 
 Dimenziók — most → javítva: koncepció 9→9 · dokumentáció 9→9 · robusztusság 5→8-9 ·

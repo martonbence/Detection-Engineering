@@ -1223,7 +1223,10 @@ jobs:
       # wrong data. The "Commit verification results and stats" step's own
       # git reset --hard genuinely doesn't need history, but this step,
       # earlier in the same job on the same checkout, does.
+      # id: the two always() steps at the end of this job need to know whether
+      # the working tree is actually here before they try to use it.
       - name: Checkout
+        id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           token: ${{ secrets.GH_PAT_DEV_PUSH }}
@@ -1267,12 +1270,27 @@ jobs:
           name: emulation-progress-${{ github.run_id }}
           path: outputs/verify/atomic_progress
 
+      # These two run on always() because the reconcile step at the end of this
+      # job does, and it needs an interpreter. Without it, one transient failure
+      # upstream produced three errors instead of one: run 31202546330 lost the
+      # bundle download to a momentary ECONNREFUSED, which skipped this setup by
+      # the default "only if everything before succeeded" rule, which then made
+      # the reconcile exit 127 (command not found) -- and 127 is what the log
+      # showed, two lines below the actual cause.
+      #
+      # Gated on the checkout rather than bare always(): Install deps needs the
+      # working tree, and the reconcile needs scripts/. If the checkout is gone
+      # there is nothing here worth attempting, and staying skipped says that
+      # more clearly than failing would.
       - name: Setup Python
+        if: always() && steps.checkout.outcome == 'success'
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.11"
 
       - name: Install deps
+        id: deps
+        if: always() && steps.checkout.outcome == 'success'
         shell: bash
         run: |
           set -euo pipefail
@@ -1459,8 +1477,13 @@ jobs:
       # The exposure that actually matters here is not the synthetic attack
       # traffic but the lab's naming -- hosts, domain, service accounts -- which
       # has reconnaissance value to the extent the lab mirrors production.
+      # The env guard is not belt-and-braces. `matched_events_dir` is written to
+      # $GITHUB_ENV by the query step; if that step never ran, always() still
+      # fires this one with an empty `path`, and the job reports "Input required
+      # and not supplied: path" -- a second error, about this step, when the
+      # thing that actually went wrong was several steps earlier.
       - name: Upload matched events artifact
-        if: always()
+        if: always() && env.matched_events_dir != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: matched-events-sigma-${{ github.run_id }}
@@ -1489,8 +1512,16 @@ jobs:
       # --apply-removals is deliberately NOT passed here: a rule vanishing from
       # the repo is not always intentional, so taking a detection out of service
       # stays a human decision. Run it by hand when the report shows one.
+      # always(), because the condition this reports is pre-existing: it is
+      # true whether or not this run's verification passed, and a failed
+      # verification is exactly when you want to know the Splunk side is also
+      # drifting. But always() is not "regardless of everything" -- without an
+      # interpreter this cannot run at all, and attempting it produced an
+      # exit 127 that read like a reconciliation failure rather than a skipped
+      # setup. Gate on the deps step so a genuinely unavailable environment
+      # shows as "skipped", not as a cleanup that may not have landed.
       - name: Reconcile Splunk state against the repo
-        if: always()
+        if: always() && steps.deps.outcome == 'success'
         continue-on-error: true
         shell: bash
         env:
