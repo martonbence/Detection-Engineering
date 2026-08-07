@@ -48,11 +48,17 @@ from pathlib import Path
 from urllib.parse import quote
 
 import requests
-import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lib.env import announce_tls_mode, env_bool, env_reader
 from lib.rule_naming import saved_search_name
+
+# Aliased: load_desired() keeps local `detect_id` and `title` variables that
+# the rest of the function reads several times, and importing the helpers under
+# their own names would shadow them.
+from lib.rules import RuleLoadError, discover, is_deprecated, load_rule
+from lib.rules import detect_id as rule_detect_id
+from lib.rules import title as rule_title
 
 # The deploy script stamps this into every description it writes
 # (deploy_spl_to_splunk.py: build_savedsearch_description). It is therefore
@@ -100,14 +106,18 @@ def load_desired(rules_dir: Path) -> dict[str, dict]:
     """
     desired: dict[str, dict] = {}
 
-    for path in sorted(rules_dir.glob("*.yml")):
+    for path in discover(rules_dir):
         try:
-            rule = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        except yaml.YAMLError as exc:
-            raise ReconcileError(f"Could not parse {path}: {exc}") from exc
+            rule = load_rule(path)
+        except RuleLoadError as exc:
+            # Unchanged policy: refuse to compare rather than compare against a
+            # library we could not fully read. main() distinguishes this from a
+            # drift finding, and that distinction is the whole point -- an
+            # unreadable rule must not look like an orphaned Splunk object.
+            raise ReconcileError(str(exc)) from exc
 
-        detect_id = str(rule.get("detect_id") or "").strip()
-        title = str(rule.get("title") or "").strip()
+        detect_id = rule_detect_id(rule)
+        title = rule_title(rule)
 
         # A deprecated rule is still in the repo but is no longer wanted in
         # Splunk -- the deploy skips it (deploy_spl_to_splunk.py), so leaving it
@@ -115,7 +125,7 @@ def load_desired(rules_dir: Path) -> dict[str, dict]:
         # ask for a deployment that will never happen. Dropping it instead makes
         # any object that still exists show up as a removal orphan, which is the
         # accurate description: it is live, and it should not be.
-        if str(rule.get("status") or "").strip().lower() == "deprecated":
+        if is_deprecated(rule):
             continue
 
         if not detect_id:

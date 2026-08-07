@@ -21,6 +21,12 @@
             "strings": "on"
         }
     },
+    // Elrejti a fastruktúrából, amit a .gitignore kizár: __pycache__,
+    // .pytest_cache, .ruff_cache, pipeline_bundle, outputs/state,
+    // outputs/deploy és a rules/splunk/*.meta.json melléklapok.
+    // Nem érti a tagadó mintákat (!valami) -- ha a .gitignore-ba kerül ilyen,
+    // az a fájl itt rejtve marad.
+    "explorer.excludeGitIgnore": true,
     "editor.formatOnSave": true,
     "files.trimTrailingWhitespace": true,
     "editor.rulers": [

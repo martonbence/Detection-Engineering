@@ -14,12 +14,29 @@ import pytest
 
 
 class FakeResponse:
-    def __init__(self, status_code=200, text="{}"):
+    def __init__(self, status_code=200, text="{}", payload=None):
         self.status_code = status_code
         self.text = text
+        self._payload = payload
 
     def json(self):
+        if self._payload is not None:
+            return self._payload
         return {"entry": [{"name": "x"}]}
+
+
+# What Splunk returns for a freshly created, still user-private object. Used as
+# the default GET /acl response so set_acl() sees a mismatch and goes on to POST
+# -- i.e. the behaviour every test here was written against, before the deploy
+# learned to read the ACL first.
+ACL_PRIVATE = {"entry": [{"acl": {"sharing": "user", "perms": {"read": [], "write": []}}}]}
+
+
+def acl_response(sharing="app", read=("*",), write=("admin",)):
+    """A GET /acl body describing an object already in the given state."""
+    return FakeResponse(
+        payload={"entry": [{"acl": {"sharing": sharing, "perms": {"read": list(read), "write": list(write)}}}]}
+    )
 
 
 def endpoint_kind(url):
@@ -38,15 +55,24 @@ def endpoint_kind(url):
 class FakeSession:
     """Responds per endpoint, so create/update/ACL can be steered separately."""
 
-    def __init__(self, responses=None):
+    def __init__(self, responses=None, acl_get=None):
         self.headers = {}
         self.verify = True
         self.auth = None
         self.posts = []
+        self.gets = []
         # Default: the object exists, so an update succeeds -- the common case
         # for a rule that has been deployed before.
         self.responses = {"update": FakeResponse(), "create": FakeResponse(), "acl": FakeResponse()}
         self.responses.update(responses or {})
+        # set_acl() reads the current ACL before writing. Defaulting to a
+        # user-private object means it always finds a mismatch and still POSTs,
+        # which is what the tests written before that read expect.
+        self.acl_get = acl_get if acl_get is not None else FakeResponse(payload=ACL_PRIVATE)
+
+    def get(self, url, timeout=None):
+        self.gets.append(url)
+        return self.acl_get
 
     def post(self, url, data=None, timeout=None):
         kind = endpoint_kind(url)

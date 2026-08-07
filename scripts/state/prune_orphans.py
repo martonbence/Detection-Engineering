@@ -33,7 +33,8 @@ import shutil
 import sys
 from pathlib import Path
 
-import yaml
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from lib.rules import RuleLoadError, detect_id, discover, load_rule
 
 
 class PruneError(RuntimeError):
@@ -55,18 +56,20 @@ def load_rule_identity(rules_dir: Path) -> tuple[set[str], set[str]]:
     stems: set[str] = set()
     detect_ids: set[str] = set()
 
-    for path in sorted(rules_dir.glob("*.yml")):
+    for path in discover(rules_dir):
         stems.add(path.stem)
         try:
-            rule = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        except yaml.YAMLError as exc:
-            # Guessing here would mean deleting the artefacts of a rule that
-            # exists and is merely malformed.
-            raise PruneError(f"Could not parse {path}: {exc}") from exc
+            rule = load_rule(path)
+        except RuleLoadError as exc:
+            # Unchanged policy, now covering one more case. Guessing here would
+            # mean deleting the artefacts of a rule that exists and is merely
+            # malformed -- and an unreadable or empty file is exactly as much a
+            # guess as an unparseable one.
+            raise PruneError(str(exc)) from exc
 
-        detect_id = str(rule.get("detect_id") or "").strip()
-        if detect_id:
-            detect_ids.add(detect_id)
+        rule_detect_id = detect_id(rule)
+        if rule_detect_id:
+            detect_ids.add(rule_detect_id)
 
     if not stems:
         # An empty rules directory would classify every artefact in the repo as

@@ -31,6 +31,9 @@ import os
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from lib.summary import MARK_WARN, escape_cell
+
 DEFAULT_WORKFLOW = ".github/workflows/ci_dev_workflow.yml"
 
 # The two env vars run_atomic.ps1 filters on. A step that sets both is, by
@@ -231,7 +234,11 @@ def write_step_summary(findings: list[dict]) -> None:
         "| --- | --- | --- |",
     ]
     for f in findings:
-        lines.append(f"| `{f['detect_id']}` | `{f['type'] or '-'}` | `{f['runner'] or '(unset)'}` |")
+        lines.append(
+            f"| {MARK_WARN} `{escape_cell(f['detect_id'])}` "
+            f"| `{escape_cell(f['type'] or '-')}` "
+            f"| `{escape_cell(f['runner'] or '(unset)')}` |"
+        )
     lines.append("")
 
     try:
@@ -244,8 +251,13 @@ def write_step_summary(findings: list[dict]) -> None:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
+    # `yaml` is still needed directly here for the *workflow* file below; the
+    # rule loading moved to lib.rules. Both are imported inside the guard so a
+    # missing pyyaml stays a friendly exit 2 rather than a traceback -- see the
+    # same note in check_mitre_tags.py.
     try:
         import yaml  # type: ignore
+        from lib.rules import RuleLoadError, discover, load_rule
     except Exception as ex:
         eprint(f"[FATAL] Missing dependency: pyyaml. ({ex})")
         return 2
@@ -282,11 +294,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    rule_paths = (
-        [Path(r) for r in args.rules]
-        if args.rules
-        else sorted(Path("rules/sigma").rglob("*.yml"))
-    )
+    rule_paths = [Path(r) for r in args.rules] if args.rules else discover()
 
     findings: list[dict] = []
     tested: list[dict] = []
@@ -294,11 +302,11 @@ def main(argv: list[str] | None = None) -> int:
 
     for path in rule_paths:
         try:
-            data = yaml.safe_load(path.read_text(encoding="utf-8"))
-        except (OSError, yaml.YAMLError) as ex:
+            data = load_rule(path)
+        except RuleLoadError as ex:
             # Schema validation owns malformed rules; this checker just says so
             # and moves on rather than failing the step twice for one cause.
-            eprint(f"SKIP: {path} could not be read ({ex})")
+            eprint(f"SKIP: {ex}")
             continue
 
         checked += 1
