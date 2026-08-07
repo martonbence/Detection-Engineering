@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-06T14:36:12.344646+00:00",
+  "generated_at": "2026-08-07T13:59:29.724182+00:00",
   "total_rules": 27,
   "total_sigma_rules": 27,
   "total_compiled_sigma_rules": 26,
@@ -23,7 +23,7 @@
   "confirmed_working_pct": 96,
   "mitre_covered_techniques": 11,
   "mitre_total_techniques": 222,
-  "mitre_total_fetched_at": "2026-07-30T19:08:42.985300+00:00",
+  "mitre_total_fetched_at": "2026-08-07T13:59:29.724182+00:00",
   "mitre_coverage_pct": 5.0,
   "by_level": {
     "critical": 14,
