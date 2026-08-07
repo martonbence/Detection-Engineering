@@ -193,7 +193,7 @@ jobs:
           # it authenticates with the same credentials over the same link.
           # Skipping verification stays available, but has to be stated by
           # setting the secret to `false`.
-          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS }}
+          SPLUNK_VERIFY_TLS: ${{ vars.SPLUNK_VERIFY_TLS }}
           SPLUNK_SHARING: app
           SPLUNK_PERMS_READ: "*"
           SPLUNK_PERMS_WRITE: admin,ci_deploy_savedsearches
