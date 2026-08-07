@@ -14,7 +14,7 @@ import json
 
 import deploy_spl_to_splunk as deploy
 import pytest
-from test_deploy_report import FakeResponse, FakeSession, write_rule
+from test_deploy_report import FakeResponse, FakeSession, acl_response, write_rule
 
 
 @pytest.fixture
@@ -177,3 +177,92 @@ def test_one_rule_failing_does_not_stop_the_others(tmp_path, splunk):
 
     outcomes = {e["detect_id"]: e["outcome"] for e in json.loads(report.read_text(encoding="utf-8"))["rules"]}
     assert outcomes["DETECT-2026-0002"] == "updated"
+
+
+# --- the ACL read-before-write (the HTTP 409 every run used to emit) ---------
+#
+# set_acl() used to POST unconditionally. Splunk promotes an object to app scope
+# once; re-promoting an already-app-scoped object is rejected with 409 "Cannot
+# overwrite existing app object". Since the deploy updates far more often than
+# it creates, that was one 409 per rule per run, all meaning "already correct".
+#
+# The noise was the smaller half. The same 409 came back whether the ACL was
+# right or wrong, so the deploy could never detect real ACL drift.
+
+
+def test_a_matching_acl_is_left_alone(tmp_path, splunk):
+    """The common case: no POST to /acl at all, so no 409 to explain away."""
+    session = splunk()
+    session.acl_get = acl_response(sharing="app", read=["*"], write=["admin"])
+
+    assert deploy.main([str(write_rule(tmp_path))]) == 0
+
+    assert "acl" not in session.kinds()
+    assert session.gets, "the ACL must be read before deciding not to write it"
+
+
+def test_a_mismatched_acl_is_still_written(tmp_path, splunk):
+    session = splunk()
+    session.acl_get = acl_response(sharing="user", read=["admin"], write=["admin"])
+
+    assert deploy.main([str(write_rule(tmp_path))]) == 0
+
+    assert "acl" in session.kinds()
+
+
+def test_an_unreadable_acl_falls_through_to_the_write(tmp_path, splunk):
+    """None means "could not determine", never "already fine"."""
+    session = splunk()
+    session.acl_get = FakeResponse(403)
+
+    assert deploy.main([str(write_rule(tmp_path))]) == 0
+
+    assert "acl" in session.kinds()
+
+
+def test_a_409_on_a_genuinely_different_acl_says_so():
+    """The case the old code could not express.
+
+    The ACL does not match and Splunk refuses the change -- that is drift the
+    pipeline cannot correct, and it must not read like the benign duplicate the
+    bare Splunk message suggests. Called directly rather than through main(), so
+    the assertion is on the message itself and cannot pass vacuously.
+    """
+    session = FakeSession({"acl": FakeResponse(409, text='{"messages":[{"text":"Cannot overwrite"}]}')})
+    session.acl_get = acl_response(sharing="app", read=["admin"], write=["admin"])
+
+    ok, detail = deploy.set_acl(
+        session, "https://splunk.example:8089", "svc", "app1", "Rule", "app", "*", "admin"
+    )
+
+    assert ok is False
+    assert "differs" in detail
+    assert "Cannot overwrite" not in detail, "the bare Splunk wording is what misled everyone"
+
+
+def test_a_matching_acl_reports_that_it_was_already_correct():
+    session = FakeSession()
+    session.acl_get = acl_response(sharing="app", read=["*"], write=["admin"])
+
+    ok, detail = deploy.set_acl(
+        session, "https://splunk.example:8089", "svc", "app1", "Rule", "app", "*", "admin"
+    )
+
+    assert ok is True
+    assert detail == "ACL already correct"
+    assert session.kinds() == [], "nothing should have been written"
+
+
+def test_perm_sets_ignore_order_and_spacing():
+    assert deploy._perm_set("admin, power ") == deploy._perm_set(["power", "admin"])
+    assert deploy._perm_set("*") == {"*"}
+    assert deploy._perm_set("") == set()
+    assert deploy._perm_set(None) == set()
+
+
+def test_acl_matches_compares_all_three_fields():
+    current = {"sharing": "app", "perms": {"read": ["*"], "write": ["admin"]}}
+    assert deploy.acl_matches(current, "app", "*", "admin")
+    assert not deploy.acl_matches(current, "global", "*", "admin")
+    assert not deploy.acl_matches(current, "app", "admin", "admin")
+    assert not deploy.acl_matches(current, "app", "*", "power")

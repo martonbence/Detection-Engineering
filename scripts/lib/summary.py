@@ -13,30 +13,36 @@ run_atomic.ps1), so they carry literals with a comment pointing back here. If a
 mark changes, it changes in three places -- there is no way around that across
 three languages, but there is exactly one place that says what the mark *means*.
 
-On the marks themselves: these are text-style glyphs, not emoji, deliberately.
+On the marks themselves. The first attempt used text-style glyphs (✓ ✕ ?) to
+avoid two real problems with U+2705, the "big green square" check: it carries
+several times the visual weight of the words it annotates, and it is wider than
+a text character, so a column mixing it with plain text loses its alignment.
 
-  - They inherit the reader's text colour, so they render correctly in both the
-    light and dark GitHub themes rather than punching a coloured hole in a
-    sentence.
-  - They are single-width. Emoji are not, and a table column whose cells mix
-    emoji and text loses its alignment -- which is why the verification table
-    looked ragged.
-  - U+2705 (the "big green square" check) carries roughly three times the
-    visual weight of the words it annotates. In a 27-row table the marks became
-    the content and the rule names became the decoration, which is backwards.
+Read on an actual run, those glyphs turned out to be too quiet -- the verdict
+disappeared into the sentence next to it, which for the one column a reader
+scans first is the worse failure of the two.
+
+Coloured circles are the middle ground and are what this module now uses. They
+are unmistakable at a glance, they carry the state in colour as well as in the
+word beside them, and -- unlike ✅ next to ✕ -- all four are the same emoji
+width, so a column of them stays straight. The traffic-light reading is also
+already the repo's: docs/index.html uses green/amber/red for exactly these
+three verdicts, and the summaries now match the dashboard.
 """
 
-# Outcome marks. Paired with a word in every use -- the glyph is an accent on
-# the label, never a replacement for it, because a bare symbol is unreadable to
-# a screen reader and ambiguous to anyone who has not learned the convention.
-MARK_PASS = "✓"
-MARK_FAIL = "✕"
-# "Unknown", not "bad": NOT_VERIFIED means the attack or the measurement did not
-# complete, so nothing is known about the detection. A warning triangle would
-# claim more than the data supports.
-MARK_UNKNOWN = "?"
-MARK_WARN = "!"
-MARK_INFO = "·"
+# Outcome marks. Paired with a word in every use -- the circle is an accent on
+# the label, never a replacement for it, because a bare colour is invisible to
+# a screen reader and meaningless to anyone reading in monochrome.
+MARK_PASS = "🟢"
+MARK_FAIL = "🔴"
+# Amber, not red: NOT_VERIFIED means the attack or the measurement did not
+# complete, so nothing is known about the detection. Colouring it like a failure
+# would claim more than the data supports. Matches the dashboard's
+# .verdict-notverified treatment.
+MARK_UNKNOWN = "🟡"
+MARK_WARN = "🟡"
+# Neutral: a deliberate skip is neither success nor failure.
+MARK_INFO = "⚪"
 
 # GitHub Flavored Markdown alert kinds, rendered by the job-summary page as
 # native coloured callouts. Documented as supported: job summaries "support

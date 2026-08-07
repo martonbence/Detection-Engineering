@@ -1631,7 +1631,7 @@ jobs:
             {
               echo "### Promotion PR"
               echo ""
-              echo "· Already open: $existing_url"
+              echo "⚪ Already open: $existing_url"
             } >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
@@ -1646,7 +1646,7 @@ jobs:
           {
             echo "### Promotion PR"
             echo ""
-            echo "✓ Opened: $pr_url"
+            echo "🟢 Opened: $pr_url"
           } >> "$GITHUB_STEP_SUMMARY"
 
           if item_id=$(gh project item-add 3 --owner martonbence --url "$pr_url" --format json --jq '.id' 2>&1); then
