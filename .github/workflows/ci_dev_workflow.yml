@@ -122,6 +122,27 @@ on:
         required: false
         default: ""
 
+      # Register item 3.3 left removal-orphan cleanup as a deliberate manual
+      # opt-in: a rule disappearing from the repo is not always intentional, and
+      # silently stopping a detection is the exact failure that whole area is
+      # about. That reasoning still holds -- what did not hold was leaving the
+      # only way to act on it outside the pipeline entirely.
+      #
+      # Three orphans (DETECT-2026-0001, DETECT-2026-0002, test3) sat live and
+      # scheduled in dev Splunk from 2026-04-06 to 2026-08-07, reported by every
+      # single run and acted on by none, because acting required someone to run
+      # reconcile.py by hand on the lab box with Splunk credentials exported.
+      #
+      # Behind a dispatch input the decision stays manual and deliberate -- it
+      # cannot happen on a push -- but the *act* leaves a run log with a
+      # timestamp and an actor, which is the whole reason this repo puts Splunk
+      # changes through a pipeline instead of the Splunk UI.
+      retire_orphans:
+        description: "Retire Splunk saved searches whose rule left the repo (disable + mark, reversible)"
+        type: boolean
+        required: false
+        default: false
+
 concurrency:
   group: detection-pipeline-${{ github.ref }}
   cancel-in-progress: false
@@ -1485,6 +1506,17 @@ jobs:
         run: |
           set -uo pipefail
 
+          # --apply-removals only on an explicit manual request. Guarded on the
+          # event as well as the input because `inputs.*` is empty on a push,
+          # and an empty string is not "false" in every bash comparison anyone
+          # might later write here -- being explicit costs one condition and
+          # removes the class of mistake that silently disables detections.
+          extra_args=()
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.retire_orphans }}" == "true" ]]; then
+            extra_args+=(--apply-removals)
+            echo "Retiring removal orphans as requested by the dispatch input."
+          fi
+
           # Wrapped in `if` rather than run bare with `rc="${PIPESTATUS[0]}"` on
           # the next line. GitHub runs `shell: bash` as `bash --noprofile --norc
           # -e -o pipefail`, so -e applies regardless of the `set` line above:
@@ -1497,6 +1529,7 @@ jobs:
             --rules-dir rules/sigma \
             --json outputs/state/reconcile.json \
             --apply \
+            "${extra_args[@]+"${extra_args[@]}"}" \
             | tee reconcile_report.txt; then
             rc=0
           else
@@ -1510,6 +1543,29 @@ jobs:
             cat reconcile_report.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+          # Unresolved drift gets an annotation, not just a summary block.
+          #
+          # Deliberately NOT --fail-on-drift, which the script supports. That
+          # would turn an unrelated rule change red because of an orphan left by
+          # someone else months ago -- and a gate that fails for reasons outside
+          # the change under review is one people learn to click past, which is
+          # how this became invisible in the first place.
+          #
+          # An annotation lands at the top of the run page and on the PR, so it
+          # is seen every time without blocking anything. Read from the JSON
+          # rather than grepped out of the report prose: has_drift() already
+          # encodes the rule that an *already-retired* removal is the resolved
+          # state and not drift, and re-deriving that from text would drift from
+          # it. jq is present on ubuntu-latest and on the lab runner.
+          if [[ -f outputs/state/reconcile.json ]]; then
+            unresolved="$(jq '[.orphan_removed[] | select(.retired | not)] | length' outputs/state/reconcile.json)"
+            renamed="$(jq '.counts.orphan_renamed' outputs/state/reconcile.json)"
+            missing="$(jq '.counts.missing' outputs/state/reconcile.json)"
+            if [[ "$unresolved" -gt 0 || "$renamed" -gt 0 || "$missing" -gt 0 ]]; then
+              echo "::warning title=Splunk state drift::${unresolved} live saved search(es) whose rule is gone from the repo, ${renamed} left by a rename, ${missing} missing. They keep running and alerting until retired. Re-run this workflow with 'retire_orphans' checked to disable and mark them (reversible)."
+            fi
+          fi
 
           # The summary block is the last command, so without this the step's
           # exit status would be `echo`'s and a failed cleanup would read as a
