@@ -1558,9 +1558,27 @@ jobs:
           # encodes the rule that an *already-retired* removal is the resolved
           # state and not drift, and re-deriving that from text would drift from
           # it. jq is present on ubuntu-latest and on the lab runner.
+          #
+          # The `applied` subtraction is not decoration. reconcile.py builds and
+          # prints the report *before* applying anything -- its own comment says
+          # "the report describes the state before the apply" -- so the per-item
+          # `retired` flags and the `counts` are the state at scan time. Reading
+          # them alone made the run that *did* the cleanup announce the very
+          # orphans it had just resolved, and tell the operator to re-run with
+          # the switch they had in fact just used. Verified against the real
+          # artifacts of two runs: #42 (retire_orphans on) now reports 0 where
+          # the naive expression said 3, and #41 (switch off) still reports 3.
           if [[ -f outputs/state/reconcile.json ]]; then
-            unresolved="$(jq '[.orphan_removed[] | select(.retired | not)] | length' outputs/state/reconcile.json)"
-            renamed="$(jq '.counts.orphan_renamed' outputs/state/reconcile.json)"
+            unresolved="$(jq '
+              ([.orphan_removed[] | select(.retired | not) | .name]
+               - [((.applied.actions // [])[] | select(.action == "retire" and .ok) | .name)])
+              | length' outputs/state/reconcile.json)"
+            # Same correction for renames: --apply deletes those unattended, so
+            # at scan time they are still counted.
+            renamed="$(jq '
+              ([.orphan_renamed[] | .name]
+               - [((.applied.actions // [])[] | select(.action == "delete" and .ok) | .name)])
+              | length' outputs/state/reconcile.json)"
             missing="$(jq '.counts.missing' outputs/state/reconcile.json)"
             if [[ "$unresolved" -gt 0 || "$renamed" -gt 0 || "$missing" -gt 0 ]]; then
               echo "::warning title=Splunk state drift::${unresolved} live saved search(es) whose rule is gone from the repo, ${renamed} left by a rename, ${missing} missing. They keep running and alerting until retired. Re-run this workflow with 'retire_orphans' checked to disable and mark them (reversible)."
