@@ -869,14 +869,27 @@ jobs:
           # unset value already meant verify; the workflow overrode that safe
           # default with its opposite, and did so silently.
           #
-          # Now an unset secret renders empty, env_bool falls through to
+          # Now an unset value renders empty, env_bool falls through to
           # default=True, and the connection either verifies or fails loudly.
           # That is the intended trade: a run that dies on an untrusted
           # certificate is a fixable, visible problem, while a run that quietly
           # stops checking is a problem nobody sees. Turning verification off
           # for a self-signed lab cert stays possible -- it just has to be said
-          # out loud, by setting the secret to `false`.
-          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS }}
+          # out loud, by setting the variable to `false`.
+          #
+          # A *variable*, not a secret, since 2026-08-07 -- and the reason is
+          # the same class of defect 2.14 was about. Stored as a secret its
+          # value was `false`, and GitHub redacts a secret's value everywhere it
+          # appears in a log. So the literal word "false" vanished from every
+          # line of every job that had this in scope: `overwrite: ***`,
+          # `lfs: ***`, `check-latest: ***` -- ordinary boolean action inputs,
+          # unreadable. Worse, it gagged the warning directly below this
+          # comment, which exists to say the one word it could no longer print:
+          # "SPLUNK_VERIFY_TLS is set to a *** value". A flag whose whole job is
+          # to be conspicuous cannot be stored somewhere that redacts it. It was
+          # never a secret by any definition; SPLUNK_APP was migrated the same
+          # way for the same reason.
+          SPLUNK_VERIFY_TLS: ${{ vars.SPLUNK_VERIFY_TLS }}
           SPLUNK_SHARING: app
           SPLUNK_PERMS_READ: "*"
           SPLUNK_PERMS_WRITE: admin,ci_deploy_savedsearches
@@ -1331,7 +1344,7 @@ jobs:
           SPLUNK_APP: ${{ vars.SPLUNK_APP }}
           # Register item 2.14: no `|| 'false'` fallback -- an unset secret must
           # not read as "skip verification". See deploy_to_splunk above for why.
-          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS }}
+          SPLUNK_VERIFY_TLS: ${{ vars.SPLUNK_VERIFY_TLS }}
         run: |
           set -euo pipefail
 
@@ -1365,7 +1378,7 @@ jobs:
           SPLUNK_APP: ${{ vars.SPLUNK_APP }}
           # Register item 2.14: no `|| 'false'` fallback -- an unset secret must
           # not read as "skip verification". See deploy_to_splunk above for why.
-          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS }}
+          SPLUNK_VERIFY_TLS: ${{ vars.SPLUNK_VERIFY_TLS }}
         run: |
           set -euo pipefail
 
@@ -1468,7 +1481,7 @@ jobs:
           SPLUNK_APP: ${{ vars.SPLUNK_APP }}
           # Register item 2.14: no `|| 'false'` fallback -- an unset secret must
           # not read as "skip verification". See deploy_to_splunk above for why.
-          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS }}
+          SPLUNK_VERIFY_TLS: ${{ vars.SPLUNK_VERIFY_TLS }}
         run: |
           set -uo pipefail
 
