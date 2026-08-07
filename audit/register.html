@@ -645,7 +645,7 @@
     <p class="eyebrow">
       <span>Detection-Engineering</span>
       <span>audit: 2026-07-26 · dev @ 22799a5</span>
-      <span>állapot: 2026-08-07</span>
+      <span>állapot: 2026-08-07 · következő: 3.9</span>
     </p>
     <h1>Fejlesztési register — pipeline audit</h1>
     <p class="standfirst">
@@ -676,7 +676,7 @@
       <p class="meter-legend" id="meterLegend">
         <span>kritikus <b><span id="cCrit">0</span>/12</b></span>
         <span>kisebb <b><span id="cMinor">0</span>/22</b></span>
-        <span>architektúra <b><span id="cArch">0</span>/8</b></span>
+        <span>architektúra <b><span id="cArch">0</span>/9</b></span>
         <span>feature <b><span id="cEnh">0</span>/11</b></span>
       </p>
     </div>
@@ -713,7 +713,7 @@
   <nav class="filters" aria-label="Szűrők">
     <button class="chip" type="button" data-filter="crit" aria-pressed="true">kritikus · 12</button>
     <button class="chip" type="button" data-filter="minor" aria-pressed="true">kisebb · 22</button>
-    <button class="chip" type="button" data-filter="arch" aria-pressed="true">architektúra · 8</button>
+    <button class="chip" type="button" data-filter="arch" aria-pressed="true">architektúra · 9</button>
     <button class="chip" type="button" data-filter="enh" aria-pressed="true">feature · 11</button>
     <button class="chip ghost" type="button" id="hideDone" aria-pressed="false">kész elrejtése</button>
     <button class="chip ghost" type="button" id="resetAll" style="margin-left:0">nullázás</button>
@@ -1254,7 +1254,7 @@
 
   <!-- ============ 3. ARCHITEKTÚRA ============ -->
 
-  <h2><span class="swatch sw-arch"></span>3 · Architektúra<span class="h2-count">8 tétel</span></h2>
+  <h2><span class="swatch sw-arch"></span>3 · Architektúra<span class="h2-count">9 tétel</span></h2>
   <p class="sec-intro">
     Ezek nem hibák, hanem szerkezeti döntések, amik ma korlátoznak. A 3.3 különösen fontos: az
     1.1, 1.7 és 1.8 mind ugyanennek az egy hiányzó fogalomnak a tünete.
@@ -1355,6 +1355,18 @@
         <div class="row-head"><span class="id">3.8</span><span class="row-title" id="t-3-8">Flat rule-könyvtár és manuális ID-kiosztás</span><span class="tag verified">mérve</span></div>
         <p class="row-body">27 szabály egy könyvtárban még kezelhető, 150-nél nem. Az ID-térben már most lyukak vannak (<code>0001</code>, <code>0002</code>, <code>0004</code>, <code>0017</code> nincs) — a következő szabad <code>detect_id</code>-t kézzel kell megkeresni. A workflow glob-jai (<code>rules/sigma/**</code>) már ma is támogatnák az alkönyvtárakat.</p>
         <div class="refs"><span class="ref">rules/sigma/</span><span class="ref">lásd 4.5</span></div>
+      </div>
+    </div>
+
+    <div class="row sev-arch" data-sev="arch" data-weight="2">
+      <input class="row-check" type="checkbox" id="i-3-9" aria-labelledby="t-3-9">
+      <div class="row-main">
+        <div class="row-head"><span class="id">3.9</span><span class="row-title" id="t-3-9">A deploy a szolgáltatásfiók privát névterébe ír, ezért minden frissítés árnyék-objektumot hagy</span><span class="tag verified">mérve</span><span class="tag new">következő</span></div>
+        <p class="row-body">Mind a négy Splunk-facing script <code>owner&nbsp;=&nbsp;SPLUNK_USERNAME</code>-mel építi a REST-útvonalat, tehát <code>servicesNS/ci_splunk_deploy/&lt;app&gt;/…</code>-ra ír. Egy <b>app-szintű</b> objektumra ezen az úton írva a Splunk nem azt módosítja, hanem <b>felhasználói szintű felülíró réteget</b> készít fölé. Innen a szabályonkénti két sor a Splunk UI-ban: az élő app-szintű Alert, és egy privát, ütemezetlen Report, ami semmit nem csinál.</p>
+        <p class="row-note"><span class="note-label">2026-08-07</span><b>A mechanizmus bizonyítva, három méréssel.</b> (1) Egy prod futás mind a 27 szabályon: <b>26&nbsp;×&nbsp;HTTP&nbsp;409 frissítésnél, 0&nbsp;×&nbsp;409 az egyetlen frissen létrehozottnál</b> (<code>DETECT-2026-0003</code>, előtte kézzel törölve) — a 409 tökéletesen korrelál azzal, hogy az objektum már létezett-e. (2) Kontrollcsoport: ugyanaz a <code>DETECT-2026-0028</code> a dev appban (árnyék törölve → nincs 409, egy sor) és a prod appban (árnyék megvan → 409, két sor). (3) <b>A döntő:</b> a 0028 a 19:11-es prod futásban <code>Updated:</code>-elődött <b>409 nélkül</b>, a 19:16-osra viszont már volt árnyéka. Közben egyetlen dolog történt vele: egy frissítés. Tehát nem a <code>set_acl</code> POST hozza létre az árnyékot, hanem a <b>sima update POST</b>.</p>
+        <p class="row-note"><span class="note-label">2026-08-07</span><b>A kézi takarítás hiábavaló</b> — az árnyék az első frissítéskor visszajön, és ezt élesben végig is néztük. <b>Amit viszont NEM jelent:</b> semmi nincs elromolva. A detekciók app-szinten élnek, ütemezettek, tüzelnek, a verifikáció valósat mér; a kár kozmetikai (dupla sor a UI-ban) plusz futásonként 26 warning.</p>
+        <p class="row-fix"><span class="fix-label">hipotézis</span><code>owner=nobody</code> a <code>saved/searches</code> útvonalakon, <code>set_acl</code> nélkül. A <code>deploy_spl_to_splunk.py:379-386</code> kommentje szerint a <code>nobody</code>-t <b>már megpróbálták és elbukott</b> („every ACL update fail … the service account doesn't have <code>admin_all_objects</code>") — de az érv <b>nem feltétlenül áll</b>: <code>nobody</code> mellett az objektum eleve app-szintű, tehát a sharing-promócióhoz a <code>set_acl</code> nem is kell. A tiltott és a szükséges művelet nem ugyanaz. <b>Kockázat:</b> négy scriptet érint, éles detekciókat mozgat, <code>403</code>-mal bukhat; a <code>search/jobs</code> végpontok <b>nem</b> kaphatnak <code>nobody</code>-t, mert azok futó jobot azonosítanak, nem objektumot. <b>Ha elbukik:</b> a fiók <code>edit_saved_search_owner</code> capabilityje.</p>
+        <div class="refs"><span class="ref">deploy:387</span><span class="ref">reconcile:516</span><span class="ref">check_saved_search_hits:224</span><span class="ref">wait_for_indexing:141</span><span class="ref">26/27 mérve</span></div>
       </div>
     </div>
 
