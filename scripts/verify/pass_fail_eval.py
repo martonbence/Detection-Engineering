@@ -34,12 +34,12 @@ Exit code:
   1  One or more rules FAIL or NOT_VERIFIED
 """
 
-import re
-import sys
+import argparse
 import json
 import os
-import argparse
-from datetime import datetime, timezone
+import re
+import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 PASS = "PASS"
@@ -200,11 +200,11 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--progress-dir", default="",
         help="Directory of <detect_id>.json progress markers written by "
-             "run_atomic.ps1 (merged from atomic_verify + atomic_verify_dc). "
-             "When provided, rules whose tester is 'atomic' but that never "
-             "reached a 'completed' marker are verdict NOT_VERIFIED instead "
-             "of whatever hits.json would otherwise say. Omit to disable "
-             "this check entirely (backward compatible).",
+             "run_atomic.ps1 (merged from atomic_verify, atomic_verify_dc and "
+             "emulation_verify). When provided, a rule whose testing is enabled "
+             "but that never reached a 'completed' marker is verdict "
+             "NOT_VERIFIED instead of whatever hits.json would otherwise say. "
+             "Omit to disable this check entirely (backward compatible).",
     )
     args = parser.parse_args(argv)
 
@@ -214,7 +214,7 @@ def main(argv: list[str]) -> int:
 
     progress_dir: Path | None = Path(args.progress_dir) if args.progress_dir else None
 
-    run_ts = datetime.now(timezone.utc).isoformat()
+    run_ts = datetime.now(UTC).isoformat()
 
     summaries: list[dict] = []
     seen_detect_ids: set[str] = set()
@@ -248,7 +248,15 @@ def main(argv: list[str]) -> int:
                 "title": "",
                 "event_count": 0,
                 "error": None,
-                "tester": "atomic",
+                # The marker names its own tester as of register item 2.8;
+                # markers written before that field existed are atomic by
+                # construction, since emulation rules had none.
+                "tester": str(marker_data.get("tester") or "atomic"),
+                # A marker only exists because something set out to attack this
+                # rule, so testing was enabled. Stating it explicitly matters:
+                # the gate below requires it, and this summary is synthesized
+                # rather than read from a hits.json that would have carried it.
+                "testing_enabled": True,
             })
             seen_detect_ids.add(marker_detect_id)
 
@@ -275,9 +283,24 @@ def main(argv: list[str]) -> int:
         # (error_kind from the Splunk query). A rule whose test completed fine
         # but whose search timed out reaches the second check with a completed
         # marker, which is exactly the case that used to fall through to FAIL.
-        if tester == "atomic" and not atomic_test_completed(progress_dir, detect_id):
+        # Register item 2.8. This used to read `tester == "atomic"`, which left
+        # the 8 emulation-tested rules outside the gate entirely: an emulation
+        # command that never ran produced no events, and no events scored FAIL
+        # -- a confirmed negative manufactured from an attack that never
+        # happened, which is the exact thing NOT_VERIFIED exists to prevent.
+        #
+        # Also now requires testing to be enabled. A rule with
+        # `type: atomic, enabled: false` gets no marker written for it (nothing
+        # attacks it), so the old condition would have parked it at
+        # NOT_VERIFIED permanently. No rule is in that state today; the
+        # condition should still say what it means.
+        if (
+            summary.get("testing_enabled")
+            and tester in ("atomic", "emulation")
+            and not atomic_test_completed(progress_dir, detect_id)
+        ):
             verdict = NOT_VERIFIED
-            reason = "Atomic Red Team test did not complete before step timeout"
+            reason = f"{tester.capitalize()} test did not complete before step timeout"
         else:
             verdict, reason = evaluate(
                 event_count, error, args.min_pass, args.max_pass, error_kind

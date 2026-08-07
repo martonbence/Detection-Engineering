@@ -8,17 +8,39 @@ line-length = 120
 target-version = "py311"
 
 [tool.ruff.lint]
-# Deliberately narrow for the first pass. "F" is pyflakes -- undefined names,
-# unused imports, f-strings missing their placeholders: the findings that are
-# actually bugs. "E9" is syntax and IO errors.
+# Register item 2.12 widened this from ["F", "E9"]. The selection is curated
+# rather than "everything": the point of the first pass was that a gate people
+# learn to skip is worth less than a narrow one they trust, and that still
+# holds. Each set below was measured against the repo before being turned on.
 #
-# The full default rule set is not enabled yet on purpose. Nothing here has
-# ever been linted and generate_stats.py alone is ~6000 lines, so switching
-# everything on would bury the real defects under a wall of formatting
-# opinions and make the gate something people learn to skip. Widening this is
-# register item 2.12; the gate is worth more green-and-meaningful than
-# red-and-ignored.
-select = ["F", "E9"]
+#   F    pyflakes -- undefined names, unused imports, f-strings missing their
+#        placeholders. The findings that are actually bugs.
+#   E9   syntax and IO errors.
+#   E7   the non-cosmetic pycodestyle errors, notably E741 (`l`, `I`, `O` as
+#        names). Deliberately not plain "E": that pulls in E501.
+#   B    bugbear -- mutable default arguments, loop-variable capture, and the
+#        rest of the "this is legal and still wrong" family.
+#   I    import sorting. Purely mechanical, entirely auto-fixable.
+#   UP   pyupgrade, scoped by target-version below.
+#   C4   comprehension rewrites that are also readability wins.
+#   SIM, RET, PIE, RUF  small, concrete simplifications.
+#
+# Deliberately NOT enabled, with reasons -- each was measured, not assumed:
+#
+#   E501 (line-too-long): 181 findings, and they are the *comments*. This repo
+#        explains its reasoning in prose above the code on purpose; wrapping
+#        that to 120 columns would damage the thing that makes it readable.
+#   ARG  (unused arguments): 15 findings, essentially all in tests, where a
+#        fake's method signature has to match the real one it stands in for.
+#        The unused parameter is the point.
+#   PTH  (use pathlib): 6 findings on `open()` calls that append to
+#        $GITHUB_STEP_SUMMARY or read one file once. Path.open() would not make
+#        them safer, only different.
+select = ["F", "E9", "E7", "B", "I", "UP", "C4", "SIM", "RET", "PIE", "RUF"]
+
+# RUF001-003 flag "ambiguous" Unicode -- en dashes and the like. Every hit is
+# deliberate typography in generated HTML and in human-facing output strings.
+ignore = ["RUF001", "RUF002", "RUF003"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

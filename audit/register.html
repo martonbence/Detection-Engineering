@@ -1003,7 +1003,7 @@
 
   <!-- ============ 2. KISEBB ============ -->
 
-  <h2><span class="swatch sw-minor"></span>2 · Kisebb hibák és optimalizálás<span class="h2-count">20 tétel</span></h2>
+  <h2><span class="swatch sw-minor"></span>2 · Kisebb hibák és optimalizálás<span class="h2-count">21 tétel</span></h2>
 
   <div class="register" data-sev="minor">
 
@@ -1030,21 +1030,25 @@
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-3" aria-labelledby="t-2-3">
+      <input class="row-check" type="checkbox" id="i-2-3" aria-labelledby="t-2-3" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.3</span><span class="row-title" id="t-2-3">A várakozási idő konfigurálhatónak látszik, de nem az</span></div>
+        <div class="row-head"><span class="id">2.3</span><span class="row-title" id="t-2-3">A várakozási idő konfigurálhatónak látszik, de nem az</span><span class="tag done">kész</span></div>
         <p class="row-body"><code>WAIT=${SPLUNK_VERIFY_WAIT_SECONDS:-60}</code> — ez a változó soha nincs beállítva egyetlen <code>env:</code> blokkban sem, tehát mindig fix 60s sleep.</p>
         <p class="row-fix"><span class="fix-label">javítás</span>Cseréld pollra (15s-onként, max 3 perc, amíg megjön az első hit) — általában gyorsabb <em>és</em> kevésbé flaky.</p>
-        <div class="refs"><span class="ref">ci_dev_workflow.yml:636</span></div>
+        <p class="row-note"><span class="note-label">2026-08-05</span><b>Kész.</b> Új <code>scripts/verify/wait_for_indexing.py</code> a <code>sleep 60</code> helyett. A fix várakozás <b>mindkét irányban rossz volt:</b> elvitt egy teljes percet akkor is, ha az indexer nyolc másodperc alatt kész lett, és <b>csendben feladta</b> hatvannál, ha kilencven kellett volna — nulla találat, és olyan verdikt, ami szerint a detekció bukott, holott csak senki nem várt eleget. Ugyanaz a hamis-verdikt osztály, mint az 1.4 és az 1.5.</p>
+        <p class="row-note"><span class="note-label">2026-08-05</span><b>Amit kérdez, az nem az, hogy „land-elt-e a támadás".</b> Azt maga a verifikáció méri, és attól egy jogosan nulla eseményt hozó szabály végigvárná a teljes timeoutot. Azt kérdezi, hogy <em>utolérte-e az indexer a teszt-ablakot</em> — arra bármelyik esemény válasz a vizsgált indexekben. Az indexeket a bundle meta sidecarjaiból veszi, tehát egy csendes, ebben a körben nem használt index nem elégítheti ki a várakozást. 10 másodpercenként kérdez, legfeljebb 180-ig. <b>Tanácsadó, nem kapu:</b> timeoutnál <code>::warning</code> és megy tovább — a blokkolás egy lassú indexerből pipeline-hibát csinálna, holott az őszinte kimenetel az, hogy a verifikáció jelentse, amit talál. A hibázó próba (HTTP-hiba, nem-JSON válasz, hálózati hiba) szándékosan megkülönböztethetetlen a „még nincs indexelve"-től: mindkettő azt jelenti, hogy várni kell — a fail-open itt egy Splunk-hikkanásnál teljesen kihagyná a várakozást. A lépés a window-számítás mögé került, mert a próbának tudnia kell, mikor kezdődött a teszt-fázis. 13 új teszt.</p>
+        <div class="refs"><span class="ref">wait_for_indexing.py</span><span class="ref">13 teszt</span></div>
       </div>
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-4" aria-labelledby="t-2-4">
+      <input class="row-check" type="checkbox" id="i-2-4" aria-labelledby="t-2-4" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.4</span><span class="row-title" id="t-2-4">A prod futásnak nincs audit-nyoma</span></div>
+        <div class="row-head"><span class="id">2.4</span><span class="row-title" id="t-2-4">A prod futásnak nincs audit-nyoma</span><span class="tag done">kész</span></div>
         <p class="row-body">Nincs <code>$GITHUB_STEP_SUMMARY</code>, nincs deploy-artifact, nincs semmilyen rekord arról, hogy egy prod futás mit tett. A dev oldalon van szép summary tábla — prodban, ahol jobban számít, semmi.</p>
-        <div class="refs"><span class="ref">ci_prod_workflow.yml</span></div>
+        <p class="row-note"><span class="note-label">2026-08-05</span><b>Kész.</b> A <code>deploy_spl_to_splunk.py</code> <code>--report</code> kapcsolót kapott: szabályonként rögzíti a kimenetelt — <code>created</code> / <code>updated</code> / <code>skipped_deprecated</code> / <code>failed</code>, hibaokkal és a szabály verziójával —, és ugyanezt a táblát a step summarybe is kirendereli, tehát letöltés nélkül is látszik. A prod artifactként tölti fel, <b>90 napra</b>: ez az audit-nyom, és a dev <code>matched-events</code> artifactjaival ellentétben <em>nem</em> tartalmaz nyers Splunk-adatot. <b><code>always()</code>-szel</b>, mert egy <em>elbukott</em> deploynál számít a legtöbbet — az mondja meg, melyik szabály jutott ki prodba, mielőtt a futás megállt, amit a kilépési kód önmagában nem tud.</p>
+        <p class="row-note"><span class="note-label">2026-08-05</span><b>Amit szándékosan nem tartalmaz:</b> Splunk URL, app-név, fiók. Azok titkok vagy titok-közeliek, az artifact pedig egy publikus repóból letölthető. A riport csak olyan tényeket rögzít, amik magából a repóból is levezethetők — azt mondja el, <em>mit</em> csináltunk, nem azt, hogy <em>hol</em>. Külön teszt őrzi, hogy egyik kapcsolódási adat se szivárogjon bele. 11 új teszt, és a <code>--report</code> opcionális, tehát a dev hívása változatlan.</p>
+        <div class="refs"><span class="ref">deploy_spl_to_splunk.py --report</span><span class="ref">11 teszt</span></div>
       </div>
     </div>
 
@@ -1060,31 +1064,38 @@
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-6" aria-labelledby="t-2-6">
+      <input class="row-check" type="checkbox" id="i-2-6" aria-labelledby="t-2-6" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.6</span><span class="row-title" id="t-2-6">A „már létezik" detektálás a hibaszöveget stringkeresi</span></div>
+        <div class="row-head"><span class="id">2.6</span><span class="row-title" id="t-2-6">A „már létezik" detektálás a hibaszöveget stringkeresi</span><span class="tag done">kész</span></div>
         <p class="row-body">Az <code>is_already_exists()</code> a HTTP válasz szövegében keres <code>"already exists"</code> / <code>"conflict"</code> / <code>"in use"</code> részstringet — Splunk-verzió- és nyelvfüggő, törékeny.</p>
         <p class="row-fix"><span class="fix-label">javítás</span>Közvetlenül a <code>saved/searches/{name}</code> endpointra POST (upsert), és csak 404-nél create.</p>
-        <div class="refs"><span class="ref">deploy_spl_to_splunk.py:160-163</span></div>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>Kész, pontosan a javasolt úton.</b> Az <code>is_already_exists()</code> törölve. A deploy most az <em>objektum</em>-endpointra POST-ol előbb: <b>200</b> = ott volt, frissítve; <b>404</b> = még nincs, létrehozás a kollekció-endpointon. A státuszkód szerződés, a hibaszöveg nem az — az <code>already exists</code> / <code>conflict</code> / <code>in use</code> egyikét sem ígéri a Splunk, verziónként változnak, és három független hiba is tartalmazhatja őket. A régi viselkedésben egy másképp fogalmazott ütközés create-hibaként jelent meg, egy ezeket a szavakat véletlenül tartalmazó, teljesen más hiba pedig az update-ágra küldte a deployt, hogy ott bukjon el, még zavarosabban.</p>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>Váratlan válasznál nem esik át létrehozásba</b> — pont az volt a régi hibás minta. Minden, ami nem 200 és nem 404, valódi hiba, és a státuszkóddal <em>együtt azzal is</em> jelentjük, mit vártunk. <b>Mellékhatás:</b> a gyakori eset — egy korábban már deployolt szabály — most <b>egy hívás kettő helyett</b>. A create utáni „scheduling újraalkalmazás" megmarad, mert a Splunk nem tartja meg megbízhatóan az <code>is_scheduled</code>/<code>cron_schedule</code> mezőket a létrehozó kérésen; az update-útnak nem kell, mert az <em>maga</em> az a kérés. 16 új teszt, a meglévő deploy-tesztek pedig átálltak az új protokollra. <b>Éles Splunk ellen nem tesztelt</b> (a labor le van kapcsolva), ezért a váratlan-státusz üzenete szándékosan kimondja, mit várt — az első valódi futás így öndiagnosztizáló.</p>
+        <div class="refs"><span class="ref">objektum-endpoint upsert</span><span class="ref">16 teszt</span></div>
       </div>
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-7" aria-labelledby="t-2-7">
+      <input class="row-check" type="checkbox" id="i-2-7" aria-labelledby="t-2-7" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.7</span><span class="row-title" id="t-2-7">A pass-ablak globális, holott szabály-szintű adat</span></div>
+        <div class="row-head"><span class="id">2.7</span><span class="row-title" id="t-2-7">A pass-ablak globális, holott szabály-szintű adat</span><span class="tag done">elvetve</span></div>
         <p class="row-body">A <code>--max-pass 10</code> mindenkire ugyanaz. Egy zajos technika (pl. PowerShell parent process) legitim módon 30 eventet gerjeszt, egy másiknál a 3 is sok.</p>
         <p class="row-fix"><span class="fix-label">javítás</span><code>custom.testing.expected_events: {min: 1, max: 25}</code> a szabályban.</p>
-        <div class="refs"><span class="ref">pass_fail_eval.py:167</span></div>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>A fejlesztést elvetettük</b> — a javasolt fixet és az alternatíváit is. Bence indoka a <code>custom.testing.expected_events</code> ellen: a Sigma szabályban már így is túl sok a metaérték, és egy újabb csak a tünetet mozgatná a YAML-be. Az elemzés ezt megerősítette: <b>a felső korlát rossz eszköz.</b> A verdikt két kérdést mos össze — „elsült-e a detekció?" (<code>&gt;= 1</code>, ez a verifikáció kérdése) és „pontos-e a szabály?" —, de a másodikra a <em>támadási ablak</em> adata elvből nem tud válaszolni: 40 esemény jelenthet túl tág szabályt és olyan technikát is, ami tényleg 40 process-eseményt generál. Amit a zaj <em>bizonyít</em>, az az, ha a szabály <b>támadás nélkül is</b> elsül. Így bármilyen szabályonkénti konstans — YAML-ben vagy CLI-n — eseményszámra tippel, ami OS-verzióval, naplózási beállítással és a teszt tartalmával együtt vándorol.</p>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>Amit tudatosan vállalunk:</b> a globális 1–10 ablak marad, és három szabály — <code>DETECT-2026-0027</code>, <code>DETECT-2026-0019</code>, <code>DETECT-2026-0014</code> — <b>pontosan 10 eseményen áll</b>, tehát egyetlen extra eseménytől hamis FAIL-t kapna. Ellenőrizve, hogy ez nem lekérdezési plafon: a <code>--max-events</code> alapértéke 100, és a CI nem írja felül — valódi 10-esek. Felajánlott alternatívák, mind Sigma-mező nélkül, mind elvetve: a korlát kivétele a verdiktből figyelmeztetésként megtartva; csendes ablak referenciaként; a szabály saját eredmény-története mint kiugrás-detektor. A valódi megoldás a <b>4.1</b> (noise budget), nem egy újabb metaadat.</p>
+        <div class="refs"><span class="ref">elvetve — lásd 4.1</span></div>
       </div>
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-8" aria-labelledby="t-2-8">
+      <input class="row-check" type="checkbox" id="i-2-8" aria-labelledby="t-2-8" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.8</span><span class="row-title" id="t-2-8">A <code>NOT_VERIFIED</code> kapu csak az atomic szabályokra vonatkozik</span><span class="tag verified">mérve</span></div>
+        <div class="row-head"><span class="id">2.8</span><span class="row-title" id="t-2-8">A <code>NOT_VERIFIED</code> kapu csak az atomic szabályokra vonatkozik</span><span class="tag done">kész</span></div>
         <p class="row-body">8 szabály <code>emulation</code> típusú — ezeknél egy megölt teszt-job FAIL-ként jelenik meg, nem „nem tudjuk"-ként. A marker-mechanizmus típusfüggetlenül működne.</p>
-        <div class="refs"><span class="ref">pass_fail_eval.py:244</span><span class="ref">8 emulation szabály</span></div>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>Kész.</b> A kapu a pontszámítás <em>előtt</em> fut, mert más kérdésre válaszol: nem azt, hogy „elsült-e a detekció", hanem azt, hogy „megtámadtuk-e egyáltalán". Nélküle a le nem futott támadás nulla eseményt hagy, a nulla esemény pedig FAIL — megerősített negatívum abból, ami meg sem történt.</p>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>A javítás alulról felfelé ment, nem a feltétel kiszélesítésével</b> — az önmagában mind a 8 szabályt <em>örökre</em> NOT_VERIFIED-be tette volna, mert markert soha nem írt hozzájuk semmi. (1) A <code>run_atomic.ps1</code> átviszi a <code>detect_id</code>-t az emulation-gyűjtésen és ír markert — a <code>$collectedCustom</code> addig lapos parancslista volt, ami nem tudta, melyik szabályhoz tartozik, és <em>ezért</em> nem lehetett markert írni; a kulcs <code>detect_id|index</code>, nem a teszt neve, mert a név szabad szöveg és egy szabályon belül ismétlődhet. (2) A marker <code>finally</code>-ben íródik, tehát egy dobó parancs is <em>megkíséreltnek</em> számít: a marker azt rögzíti, hogy a támadás lefutott, nem azt, hogy sikerült. (3) Az <code>emulation_verify</code> feltölti — eddig <b>egyáltalán nem volt</b> upload lépése, a két atomic jobbal ellentétben. (4) A <code>splunk_verify</code> letölti, ugyanabba a könyvtárba.</p>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>Két plusz hiba menet közben.</b> A kapu most már <code>testing_enabled</code>-et is megkövetel: egy <code>type: atomic, enabled: false</code> szabályt semmi nem támad, tehát markert sem kap, és a régi feltétel örökre NOT_VERIFIED-ben tartotta volna (ma egy szabály sincs ilyen állapotban). A másikat <b>én okoztam és javítottam</b>: a szintetizált összegzés — marker van, <code>hits.json</code> nincs — <code>testing_enabled</code> nélkül készült, tehát az új feltétellel FAIL-be esett volna; most <code>True</code>-t kap, és a <b>marker maga rögzíti a tester típusát</b>, mert a korábbi „ez csak atomic lehet" feltevés épp itt szűnt meg igaznak lenni. <b>16 új teszt</b> — a marker-kapunak eddig <em>nulla</em> lefedettsége volt, a meglévő suite csak a tiszta <code>evaluate()</code> függvényt fogta.</p>
+        <div class="refs"><span class="ref">run_atomic.ps1 + workflow + pass_fail_eval</span><span class="ref">16 teszt</span></div>
       </div>
     </div>
 
@@ -1099,29 +1110,36 @@
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-10" aria-labelledby="t-2-10">
+      <input class="row-check" type="checkbox" id="i-2-10" aria-labelledby="t-2-10" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.10</span><span class="row-title" id="t-2-10">Szabályonként két Python-process indul egy mező kiolvasásához</span></div>
+        <div class="row-head"><span class="id">2.10</span><span class="row-title" id="t-2-10">Szabályonként két Python-process indul egy mező kiolvasásához</span><span class="tag done">kész</span></div>
         <p class="row-body">A „Detect test types" step szabályonként két <code>python3 -c</code>-t hív, csak a <code>type</code> és <code>runner</code> mezőért. Ez a metaadat-parsing negyedik implementációja a repóban — lásd 3.1.</p>
-        <div class="refs"><span class="ref">ci_dev_workflow.yml:323-324</span></div>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>Kész — és nem új scripttel.</b> Az épp az lett volna, amit ez a tétel kifogásol: egy <em>negyedik</em> parser ugyanarra a metaadatra. A <b>2.17-es <code>check_test_routing.py</code></b> már ma is beolvassa ezeket a szabályokat <em>és</em> tudja, melyik job szolgál ki melyik <code>(tester, runner)</code> párt — a flag tehát <b>keresés egy már felépített táblában</b>, nem második olvasás. Új <code>--job-flags</code> mód, <code>JOB_OUTPUT_FLAGS</code> táblával (job-név → workflow-output), mert az az egyetlen rész, ami nem vezethető le: a workflow saját elnevezése. 27 szabályra <b>54 processz helyett 1</b>.</p>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>Rejtett hiba menet közben:</b> a régi egysorosok <code>2>/dev/null || true</code>-val zárultak, tehát egy hibás YAML <em>csendben</em> üres testerré vált és kiesett a routingból. <b>Egy tudatos viselkedésváltozás:</b> egy nem kiszolgált runnert kérő szabály eddig <code>has_atomic_tests=true</code>-t állított és elindította a victim jobot, ami aztán kihagyta — most nem indul job olyan munkára, ami nincs. A flag-mód <b>néma</b>: a dedikált routing-lépés ugyanabban a jobban már jelentette a találatokat, egy bővebb szabályhalmazon, tehát a duplikálás csak zaj lenne. 7 új teszt. <b>A 3.1-et nem váltja ki</b>, de nem is akadályozza — a logika a YAML-ből egy tesztelhető scriptbe került, ami a manifest bevezetését inkább könnyíti.</p>
+        <div class="refs"><span class="ref">check_test_routing.py --job-flags</span><span class="ref">7 teszt</span></div>
       </div>
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-11" aria-labelledby="t-2-11">
+      <input class="row-check" type="checkbox" id="i-2-11" aria-labelledby="t-2-11" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.11</span><span class="row-title" id="t-2-11">Hiányzó repo-higiénia</span><span class="tag verified">mérve</span></div>
+        <div class="row-head"><span class="id">2.11</span><span class="row-title" id="t-2-11">Hiányzó repo-higiénia</span><span class="tag done">kész</span></div>
         <p class="row-body">Nincs <code>requirements.txt</code>, <code>pyproject.toml</code>, <code>Makefile</code>, <code>.pre-commit-config.yaml</code>, <code>CODEOWNERS</code>, PR template, <code>dependabot.yml</code>. A GitHub Actions verziók csak major taggel vannak pinelve (<code>@v4</code>), nem SHA-val.</p>
-        <div class="refs"><span class="ref">repo gyökér</span><span class="ref">.github/</span></div>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>Kész — de nem a lista letudásával.</b> A <code>requirements.txt</code>, <code>requirements-dev.txt</code> és <code>pyproject.toml</code> korábbi körökben már megvolt. Új a <b><code>.github/dependabot.yml</code></b>: a pinelés bump-mechanizmus nélkül oda vezet, hogy a repó két éve nem nézett converteren ül, és így marad észrevétlen egy olyan CVE, mint amit a pip-audit a <code>diskcache</code>-re jelentett. <b>A kritikus beállítás a <code>target-branch: dev</code>:</b> a dependabot alapból az alapértelmezett ágra (<code>main</code>) nyit PR-t, az pedig <em>validálás, támadás és mérés nélkül</em> deployol prod Splunkba — egy oda érkező bump megkerülné a teljes bizonyítási utat. A <code>dev</code>-re irányítva ugyanazon a körön megy át, mint egy szabályváltozás. Két külön pip-csoport, mert eltérő a kockázatuk: egy <code>ruff</code> bump legfeljebb pirosra váltja a CI-t, egy <code>pySigma</code> bump viszont megváltoztathatja, mi kerül a Splunkba.</p>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>Mind a 39 <code>uses:</code> sor commit-SHA-ra pinelve</b>, a pontos verzióval kommentben. Az indok egy pontosítás volt, nem elv: <b>major taggel a dependabot nem szól</b> a <code>v4 → v4.1</code> mozgásról, csak <code>v5</code> megjelenésekor — vagyis épp azt nem fogja el, hogy „a tag csendben elmozdult". SHA-val minden mozgás diff lesz, és a dependabot onnantól karban is tartja. A tagek a GitHub API-ról feloldva, nem kézzel másolva.</p>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>Tudatosan elutasítva, indoklással.</b> <em>Makefile</em>: a <code>make</code> nincs a karbantartó gépén (ellenőrizve) — futtathatatlan fájl lenne; a két parancs amúgy <code>ruff check .</code> és <code>pytest</code>. <em>pre-commit</em>: amit ellenőrizne, azt a CI már kapuzza, cserébe klónonként telepíteni kell. <em>CODEOWNERS</em>: egyszemélyes repóban saját magától kérne review-t a saját PR-en. <em>PR-sablon</em>: a promóciós PR-eket a CI nyitja saját szöveggel. Ezek nem elmaradtak — checklist-ballasztként lettek elvetve.</p>
+        <div class="refs"><span class="ref">dependabot.yml</span><span class="ref">39 SHA-pin</span></div>
       </div>
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-12" aria-labelledby="t-2-12">
+      <input class="row-check" type="checkbox" id="i-2-12" aria-labelledby="t-2-12" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.12</span><span class="row-title" id="t-2-12">Nulla teszt és nulla linter</span><span class="tag verified">mérve</span></div>
+        <div class="row-head"><span class="id">2.12</span><span class="row-title" id="t-2-12">Nulla teszt és nulla linter</span><span class="tag done">kész</span></div>
         <p class="row-body">Se pytest, se ruff, se actionlint, se PSScriptAnalyzer, se shellcheck. Egy detection-as-code repo, ami a „minden ellenőrzött" narratívát viszi, saját magára nem alkalmazza ezt. A megvalósítás a 4.10-es tételben.</p>
-        <div class="refs"><span class="ref">egész repo</span></div>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>Lezárva a linter kiszélesítésével.</b> A válogatás <b>kurált, nem „minden"</b> — az első kör tanulsága áll: egy kapu, amit megtanulnak átugrani, kevesebbet ér egy szűknél, amiben megbíznak. Bekapcsolva: <code>F, E9, E7, B, I, UP, C4, SIM, RET, PIE, RUF</code>.</p>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>Minden kihagyást megmértem, nem feltételeztem.</b> <code>E501</code> (sorhossz): <b>181 találat</b>, és azok a <em>kommentek</em> — ez a repó szándékosan prózában indokolja magát a kód fölött, 120 oszlopra tördelni pont azt rontaná el, amitől olvasható. <code>ARG</code>: 15 találat, gyakorlatilag mind tesztben, ahol egy fake szignatúrájának egyeznie <em>kell</em> a valódival — a nem használt paraméter maga a lényeg. <code>PTH</code>: 6 találat olyan <code>open()</code>-ökre, amik a step summaryhez fűznek vagy egy fájlt olvasnak egyszer; a <code>Path.open()</code> nem tenné biztonságosabbá, csak mássá. A <code>RUF001-003</code> ignorálva: minden találat szándékos tipográfia. <b>36 automatikus javítás</b> (importrendezés, <code>datetime.UTC</code>) és <b>6 kézi</b> — kétértelmű <code>l</code> változónevek, felesleges értékadás <code>return</code> előtt, nem használt kicsomagolt változók, egy ternary. Ellenőrizve, hogy a <code>datetime.UTC</code> átírás biztonságos: mind a <b>hét</b> <code>python-version</code> pin <code>3.11</code>. A lefedettség másik fele közben magától lezárult: <b>25 tesztről 181-re</b> nőtt a suite.</p>
+        <div class="refs"><span class="ref">pyproject.toml</span><span class="ref">181 teszt</span></div>
       </div>
     </div>
 
@@ -1145,22 +1163,25 @@
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-15" aria-labelledby="t-2-15">
+      <input class="row-check" type="checkbox" id="i-2-15" aria-labelledby="t-2-15" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.15</span><span class="row-title" id="t-2-15">A <code>fields:</code> metaadat halott</span><span class="tag new">új</span></div>
+        <div class="row-head"><span class="id">2.15</span><span class="row-title" id="t-2-15">A <code>fields:</code> metaadat halott</span><span class="tag done">nem áll fenn</span></div>
         <p class="row-body">A séma kötelezővé teszi (<code>minItems: 1</code>), mind a 27 szabály kitölti — a converter viszont explicit kidobja a metából, és a generált SPL soha nem használja.</p>
         <p class="row-fix"><span class="fix-label">javítás</span>Vagy legyen belőle <code>| table _time ComputerName ...</code> a queryben (ez adná a SOC-nak a rendes oszlopokat), vagy vedd ki a sémából. Ma csak látszat-metaadat.</p>
-        <div class="refs"><span class="ref">sigma_to_spl.py:255</span><span class="ref">sigma_schema.json fields</span></div>
+        <p class="row-note"><span class="note-label">2026-08-05</span><b>A tétel premisszája téves volt — teendő nincs.</b> A <code>fields:</code> <b>él</b>: a pySigma Splunk backendje olvassa, és <code>| table ...</code> klauzulát generál belőle. A <code>sigma_to_spl.py:278</code> csak a <em>meta sidecarból</em> hagyja ki — ahol tényleg nem kell, mert a query már hordozza —, nem a query-generálásból. A „converter kidobja" ezt a sort olvasta félre. Ellenőrizve mind a 27 szabályra: mindegyik deklarál <code>fields:</code>-t, és mind a 26 meglévő <code>.spl</code> <code>| table</code> klauzulája <b>pontosan, sorrendhelyesen</b> egyezik vele; a 27. a <code>DETECT-2026-0008</code>, aminek a fájlját a végpontvédelem ismét karanténba tette. A SOC tehát már ma is megkapja a rendes oszlopokat. Bence szúrta ki, a <code>DETECT-2026-0012</code> kimenetéből.</p>
+        <div class="refs"><span class="ref">pySigma backend</span><span class="ref">27/27 ellenőrizve</span></div>
       </div>
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-16" aria-labelledby="t-2-16">
+      <input class="row-check" type="checkbox" id="i-2-16" aria-labelledby="t-2-16" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.16</span><span class="row-title" id="t-2-16">Nyers Splunk-eventek 90 napig publikusan letölthető artifactban</span><span class="tag new">új</span></div>
+        <div class="row-head"><span class="id">2.16</span><span class="row-title" id="t-2-16">Nyers Splunk-eventek 90 napig publikusan letölthető artifactban</span><span class="tag done">kész</span></div>
         <p class="row-body">A <code>matched-events-*</code> artifact nyers eventeket tárol — command line-okkal, felhasználónevekkel, hostnevekkel. Publikus repóban az artifactok bárki számára letölthetők.</p>
         <p class="row-fix"><span class="fix-label">javítás</span>A lab adataira ez valószínűleg vállalható, de tudatos döntés legyen, ne mellékhatás: retention 7 napra, vagy mezőszűrés az eventeken.</p>
-        <div class="refs"><span class="ref">ci_dev_workflow.yml:691-698</span></div>
+        <p class="row-note"><span class="note-label">2026-08-05</span><b>Kész: retention 90 → 14 nap.</b> A két javasolt út közül a rövidebb megőrzés, <b>nem</b> a mezőszűrés — a nyers esemény <em>maga</em> a hibakeresési érték: ha egy találatszám gyanús, épp a parancssort akarod elolvasni. Nem a tartalom volt rossz, hanem az ablak. Ezek egyetlen futás magyarázatára készülnek, és három hónapos futást senki nem debugol, tehát a 90 nap olyan megőrzés volt, amihez nem tartozott használati eset; a 14 átfog egy hosszú hétvégét és egy szabadságot is.</p>
+        <p class="row-note"><span class="note-label">2026-08-05</span><b>Ami valóban ki volt téve,</b> az nem a szintetikus támadás-forgalom, hanem a <b>labor névtana</b> — gépnevek, domain, szolgáltatásfiókok —, aminek felderítési értéke van annyiban, amennyiben a labor a valós elnevezéseket tükrözi. A döntés tudatos volt, nem mellékhatás, ahogy a tétel kérte. A szomszédos artifactok érintetlenek: a pipeline bundle és a progress markerek 1 nap, a reconcile-riport 30, a prod deploy-riport (2.4) 90 — az utóbbi szándékosan, mert nyers Splunk-adatot nem tartalmaz, csak a repóból is levezethető tényeket.</p>
+        <div class="refs"><span class="ref">retention-days: 14</span></div>
       </div>
     </div>
 
@@ -1204,6 +1225,17 @@
         <p class="row-note"><span class="note-label">2026-08-04</span><b>A visszaút is kellett hozzá.</b> A kapcsoló önmagában lyukat hagyott: a labor lekapcsolt állapotában mergelt szabály <code>.spl</code>-je bekerül a repóba, de a Splunkba soha — és semmi nem viszi ki később, mert a dev workflow csak azt deployolja, ami az adott pushban változott, és a proddal ellentétben (2.5) nem volt <code>workflow_dispatch</code>-e. Most már van. Input nélkül: a dispatchnél üres a <code>github.event.before</code>, amitől a <code>changes</code> lépés <code>mode=all</code>-ba kerül — egy kézi indítás tehát az egész szabálykészletet újraépíti, újradeployolja és újraméri, ami pontosan a „hozd vissza, ami kimaradt" művelet. A kihagyásról <code>::warning</code> és step summary szól, mert a kihagyott job nem hiba, tehát a jobok listájában egy zöld futástól semmiben nem különbözne.</p>
         <p class="row-note"><span class="note-label">2026-08-04</span><b>A prod is ugyanezt a változót nézi.</b> A <code>deploy_to_prod</code> ugyanazon a <code>de-lab</code> gépen fut, tehát pontosan ugyanazt örökölte — és a kihagyás szigorúan jobb, mint a sorban állás: mindkettő azt jelenti, hogy prod nem frissült, de az egyik egy percen belül meg is mondja, a másik meg egy napig foglaltnak látszik és blokkolja azt a futást, ami deployolt volna. A visszaút ott már készen volt, más okból: a 2.5-ös <code>workflow_dispatch</code> <code>git ls-files</code>-ból deployol, nem diffből, tehát egy kézi futás a <code>main</code> teljes aktuális könyvtárát kiteszi — beleértve azt is, ami a kikapcsolt kapcsoló alatt mergelődött. Mivel prodnak egyetlen valódi jobja van, és épp az marad ki, mellé került egy <code>announce_lab_offline</code> job <code>ubuntu-latest</code>-en, <b>pontosan komplementer feltétellel</b>: nélküle nem maradna semmi, ami jelentse, hogy prod nem frissült, és a teljesen kihagyott futás a futáslistában megkülönböztethetetlen lenne egy egészségestől. <b>Egy buktató:</b> a változó <em>repository</em> szintű kell legyen, nem environment — a job-szintű <code>if:</code> azelőtt értékelődik ki, hogy az <code>environment:</code> feloldódna, tehát egy environment-scope-os változót nem látna, és a kapu csendben nem működne.</p>
         <div class="refs"><span class="ref">vars.LAB_ONLINE</span><span class="ref">workflow_dispatch</span><span class="ref">dev + prod</span></div>
+      </div>
+    </div>
+
+    <div class="row sev-minor" data-sev="minor" data-weight="1">
+      <input class="row-check" type="checkbox" id="i-2-21" aria-labelledby="t-2-21" checked>
+      <div class="row-main">
+        <div class="row-head"><span class="id">2.21</span><span class="row-title" id="t-2-21">A kézi indítás mindig az összes szabályt futtatja</span><span class="tag done">kész</span></div>
+        <p class="row-body">A 2.20-ban bevezetett <code>workflow_dispatch</code> <em>mellékhatásból</em> került <code>mode=all</code>-ba: a dispatchnél üres a <code>github.event.before</code>. Két utólag behozandó szabály miatt is mind a 27-et újrakonvertálta, újradeployolta és <b>élőben újratámadta</b> a labor VM-jein.</p>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>Kész.</b> A <code>scope</code> input: <code>unverified</code> (alapértelmezett) és <code>all</code>. A push tudja, mi változott, a kézi indítás nem — <b>de a viszonyítási alap megvan a repóban:</b> minden <code>result.json</code> rögzíti, melyik <code>rule_version</code>-nel mértek, a szabály verziója pedig a commitszáma. A „kell-e futtatni" tehát diff nélkül is megválaszolható: nincs eredménye, vagy egy korábbi verziójához tartozik. Ugyanaz a drift, amit a rule browser már ma is mutat — csak eddig nem lehetett vele <em>indítani</em>. Új <code>scripts/state/select_unverified.py</code>, 17 teszt.</p>
+        <p class="row-note"><span class="note-label">2026-08-04</span><b>A válogatás felé hibázik.</b> Ha a verzió egyáltalán nem állapítható meg — nincs git history, shallow clone, olvashatatlan szabály —, a szabály <em>bekerül</em>. Egy fölösleges újrafuttatás labor-idő; egy téves kihagyás viszont olyan szabály, amiről mindenki azt hiszi, ellenőrizve van, és nincs. A deprecated szabályok kimaradnak (nincsenek deployolva, tehát nincs mit mérni rajtuk), a FAIL viszont ellenőrzöttnek számít az adott verzión: ez munkát válogat, nem verdikteket bírál felül. <b>Az <code>all</code> megmarad</b>, és converter- vagy sémaváltozás után továbbra is az a helyes: az úgy érvényteleníti a korábban konvertált SPL-t, hogy közben egyetlen szabály verziója sem változik — azt a staleness-vizsgálat elvből nem látja. Ha semmi nem szorul mérésre, a futás ezt ki is mondja, ahelyett hogy értelmezendő üres futásnak látszana.</p>
+        <div class="refs"><span class="ref">select_unverified.py</span><span class="ref">scope input</span><span class="ref">17 teszt</span></div>
       </div>
     </div>
 

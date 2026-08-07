@@ -17,18 +17,18 @@ Output per rule:
 Exit code is always 0 — per-rule errors are captured inside the JSON files.
 """
 
-import os
-import sys
-import json
-import time
 import argparse
-from datetime import datetime, timezone
+import json
+import sys
+import time
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import quote
 
 import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from lib.env import announce_tls_mode, env_bool, env_reader
 from lib.rule_naming import saved_search_name
 
 
@@ -37,20 +37,12 @@ def die(msg: str, code: int = 1) -> None:
     raise SystemExit(code)
 
 
-def env_required(name: str) -> str:
-    v = (os.getenv(name) or "").strip()
-    if not v:
-        die(f"Missing required env var: {name}")
-    return v
+# Register item 3.6: the reading is shared, the exit policy stays here.
+env_required = env_reader(die)
 
 
-def env_bool(name: str, default: bool = True) -> bool:
-    v = (os.getenv(name) or "").strip().lower()
-    if v in ("true", "1", "yes", "y", "on"):
-        return True
-    if v in ("false", "0", "no", "n", "off"):
-        return False
-    return default
+
+
 
 
 def extract_meta(path: Path) -> dict:
@@ -231,6 +223,7 @@ def main(argv: list[str]) -> int:
     # rather than reading a separate SPLUNK_OWNER secret.
     owner = username
     verify_tls = env_bool("SPLUNK_VERIFY_TLS", default=True)
+    announce_tls_mode(verify_tls)
 
     output_dir = Path(args.output_dir)
 
@@ -239,7 +232,7 @@ def main(argv: list[str]) -> int:
     session.auth = (username, password)
     session.headers.update({"Accept": "application/json"})
 
-    run_ts = datetime.now(timezone.utc).isoformat()
+    run_ts = datetime.now(UTC).isoformat()
 
     for spl_path_str in args.spl_files:
         path = Path(spl_path_str.strip())

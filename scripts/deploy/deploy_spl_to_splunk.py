@@ -1,12 +1,15 @@
+import argparse
+import datetime
+import json
 import os
 import sys
-import json
 from pathlib import Path
 from urllib.parse import quote
 
 import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from lib.env import announce_tls_mode, env_bool, env_reader
 from lib.rule_naming import saved_search_name
 
 
@@ -15,20 +18,10 @@ def die(msg: str, code: int = 1) -> None:
     raise SystemExit(code)
 
 
-def env_required(name: str) -> str:
-    v = (os.getenv(name) or "").strip()
-    if not v:
-        die(f"Missing required env var: {name}")
-    return v
-
-
-def env_bool(name: str, default: bool = True) -> bool:
-    v = (os.getenv(name) or "").strip().lower()
-    if v in ("true", "1", "yes", "y", "on"):
-        return True
-    if v in ("false", "0", "no", "n", "off"):
-        return False
-    return default
+# Register item 3.6: the reading is shared, the exit policy stays here. Exit 1
+# is this script's convention for any setup failure, and env_reader keeps every
+# call site below unchanged while the parsing itself lives in one place.
+env_required = env_reader(die)
 
 
 def read_spl_query(path: Path) -> str:
@@ -157,10 +150,12 @@ def splunk_post(session: requests.Session, url: str, data: dict) -> requests.Res
     return session.post(url, data=data, timeout=30)
 
 
-def is_already_exists(resp_text: str) -> bool:
-    # Splunk error messages vary by version; this catches the common ones.
-    t = (resp_text or "").lower()
-    return ("already exists" in t) or ("conflict" in t) or ("in use" in t)
+# Register item 2.6 removed is_already_exists() from here. It decided whether a
+# saved search already existed by searching Splunk's error *text* for "already
+# exists" / "conflict" / "in use" -- wording that varies by Splunk version and
+# is not part of any contract, and which three unrelated failures could also
+# contain. The deploy now asks the object endpoint instead and reads the status
+# code, which is the contract.
 
 
 def set_acl(
@@ -198,7 +193,100 @@ def set_acl(
     return False, f"ACL update failed HTTP {r.status_code}: {r.text[:300]}"
 
 
+# Register item 2.4. A prod run used to leave nothing behind: the deploy printed
+# per-rule lines into a job log that ages out, and afterwards nothing said which
+# rules had gone to production, which were created versus updated, or at what
+# version. The log is where you look when you already suspect something; this is
+# what tells you what happened without having to.
+#
+# What deliberately never goes in here: the Splunk URL, the app name, and the
+# account. Those are secrets or secret-adjacent, and this report is uploaded as
+# an artifact on a public repository. Everything recorded below is derivable
+# from the repo itself -- it says what *we* did, not where we did it.
+def write_report(path: Path, records: list[dict]) -> None:
+    totals: dict[str, int] = {}
+    for r in records:
+        totals[r["outcome"]] = totals.get(r["outcome"], 0) + 1
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "deployed_at": datetime.datetime.now(datetime.UTC).isoformat(),
+                "totals": totals,
+                "rules": records,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+OUTCOME_LABELS = {
+    "created": "created",
+    "updated": "updated",
+    "skipped_deprecated": "skipped (deprecated)",
+    "failed": "FAILED",
+}
+
+
+def write_step_summary(records: list[dict]) -> None:
+    """Put the same facts where a human sees them without downloading anything."""
+    summary_path = os.getenv("GITHUB_STEP_SUMMARY")
+    if not summary_path or not records:
+        return
+
+    totals: dict[str, int] = {}
+    for r in records:
+        totals[r["outcome"]] = totals.get(r["outcome"], 0) + 1
+
+    counts = ", ".join(f"{OUTCOME_LABELS.get(k, k)}: {v}" for k, v in sorted(totals.items()))
+
+    lines = [
+        "### Splunk deploy",
+        "",
+        f"{len(records)} rule(s) — {counts}",
+        "",
+        "| Rule | Saved search | Version | Outcome |",
+        "| --- | --- | --- | --- |",
+    ]
+    for r in records:
+        detail = f" — {r['detail']}" if r.get("detail") else ""
+        lines.append(
+            f"| `{r['detect_id'] or '-'}` | `{r['search_name'] or '-'}` | "
+            f"`{r['rule_version'] or '-'}` | {OUTCOME_LABELS.get(r['outcome'], r['outcome'])}{detail} |"
+        )
+    lines.append("")
+
+    try:
+        with open(summary_path, "a", encoding="utf-8") as fh:
+            fh.write("\n".join(lines) + "\n")
+    except OSError as ex:
+        print(f"WARNING: could not write the step summary: {ex}", file=sys.stderr)
+
+
 def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(description="Deploy .spl files to Splunk as saved searches.")
+    parser.add_argument("--report", help="Write a JSON record of what was deployed to this path")
+    parser.add_argument("files", nargs="*", help="The .spl files to deploy")
+    args = parser.parse_args(argv)
+
+    # Every rule's outcome, in the order they were attempted.
+    records: list[dict] = []
+
+    def record(outcome: str, path: Path, meta: dict | None = None, name: str = "", detail: str = "") -> None:
+        records.append(
+            {
+                "detect_id": str((meta or {}).get("detect_id") or ""),
+                "search_name": name,
+                "file": str(path).replace("\\", "/"),
+                "rule_version": str((meta or {}).get("rule_version") or ""),
+                "outcome": outcome,
+                "detail": detail,
+            }
+        )
+
     base_url = env_required("SPLUNK_BASE_URL").rstrip("/")
     username = env_required("SPLUNK_USERNAME")
     password = env_required("SPLUNK_PASSWORD")
@@ -212,14 +300,19 @@ def main(argv: list[str]) -> int:
     # perms.read/perms.write below, not by who nominally owns the object.
     owner = username
     verify_tls = env_bool("SPLUNK_VERIFY_TLS", default=True)
+    announce_tls_mode(verify_tls)
 
     sharing = (os.getenv("SPLUNK_SHARING") or "app").strip().lower()
     perms_read = (os.getenv("SPLUNK_PERMS_READ") or "*").strip()
     perms_write = (os.getenv("SPLUNK_PERMS_WRITE") or "admin").strip()
 
-    files = [Path(a) for a in argv]
+    files = [Path(a) for a in args.files]
     if not files:
         print("No input files.")
+        # Still write the report, so a run that deployed nothing is
+        # distinguishable from a run whose report failed to appear.
+        if args.report:
+            write_report(Path(args.report), records)
         return 0
 
     s = requests.Session()
@@ -237,6 +330,7 @@ def main(argv: list[str]) -> int:
     for f in files:
         if not f.exists():
             print(f"ERROR: file not found: {f}", file=sys.stderr)
+            record("failed", f, detail="file not found")
             failed += 1
             continue
 
@@ -256,17 +350,20 @@ def main(argv: list[str]) -> int:
         # no view of the whole desired state.
         if str(meta.get("status") or "").strip().lower() == "deprecated":
             print(f"SKIP: {search_name} is deprecated -- not deployed (retire it with reconcile.py --apply-removals)")
+            record("skipped_deprecated", f, meta, search_name)
             continue
 
         try:
             search_query = read_spl_query(f)
         except Exception as e:
             print(f"ERROR: failed reading SPL file {f}: {e}", file=sys.stderr)
+            record("failed", f, meta, search_name, f"unreadable SPL: {e}")
             failed += 1
             continue
 
         if not search_query:
             print(f"ERROR: empty SPL query after preprocessing: {f}", file=sys.stderr)
+            record("failed", f, meta, search_name, "empty SPL query")
             failed += 1
             continue
 
@@ -279,31 +376,83 @@ def main(argv: list[str]) -> int:
 
         runtime_payload = build_splunk_runtime_payload_from_header(f)
 
+        # Register item 2.6. This used to POST to the collection endpoint first
+        # and then work out from the *error text* whether the object already
+        # existed -- matching "already exists" / "conflict" / "in use", none of
+        # which Splunk promises, all of which vary by version, and any of which
+        # an unrelated failure could contain. A rephrased conflict was reported
+        # as a create failure; an unrelated error carrying one of those words
+        # sent the deploy down the update path to fail again, more confusingly.
+        #
+        # The object endpoint answers the same question by contract: 200 means
+        # it was there and is now updated, 404 means it is not there yet.
+        # Nothing is inferred from prose, and the common case -- a rule that has
+        # been deployed before -- now takes one call instead of two.
+        object_url = (
+            f"{base_url}/servicesNS/{quote(owner, safe='')}/{quote(app, safe='')}"
+            f"/saved/searches/{quote(search_name, safe='')}?output_mode=json"
+        )
+
+        # `name` belongs in the URL here, not the body: this endpoint addresses
+        # an existing object rather than creating one.
+        payload_update = {
+            "search": search_query,
+            "description": final_desc,
+            **runtime_payload,
+        }
+
+        r = splunk_post(s, object_url, payload_update)
+
+        if r.status_code == 200:
+            print(f"Updated: {search_name}")
+            ok, msg = set_acl(s, base_url, owner, app, search_name, sharing, perms_read, perms_write)
+            if not ok:
+                print(f"WARNING: {search_name}: {msg}", file=sys.stderr)
+            record("updated", f, meta, search_name, "" if ok else f"ACL warning: {msg}")
+            continue
+
+        if r.status_code in (401, 403):
+            print(f"ERROR: auth/permission error updating {search_name} (HTTP {r.status_code})", file=sys.stderr)
+            print(f"Response (first 800 chars): {r.text[:800]}", file=sys.stderr)
+            record("failed", f, meta, search_name, f"auth/permission error (HTTP {r.status_code})")
+            failed += 1
+            continue
+
+        if r.status_code != 404:
+            # Deliberately not falling through to create. Anything that is
+            # neither "updated" nor "not found" is a real error, and guessing
+            # past it is what the old error-text matching did.
+            print(
+                f"ERROR: unexpected response updating {search_name} (HTTP {r.status_code}); "
+                f"expected 200 (updated) or 404 (does not exist yet).",
+                file=sys.stderr,
+            )
+            print(f"Response (first 800 chars): {r.text[:800]}", file=sys.stderr)
+            record("failed", f, meta, search_name, f"unexpected update response (HTTP {r.status_code})")
+            failed += 1
+            continue
+
+        # 404: the saved search does not exist yet, so create it.
         payload_create = {
             "name": search_name,
             "search": search_query,
             "description": final_desc,
             **runtime_payload,
-
         }
 
-        r = splunk_post(s, create_url, payload_create)
+        r_create = splunk_post(s, create_url, payload_create)
 
-        if r.status_code in (200, 201):
+        if r_create.status_code in (200, 201):
             print(f"Created: {search_name}")
 
             # Splunk's savedsearch creation endpoint doesn't reliably apply
             # scheduling fields (is_scheduled/cron_schedule) on the same POST
-            # that creates the object -- a brand-new search can come back
-            # with Next scheduled time = None even though the create call
-            # succeeded. A follow-up edit POST with the same runtime payload
-            # forces Splunk to actually persist them, mirroring what already
-            # happens for the "already exists" (update) path below.
-            create_update_url = (
-                f"{base_url}/servicesNS/{quote(owner, safe='')}/{quote(app, safe='')}"
-                f"/saved/searches/{quote(search_name, safe='')}?output_mode=json"
-            )
-            r_reapply = splunk_post(s, create_update_url, runtime_payload)
+            # that creates the object -- a brand-new search can come back with
+            # Next scheduled time = None even though the create call succeeded.
+            # A follow-up edit POST with the same runtime payload forces Splunk
+            # to actually persist them. The update path above needs no such
+            # follow-up: it is already that same edit POST.
+            r_reapply = splunk_post(s, object_url, runtime_payload)
             if r_reapply.status_code != 200:
                 print(
                     f"WARNING: {search_name}: failed to reapply scheduling fields after create "
@@ -314,47 +463,24 @@ def main(argv: list[str]) -> int:
             ok, msg = set_acl(s, base_url, owner, app, search_name, sharing, perms_read, perms_write)
             if not ok:
                 print(f"WARNING: {search_name}: {msg}", file=sys.stderr)
+            record("created", f, meta, search_name, "" if ok else f"ACL warning: {msg}")
             continue
 
-        # If auth/permission error -> fail fast (do not mask with update attempt)
-        if r.status_code in (401, 403):
-            print(f"ERROR: auth/permission error creating {search_name} (HTTP {r.status_code})", file=sys.stderr)
-            print(f"Response (first 800 chars): {r.text[:800]}", file=sys.stderr)
+        if r_create.status_code in (401, 403):
+            print(f"ERROR: auth/permission error creating {search_name} (HTTP {r_create.status_code})", file=sys.stderr)
+            print(f"Response (first 800 chars): {r_create.text[:800]}", file=sys.stderr)
+            record("failed", f, meta, search_name, f"auth/permission error (HTTP {r_create.status_code})")
             failed += 1
             continue
 
-        update_url = (
-            f"{base_url}/servicesNS/{quote(owner, safe='')}/{quote(app, safe='')}"
-            f"/saved/searches/{quote(search_name, safe='')}?output_mode=json"
-        )
-
-        if r.status_code in (409,) or is_already_exists(r.text):
-
-            runtime_payload = build_splunk_runtime_payload_from_header(f)
-
-            payload_update = {
-                "search": search_query,
-                "description": final_desc,
-                **runtime_payload,
-            }
-            r2 = splunk_post(s, update_url, payload_update)
-
-            if r2.status_code == 200:
-                print(f"Updated: {search_name}")
-                ok, msg = set_acl(s, base_url, owner, app, search_name, sharing, perms_read, perms_write)
-                if not ok:
-                    print(f"WARNING: {search_name}: {msg}", file=sys.stderr)
-                continue
-
-            print(f"ERROR: failed updating {search_name}. Update={r2.status_code}", file=sys.stderr)
-            print(f"Update response (first 800 chars): {r2.text[:800]}", file=sys.stderr)
-            failed += 1
-            continue
-
-        # Other create failures -> report and fail
-        print(f"ERROR: failed creating {search_name}. Create={r.status_code}", file=sys.stderr)
-        print(f"Create response (first 800 chars): {r.text[:800]}", file=sys.stderr)
+        print(f"ERROR: failed creating {search_name}. Create={r_create.status_code}", file=sys.stderr)
+        print(f"Create response (first 800 chars): {r_create.text[:800]}", file=sys.stderr)
+        record("failed", f, meta, search_name, f"create failed (HTTP {r_create.status_code})")
         failed += 1
+
+    if args.report:
+        write_report(Path(args.report), records)
+    write_step_summary(records)
 
     return 2 if failed else 0
 

@@ -42,7 +42,6 @@ built to run unattended and --apply-removals is not.
 
 import argparse
 import json
-import os
 import sys
 from datetime import date
 from pathlib import Path
@@ -52,7 +51,8 @@ import requests
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from lib.rule_naming import saved_search_name  # noqa: E402
+from lib.env import announce_tls_mode, env_bool, env_reader
+from lib.rule_naming import saved_search_name
 
 # The deploy script stamps this into every description it writes
 # (deploy_spl_to_splunk.py: build_savedsearch_description). It is therefore
@@ -74,20 +74,16 @@ class ReconcileError(RuntimeError):
     """Raised for conditions that make the comparison impossible to trust."""
 
 
-def env_required(name: str) -> str:
-    value = (os.getenv(name) or "").strip()
-    if not value:
-        raise ReconcileError(f"Missing required env var: {name}")
-    return value
+# Register item 3.6: the reading is shared, the failure policy stays here. It
+# has to be an exception rather than an exit, unlike the other three consumers:
+# main() catches ReconcileError to separate "the comparison could not be
+# trusted" from a drift finding, and a SystemExit raised down here would bypass
+# that distinction entirely.
+def _fail(msg: str) -> None:
+    raise ReconcileError(msg)
 
 
-def env_bool(name: str, default: bool = True) -> bool:
-    value = (os.getenv(name) or "").strip().lower()
-    if value in ("true", "1", "yes", "y", "on"):
-        return True
-    if value in ("false", "0", "no", "n", "off"):
-        return False
-    return default
+env_required = env_reader(_fail)
 
 
 def load_desired(rules_dir: Path) -> dict[str, dict]:
@@ -509,8 +505,11 @@ def main(argv: list[str] | None = None) -> int:
         # the deploy writes to, and every rule would look missing.
         owner = username
 
+        verify_tls = env_bool("SPLUNK_VERIFY_TLS", default=True)
+        announce_tls_mode(verify_tls)
+
         session = requests.Session()
-        session.verify = env_bool("SPLUNK_VERIFY_TLS", default=True)
+        session.verify = verify_tls
         session.auth = (username, password)
         session.headers.update({"Accept": "application/json"})
 

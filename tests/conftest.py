@@ -20,6 +20,13 @@ for _sub in (
     "scripts/state",
     "scripts/deploy",
     "scripts/validate",
+    # `scripts` itself, so `from lib.env import ...` resolves in a test that
+    # imports nothing else. Every script reaches lib/ by doing this insert at
+    # import time, which meant a test could only see the package as a side
+    # effect of importing an unrelated module first -- and would break the
+    # moment its imports were reordered. Register item 3.6 gave lib/ a second
+    # module, so it is now worth stating directly.
+    "scripts",
 ):
     _path = str(REPO_ROOT / _sub)
     if _path not in sys.path:

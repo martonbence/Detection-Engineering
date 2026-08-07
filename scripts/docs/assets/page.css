@@ -1,0 +1,1416 @@
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --bg2: #161b22;
+      --bg3: #1c2128;
+      --bg4: #21262d;
+      --border: #30363d;
+      --border2: #444c56;
+      --text: #e6edf3;
+      --text2: #8b949e;
+      --text3: #6e7681;
+      --accent: #58a6ff;
+      --accent2: #1f6feb;
+      --accent-bg: rgba(88,166,255,0.1);
+      --green: #2ea44f;
+      --green-bg: rgba(46,164,79,0.12);
+      --amber: #d29922;
+      --amber-bg: rgba(210,153,34,0.12);
+      --red: #f85149;
+      --red-bg: rgba(248,81,73,0.12);
+      --purple: #8f95d6;
+      --purple-bg: rgba(143,149,214,0.12);
+      --radius: 6px;
+      --radius-lg: 10px;
+      --font: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 14px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Unified heading/title typography — every section header, card title and
+       panel title shares the one UI sans family so headings read as a single
+       system across the Rule Library, Navigator and Dashboards. Code-like
+       identifiers (rule IDs, technique IDs, metadata values) intentionally
+       keep the mono --font and are not covered here. */
+    .strip-title, .dash-section-title, .chart-card-title, .gauge-overlay-title,
+    .drawer-section-label, .drawer-title, #detail-title, .tc-hdr,
+    .no-results-title {
+      font-family: var(--font-ui);
+    }
+
+    /* ── Top strip: brand + tab bar ── */
+    .stats-strip {
+      flex-shrink: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      height: 48px;
+      padding: 0 18px;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .strip-brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
+
+    .strip-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.2px;
+      white-space: nowrap;
+    }
+
+    .strip-sep { width: 1px; height: 14px; background: var(--border2); flex-shrink: 0; }
+
+    .strip-total {
+      font-family: var(--font);
+      font-size: 12px;
+      color: var(--text3);
+      white-space: nowrap;
+    }
+
+    .strip-total strong { color: #ffaa00; font-weight: 700; }
+
+    .filters-generated {
+      text-align: center;
+      font-family: var(--font);
+      font-size: 10px;
+      color: var(--text3);
+      padding-top: 4px;
+    }
+
+    .tab-bar { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
+
+    .tab-btn {
+      background: none;
+      border: 1px solid transparent;
+      color: var(--text3);
+      padding: 5px 12px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: var(--font-ui);
+      transition: all 0.12s;
+    }
+
+    .tab-btn:hover { color: var(--text2); }
+
+    .tab-btn.active {
+      background: #ffaa00;
+      border-color: #ffaa00;
+      color: #111111;
+    }
+
+    .tab-pane { display: none; flex: 1; min-height: 0; overflow-y: auto; }
+    .tab-pane.active { display: block; }
+    #tab-rules.active { display: flex; flex-direction: column; }
+
+    /* ── Layout ── */
+    .main { display: flex; flex: 1; min-height: 0; }
+
+    .filters-panel {
+      width: 250px;
+      min-width: 250px;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .fc-source   { --fc:#ffffff; --fc-bg:rgba(255,255,255,0.10);  --fc-br:rgba(255,255,255,0.35); }
+    .fc-source-sigma      { --fc:#00acd7; --fc-bg:rgba(0,172,215,0.12); --fc-br:rgba(0,172,215,0.38); }
+    .fc-source-nativespl  { --fc:#ff6600; --fc-bg:rgba(255,102,0,0.12); --fc-br:rgba(255,102,0,0.38); }
+    .fc-category { --fc:#f85149; --fc-bg:rgba(248,81,73,0.13);   --fc-br:rgba(248,81,73,0.38); }
+    .fc-product  { --fc:#fb923c; --fc-bg:rgba(251,146,60,0.12);  --fc-br:rgba(251,146,60,0.38); }
+    .fc-service  { --fc:#3fb950; --fc-bg:rgba(63,185,80,0.13);   --fc-br:rgba(63,185,80,0.38); }
+    .fc-severity { --fc:#f778ba; --fc-bg:rgba(247,120,186,0.12); --fc-br:rgba(247,120,186,0.38); }
+    .fc-status   { --fc:#e3b341; --fc-bg:rgba(227,179,65,0.12);  --fc-br:rgba(227,179,65,0.38); }
+    .fc-verdict  { --fc:#bc8cff; --fc-bg:rgba(188,140,255,0.12); --fc-br:rgba(188,140,255,0.38); }
+    /* Teal is the one hue the facet rail didn't already use — white, red,
+       orange, green, pink, amber, purple and periwinkle are all taken, and an
+       amber Review would have collided with Status and the site accent. */
+    .fc-review   { --fc:#2dd4bf; --fc-bg:rgba(45,212,191,0.12);  --fc-br:rgba(45,212,191,0.38); }
+    /* Method and Runner share one chip colour: they are two readings of the
+       same fact (how the verdict was produced), and giving them separate hues
+       would imply a distinction that isn't there. Cyan is close to Review's
+       teal, which is why the rail orders them Verification, Verdict, Review —
+       the purple group sits between the two blue-greens so they never touch. */
+    .fc-verify   { --fc:#39c5cf; --fc-bg:rgba(57,197,207,0.12);  --fc-br:rgba(57,197,207,0.38); }
+    .fc-mitre    { --fc:#8f95d6; --fc-bg:rgba(143,149,214,0.12); --fc-br:rgba(143,149,214,0.38); }
+
+    .fc-sev-critical      { --fc:#e05575; --fc-bg:rgba(128,20,50,0.28);  --fc-br:rgba(164,19,60,0.55); }
+    .fc-sev-high          { --fc:#f85149; --fc-bg:rgba(248,81,73,0.13); --fc-br:rgba(248,81,73,0.38); }
+    .fc-sev-medium        { --fc:#fb923c; --fc-bg:rgba(251,146,60,0.12);--fc-br:rgba(251,146,60,0.38); }
+    .fc-sev-low           { --fc:#3fb950; --fc-bg:rgba(63,185,80,0.13); --fc-br:rgba(63,185,80,0.38); }
+    .fc-sev-informational { --fc:#8b949e; --fc-bg:rgba(139,148,158,0.12);--fc-br:rgba(139,148,158,0.35); }
+
+    .fc-status-stable       { --fc:#3fb950; --fc-bg:rgba(63,185,80,0.13); --fc-br:rgba(63,185,80,0.38); }
+    .fc-status-test         { --fc:#fb923c; --fc-bg:rgba(251,146,60,0.12);--fc-br:rgba(251,146,60,0.38); }
+    .fc-status-experimental { --fc:#388bfd; --fc-bg:rgba(56,139,253,0.15);--fc-br:rgba(56,139,253,0.4); }
+    .fc-status-deprecated   { --fc:#8b949e; --fc-bg:rgba(139,148,158,0.12);--fc-br:rgba(139,148,158,0.35); }
+
+    .fc-verdict-pass         { --fc:#3fb950; --fc-bg:rgba(63,185,80,0.13);  --fc-br:rgba(63,185,80,0.38); }
+    .fc-verdict-notverified  { --fc:#d29922; --fc-bg:rgba(210,153,34,0.13); --fc-br:rgba(210,153,34,0.4); }
+    .fc-verdict-fail         { --fc:#f85149; --fc-bg:rgba(248,81,73,0.13); --fc-br:rgba(248,81,73,0.38); }
+    .fc-verdict-na           { --fc:#8b949e; --fc-bg:rgba(139,148,158,0.12);--fc-br:rgba(139,148,158,0.35); }
+
+    .filter-supergroup {
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--group-accent, var(--border2));
+      border-radius: var(--radius);
+      background: var(--bg3);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .filter-supergroup-head {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 9px 10px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .filter-supergroup-head:hover { background: rgba(233,220,196,0.10); }
+
+    .filter-supergroup-title {
+      flex: 1;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--text3);
+    }
+
+    .filter-supergroup.open > .filter-supergroup-head .filter-supergroup-title { color: var(--group-accent, var(--text2)); }
+    .filter-supergroup-head .filter-active-count { background: var(--group-accent, var(--accent2)); }
+    .filter-supergroup.open > .filter-supergroup-head .filter-caret { transform: rotate(90deg); }
+
+    .filter-supergroup-body {
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      padding: 0 8px 8px;
+    }
+
+    .filter-supergroup.open > .filter-supergroup-body { display: flex; }
+
+    .filter-section {
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--fc, var(--border2));
+      border-radius: var(--radius);
+      background: var(--bg3);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .filter-section.open { border-color: var(--border2); border-left-color: var(--fc, var(--border2)); }
+
+    .filter-section-head {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 10px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.1s;
+    }
+
+    .filter-section-head:hover { background: rgba(233,220,196,0.10); }
+
+    .filter-caret {
+      width: 9px;
+      height: 9px;
+      flex-shrink: 0;
+      stroke: var(--text3);
+      fill: none;
+      stroke-width: 2.5;
+      transition: transform 0.15s;
+    }
+
+    .filter-section.open .filter-caret { transform: rotate(90deg); stroke: var(--fc, var(--accent)); }
+
+    .filter-group-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--text3);
+      flex: 1;
+    }
+
+    .filter-section.open .filter-group-label { color: var(--fc, var(--text2)); }
+
+    .filter-uniq { font-family: var(--font); font-weight: 400; font-size: 9px; color: var(--text3); letter-spacing: 0; }
+
+    .filter-active-count {
+      background: var(--fc, var(--accent2));
+      color: #0d1117;
+      border-radius: 10px;
+      padding: 0 6px;
+      font-size: 9px;
+      font-weight: 700;
+      font-family: var(--font);
+      min-width: 16px;
+      text-align: center;
+    }
+
+    .filter-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      padding: 10px;
+      border-top: 1px solid var(--border);
+      max-height: 240px;
+      overflow-y: auto;
+    }
+
+    .filter-section:not(.open) .filter-chips { display: none; }
+
+    .chip.zero { opacity: 0.35; }
+
+    .chip {
+      padding: 3px 9px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-family: var(--font);
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--bg3);
+      color: var(--text2);
+      transition: all 0.1s;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .chip:hover { border-color: var(--border2); color: var(--text); }
+
+    .chip-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--fc, var(--text3)); flex-shrink: 0; }
+
+    .chip.active { background: var(--fc-bg, var(--accent-bg)); border-color: var(--fc-br, var(--accent2)); color: var(--fc, var(--accent)); }
+    .chip.active .chip-dot { background: var(--fc, var(--accent)); box-shadow: 0 0 5px var(--fc, var(--accent)); }
+
+    .chip .chip-count { background: var(--bg4); border-radius: 10px; padding: 0 5px; font-size: 10px; color: var(--text3); min-width: 18px; text-align: center; }
+    .chip.active .chip-count { background: var(--fc, var(--accent2)); color: #0d1117; font-weight: 700; }
+
+    .clear-filters-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 6px 12px;
+      color: var(--text2);
+      font-size: 12px;
+      cursor: pointer;
+      width: 100%;
+      flex-shrink: 0;
+      transition: all 0.1s;
+      font-family: var(--font-ui);
+    }
+
+    .clear-filters-btn:hover { border-color: #ffaa00; color: #ffaa00; }
+
+    .expand-all-filters-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 6px 12px;
+      color: var(--text2);
+      font-size: 12px;
+      cursor: pointer;
+      width: 100%;
+      flex-shrink: 0;
+      transition: all 0.1s;
+      font-family: var(--font-ui);
+    }
+
+    .expand-all-filters-btn:hover { border-color: #ffaa00; color: #ffaa00; }
+
+    /* ── Content / search / table ── */
+    .content { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; padding: 0 20px 24px; display: flex; flex-direction: column; gap: 0; }
+
+    .active-filter-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      padding: 8px 20px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .active-filter-row.hidden { display: none; }
+
+    .active-filter-tag {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 8px;
+      background: var(--fc-bg, var(--accent-bg));
+      border: 1px solid var(--fc-br, var(--accent2));
+      border-radius: 20px;
+      font-size: 11px;
+      color: var(--fc, var(--accent));
+      font-family: var(--font);
+    }
+
+    .active-filter-tag button { background: none; border: none; color: var(--fc, var(--accent)); cursor: pointer; padding: 0; font-size: 13px; line-height: 1; opacity: 0.7; }
+    .active-filter-tag button:hover { opacity: 1; }
+
+    .search-row { display: flex; align-items: center; gap: 10px; margin-top: 16px; margin-bottom: 14px; }
+
+    .search-input-wrap { position: relative; flex: 1; }
+
+    .search-input-wrap svg {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 14px;
+      height: 14px;
+      stroke: var(--text3);
+      fill: none;
+    }
+
+    .search-input {
+      width: 100%;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 7px 32px 7px 32px;
+      font-size: 13px;
+      color: var(--text);
+      outline: none;
+      font-family: var(--font-ui);
+      transition: border-color 0.1s;
+    }
+
+    .search-input:focus { border-color: #ffaa00; }
+    .search-input::placeholder { color: var(--text3); }
+
+    .search-clear {
+      position: absolute;
+      right: 7px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      padding: 0;
+      background: none;
+      border: none;
+      border-radius: var(--radius);
+      color: var(--text3);
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+
+    .search-clear.show { display: flex; }
+    .search-clear:hover { color: var(--text); background: var(--bg3); }
+    .search-clear svg { position: static; left: auto; top: auto; transform: none; width: 13px; height: 13px; stroke: currentColor; fill: none; }
+
+    .result-count { font-size: 12px; color: var(--text3); white-space: nowrap; font-family: var(--font); }
+
+    .kbd-hint { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--text3); white-space: nowrap; }
+
+    .kbd {
+      display: inline-block;
+      padding: 1px 5px;
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      border-bottom-width: 2px;
+      border-radius: 3px;
+      font-family: var(--font);
+      font-size: 9px;
+      color: var(--text2);
+      line-height: 1.4;
+    }
+
+    .export-wrap { position: relative; flex-shrink: 0; }
+
+    .export-btn, .code-copy {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      height: 28px;
+      padding: 0 12px;
+      background: transparent;
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      color: var(--text2);
+      font-size: 12px;
+      font-family: var(--font-ui);
+      cursor: pointer;
+      transition: all 0.1s;
+      white-space: nowrap;
+    }
+
+    .export-btn:hover, .code-copy:hover { border-color: #ffaa00; color: #ffaa00; box-shadow: 0 0 0 2px rgba(255,170,0,0.14); }
+    .export-btn svg, .code-copy svg { width: 13px; height: 13px; stroke: currentColor; fill: none; }
+    .export-btn.ok, .code-copy.ok { border-color: var(--green); color: var(--green); box-shadow: none; }
+
+    .export-menu {
+      display: none;
+      position: absolute;
+      right: 0;
+      top: calc(100% + 5px);
+      min-width: 210px;
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 8px 28px rgba(0,0,0,0.5);
+      z-index: 50;
+      overflow: hidden;
+    }
+
+    .export-menu.open { display: block; }
+
+    .export-menu-head {
+      padding: 8px 12px;
+      font-size: 10px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: #ffffff;
+      font-weight: 700;
+      background: #0d1117;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .export-menu-item {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      transition: background 0.08s;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .export-menu-item:nth-child(even) { background: rgba(255,255,255,0.022); }
+    .export-menu-item:last-child { border-bottom: none; }
+    .export-menu-item:hover { background: rgba(233,220,196,0.10); }
+    .export-menu-item .ext { font-family: var(--font); font-size: 11px; font-weight: 700; color: #ffaa00; min-width: 34px; }
+    .export-menu-item .desc { font-size: 11px; color: var(--text3); }
+    /* The ATT&CK layer entry is a real link (the file is served from the repo,
+       not built in the browser like the exports above it), so it has to opt out
+       of link styling to sit in the same list. */
+    a.export-menu-item { text-decoration: none; color: inherit; }
+    a.export-menu-item:hover { text-decoration: none; }
+    /* A second head mid-list needs its own top rule to read as a divider. */
+    .export-menu-item + .export-menu-head { border-top: 1px solid var(--border); }
+
+    .table-wrap {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: auto;
+      clip-path: inset(0 round var(--radius-lg));
+      flex: 1;
+      min-height: 0;
+    }
+
+    #table-body { transition: opacity 0.12s ease; }
+
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      table-layout: fixed;
+    }
+
+    thead tr { box-shadow: 0 6px 14px -4px rgba(0,0,0,0.5); }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      background: #ffaa00;
+      color: #111111;
+      font-weight: 800;
+    }
+
+
+    th {
+      text-align: left;
+      padding: 12px 12px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--text3);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: pointer;
+      user-select: none;
+      transition: color 0.1s;
+      position: relative;
+    }
+
+    th:hover { color: #000000; }
+    th.sorted::after { content: '\25BC'; display: inline-block; font-size: 9px; font-weight: 900; margin-left: 5px; vertical-align: 1px; }
+    th.sorted.desc::after { content: '\25B2'; }
+
+    th:nth-child(1) { width: 160px; }
+    th:nth-child(2) { width: 380px; }
+    th:nth-child(3) { width: 110px; }
+    th:nth-child(4) { width: 100px; }
+    th:nth-child(5) { width: 130px; }
+    th:nth-child(6) { width: 150px; }
+    th:nth-child(7) { width: 150px; }
+    th:nth-child(8) { width: 140px; }
+    th:nth-child(9) { width: 120px; }
+    th:nth-child(10) { width: 110px; }
+
+    th:nth-child(8), th:nth-child(9), th:nth-child(10),
+    td:nth-child(8), td:nth-child(9), td:nth-child(10) {
+      text-align: center;
+    }
+
+    tbody tr { cursor: pointer; transition: background 0.08s; }
+    tbody tr:nth-child(even) { background: rgba(255,255,255,0.022); }
+    tbody td { border-bottom: 1px solid var(--border); }
+    tbody tr:last-child td { border-bottom: none; }
+
+    tbody tr:hover, tbody tr.selected { background: rgba(233,220,196,0.10); }
+    tbody tr.selected { box-shadow: inset 0 0 0 1px rgba(233,220,196,0.28); }
+
+    td {
+      padding: 9px 12px;
+      font-size: 12px;
+      color: var(--text2);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      vertical-align: middle;
+    }
+
+    td.rule-id {
+      position: relative;
+      font-family: var(--font);
+      font-size: 11px;
+      color: #ffffff;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      padding-left: 18px;
+    }
+
+    td.rule-id a { color: inherit; }
+
+    td.rule-id::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      background: var(--rid, var(--border2));
+      box-shadow: 7px 0 16px -2px var(--rid-glow, transparent);
+      transition: width 0.14s, box-shadow 0.14s;
+    }
+
+    tbody tr:hover td.rule-id::before, tbody tr.selected td.rule-id::before {
+      width: 8px;
+      box-shadow: 12px 0 24px -2px var(--rid-glow, transparent);
+    }
+
+    td.title-cell { font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .cell-pills { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; overflow: visible; white-space: normal; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 20px;
+      font-size: 10px;
+      font-weight: 600;
+      font-family: var(--font);
+      letter-spacing: 0.3px;
+      white-space: nowrap;
+    }
+
+    .badge-source-sigma      { background: rgba(0,172,215,0.1);  color: #00acd7; border: 1px solid rgba(0,172,215,0.25); }
+    .badge-source-nativespl  { background: rgba(255,102,0,0.1);  color: #ff6600; border: 1px solid rgba(255,102,0,0.25); }
+    .badge-category { background: rgba(248,81,73,0.13);  color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
+    .badge-product  { background: rgba(251,146,60,0.1);  color: #fb923c; border: 1px solid rgba(251,146,60,0.25); }
+    .badge-service  { background: var(--green-bg);       color: var(--green); border: 1px solid rgba(63,185,80,0.25); }
+
+    .badge-mitre {
+      background: rgba(143,149,214,0.14);
+      color: #b3b8e8;
+      border: 1px solid rgba(143,149,214,0.35);
+    }
+    a.badge-mitre:hover { text-decoration: none; filter: brightness(1.25); }
+
+    .sev-critical      { background: rgba(128,20,50,0.28);  color: #e05575; border: 1px solid rgba(164,19,60,0.55); }
+    .sev-high          { background: rgba(248,81,73,0.13); color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
+    .sev-medium        { background: rgba(251,146,60,0.1); color: #fb923c;     border: 1px solid rgba(251,146,60,0.25); }
+    .sev-low           { background: var(--green-bg);      color: var(--green); border: 1px solid rgba(63,185,80,0.25); }
+    .sev-informational { background: rgba(139,148,158,0.12); color: #8b949e; border: 1px solid var(--border); }
+
+    .status-stable       { background: var(--green-bg); color: var(--green); border: 1px solid rgba(63,185,80,0.25); }
+    .status-test         { background: rgba(251,146,60,0.1); color: #fb923c; border: 1px solid rgba(251,146,60,0.25); }
+    .status-experimental { background: rgba(56,139,253,0.15); color: #388bfd; border: 1px solid rgba(56,139,253,0.4); }
+    .status-deprecated   { background: rgba(139,148,158,0.1); color: var(--text3); border: 1px solid var(--border); }
+
+    .verdict-pass         { background: var(--green-bg); color: var(--green); border: 1px solid rgba(63,185,80,0.25); }
+    .verdict-notverified  { background: rgba(210,153,34,0.15); color: #d29922; border: 1px solid rgba(210,153,34,0.4); }
+    .verdict-fail         { background: rgba(248,81,73,0.13); color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
+    .verdict-na           { background: rgba(139,148,158,0.12); color: #8b949e; border: 1px solid var(--border); }
+    /* A verdict that has stopped being evidence, by either route — superseded
+       or expired. One rule for both, because the badge is saying the same thing
+       in both cases (this is a record, not a current claim); which route it was
+       is what the △ / ● markers beside it distinguish. The fill is dropped and
+       the border switched to the drift purple shared with the marker and the
+       Superseded chart segment. "lapsed" is an internal name only: no label in
+       the UI uses it, precisely because the page names both cases plainly
+       rather than coining an umbrella term. Listed after the four verdict rules
+       above so it wins on the shared properties without needing !important; the
+       text colour is left to whichever verdict class it is paired with. */
+    .badge.verdict-lapsed { background: transparent; border: 1px dashed rgba(188,140,255,0.65); }
+
+    .no-results { padding: 56px 32px; text-align: center; color: var(--text3); }
+    .no-results svg { width: 34px; height: 34px; stroke: var(--text3); opacity: 0.6; margin: 0 auto 14px; display: block; }
+    .no-results-title { font-size: 14px; font-weight: 600; color: var(--text2); margin-bottom: 4px; }
+    .no-results-sub { font-size: 12px; color: var(--text3); }
+    /* Navigator's variant adds a way out — with every column hidden there is no
+       longer anything on screen to click to undo the filtering. */
+    .nav-clear-btn { margin-top: 14px; background: none; border: 1px solid var(--border2); color: var(--text2); border-radius: var(--radius); padding: 6px 14px; font-size: 12px; font-weight: 600; font-family: var(--font-ui); cursor: pointer; transition: all 0.12s; }
+    .nav-clear-btn:hover { border-color: #ffaa00; color: var(--text); }
+
+    /* ── Resizable columns ── */
+    .col-resizer { position: absolute; right: 0; top: 0; bottom: 0; width: 8px; cursor: col-resize; user-select: none; z-index: 10; display: flex; align-items: center; justify-content: center; }
+    .col-resizer::after { content: ''; display: block; width: 1px; height: 60%; background: var(--border2); border-radius: 1px; transition: background 0.1s; }
+    .col-resizer:hover::after, .col-resizer.dragging::after { background: #000000; }
+
+    /* ── Drawer ── */
+    .drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; display: none; }
+    .drawer-overlay.open { display: block; }
+
+    .drawer {
+      position: fixed;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 560px;
+      max-width: 92vw;
+      background: var(--bg2);
+      border-left: 1px solid var(--border);
+      z-index: 201;
+      overflow-y: auto;
+      transform: translateX(100%);
+      transition: transform 0.2s ease;
+    }
+
+    .drawer.open { transform: translateX(0); }
+
+    .drawer-header {
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: var(--bg2);
+      z-index: 1;
+    }
+
+    .drawer-header-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+    .drawer-rule-id { font-family: var(--font); font-size: 15px; font-weight: 700; color: #ffffff; margin-bottom: 4px; }
+    .drawer-rule-id a { color: inherit; }
+    .drawer-title { font-size: 14px; font-weight: 400; color: var(--text); line-height: 1.4; }
+
+    .drawer-close {
+      background: none;
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--text2);
+      flex-shrink: 0;
+      transition: all 0.1s;
+    }
+
+    .drawer-close:hover { border-color: #ffaa00; color: #ffaa00; box-shadow: 0 0 0 2px rgba(255,170,0,0.14); }
+    .drawer-close svg { width: 14px; height: 14px; stroke: currentColor; fill: none; }
+
+    .drawer-badges { display: flex; flex-wrap: wrap; gap: 5px; }
+    .drawer-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+
+    .drawer-body > div {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 14px 16px;
+    }
+
+    .drawer-section-label {
+      display: block;
+      width: fit-content;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.9px;
+      text-transform: uppercase;
+      color: #ffffff;
+      margin-bottom: 10px;
+      padding-bottom: 5px;
+      border-bottom: 2px solid var(--border2);
+    }
+    .drawer-desc { font-size: 13px; color: var(--text2); line-height: 1.6; }
+    .drawer-desc p { margin: 0; }
+    .drawer-desc p + p { margin-top: 10px; }
+
+    .meta-grid { display: grid; grid-template-columns: 130px 1fr; gap: 7px 12px; }
+    .meta-key { font-size: 12px; color: var(--text3); }
+    .meta-val { font-size: 12px; color: var(--text); font-family: var(--font); word-break: break-word; }
+
+    .mitre-pills { display: flex; flex-wrap: wrap; gap: 5px; }
+
+    .mitre-pill {
+      padding: 3px 8px;
+      background: rgba(143,149,214,0.16);
+      border: 1px solid rgba(143,149,214,0.42);
+      border-radius: var(--radius);
+      font-size: 11px;
+      font-family: var(--font);
+      font-weight: 600;
+      color: #b3b8e8;
+    }
+
+    a.mitre-pill:hover { filter: brightness(1.25); text-decoration: none; }
+
+    .drawer-list { display: flex; flex-direction: column; gap: 6px; }
+
+    .drawer-list-item {
+      font-size: 12px;
+      font-family: var(--font);
+      color: var(--text2);
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-left: 2px solid #ffaa00;
+      border-radius: var(--radius);
+      padding: 6px 10px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    .drawer-list-item a { color: #ffffff; }
+
+    .drawer-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: transparent;
+      border: 1px solid var(--accent2);
+      border-radius: var(--radius);
+      color: var(--accent);
+      font-size: 12px;
+      font-family: var(--font-ui);
+      text-decoration: none;
+      transition: all 0.1s;
+    }
+
+    .drawer-cta:hover { background: var(--accent-bg); text-decoration: none; }
+    .drawer-cta svg { width: 12px; height: 12px; stroke: currentColor; fill: none; }
+
+    .drawer-cta.verify-pass { border-color: var(--green); color: var(--green); }
+    .drawer-cta.verify-pass:hover { background: var(--green-bg); }
+    .drawer-cta.verify-notver { border-color: #d29922; color: #d29922; }
+    .drawer-cta.verify-notver:hover { background: rgba(210,153,34,0.13); }
+    .drawer-cta.verify-fail { border-color: #f85149; color: #f85149; }
+    .drawer-cta.verify-fail:hover { background: rgba(248,81,73,0.13); }
+
+    /* When the verdict was measured, and against which version of the rule. A
+       verdict is evidence about the rule text that was actually fired at, and
+       nothing else — these two lines are what turns the badge above from a
+       claim into a dated measurement. Deliberately muted, not a warning: see
+       the note on version drift where this is built. */
+    .verify-meta { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; font-family: var(--font); font-size: 11px; color: var(--text3); line-height: 1.5; }
+    .verify-meta .warn { color: #d29922; }
+    .verify-meta .drift { color: #bc8cff; }
+    /* Verdict markers next to a badge in the table. Amber ● = the verdict is
+       old; purple Δ = the verdict was measured on a different version of the
+       rule. Two independent states, so two glyphs — a rule can carry either,
+       both, or neither, and collapsing them into one marker would lose the
+       distinction between "nobody has re-run this" and "this no longer
+       describes the rule". */
+    .review-due { color: #d29922; font-size: 8px; margin-left: 5px; vertical-align: middle; cursor: help; }
+    /* A drawn delta rather than the &#916; character: at 10px the glyph picks
+       up whatever weight and baseline the row's font feels like giving it and
+       sits a shade too low next to the badge, where a stroked path keeps an
+       even line and the same round joins as every other icon on the page. */
+    .verdict-drift { color: #bc8cff; margin-left: 5px; cursor: help; display: inline-flex; align-items: center; vertical-align: middle; }
+    .verdict-drift svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 2.4; stroke-linejoin: round; }
+
+    .code-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+
+    .rule-body-pre {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      font-family: var(--font);
+      font-size: 11px;
+      line-height: 1.65;
+      color: #a5b4d4;
+      overflow-x: auto;
+      white-space: pre;
+      tab-size: 2;
+    }
+
+    /* ── Rule body syntax highlight (Sigma YAML / SPL) ── */
+    .t-kw   { color: #ff7b72; font-weight: 600; }  /* keywords: search, stats… (SPL) */
+    .t-op   { color: #8b949e; }                    /* operators/punctuation: =, - , : */
+    .t-fld  { color: #7ee787; }                     /* field names */
+    .t-val  { color: #ffffff; }                     /* literal values, strings, numbers */
+    .t-fn   { color: #d2a8ff; }                     /* functions: count, sum… (SPL) */
+    .t-com  { color: #6e7681; font-style: italic; } /* comments */
+    .t-id   { color: #c9d1d9; }                     /* neutral wrapper key (e.g. "detection") */
+    .t-sel  { color: #ffa657; }                     /* sigma selection/filter block names */
+    .t-mod  { color: #79c0ff; }                     /* sigma field modifier: endswith, contains… */
+    .t-pipe { color: #a5b4d4; }                     /* the | separating field and modifier */
+    .t-cond { color: #ff7b72; font-weight: 600; }  /* sigma condition key + expression */
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+    ::-webkit-scrollbar-corner { background: transparent; }
+
+    /* Dashboards */
+    #tab-dashboards { padding: 16px 20px 20px; }
+    .dash-section { background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius-lg); padding:18px; }
+    .dash-section + .dash-section { margin-top:16px; }
+    .dash-section-title { font-size:12px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:var(--text2); margin-bottom:14px; }
+    .dash-section-grid { display:grid; gap:16px; }
+    .dash-section-grid-4 { grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); }
+    .dash-section-grid-mitre { grid-template-columns: minmax(300px, 400px) minmax(360px, 1fr); }
+    @media (max-width: 900px) {
+      .dash-section-grid-mitre { grid-template-columns: 1fr; }
+    }
+    .chart-card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius-lg); padding:20px; display:flex; flex-direction:column; gap:12px; }
+    .chart-card-title { font-size:13px; font-weight:700; color:var(--text); letter-spacing:-0.1px; }
+    /* Every other number on this tab is a property of the rules themselves and
+       only moves when the pipeline runs; verification AGE moves on its own. The
+       subtitle says so, because the panel's "Generated …" stamp does not apply
+       to this card. */
+    .chart-card-sub { font-size:11px; color:var(--text3); line-height:1.45; margin-top:-6px; }
+    /* Second row of the Rule Overview section. Its own grid so the four cards
+       above keep exactly the track sizing they had before this card existed.
+       Two fixed tracks, not the auto-fit above: auto-fit COLLAPSES its empty
+       tracks, so a lone card in such a grid stretches to the full row no matter
+       what it spans. Two tracks make this card exactly as wide as Rule Type +
+       Rules by Severity plus the gap between them.
+
+       minmax(0, …) rather than a bare 1fr: a bare 1fr floors at min-content, so
+       the canvas Chart.js sized to the card would hold the track open at its
+       old width instead of shrinking with the viewport. */
+    /* Four explicit tracks, matching the row above, so a card down here is
+       exactly as wide as one up there. Explicit rather than the row above's
+       auto-fit precisely because this row holds two cards, not four: auto-fit
+       would stretch them across the full width and they would read as a
+       different, more important kind of card than the four above them. The row
+       just ends early instead. Steps down in the same places the top row's
+       auto-fit does, so the two never disagree about how many fit. */
+    .dash-section-grid-row2 { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 16px; }
+    /* Two tracks wide. Dropped back to a single track once the grid itself is
+       down to two columns, so the card never becomes the whole row while the
+       one beside it gets pushed onto a line of its own. */
+    .chart-card-wide2 { grid-column: span 2; }
+    @media (max-width: 1100px) {
+      .dash-section-grid-row2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .chart-card-wide2 { grid-column: auto; }
+    }
+    @media (max-width: 560px) { .dash-section-grid-row2 { grid-template-columns: 1fr; } }
+    /* Compound selector on purpose: the generic .chart-card-canvas-wrap 300px
+       rule is declared further down and would otherwise win on source order,
+       leaving four very fat bars. */
+    .chart-card-canvas-wrap.age-canvas-wrap { height:200px; }
+    .chart-card-canvas-wrap { position:relative; height:300px; }
+    .gauge-canvas-wrap { height:260px; }
+    .gauge-overlay { position:absolute; left:50%; top:62%; transform:translate(-50%, -12%); width:70%; text-align:center; pointer-events:none; }
+    .gauge-overlay-title { font-size:15px; font-weight:700; color:#FFAA00; margin-bottom:6px; }
+    .gauge-pct { font-size:34px; font-weight:800; color:#FFAA00; line-height:1.1; }
+    .gauge-frac { font-size:12px; color:#e6edf3; margin-top:2px; }
+    .severity-card-body { display:flex; align-items:center; gap:14px; flex:1; min-height:0; }
+    /* Fixed (not height:100%-of-flex-fill) so the doughnut/column tiles are
+       compact and don't inherit a tall flex-stretched box with a lot of
+       empty space around a width-constrained circle. Also used by Rule
+       Type's stacked-column canvas (reused verbatim), so enlarging this one
+       value both enlarges the doughnuts AND keeps Rule Type's height in
+       sync with them automatically. 196px (was 180px) — measured with
+       Playwright that the ring is WIDTH-constrained (canvas ~136x180, so
+       width is the binding dimension for radius), and a little extra height
+       gives the hoverOffset pop-out more room on the vertical axis too. */
+    .severity-canvas-wrap { flex:1 1 auto; height:196px; min-width:0; }
+    .sev-legend { display:flex; flex-direction:column; gap:9px; flex-shrink:0; }
+    .sev-legend-item { display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; color:#e6edf3; user-select:none; }
+    .sev-legend-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; transition:opacity .15s; }
+    .sev-legend-item.off .sev-legend-dot { opacity:0.25; }
+
+    /* Status, Verification and Rule Type reuse Severity's exact doughnut/
+       column-tile markup (.severity-card-body / .severity-canvas-wrap /
+       .sev-legend) so their canvas box is byte-for-byte identical to
+       Severity's. A legend's width is otherwise content-derived (sized to
+       its own longest currently-visible label), so with 4 different label
+       sets (Severity, Status, Verification, Rule Type) each legend could
+       organically resolve to a different width, which skews the sibling
+       canvas-wrap's remaining width and therefore the doughnut's actual
+       rendered diameter — measured with Playwright: Severity's real
+       unconstrained legend width was 64.25px (only Critical/High/Medium/Low
+       shown) while the other three were pinned to 124px, a ~60px real
+       canvas-width discrepancy. Fix: pin ALL FOUR legends (including
+       #sev-legend, no special case) to one shared explicit width, sized to
+       fit the longest realistically-occurring label ("Experimental",
+       measured ~93.9px natural width) plus a small buffer. */
+    #sev-legend, #status-legend, #verify-legend, #source-legend { width: 96px; }
+
+    /* Verification — doughnut + center pass-rate overlay + side legend.
+       Canvas-wrap height matches .severity-canvas-wrap exactly (180px) so
+       the doughnut is the same size as Severity's/Status's. cutout is now
+       55% too (unified, was 70%) — with the enlarged radius (95%, see JS)
+       the inner hollow is still comfortably big enough for the overlay
+       text, but the overlay font-size/width were trimmed slightly (28px
+       down, 80% to 68% width) as a safety margin so the text never
+       crowds the ring at the smaller cutout. Status's overlay (center
+       Stable %, added alongside Verification's Pass Rate) reuses these
+       same .verify-overlay* classes verbatim rather than a parallel
+       .status-overlay-* block — Status's canvas-wrap (.severity-canvas-wrap)
+       and Verification's (.verify-canvas-wrap) are byte-for-byte identical
+       in sizing (196px height, flex:1 1 auto, min-width:0), so there is no
+       geometry difference to justify duplicating the rule. */
+    .verify-card-body { display:flex; align-items:center; gap:14px; flex:1; min-height:0; }
+    .verify-canvas-wrap { flex:1 1 auto; height:196px; min-width:0; }
+    .verify-overlay { position:absolute; left:50%; top:50%; transform:translate(-50%, -50%); width:68%; text-align:center; pointer-events:none; }
+    .verify-overlay-pct { font-size:24px; font-weight:800; color:var(--text); line-height:1.1; }
+    .verify-overlay-label { font-size:8px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:var(--text3); margin-top:2px; }
+    /* Allowed to shrink, unlike the flex-shrink:0 this carried while its only
+       user was Verification's three short labels. Evidence's are "Superseded"
+       and "Never tested", which at max-content pushed the legend straight out
+       past the card edge. Now the ring gives up width first (it already has
+       min-width:0), and a label that still doesn't fit wraps to a second line
+       rather than being clipped -- truncating "Never tested" to "Never…" would
+       turn a state into a different, wrong-looking word. */
+    .verify-legend { display:flex; flex-direction:column; gap:9px; flex-shrink:1; min-width:0; }
+    .verify-legend-item { display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; color:#e6edf3; user-select:none; min-width:0; }
+    .verify-legend-item .vdot { width:10px; height:10px; border-radius:50%; flex-shrink:0; transition:opacity .15s; }
+    /* The label needs to be a real element, not the bare text node it used to
+       be: an anonymous flex item has min-width:auto and refuses to wrap below
+       max-content, which is what made the shrink above insufficient on its own. */
+    .verify-legend-item .vlabel { min-width:0; overflow-wrap:break-word; line-height:1.25; }
+    .verify-legend-item.off .vdot { opacity:0.25; }
+
+    /* Evidence carries the longest labels of any doughnut legend on this page
+       ("Superseded", "Never tested") in a quarter-width card, so the wrap
+       allowed above was firing on it in normal use -- correct as a fallback,
+       ugly as the steady state. Give the column the width one line of "Never
+       tested" actually needs and take it out of the 14px body gap first: the
+       labels start nearer the ring rather than the ring being squeezed for the
+       whole difference. Scoped to Evidence so Verification's short labels keep
+       the roomier gap. */
+    .verify-card-body-evidence { gap:6px; }
+    #evidence-legend { width:104px; flex-shrink:0; }
+
+    /* Trends Over Time — line/area/bar tiles, plain (non-flex-body) canvas
+       wraps like Rules per Tactic / Coverage gauge above, no snap-to-integer
+       fix needed (that bug is specific to the doughnut controller). */
+    .trend-legend { display:flex; flex-wrap:wrap; justify-content:center; gap:16px; }
+    .trend-empty {
+      position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+      text-align:center; padding:0 24px; color:var(--text3); font-size:12.5px; line-height:1.5;
+    }
+
+    /* Trend range bar — one shared row above both trend charts (a filter row
+       scopes everything below it, never lives per-card/per-chart). Styled to
+       match the Rule Library's Export button (.export-btn) exactly — same
+       chrome family, so it reads as "a control of this dashboard" rather
+       than a one-off widget: transparent fill, var(--border2) hairline,
+       var(--radius) corners, gold hover/selected state. A year <select>
+       only makes sense — and so only appears — once a granularity that
+       needs one (Quarterly/Monthly) is active; Yearly/All show every year
+       at once, so the picker would be a control with nothing to do. */
+    .trend-range-bar { display:flex; align-items:center; gap:10px; margin:-6px 0 14px; flex-wrap:wrap; }
+    .trend-gran-group { display:flex; gap:6px; flex-shrink:0; }
+    .trend-gran-btn {
+      height:28px; padding:0 12px; background:transparent; border:1px solid var(--border2);
+      border-radius:var(--radius); color:var(--text2); font-size:12px; font-family:var(--font-ui);
+      cursor:pointer; transition:all 0.1s;
+    }
+    .trend-gran-btn:hover { border-color:#ffaa00; color:#ffaa00; box-shadow:0 0 0 2px rgba(255,170,0,0.14); }
+    .trend-gran-btn.active { border-color:#ffaa00; color:#ffaa00; box-shadow:0 0 0 2px rgba(255,170,0,0.14); }
+    .trend-year-select {
+      height:28px; padding:0 10px; background:transparent; border:1px solid var(--border2);
+      border-radius:var(--radius); color:var(--text2); font-size:12px; font-family:var(--font-ui);
+      cursor:pointer; transition:all 0.1s;
+    }
+    .trend-year-select:hover { border-color:#ffaa00; color:#ffaa00; box-shadow:0 0 0 2px rgba(255,170,0,0.14); }
+
+    /* MITRE Navigator */
+    .nav-wrap { background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:16px; margin:16px 20px; }
+    /* .nav-legend-dot / -count are the Verdict dropdown's swatch and count; the
+       inline legend row they were named for no longer exists (its job is the
+       Legend dialog now). */
+    .nav-legend-dot { width:12px; height:12px; border-radius:2px; flex-shrink:0; }
+    .nav-legend-count { font-family:var(--font); font-size:11px; font-weight:700; color:var(--text2); }
+    .nav-import { margin-left:auto; font-size:12px; }
+    /* Navigator toolbar: one unified bar with thin dividers between groups */
+    .nav-toolbar { display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap; }
+    .nav-tb-sep { width:1px; height:22px; background:var(--border2); flex-shrink:0; }
+    .nav-search-wrap { position:relative; display:flex; align-items:center; flex:1; min-width:220px; max-width:420px; }
+    .nav-search-wrap > svg { position:absolute; left:10px; width:15px; height:15px; stroke:var(--text3); fill:none; pointer-events:none; }
+    .nav-search-input { width:100%; height:32px; padding:0 30px 0 32px; background:var(--bg); border:1px solid var(--border2); border-radius:var(--radius); color:var(--text); font-family:var(--font-ui); font-size:13px; }
+    .nav-search-input:focus { outline:none; border-color:#ffaa00; box-shadow:0 0 0 2px rgba(255,170,0,0.14); }
+    .nav-search-clear { position:absolute; right:6px; display:none; align-items:center; justify-content:center; width:20px; height:20px; background:none; border:none; color:var(--text3); cursor:pointer; }
+    .nav-search-clear svg { width:13px; height:13px; }
+    .nav-search-clear:hover { color:var(--text); }
+    .nav-search-clear.show { display:flex; }
+    .nav-search-count { font-family:var(--font); font-size:12px; color:var(--text3); white-space:nowrap; }
+    /* Segmented Covered/Gaps control */
+    .nav-quickfilters { display:inline-flex; border:1px solid var(--border2); border-radius:8px; overflow:hidden; }
+    .nav-qf { background:none; border:none; border-right:1px solid var(--border2); color:var(--text2); padding:5px 13px; font-size:12px; font-weight:600; font-family:var(--font-ui); cursor:pointer; transition:all 0.12s; }
+    .nav-qf:last-child { border-right:none; }
+    .nav-qf:hover { color:var(--text); background:rgba(255,170,0,.08); }
+    .nav-qf.active { background:#ffaa00; color:#111; }
+    /* Coverage counts live on the buttons themselves — "Not covered" is no
+       longer a Verdict entry, so this is the only place the gap total shows. */
+    .nav-qf-count { font-family:var(--font); font-size:11px; font-weight:700; color:var(--text3); margin-left:6px; }
+    .nav-qf.active .nav-qf-count { color:rgba(17,17,17,0.72); }
+    .nav-qf-count:empty { display:none; }
+    #nav-export-wrap { margin-left:auto; }
+    /* Verdict filter dropdown */
+    .nav-verdict-wrap { position:relative; }
+    .nav-verdict-btn { display:inline-flex; align-items:center; gap:6px; background:none; border:1px solid var(--border2); color:var(--text2); border-radius:var(--radius); padding:5px 10px; font-size:12px; font-family:var(--font-ui); font-weight:600; cursor:pointer; white-space:nowrap; transition:all 0.12s; }
+    .nav-verdict-btn svg { width:13px; height:13px; stroke:currentColor; fill:none; }
+    .nav-verdict-btn:hover, .nav-verdict-btn.has-active { border-color:#ffaa00; color:var(--text); }
+    .nav-verdict-active { font-family:var(--font); font-size:11px; font-weight:700; color:#ffaa00; }
+    .nav-verdict-active:empty { display:none; }
+    .nav-verdict-menu { display:none; position:absolute; left:0; top:calc(100% + 5px); min-width:200px; background:var(--bg2); border:1px solid var(--border2); border-radius:var(--radius-lg); box-shadow:0 8px 28px rgba(0,0,0,0.5); z-index:50; overflow:hidden; }
+    .nav-verdict-menu.open { display:block; }
+    .nav-verdict-item { display:flex; align-items:center; gap:8px; padding:8px 12px; cursor:pointer; border-bottom:1px solid var(--border); font-size:12px; color:var(--text2); transition:background 0.08s; }
+    .nav-verdict-item:last-child { border-bottom:none; }
+    .nav-verdict-item:hover { background:rgba(233,220,196,0.10); }
+    .nav-verdict-item .nav-legend-dot { width:12px; height:12px; border-radius:2px; flex-shrink:0; position:relative; }
+    .nav-verdict-item .lbl { flex:1; }
+    .nav-verdict-item.checked { color:var(--text); background:rgba(255,170,0,0.10); }
+    .nav-verdict-item.checked .nav-legend-dot::after { content:'✓'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; font-size:9px; font-weight:900; }
+    .att-matrix { display:flex; gap:2px; overflow-x:auto; padding-bottom:4px; scrollbar-width:none; }
+    .att-matrix::-webkit-scrollbar { display:none; }
+    .tc-col { flex:0 0 175px; display:flex; flex-direction:column; gap:1px; }
+    .tc-hdr { position:relative; background:#FFAA00; color:#111; font-size:12px; font-weight:700; padding:6px 5px; text-align:center; border-radius:3px 3px 0 0; min-height:44px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; }
+    .tc-count { font-size:10px; font-weight:400; opacity:.75; }
+    .tc-hdr a { color:#111; text-decoration:none; }
+    /* Per-tactic coverage bar (item: column header ratio) */
+    .tc-cov-bar { width:78%; height:3px; background:rgba(0,0,0,.22); border-radius:2px; overflow:hidden; }
+    .tc-cov-fill { display:block; height:100%; background:#111; opacity:.55; border-radius:2px; }
+    /* Column collapse toggle + collapsed state */
+    .tc-col-toggle { position:absolute; top:2px; right:3px; background:none; border:none; color:#111; opacity:.6; cursor:pointer; font-size:11px; line-height:1; padding:1px 3px; }
+    .tc-col-toggle:hover { opacity:1; }
+    .tc-col.collapsed { flex:0 0 40px; }
+    .tc-col.collapsed > *:not(.tc-hdr) { display:none !important; }
+    .tc-col.collapsed .tc-count, .tc-col.collapsed .tc-cov-bar { display:none; }
+    .tc-col.collapsed .tc-hdr { writing-mode:vertical-rl; min-height:150px; justify-content:flex-start; padding:22px 4px 8px; gap:0; }
+    .tc-col.collapsed .tc-col-toggle { writing-mode:horizontal-tb; top:4px; right:auto; left:50%; transform:translateX(-50%); }
+    .tc-hdr a:hover { text-decoration:underline; }
+    .tc { font-size:12px; padding:5px 6px; border-radius:2px; cursor:default; display:flex; flex-direction:column; min-height:40px; gap:1px; position:relative; }
+    .tc.uncov { background:#1c2128; color:#484f58; }
+    .tc.uncov.has-cov { background:rgba(255,170,0,.13); color:#545f6e; border-left:2px solid rgba(255,170,0,.55); }
+    /* Covered cells — "accent rail" style: dark base + a coloured left rail in
+       the verdict colour (green/amber/red/grey), instead of a solid fill. */
+    .tc.pass    { background:#21262d; color:var(--text); border-left:3px solid #2ea44f; }
+    .tc.notver  { background:#21262d; color:var(--text); border-left:3px solid #d29922; }
+    .tc.fail    { background:#21262d; color:var(--text); border-left:3px solid #f85149; }
+    .tc.nv      { background:#21262d; color:var(--text); border-left:3px solid #6e7681; }
+    .tc.pass .tn, .tc.notver .tn, .tc.fail .tn, .tc.nv .tn { color:var(--text2); }
+    /* Directly-covered PARENT techniques get an extra soft verdict tint so they
+       stand out from their (rail-only) covered sub-techniques and read as the
+       higher level in the hierarchy. */
+    .tc.pass:not(.sub)   { background:rgba(46,164,79,.11); }
+    .tc.notver:not(.sub) { background:rgba(210,153,34,.11); }
+    .tc.fail:not(.sub)   { background:rgba(248,81,73,.11); }
+    .tc.nv:not(.sub)     { background:rgba(110,118,129,.14); }
+    /* Covered SUB techniques carry a small verdict dot at the top-right (parents
+       show the expand caret there instead, and are distinguished by their tint). */
+    .tc.sub.pass::after, .tc.sub.notver::after, .tc.sub.fail::after, .tc.sub.nv::after {
+      content:''; position:absolute; top:7px; right:7px; width:7px; height:7px; border-radius:50%;
+    }
+    .tc.sub.pass::after   { background:#2ea44f; }
+    .tc.sub.notver::after { background:#d29922; }
+    .tc.sub.fail::after   { background:#f85149; }
+    .tc.sub.nv::after     { background:#6e7681; }
+    /* Confirmed-failure flag. The cell keeps its best-verdict colour (a PASS
+       rule really does cover the technique), but a red corner triangle marks
+       that at least one covering rule FAILed — otherwise the roll-up to the
+       best verdict would hide the failure completely. Cells whose best verdict
+       already IS fail carry the red rail, so they skip the redundant corner. */
+    .tc.fail-flag:not(.fail)::before {
+      content:''; position:absolute; top:0; right:0; width:0; height:0;
+      border-style:solid; border-width:0 8px 8px 0;
+      border-color:transparent #f85149 transparent transparent;
+      pointer-events:none; z-index:2;
+    }
+    .tc.sub.fail-flag:not(.fail)::before { border-width:0 6px 6px 0; }
+    .tc.highlighted.fail-flag:not(.fail)::before { border-right-color:#b62324; }
+    /* On hover the detail (hamburger) button occupies the right edge, so fade
+       the verdict dot out to avoid the two colliding — the left rail still
+       conveys the verdict. */
+    .tc.sub[data-rules]:hover::after { opacity:0; }
+    .tc.sub   { min-height:28px; padding-left:12px; }
+    .tc[data-rules] { cursor:pointer; }
+    /* Hover feedback on any technique/sub-technique mirrors the Rule Library's
+       warm row tint + subtle border (covered or not). */
+    .tc[data-id]:hover { box-shadow:inset 0 0 0 1px rgba(233,220,196,0.32), inset 0 0 0 999px rgba(233,220,196,0.10); }
+    /* Click cross-highlight paints equivalent cells with the tactic-header amber */
+    .tc.highlighted { background:#FFAA00 !important; color:#111 !important; }
+    .tc.highlighted .ti, .tc.highlighted .tn, .tc.highlighted .sub-badge, .tc.highlighted .sub-badge-cov { color:#111 !important; opacity:1; }
+    .tc.highlighted:hover { box-shadow:none; }
+    /* Expanded parent + its sub-group read as one continuous amber frame */
+    .tc.expanded { border:1.5px solid rgba(255,170,0,.65); border-bottom:none; border-radius:3px 3px 0 0; }
+    /* Cells with a verdict/has-cov left accent have a higher-specificity
+       border-left; re-assert the uniform 1.5px frame width when expanded so it
+       lines up seamlessly with the sub-group's left border (no notch). */
+    .tc.uncov.has-cov.expanded, .tc.notver.expanded, .tc.nv.expanded { border-left:1.5px solid rgba(255,170,0,.65); }
+    .ti { font-weight:700; font-size:12px; color:inherit; text-decoration:none; }
+    .ti:hover { text-decoration:underline; }
+    .tn { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
+    .tc.sub .tn { white-space:normal; overflow:visible; text-overflow:clip; }
+    .tc-row1 { display:flex; justify-content:space-between; align-items:center; gap:2px; }
+    .tc-foot { display:flex; justify-content:space-between; align-items:center; margin-top:2px; min-height:10px; }
+    .tc-expand { background:none; border:none; color:inherit; cursor:pointer; font-size:14px; padding:2px 3px; opacity:.65; line-height:1; flex-shrink:0; }
+    .tc-expand:hover { opacity:1; }
+    .tc-detail { position:absolute; right:4px; top:50%; transform:translateY(-50%); background:none; border:none; color:inherit; cursor:pointer; font-size:14px; padding:2px 4px; opacity:0; line-height:1; z-index:1; }
+    .tc[data-rules]:hover .tc-detail { opacity:.85; }
+    .tc-detail:hover { opacity:1 !important; color:#FFAA00; }
+    .sub-badge { font-size:9px; opacity:.55; }
+    .sub-badge-cov { font-size:9px; color:#FFAA00; font-weight:700; }
+    .sub-group { border:1.5px solid rgba(255,170,0,.65); border-top:none; border-radius:0 0 3px 3px; display:flex; flex-direction:column; gap:1px; padding:0 1px 1px; margin-top:-1px; }
+    .tc.tc-hidden { display:none !important; }
+    .tc-col.tc-col-hidden { display:none !important; }
+    /* Empty result set: drop the collapsed matrix and its scroll mirror so the
+       empty state stands alone instead of sitting under two stray slivers. */
+    .nav-wrap.nav-empty .att-matrix,
+    .nav-wrap.nav-empty .nav-scroll-mirror { display:none; }
+    #expand-all-btn { background:none; border:1px solid var(--border); color:var(--text2); border-radius:5px; padding:3px 10px; font-size:12px; cursor:pointer; white-space:nowrap; }
+    #expand-all-btn:hover { color:var(--text); border-color:#FFAA00; }
+    /* Detail panel — mirrors the Rule Library drawer's look (tokens, slide-in,
+       card-style rule rows) so the two views feel like one component. */
+    #detail-panel { position:fixed; right:0; top:0; bottom:0; width:340px; max-width:92vw; background:var(--bg2); border-left:1px solid var(--border); z-index:202; display:flex; flex-direction:column; box-shadow:-4px 0 24px rgba(0,0,0,.5); transform:translateX(100%); transition:transform 0.2s ease; }
+    #detail-panel.open { transform:translateX(0); }
+    #detail-header { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding:18px 20px 14px; border-bottom:1px solid var(--border); flex-shrink:0; }
+    #detail-title { font-weight:700; font-size:14px; color:var(--text); line-height:1.3; }
+    #detail-tid { font-family:var(--font); color:var(--text2); font-size:11px; margin-top:3px; }
+    #detail-close { background:none; border:1px solid var(--border2); border-radius:var(--radius); width:28px; height:28px; display:flex; align-items:center; justify-content:center; color:var(--text2); font-size:18px; line-height:1; cursor:pointer; flex-shrink:0; transition:all 0.1s; }
+    #detail-close:hover { border-color:#ffaa00; color:#ffaa00; box-shadow:0 0 0 2px rgba(255,170,0,0.14); }
+    #detail-body { padding:14px 16px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:7px; }
+    .detail-rule { display:flex; align-items:center; gap:8px; text-decoration:none; color:var(--text); font-size:12px; line-height:1.4; background:var(--bg3); border:1px solid var(--border); border-left:2px solid #ffaa00; border-radius:var(--radius); padding:8px 10px; cursor:pointer; transition:all 0.1s; }
+    .detail-rule:hover { border-color:var(--border2); border-left-color:#ffaa00; background:var(--bg4); text-decoration:none; }
+    .detail-rule:focus-visible { outline:none; border-color:#ffaa00; box-shadow:0 0 0 2px rgba(255,170,0,0.18); }
+    .detail-rule.sel { border-color:#ffaa00; border-left-color:#ffaa00; background:var(--bg4); box-shadow:inset 0 0 0 1px rgba(255,170,0,0.25); }
+    .detail-noverd { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text2); background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); padding:8px 10px; }
+    .detail-vbadge { display:inline-block; padding:1px 7px; border-radius:8px; font-size:10px; font-weight:600; flex-shrink:0; }
+    .detail-vbadge.PASS { background:#2EA44F; color:#fff; }
+    .detail-vbadge.NOT_VERIFIED { background:#9A6700; color:#fff; }
+    .detail-vbadge.FAIL { background:#CF222E; color:#fff; }
+    .detail-vbadge.NA { background:#6E7681; color:#fff; }
+    #att-tip {
+      display:none; position:fixed; z-index:9999; pointer-events:none;
+      background:#161b22; border:1px solid #30363d; border-radius:8px;
+      padding:10px 14px; max-width:340px; font-size:12px; color:#e6edf3;
+      box-shadow:0 8px 24px rgba(0,0,0,.5);
+    }
+    .tip-head { font-weight:700; font-size:13px; margin-bottom:6px; }
+    .tip-rule { display:flex; align-items:center; gap:6px; margin:3px 0; text-decoration:none; color:var(--text); font-size:11px; }
+    .tip-rule:hover { text-decoration:underline; }
+    .tip-vbadge { display:inline-block; padding:1px 7px; border-radius:8px; font-size:10px; font-weight:600; flex-shrink:0; }
+    .tip-vbadge.PASS { background:#2EA44F; color:#fff; }
+    .tip-vbadge.NOT_VERIFIED { background:#9A6700; color:#fff; }
+    .tip-vbadge.FAIL { background:#CF222E; color:#fff; }
+    .tip-vbadge.NA   { background:#6E7681; color:#fff; }
+
+    #chart-tip {
+      display:none; position:fixed; z-index:9999; pointer-events:none;
+      background:rgba(22,27,34,0.88); border:1px solid #30363d; border-radius:8px;
+      padding:8px 16px; text-align:center; box-shadow:0 8px 24px rgba(0,0,0,.5);
+      transform:translate(-50%, -120%);
+    }
+    #chart-tip::after {
+      content:''; position:absolute; left:50%; bottom:-6px; transform:translateX(-50%);
+      border-width:6px 6px 0 6px; border-style:solid;
+      border-color:rgba(22,27,34,0.88) transparent transparent transparent;
+    }
+    .sev-tip-title { font-weight:700; font-size:13px; color:#e6edf3; }
+    .sev-tip-count { font-size:11px; font-weight:700; color:#e6edf3; margin-top:2px; }
+    .sev-tip-pct { font-size:9px; color:#8b949e; margin-top:1px; }
+
+    /* Trend chart tooltips (Coverage/Growth) — no date title (the crosshair
+       already pins the reader to an x-position; the chosen granularity's
+       axis label under the cursor already names the point), just the 2
+       value rows, sized up a step from .sev-tip-count/-pct since there's no
+       title line to carry visual weight instead. */
+    .trend-tip-primary { font-weight:700; font-size:13px; color:#e6edf3; }
+    .trend-tip-secondary { font-size:10px; color:#8b949e; margin-top:2px; }
+
+    /* ── Legend & help ──────────────────────────────────────────────────────
+       One shared dialog for all three tabs. The page carries a fair amount of
+       unlabelled visual language (verdict rails, the amber sub-coverage tint,
+       the red failure corner); rather than fitting a legend into each tab's
+       toolbar, everything lives behind one button that is always in the same
+       place. Swatches below re-declare the matrix colours instead of reusing
+       .tc — a legend that silently drifts from the thing it explains is worse
+       than none, so the two blocks are meant to be edited together. */
+    .info-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: none; border: 1px solid var(--border2); color: var(--text2);
+      border-radius: var(--radius); padding: 5px 11px;
+      font-size: 12px; font-weight: 600; font-family: var(--font-ui);
+      cursor: pointer; flex-shrink: 0; white-space: nowrap; transition: all 0.12s;
+    }
+    .info-btn:hover, .info-btn.active { border-color: #ffaa00; color: var(--text); }
+    .info-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; flex-shrink: 0; }
+
+    .info-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 300; }
+    .info-backdrop.open { display: block; }
+    .info-modal {
+      display: none; position: fixed; z-index: 301;
+      left: 50%; top: 50%; transform: translate(-50%, -50%);
+      width: 780px; max-width: 94vw; max-height: 84vh;
+      background: var(--bg2); border: 1px solid var(--border2);
+      border-radius: var(--radius-lg); box-shadow: 0 18px 50px rgba(0,0,0,0.6);
+      flex-direction: column; overflow: hidden;
+    }
+    .info-modal.open { display: flex; }
+    .info-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 15px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .info-head-title { font-family: var(--font-ui); font-size: 14px; font-weight: 700; color: var(--text); }
+    .info-close { background: none; border: none; color: var(--text3); font-size: 17px; line-height: 1; cursor: pointer; padding: 2px 6px; }
+    .info-close:hover { color: var(--text); }
+    .info-body { padding: 18px 20px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 22px; }
+    .info-sec-title {
+      font-family: var(--font-ui); font-size: 11px; font-weight: 700;
+      letter-spacing: 0.6px; text-transform: uppercase; color: #ffaa00; margin-bottom: 11px;
+    }
+    .info-grid { display: grid; grid-template-columns: 128px 1fr; gap: 9px 14px; align-items: start; font-size: 12px; color: var(--text2); line-height: 1.5; }
+    .info-grid .k { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+    .info-grid .k .badge { margin: 0; }
+    .info-grid .kbd { font-size: 10px; }
+    .info-note { font-size: 12px; color: var(--text2); line-height: 1.6; }
+    .info-note + .info-note { margin-top: 9px; }
+    .info-note code { font-family: var(--font); font-size: 11px; color: var(--text); background: var(--bg3); border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; }
+
+    /* Matrix swatches — mirror of the .tc rules further up. */
+    .sw { display: inline-block; position: relative; width: 40px; height: 17px; border-radius: 2px; background: #21262d; flex-shrink: 0; }
+    .sw-pass   { background: rgba(46,164,79,.11);   border-left: 3px solid #2ea44f; }
+    .sw-notver { background: rgba(210,153,34,.11);  border-left: 3px solid #d29922; }
+    .sw-fail   { background: rgba(248,81,73,.11);   border-left: 3px solid #f85149; }
+    .sw-nv     { background: rgba(110,118,129,.14); border-left: 3px solid #6e7681; }
+    .sw-uncov  { background: #1c2128; border: 1px solid #30363d; }
+    .sw-hascov { background: rgba(255,170,0,.13); border-left: 2px solid rgba(255,170,0,.55); }
+    .sw-flag::before {
+      content: ''; position: absolute; top: 0; right: 0; width: 0; height: 0;
+      border-style: solid; border-width: 0 8px 8px 0;
+      border-color: transparent #f85149 transparent transparent;
+    }
+    .sw-dot::after { content: ''; position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: #2ea44f; }
+
+    /* ── Small screens ──────────────────────────────────────────────────────
+       The desktop layout is a fixed 250px filter rail next to a 10-column
+       table; both have to give way on a phone. The rail collapses behind a
+       toggle that only exists here, and the table sheds columns in order of
+       signal-per-pixel — identity, severity and verdict are the last to go, so
+       the narrowest view still answers "which rule, how bad, does it work".
+       Nothing is hidden that isn't reachable another way: every dropped column
+       is still a filter facet, and the row drawer shows the full record. */
+    .filters-toggle {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      background: none;
+      border: 1px solid var(--border2);
+      color: var(--text2);
+      border-radius: var(--radius);
+      padding: 7px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: var(--font-ui);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .filters-toggle.active { border-color: #ffaa00; color: var(--text); }
+
+    @media (max-width: 900px) {
+      .stats-strip { height:auto; min-height:48px; padding:8px 12px; flex-wrap:wrap; }
+      .strip-brand { flex-wrap:wrap; row-gap:8px; }
+      .strip-sep { display:none; }
+      .tab-bar { flex-wrap:wrap; }
+
+      .main { flex-direction:column; }
+      .filters-panel {
+        display:none;
+        width:100%; min-width:0;
+        flex:0 0 auto;
+        max-height:55vh;
+        border-right:none;
+        border-bottom:1px solid var(--border);
+      }
+      .filters-panel.mobile-open { display:flex; }
+      .filters-toggle { display:inline-flex; }
+
+      .content { padding:0 12px 16px; }
+      .search-row { flex-wrap:wrap; }
+      .kbd-hint { display:none; }
+      .info-btn-label { display:none; }
+      .info-btn { padding:5px 8px; }
+
+      /* Category · Product · Service — all three are filter facets too. */
+      thead th:nth-child(3), tbody td:nth-child(3),
+      thead th:nth-child(4), tbody td:nth-child(4),
+      thead th:nth-child(5), tbody td:nth-child(5) { display:none; }
+
+      .drawer { width:100%; max-width:100%; }
+
+      .nav-toolbar { gap:8px; }
+      #nav-export-wrap { margin-left:0; }
+      .tc-col { flex:0 0 145px; }
+    }
+
+    @media (max-width: 640px) {
+      /* Tactic · Technique · Status — the drawer carries the full ATT&CK map. */
+      thead th:nth-child(6), tbody td:nth-child(6),
+      thead th:nth-child(7), tbody td:nth-child(7),
+      thead th:nth-child(9), tbody td:nth-child(9) { display:none; }
+
+      .dash-section { padding:12px; }
+      .chart-card { padding:14px; }
+      .chart-card-canvas-wrap { height:240px; }
+    }
+

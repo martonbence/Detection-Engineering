@@ -8,7 +8,6 @@ through to the unconditional prefix.
 
 from sigma_to_spl import _inject_index_prefix
 
-
 # --- the three cases that already worked ------------------------------------
 
 

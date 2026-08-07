@@ -7,7 +7,6 @@ either, because the conversion step only ever sees *changed* rule files.
 """
 
 import pytest
-
 from prune_orphans import PruneError, find_orphans, main, prune
 
 

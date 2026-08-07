@@ -1,4 +1,4 @@
-name: CI - Dev Pipeline (Sigma to Splunk)
+name: CI - Dev Pipeline
 
 on:
   push:
@@ -8,9 +8,30 @@ on:
       - "rules/sigma/**/*.yaml"
       - "docs/schemas/sigma_schema.json"
       - "scripts/validate/**"
-      - "scripts/convert/sigma_to_spl.py"
+      # A glob, not the single file it used to name. Register item 3.7 split
+      # the converter's backend choice out into backend_config.py + a config
+      # file, and a list that names one module by hand goes stale the moment a
+      # second one appears -- a backends.yml edit changes every rule's SPL and
+      # would not have started a run at all. Broad is right *here*: the cost of
+      # a false positive on this filter is one cheap validate-and-convert run.
+      # The full-rebuild trigger below stays an explicit list for the opposite
+      # reason -- there a false positive re-attacks all 27 rules on the lab.
+      - "scripts/convert/**"
+      - "config/**"
       - "scripts/deploy/deploy_spl_to_splunk.py"
-      - "scripts/lib/rule_naming.py"
+      # A glob, for the same reason and by the same argument as
+      # scripts/convert/** above. This used to name rule_naming.py alone, and
+      # register item 3.6 then put scripts/lib/env.py beside it -- a module the
+      # deploy, both verify scripts and reconcile.py all import. Editing it
+      # changes the behaviour of four pipeline scripts and started no run at
+      # all. Anything under scripts/lib/ exists to be imported by something in
+      # this pipeline, so the false-positive cost is one cheap
+      # validate-and-convert run.
+      #
+      # The full-rebuild list below keeps naming rule_naming.py by hand and
+      # deliberately does not gain env.py: env.py cannot change a rule's SPL or
+      # its saved search name, so it is no reason to re-attack all 27 rules.
+      - "scripts/lib/**"
       - "scripts/atomic/run_atomic.ps1"
       - "scripts/verify/**"
       - "scripts/state/**"
@@ -21,9 +42,30 @@ on:
       - "rules/sigma/**/*.yaml"
       - "docs/schemas/sigma_schema.json"
       - "scripts/validate/**"
-      - "scripts/convert/sigma_to_spl.py"
+      # A glob, not the single file it used to name. Register item 3.7 split
+      # the converter's backend choice out into backend_config.py + a config
+      # file, and a list that names one module by hand goes stale the moment a
+      # second one appears -- a backends.yml edit changes every rule's SPL and
+      # would not have started a run at all. Broad is right *here*: the cost of
+      # a false positive on this filter is one cheap validate-and-convert run.
+      # The full-rebuild trigger below stays an explicit list for the opposite
+      # reason -- there a false positive re-attacks all 27 rules on the lab.
+      - "scripts/convert/**"
+      - "config/**"
       - "scripts/deploy/deploy_spl_to_splunk.py"
-      - "scripts/lib/rule_naming.py"
+      # A glob, for the same reason and by the same argument as
+      # scripts/convert/** above. This used to name rule_naming.py alone, and
+      # register item 3.6 then put scripts/lib/env.py beside it -- a module the
+      # deploy, both verify scripts and reconcile.py all import. Editing it
+      # changes the behaviour of four pipeline scripts and started no run at
+      # all. Anything under scripts/lib/ exists to be imported by something in
+      # this pipeline, so the false-positive cost is one cheap
+      # validate-and-convert run.
+      #
+      # The full-rebuild list below keeps naming rule_naming.py by hand and
+      # deliberately does not gain env.py: env.py cannot change a rule's SPL or
+      # its saved search name, so it is no reason to re-attack all 27 rules.
+      - "scripts/lib/**"
       - "scripts/atomic/run_atomic.ps1"
       - "scripts/verify/**"
       - "scripts/state/**"
@@ -36,11 +78,49 @@ on:
   #
   # `vars.LAB_ONLINE: false` skips the lab-bound jobs so a push still validates,
   # converts and commits its SPL instead of queueing. This is the way back:
-  # a manual run once the lab is up. No inputs -- an empty `github.event.before`
-  # already puts the `changes` step in `mode=all`, so a dispatch re-converts,
-  # re-deploys and re-measures the whole rule set, which is exactly what is
-  # needed after rules were merged while the lab was down.
+  # a manual run once the lab is up.
   workflow_dispatch:
+    inputs:
+      # Register item 2.21. A push knows what changed; a manual run has no
+      # before..after to work from, so it used to widen to every rule -- which
+      # meant re-attacking all 27 on the lab VMs to catch up two.
+      #
+      # The baseline that does exist is in the committed results: each
+      # result.json records the rule_version it was measured against, and a
+      # rule's version is its commit count. "Needs a run" is therefore
+      # answerable without a diff -- no result, or a result belonging to an
+      # older version of itself.
+      scope:
+        description: "Which rules to process"
+        type: choice
+        default: unverified
+        options:
+          # Only rules whose verification is missing or stale. The normal way
+          # to catch up after rules were merged while the lab was down.
+          - unverified
+          # Every rule. Keep using this after a converter or schema change:
+          # those invalidate previously converted SPL without changing any
+          # rule's version, so the staleness check cannot see them.
+          - all
+
+      # Re-run named rules through the whole pipeline without touching them.
+      #
+      # Free text rather than a dropdown, because the platform offers no choice:
+      # workflow_dispatch inputs are static YAML and `type: choice` is
+      # single-select -- there is no multi-select input type. A dropdown could
+      # only ever offer one rule, and keeping its options in step with
+      # rules/sigma/ would mean CI rewriting this file on every rule change.
+      #
+      # The safety a dropdown would have given comes from validation instead:
+      # an unknown id fails the run immediately and prints every valid one.
+      #
+      # Takes precedence over `scope` when non-empty -- naming rules explicitly
+      # is a more specific instruction than either bulk mode.
+      rules:
+        description: "Re-run these rules (detect_id, comma or space separated). Overrides the scope above."
+        type: string
+        required: false
+        default: ""
 
 concurrency:
   group: detection-pipeline-${{ github.ref }}
@@ -77,19 +157,26 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           token: ${{ secrets.GH_PAT_DEV_PUSH }}
           fetch-depth: 0
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
 
       - name: Determine changed Sigma files
         id: changes
         shell: bash
+        env:
+          # Passed as an environment variable rather than interpolated into the
+          # script body: the value reaches bash as data instead of becoming
+          # shell source, which is both the safer pattern in general and what
+          # keeps the default (`unverified`) visible in the script itself.
+          DISPATCH_SCOPE: ${{ inputs.scope }}
+          DISPATCH_RULES: ${{ inputs.rules }}
         run: |
           set -euo pipefail
 
@@ -109,6 +196,21 @@ jobs:
 
           if [[ -z "${BASE_SHA}" || "${BASE_SHA}" =~ ^0+$ ]]; then
             mode="all"
+          fi
+
+          # Register item 2.21. A manual run says what it wants explicitly,
+          # rather than falling into `all` as a side effect of workflow_dispatch
+          # having no `github.event.before`.
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            # A named selection is a more specific instruction than either bulk
+            # mode, so it wins over scope rather than intersecting with it.
+            if [[ -n "${DISPATCH_RULES// /}" ]]; then
+              mode="selected"
+              echo "Manual run, explicit rule selection."
+            else
+              mode="${DISPATCH_SCOPE:-unverified}"
+              echo "Manual run, scope: $mode"
+            fi
           fi
 
           mapfile -t files < <(git diff --name-only --diff-filter=AMRC "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true)
@@ -135,12 +237,25 @@ jobs:
           # name, so changing it renames every deployed object -- the strongest
           # reason there is to rebuild everything, and it was the one case that
           # started a run and then only processed the diff.
+          # Register item 3.7 added the last two. Both decide what the converter
+          # emits without being the converter: backend_config.py resolves which
+          # backend and pipeline every rule is built with, and backends.yml is
+          # the data it resolves from -- editing either changes all 27 outputs
+          # while sigma_to_spl.py itself stays untouched.
+          #
+          # Still an explicit list rather than the `scripts/convert/**` glob used
+          # by the path filter above: item 2.19 was exactly a glob here matching
+          # a file that changes no output, and the cost of being wrong at this
+          # point is a full lab run against every rule. A new file under
+          # scripts/convert/ has to be judged and added by hand.
           rebuild_all_files=(
             "docs/schemas/sigma_schema.json"
             "scripts/validate/validate_sigma.py"
             "scripts/validate/validate_sigma.ps1"
             "scripts/convert/sigma_to_spl.py"
             "scripts/lib/rule_naming.py"
+            "scripts/convert/backend_config.py"
+            "config/backends.yml"
           )
 
           if [[ "$mode" != "all" ]]; then
@@ -156,7 +271,32 @@ jobs:
           fi
 
           rule_files=()
-          if [[ "$mode" == "all" ]]; then
+          if [[ "$mode" == "selected" ]]; then
+            # Strict: an unknown id exits non-zero and prints every valid one,
+            # and writes nothing to stdout. Running the subset that happened to
+            # resolve would be worse than not running -- it would look like the
+            # request was honoured.
+            while IFS= read -r rf; do
+              [[ -n "$rf" ]] && rule_files+=("$rf")
+            done < <(python scripts/state/resolve_rule_selection.py "$DISPATCH_RULES")
+
+            if [[ "${#rule_files[@]}" -eq 0 ]]; then
+              echo "::error::No rules resolved from the selection. See the list of valid detect_ids above."
+              exit 1
+            fi
+          elif [[ "$mode" == "unverified" ]]; then
+            # This step runs before "Install Python deps" -- that one is gated on
+            # has_rules, which is what is being computed here. Same conditional
+            # install the prune step uses, from the same pinned file.
+            python -c "import yaml" 2>/dev/null || python -m pip install -r .github/requirements.txt
+
+            # Diagnostics go to stderr, so stdout is the selection and nothing
+            # else. Selecting nothing is a legitimate answer: it means every
+            # rule is already verified at its current version.
+            while IFS= read -r rf; do
+              [[ -n "$rf" ]] && rule_files+=("$rf")
+            done < <(python scripts/state/select_unverified.py)
+          elif [[ "$mode" == "all" ]]; then
             while IFS= read -r rf; do
               [[ -n "$rf" ]] && rule_files+=("$rf")
             done < <(git ls-files "rules/sigma/*.yml" "rules/sigma/**/*.yml" "rules/sigma/*.yaml" "rules/sigma/**/*.yaml" || true)
@@ -169,7 +309,19 @@ jobs:
           fi
 
           if [[ "${#rule_files[@]}" -eq 0 ]]; then
-            echo "No Sigma rule files to process."
+            if [[ "$mode" == "unverified" ]]; then
+              # Not "nothing to do because nothing changed" -- this one is a
+              # positive result, and worth saying so rather than looking like an
+              # empty run somebody has to interpret.
+              echo "Every rule is already verified at its current version. Nothing to run."
+              {
+                echo "### Nothing to verify"
+                echo ""
+                echo "Every rule already has a verification result matching its current version. Choose the \`all\` scope to force a full rebuild anyway."
+              } >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "No Sigma rule files to process."
+            fi
             {
               echo "mode=none"
               echo "has_rules=false"
@@ -190,7 +342,7 @@ jobs:
 
       - name: Cache pip packages
         if: steps.changes.outputs.has_rules == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.cache/pip
           key: pip-prepare-${{ runner.os }}-${{ hashFiles('.github/requirements.txt') }}
@@ -311,6 +463,31 @@ jobs:
           python scripts/validate/check_test_routing.py \
             --workflow .github/workflows/ci_dev_workflow.yml
 
+      # Register item 4.3. The schema does not catch this: the tag pattern in
+      # sigma_schema.json sits in an `anyOf` whose third branch is free text, so
+      # `attack.t123` validates -- and extract_techniques() in generate_stats.py
+      # matches an even looser `attack\.t\d+`, which means a mistyped technique
+      # is rendered as a badge and a Navigator cell as though it were covered.
+      #
+      # Advisory, not a gate, and deliberately without --strict: a wrong tag
+      # misfiles a working detection on the matrix, it does not break it, and a
+      # rule is worth deploying while its tag is argued about. The exit code
+      # stays 0; the finding arrives as an annotation and a step summary row.
+      #
+      # Reads the technique map committed under outputs/reports/ -- no network
+      # call, and none is wanted: a validator that fetches would go green for
+      # the wrong reason on the day the fetch quietly fails.
+      #
+      # Every rule, not just the changed ones, for the same reason as the
+      # routing check above: what invalidates a tag is usually upstream (a
+      # technique revoked, the cache refreshed), not this push.
+      - name: Check MITRE ATT&CK tags against the technique map
+        if: steps.changes.outputs.has_rules == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/validate/check_mitre_tags.py
+
       - name: Convert Sigma rules to Splunk SPL
         if: steps.changes.outputs.has_rules == 'true'
         shell: bash
@@ -349,7 +526,29 @@ jobs:
 
           cp scripts/atomic/run_atomic.ps1 pipeline_bundle/scripts/atomic/run_atomic.ps1
           cp scripts/deploy/deploy_spl_to_splunk.py pipeline_bundle/scripts/deploy/deploy_spl_to_splunk.py
-          cp scripts/lib/rule_naming.py pipeline_bundle/scripts/lib/rule_naming.py
+
+          # Register item 3.6, and the bug it caused. This was a single `cp` of
+          # rule_naming.py. That refactor moved the env helpers into
+          # scripts/lib/env.py and rewrote deploy_spl_to_splunk.py to import
+          # them -- and a copy list maintained by hand cannot know that, so the
+          # bundle shipped without env.py and the deploy died 0.1s in on the lab
+          # runner with `ModuleNotFoundError: No module named 'lib.env'`
+          # (run #67), long after this job had gone green.
+          #
+          # Wholesale rather than one more line: naming files by hand is the
+          # failure mode itself, and the next module under lib/ would reproduce
+          # it exactly. lib/ holds only small, non-secret, importable helpers
+          # shared by the bundled scripts, so copying all of it costs nothing
+          # and cannot leak anything the deploy script does not already carry.
+          #
+          # `scripts/lib/.` and not `scripts/lib`, which would nest the
+          # directory as pipeline_bundle/scripts/lib/lib.
+          cp -r scripts/lib/. pipeline_bundle/scripts/lib/
+
+          # Only reachable because the copy is wholesale: bytecode is not part
+          # of the bundle's contract, and it is not something to ship in a
+          # downloadable artifact just because it happened to be on disk.
+          find pipeline_bundle/scripts/lib -type d -name '__pycache__' -prune -exec rm -rf {} +
 
           mapfile -t rules <<'EOF'
           ${{ steps.changes.outputs.rule_files }}
@@ -436,6 +635,17 @@ jobs:
           echo "Push failed after 3 attempts."
           exit 1
 
+      # Register item 2.10. This used to be a bash loop spawning *two*
+      # `python3 -c` one-liners per rule -- 54 processes for 27 rules -- to read
+      # two fields out of the same file, each ending in `2>/dev/null || true`,
+      # so a rule whose YAML failed to parse silently became an empty tester and
+      # dropped out of routing with nothing said.
+      #
+      # check_test_routing.py (item 2.17) already parses these rules and already
+      # knows which job services each (tester, runner) pair, so the flags are a
+      # lookup in a table it has built rather than a second pass over the same
+      # files. Deliberately not a new script: adding a fourth parser of the same
+      # metadata is the very thing this item is about.
       - name: Detect test types in pipeline bundle
         id: test_types
         if: steps.bundle.outputs.has_spl == 'true'
@@ -443,40 +653,95 @@ jobs:
         run: |
           set -euo pipefail
 
-          has_atomic=false
-          has_atomic_dc=false
-          has_emulation=false
-
           mapfile -t rules <<'EOF'
           ${{ steps.changes.outputs.rule_files }}
           EOF
 
+          selected=()
           for rule in "${rules[@]}"; do
-            [[ -z "$rule" ]] && continue
-            tester=$(python3 -c "import yaml,sys; d=yaml.safe_load(open(sys.argv[1])) or {}; t=(d.get('custom') or {}).get('testing') or {}; print(t.get('type','') if t.get('enabled') else '')" "$rule" 2>/dev/null || true)
-            runner=$(python3 -c "import yaml,sys; d=yaml.safe_load(open(sys.argv[1])) or {}; t=(d.get('custom') or {}).get('testing') or {}; print(t.get('runner','windows-victim') if t.get('enabled') else '')" "$rule" 2>/dev/null || true)
-            case "$tester" in
-              atomic)
-                if [[ "$runner" == "windows-dc" ]]; then
-                  has_atomic_dc=true
-                else
-                  has_atomic=true
-                fi
-                ;;
-              emulation) has_emulation=true ;;
-            esac
+            [[ -n "$rule" ]] && selected+=("$rule")
           done
 
-          {
-            echo "has_atomic_tests=$has_atomic"
-            echo "has_atomic_dc_tests=$has_atomic_dc"
-            echo "has_emulation_tests=$has_emulation"
-          } >> "$GITHUB_OUTPUT"
-          echo "Test types in this batch: atomic (victim)=$has_atomic, atomic (DC)=$has_atomic_dc, emulation=$has_emulation"
+          python scripts/validate/check_test_routing.py \
+            --workflow .github/workflows/ci_dev_workflow.yml \
+            --job-flags \
+            "${selected[@]}"
+
+      # Register item 3.6, the guard side. The packaging fault above was
+      # invisible on this runner and only surfaced on the far side of an
+      # artifact upload, a queue wait and a download -- in deploy_to_splunk,
+      # the one job whose failure also takes all three attack jobs and the
+      # verification with it. Nothing between the two ends checked that the
+      # bundle was even importable.
+      #
+      # Now it does, here, where the bundle was built and where being wrong
+      # costs seconds. Deliberately placed after the SPL commit step: the
+      # converted SPL is correct regardless of how the bundle was packed, and
+      # there is no reason to withhold it over a packaging fault.
+      #
+      # Nothing is contacted and no Splunk credential is involved. argparse
+      # prints usage and exits 0 well before the first env_required(), and the
+      # import pass only executes module-level code -- which in every bundled
+      # script is definitions behind an `if __name__ == "__main__"` guard.
+      # The only third-party import in the bundle today is `requests`, and it
+      # comes from the pinned install above -- so this adds no dependency of
+      # its own and cannot drift from what the lab runner will use.
+      - name: Smoke-test the pipeline bundle
+        if: steps.bundle.outputs.has_spl == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Invoked exactly the way deploy_to_splunk invokes it -- `python
+          # pipeline_bundle/...` from the repo root -- because that is what
+          # decides how the script's own sys.path.insert(parents[1]) resolves
+          # `lib.env` and `lib.rule_naming`. A --help that exits 0 means the
+          # whole module-level import chain resolved inside the bundle.
+          python pipeline_bundle/scripts/deploy/deploy_spl_to_splunk.py --help > /dev/null
+          echo "OK  pipeline_bundle/scripts/deploy/deploy_spl_to_splunk.py (--help)"
+
+          # And every other Python file in the bundle, so a second entrypoint
+          # added later is covered without anyone remembering to extend this.
+          python - <<'PY'
+          import importlib.util
+          import sys
+          import traceback
+          from pathlib import Path
+
+          root = Path("pipeline_bundle/scripts").resolve()
+          # The same directory the bundled scripts put on sys.path themselves.
+          sys.path.insert(0, str(root))
+
+          modules = sorted(root.rglob("*.py"))
+          failed = []
+
+          for mod in modules:
+              rel = mod.relative_to(root.parents[1])
+              spec = importlib.util.spec_from_file_location(f"_bundle_{mod.stem}", mod)
+              try:
+                  spec.loader.exec_module(importlib.util.module_from_spec(spec))
+              except Exception:
+                  traceback.print_exc()
+                  failed.append(str(rel))
+              else:
+                  print(f"OK  {rel}")
+
+          if failed:
+              print(
+                  "::error title=Pipeline bundle is incomplete::"
+                  f"Bundled script(s) cannot import their dependencies: {', '.join(failed)}. "
+                  "Something they import was not copied into pipeline_bundle -- see the "
+                  "'Build pipeline bundle' step. Fixing this here is the point: uploaded as "
+                  "is, the bundle fails on the self-hosted lab runner instead."
+              )
+              sys.exit(1)
+
+          print(f"Bundle smoke test passed: {len(modules)} module(s) import cleanly.")
+          PY
 
       - name: Upload pipeline bundle
         if: steps.bundle.outputs.has_spl == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: spl-pipeline-bundle
           path: pipeline_bundle
@@ -544,13 +809,13 @@ jobs:
 
     steps:
       - name: Download pipeline bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: spl-pipeline-bundle
           path: pipeline_bundle
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
 
@@ -568,8 +833,50 @@ jobs:
           SPLUNK_BASE_URL: ${{ secrets.SPLUNK_BASE_URL }}
           SPLUNK_USERNAME: ${{ secrets.SPLUNK_USERNAME }}
           SPLUNK_PASSWORD: ${{ secrets.SPLUNK_PASSWORD }}
-          SPLUNK_APP: ${{ secrets.SPLUNK_APP }}
-          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS || 'false' }}
+          # Register item 2.18, and the reference copy of this line -- the three
+          # other uses in splunk_verify below and the one in
+          # ci_prod_workflow.yml must stay identical in form.
+          #
+          # A variable, not a secret: an app namespace is a routing label, not a
+          # credential. It grants nothing on its own, and masking it only made
+          # the single value that decides dev-vs-prod unreadable in the logs of
+          # the job it aims -- while leaving the two environments' values
+          # impossible to compare, which is exactly the cross-check
+          # threat_model.md notes is missing.
+          #
+          # Environment-scoped (`environment: dev` above), so this expression
+          # and the byte-identical one in the prod workflow resolve to different
+          # apps. That resolution happens when the job starts, which is why this
+          # is only ever read from a step `env:` block: a job-level `if:` is
+          # evaluated before the environment exists and would silently see an
+          # empty string -- the trap register item 2.20 hit with LAB_ONLINE.
+          #
+          # Unset fails closed rather than deploying into a nameless namespace:
+          # every consumer calls env_required(), which rejects empty and
+          # whitespace-only values and exits non-zero before the first HTTP call
+          # (deploy_spl_to_splunk.py exit 1, wait_for_indexing.py and
+          # reconcile.py exit 2, check_saved_search_hits.py exit 1).
+          SPLUNK_APP: ${{ vars.SPLUNK_APP }}
+          # Register item 2.14, and the reference copy of this line -- the three
+          # other uses below and the one in ci_prod_workflow.yml must stay
+          # identical in form.
+          #
+          # The `|| 'false'` fallback that used to close this line is gone. It
+          # did not mean "no preference": it translated a *missing* secret into
+          # a positive instruction to skip certificate verification, one layer
+          # above the code that had already decided the safe answer. All four
+          # consumers call env_bool("SPLUNK_VERIFY_TLS", default=True), so an
+          # unset value already meant verify; the workflow overrode that safe
+          # default with its opposite, and did so silently.
+          #
+          # Now an unset secret renders empty, env_bool falls through to
+          # default=True, and the connection either verifies or fails loudly.
+          # That is the intended trade: a run that dies on an untrusted
+          # certificate is a fixable, visible problem, while a run that quietly
+          # stops checking is a problem nobody sees. Turning verification off
+          # for a self-signed lab cert stays possible -- it just has to be said
+          # out loud, by setting the secret to `false`.
+          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS }}
           SPLUNK_SHARING: app
           SPLUNK_PERMS_READ: "*"
           SPLUNK_PERMS_WRITE: admin,ci_deploy_savedsearches
@@ -632,7 +939,7 @@ jobs:
           Write-Host "Atomic (victim) test phase starts at epoch $epoch (UTC $([DateTimeOffset]::FromUnixTimeSeconds($epoch).UtcDateTime))"
 
       - name: Download pipeline bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: spl-pipeline-bundle
           path: pipeline_bundle
@@ -669,7 +976,7 @@ jobs:
 
       - name: Upload atomic progress markers
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: atomic-progress-victim-${{ github.run_id }}
           path: outputs/verify/atomic_progress
@@ -707,7 +1014,7 @@ jobs:
           Write-Host "Atomic (DC) test phase starts at epoch $epoch (UTC $([DateTimeOffset]::FromUnixTimeSeconds($epoch).UtcDateTime))"
 
       - name: Download pipeline bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: spl-pipeline-bundle
           path: pipeline_bundle
@@ -744,7 +1051,7 @@ jobs:
 
       - name: Upload atomic progress markers
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: atomic-progress-dc-${{ github.run_id }}
           path: outputs/verify/atomic_progress
@@ -784,7 +1091,7 @@ jobs:
           Write-Host "Emulation test phase starts at epoch $epoch (UTC $([DateTimeOffset]::FromUnixTimeSeconds($epoch).UtcDateTime))"
 
       - name: Download pipeline bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: spl-pipeline-bundle
           path: pipeline_bundle
@@ -817,6 +1124,20 @@ jobs:
           Write-Host "Running script emulation verification against $($splFiles.Count) SPL file(s)..."
 
           .\pipeline_bundle\scripts\atomic\run_atomic.ps1 -SplFiles $bundleSplFiles
+
+      # Register item 2.8. This job had no upload step at all, unlike the two
+      # atomic jobs -- so even once run_atomic.ps1 started writing markers for
+      # emulation rules, nothing carried them to splunk_verify. always(), for
+      # the same reason as the atomic jobs: a step killed by its timeout is
+      # precisely the case the markers exist to describe.
+      - name: Upload emulation progress markers
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: emulation-progress-${{ github.run_id }}
+          path: outputs/verify/atomic_progress
+          if-no-files-found: ignore
+          retention-days: 1
 
   splunk_verify:
     name: Splunk Verification
@@ -869,13 +1190,13 @@ jobs:
       # git reset --hard genuinely doesn't need history, but this step,
       # earlier in the same job on the same checkout, does.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           token: ${{ secrets.GH_PAT_DEV_PUSH }}
           fetch-depth: 0
 
       - name: Download pipeline bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: spl-pipeline-bundle
           path: pipeline_bundle
@@ -888,7 +1209,7 @@ jobs:
       - name: Download atomic progress markers (victim)
         if: needs.prepare_validate_convert.outputs.has_atomic_tests == 'true'
         continue-on-error: true
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: atomic-progress-victim-${{ github.run_id }}
           path: outputs/verify/atomic_progress
@@ -896,13 +1217,24 @@ jobs:
       - name: Download atomic progress markers (DC)
         if: needs.prepare_validate_convert.outputs.has_atomic_dc_tests == 'true'
         continue-on-error: true
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: atomic-progress-dc-${{ github.run_id }}
           path: outputs/verify/atomic_progress
 
+      # Register item 2.8. Same directory as the two above on purpose: the
+      # markers are per-detect_id files, the three jobs cover disjoint sets of
+      # rules, and pass_fail_eval.py reads the directory as one pool.
+      - name: Download emulation progress markers
+        if: needs.prepare_validate_convert.outputs.has_emulation_tests == 'true'
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: emulation-progress-${{ github.run_id }}
+          path: outputs/verify/atomic_progress
+
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
 
@@ -913,13 +1245,6 @@ jobs:
           echo "Installing Python dependencies: requests, pyyaml"
           python -m pip install --upgrade pip
           python -m pip install requests pyyaml
-
-      - name: Wait for Splunk indexing
-        shell: bash
-        run: |
-          WAIT=${SPLUNK_VERIFY_WAIT_SECONDS:-60}
-          echo "Waiting ${WAIT}s for Splunk to index atomic test events..."
-          sleep "$WAIT"
 
       - name: Compute verification time window
         id: window
@@ -980,6 +1305,54 @@ jobs:
           echo "Searching Splunk from $earliest to now."
           echo "earliest=$earliest" >> "$GITHUB_OUTPUT"
 
+      # Register item 2.3. This used to be `sleep ${SPLUNK_VERIFY_WAIT_SECONDS:-60}`
+      # -- a variable nothing ever set, so it was always exactly 60 seconds and
+      # the name only suggested it was tunable.
+      #
+      # A fixed sleep is wrong in both directions: it costs a full minute even
+      # when the indexer was ready in eight seconds, and it silently gives up
+      # after sixty when the indexer needed ninety, producing zero hits and a
+      # verdict that reads as "the detection failed" when what happened is that
+      # nobody waited long enough. That is the same class of false verdict as
+      # registers 1.4 and 1.5.
+      #
+      # Deliberately placed *after* the window step, which it did not used to
+      # be: the probe needs to know when the test phase began to ask anything
+      # meaningful. The window step touches no lab resource, so moving the wait
+      # below it changes nothing else.
+      - name: Wait for Splunk indexing
+        shell: bash
+        env:
+          SPLUNK_BASE_URL: ${{ secrets.SPLUNK_BASE_URL }}
+          SPLUNK_USERNAME: ${{ secrets.SPLUNK_USERNAME }}
+          SPLUNK_PASSWORD: ${{ secrets.SPLUNK_PASSWORD }}
+          # Register item 2.18: environment-scoped variable, not a secret.
+          # See the deploy_to_splunk step above for why.
+          SPLUNK_APP: ${{ vars.SPLUNK_APP }}
+          # Register item 2.14: no `|| 'false'` fallback -- an unset secret must
+          # not read as "skip verification". See deploy_to_splunk above for why.
+          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t spl_files <<'EOF'
+          ${{ needs.prepare_validate_convert.outputs.spl_files }}
+          EOF
+
+          bundle_files=()
+          for spl_file in "${spl_files[@]}"; do
+            [[ -z "$spl_file" ]] && continue
+            bundle_files+=("pipeline_bundle/$spl_file")
+          done
+
+          # The sidecars name the indexes to watch, so a quiet index nobody in
+          # this batch writes to cannot satisfy the wait.
+          python scripts/verify/wait_for_indexing.py \
+            --since "${{ steps.window.outputs.earliest }}" \
+            --timeout 180 \
+            --interval 10 \
+            "${bundle_files[@]}"
+
       - name: Query Splunk for matched events
         id: fetch
         shell: bash
@@ -987,8 +1360,12 @@ jobs:
           SPLUNK_BASE_URL: ${{ secrets.SPLUNK_BASE_URL }}
           SPLUNK_USERNAME: ${{ secrets.SPLUNK_USERNAME }}
           SPLUNK_PASSWORD: ${{ secrets.SPLUNK_PASSWORD }}
-          SPLUNK_APP: ${{ secrets.SPLUNK_APP }}
-          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS || 'false' }}
+          # Register item 2.18: environment-scoped variable, not a secret.
+          # See the deploy_to_splunk step above for why.
+          SPLUNK_APP: ${{ vars.SPLUNK_APP }}
+          # Register item 2.14: no `|| 'false'` fallback -- an unset secret must
+          # not read as "skip verification". See deploy_to_splunk above for why.
+          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS }}
         run: |
           set -euo pipefail
 
@@ -1035,13 +1412,26 @@ jobs:
           EVAL_EXIT=$?
           echo "exit_code=$EVAL_EXIT" >> "$GITHUB_OUTPUT"
 
+      # Register item 2.16. Each hits.json carries the raw Splunk events behind a
+      # verdict -- command lines, usernames, hostnames, paths from the lab hosts
+      # -- and artifacts on a public repository are downloadable by anyone.
+      #
+      # Kept rather than filtered, because the raw event *is* the debugging
+      # value: when a count looks wrong, the command line is the thing you need
+      # to read. What was wrong was the window. These exist to explain one run,
+      # and nobody debugs a three-month-old run, so 90 days was retention with
+      # no use case attached. 14 covers a long weekend plus a holiday.
+      #
+      # The exposure that actually matters here is not the synthetic attack
+      # traffic but the lab's naming -- hosts, domain, service accounts -- which
+      # has reconnaissance value to the extent the lab mirrors production.
       - name: Upload matched events artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: matched-events-sigma-${{ github.run_id }}
           path: ${{ env.matched_events_dir }}
-          retention-days: 90
+          retention-days: 14
           if-no-files-found: ignore
 
       # Nothing else in this pipeline ever looks at Splunk and asks "is what is
@@ -1073,8 +1463,12 @@ jobs:
           SPLUNK_BASE_URL: ${{ secrets.SPLUNK_BASE_URL }}
           SPLUNK_USERNAME: ${{ secrets.SPLUNK_USERNAME }}
           SPLUNK_PASSWORD: ${{ secrets.SPLUNK_PASSWORD }}
-          SPLUNK_APP: ${{ secrets.SPLUNK_APP }}
-          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS || 'false' }}
+          # Register item 2.18: environment-scoped variable, not a secret.
+          # See the deploy_to_splunk step above for why.
+          SPLUNK_APP: ${{ vars.SPLUNK_APP }}
+          # Register item 2.14: no `|| 'false'` fallback -- an unset secret must
+          # not read as "skip verification". See deploy_to_splunk above for why.
+          SPLUNK_VERIFY_TLS: ${{ secrets.SPLUNK_VERIFY_TLS }}
         run: |
           set -uo pipefail
 
@@ -1120,7 +1514,7 @@ jobs:
       - name: Upload reconciliation report
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: splunk-reconcile-${{ github.run_id }}
           path: outputs/state/reconcile.json
@@ -1287,15 +1681,15 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: dev
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: docs/
 
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

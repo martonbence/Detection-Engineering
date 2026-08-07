@@ -207,6 +207,30 @@
       "total_rules": 27,
       "total_sigma_rules": 27,
       "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-08-05",
+      "timestamp": "2026-08-05T13:56:36.140877+00:00",
+      "git_sha": "03860b95041cf9f62a0a3830362581c0a0d7d624",
+      "total_rules": 27,
+      "total_sigma_rules": 27,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-08-06",
+      "timestamp": "2026-08-06T14:36:12.344673+00:00",
+      "git_sha": "1bd120bade9fb9e3d52dcf3c16cf16d8d0183466",
+      "total_rules": 27,
+      "total_sigma_rules": 27,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-08-07",
+      "timestamp": "2026-08-07T14:01:09.063005+00:00",
+      "git_sha": "f19162420cfbeae1bc042a25f6bdcd6947ed29d9",
+      "total_rules": 27,
+      "total_sigma_rules": 27,
+      "total_native_spl_rules": 1
     }
   ]
 }
