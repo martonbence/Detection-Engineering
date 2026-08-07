@@ -56,6 +56,9 @@ import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from lib.summary import MARK_FAIL, MARK_WARN, escape_cell
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # Written by generate_stats.py. This checker is a pure reader of it.
@@ -453,9 +456,11 @@ def write_step_summary(findings: list[dict]) -> None:
         "| --- | --- | --- | --- |",
     ]
     for f in findings:
-        mark = "❌" if f["severity"] == ERROR else "⚠️"
-        detail = f["message"].replace("|", "\\|")
-        lines.append(f"| `{f['detect_id']}` | `{f['tag']}` | {mark} {f['reason']} | {detail} |")
+        mark = MARK_FAIL if f["severity"] == ERROR else MARK_WARN
+        lines.append(
+            f"| `{escape_cell(f['detect_id'])}` | `{escape_cell(f['tag'])}` "
+            f"| {mark} {escape_cell(f['reason'])} | {escape_cell(f['message'])} |"
+        )
     lines.append("")
 
     try:

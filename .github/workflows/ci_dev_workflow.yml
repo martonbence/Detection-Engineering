@@ -1626,9 +1626,12 @@ jobs:
 
           if [[ -n "$existing_url" ]]; then
             echo "A dev -> main promotion PR is already open: $existing_url"
+            # Marks kept in sync by hand with scripts/lib/summary.py -- bash
+            # cannot import it. That module is where they are explained.
             {
               echo "### Promotion PR"
-              echo "ℹ️ Already open: $existing_url"
+              echo ""
+              echo "· Already open: $existing_url"
             } >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
@@ -1642,7 +1645,8 @@ jobs:
           echo "Opened promotion PR: $pr_url"
           {
             echo "### Promotion PR"
-            echo "✅ Opened: $pr_url"
+            echo ""
+            echo "✓ Opened: $pr_url"
           } >> "$GITHUB_STEP_SUMMARY"
 
           if item_id=$(gh project item-add 3 --owner martonbence --url "$pr_url" --format json --jq '.id' 2>&1); then
