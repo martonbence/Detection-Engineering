@@ -753,3 +753,54 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   egyetlen jelzés ugyanaz a warning lenne, amit mindenki megtanult átgörgetni. Most előbb GET, aztán
   döntés; a 409 mostantól valódi találat, saját szöveggel. Az olvashatatlan ACL nem „már jó", hanem
   „nem tudom" — ott a régi viselkedés marad.
+- **2026-08-07** — **A Splunk-oldali „duplikátumok" nyomozása, és amit közben a mérésről tanultunk.**
+  A deploy minden futásban `ACL update failed HTTP 409: "Cannot overwrite existing app object"`-et írt
+  szabályonként. A javítás nem a warning elnyomása lett, hanem hogy a `set_acl()` **olvasson írás
+  előtt**: egyező ACL-nél nincs írás és nincs üzenet, eltérőnél megy a POST, és ha ott jön 409, az
+  mostantól valódi találat, ami kimondja mi a jelenlegi és mi a kívánt állapot. Ez tette láthatóvá a
+  tényleges helyzetet: `Current: sharing='user'`, nem az, amit a Splunk hibaszövege sugallt.
+  **Három hipotézisem volt rá, kettő téves.** Először azt állítottam, hogy a privát objektumok az élő
+  detekciók és az app-szintűek inert reportok — a felhasználó Splunk-listája ennek pont az
+  ellenkezőjét mutatta. Aztán azt, hogy a `nobody` névtérre kell váltani — amire a
+  `deploy_spl_to_splunk.py:379-386` **már ott lévő kommentje** válaszolt: azt megpróbálták, és a
+  szolgáltatásfiók `admin_all_objects` hiányában minden ACL-frissítést elbukott vele. A tanulság
+  nem az, hogy hipotézist felállítani hiba, hanem hogy **a repo már tartalmazta a cáfolatot**, és
+  előbb kellett volna elolvasni, mint javasolni.
+  A végén a felhasználó kísérlete döntött: egy objektumot törölve **a másik is eltűnt** — vagyis
+  nem két objektum volt, hanem egy, két megjelenített konfigurációs réteggel. Friss telepítés után
+  egyetlen sor jött vissza, 409 nélkül. **Bizonyítva nincs**: a döntő `Created:` sort a deploy
+  logjában sosem láttuk, mindkét futás `Updated:`-et írt. A most bevezetett duplikátum-riport az,
+  ami ezt legközelebb magától megválaszolja.
+- **2026-08-07** — **A prod állapotáról a pipeline semmit nem tud — ez a 4.7 konkrét példája.**
+  A `DETECT-2026-0003` kézzel törölve lett a prod Splunk appból. A dev futás lement, a promotion PR
+  megnyílt és mergelődött — a prod deploy mégsem indult el, és a szabály nem került vissza. Ez
+  **helyes viselkedés**: a prod workflow `paths:` szűrője szándékosan szűk (`rules/sigma/**` és a
+  saját fájlja), a merge viszont csak `README.md`-t, `docs/index.html`-t és `outputs/**`-ot vitt át,
+  mert a szabály maga nem változott, csak újra lett mérve. Pontosan az az eset, amiért a **2.5** a
+  `workflow_dispatch`-et bevezette. **A tanulság nem a triggerről szól, hanem arról, hogy az eltérés
+  láthatatlan volt.** A prod eggyel kevesebb szabályt tudott, és erről a repo nem tudott (semmi nem
+  változott benne), a reconcile nem tudott (csak a dev appot nézi), a dashboard nem tudott (nincs
+  deployment inventory). Egyedül az tudta, aki törölte. Ha egy telepítés csendben bukik el, vagy más
+  töröl, ma semmi nem szól. A **4.7** eddig „jó lenne látni"-ként volt megfogalmazva; ez a nap
+  megmutatta, hogy inkább hiányzó visszacsatolás egy egyirányú telepítési láncban.
+- **2026-08-07** — **Az ACL-409 megoldva: egy önfenntartó hurok volt, és a lezárást három mérés adta,
+  nem érvelés.** Egyetlen prod futás mind a 27 szabályt telepítette, és a minta tökéletes: **26 × 409
+  frissítésnél, 0 × 409 az egyetlen frissen létrehozottnál** (`DETECT-2026-0003`, amit a felhasználó
+  előtte kitörölt). Mellé egy kontrollcsoport: ugyanaz a `DETECT-2026-0028` a **dev** appban, ahol az
+  árnyék egyszer törölve lett — ott azóta nincs 409 és egy sor van; a **prod** appban, ahol az árnyék
+  megmaradt, két sor és 409. Ugyanaz a szabály, két app, ellentétes állapot, és a különbség egyetlen
+  kézi törlés.
+  A hurok: egy privát stanza ül az objektum fölött → a `read_acl` a `servicesNS/<user>/<app>` úton
+  **azt** oldja fel, tehát `sharing='user'`-t lát → eltérést állapít meg → POST-ol → a Splunk
+  elutasítja (409), és közben fenntartja a privát stanzát → vissza az elejére. Friss létrehozásnál
+  nincs mit feloldani, a promóció sikerül, árnyék nem keletkezik.
+  **Amiért ez lezárja az ügyet, és nem csak elnémítja:** a mai `set_acl` read-before-write javítás
+  egyező ACL-nél **egyáltalán nem POST-ol**, tehát az árnyék egyszeri eltávolítása után a hurok 4.
+  lépése soha nem következik be. A javítás eredetileg a zaj ellen készült; kiderült, hogy egyben ez
+  akadályozza meg az árnyék visszaépülését is. Ez szerencse volt, nem tervezés.
+  **Amit ez a nap a módszerről tanított:** négy hipotézisem volt (privát objektumok az élők; `nobody`
+  névtér; konfigurációs réteg; önfenntartó hurok), és csak a negyedik állta ki a próbát. Mindegyiket
+  a felhasználó Splunk-listája döntötte el, nem a kódolvasás — a `Created:` és a 409 együttállása
+  egyetlen futásban többet ért, mint az összes addigi következtetés. A tanulság nem az, hogy ne
+  legyen hipotézis, hanem hogy **a mérés olcsóbb volt, mint az érvelés**, és hamarabb kellett volna
+  odafordulni.
