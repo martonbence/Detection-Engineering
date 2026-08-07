@@ -38,7 +38,14 @@ WORKFLOWS = (
 # The one form the env value is allowed to take. Anything else -- most of all
 # anything containing `||` -- lets the workflow decide a question the scripts
 # have already answered.
-EXPECTED = "${{ secrets.SPLUNK_VERIFY_TLS }}"
+#
+# `vars.`, not `secrets.`, since 2026-08-07. Stored as a secret the value was
+# `false`, and GitHub redacts a secret's value everywhere it appears in a log --
+# so the word "false" vanished from every line of every job that had this in
+# scope, including the 2.14 warning whose entire purpose is to print it. What
+# this test guards is unchanged either way: exactly one expression, no `||`
+# fallback deciding for an operator who said nothing.
+EXPECTED = "${{ vars.SPLUNK_VERIFY_TLS }}"
 
 # These four were separate implementations when this file was written, which is
 # why it checks all of them rather than one. Register item 3.6 has since made
