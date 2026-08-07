@@ -675,7 +675,7 @@
       </div>
       <p class="meter-legend" id="meterLegend">
         <span>kritikus <b><span id="cCrit">0</span>/12</b></span>
-        <span>kisebb <b><span id="cMinor">0</span>/18</b></span>
+        <span>kisebb <b><span id="cMinor">0</span>/22</b></span>
         <span>architektúra <b><span id="cArch">0</span>/8</b></span>
         <span>feature <b><span id="cEnh">0</span>/11</b></span>
       </p>
@@ -1154,9 +1154,9 @@
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-14" aria-labelledby="t-2-14">
+      <input class="row-check" type="checkbox" id="i-2-14" aria-labelledby="t-2-14" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.14</span><span class="row-title" id="t-2-14">A TLS-verifikáció csendben kikapcsol, ha nincs beállítva</span></div>
+        <div class="row-head"><span class="id">2.14</span><span class="row-title" id="t-2-14">A TLS-verifikáció csendben kikapcsol, ha nincs beállítva</span><span class="tag done">kész</span></div>
         <p class="row-body"><code>SPLUNK_VERIFY_TLS</code> default <code>'false'</code> mindhárom helyen. A threat model már felhozza — de fail-closed viselkedés kellene: ha nincs beállítva, álljon meg, ne csendben kapcsolja ki a verifikációt.</p>
         <div class="refs"><span class="ref">ci_dev_workflow.yml:386</span><span class="ref">ci_prod_workflow.yml:69</span></div>
       </div>
@@ -1197,9 +1197,9 @@
     </div>
 
     <div class="row sev-minor" data-sev="minor" data-weight="1">
-      <input class="row-check" type="checkbox" id="i-2-18" aria-labelledby="t-2-18">
+      <input class="row-check" type="checkbox" id="i-2-18" aria-labelledby="t-2-18" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">2.18</span><span class="row-title" id="t-2-18">A <code>SPLUNK_APP</code> secretként van kezelve</span><span class="tag new">új</span></div>
+        <div class="row-head"><span class="id">2.18</span><span class="row-title" id="t-2-18">A <code>SPLUNK_APP</code> secretként van kezelve</span><span class="tag done">kész</span></div>
         <p class="row-body">Nem érzékeny adat — <code>vars</code>-ba tartozik, így hibakereséskor a logokban is olvasható maradna.</p>
         <div class="refs"><span class="ref">mindkét workflow env blokk</span></div>
       </div>
@@ -1239,6 +1239,17 @@
       </div>
     </div>
 
+    <div class="row sev-minor" data-sev="minor" data-weight="1">
+      <input class="row-check" type="checkbox" id="i-2-22" aria-labelledby="t-2-22">
+      <div class="row-main">
+        <div class="row-head"><span class="id">2.22</span><span class="row-title" id="t-2-22">A séma tag-validációja dekoratív, és a stats-generátor még nála is lazább</span><span class="tag new">új</span></div>
+        <p class="row-body">A séma <code>tags:</code> mintája egy <code>anyOf</code> <b>harmadik ága</b> mellett áll, ami szabad szöveg — együtt tehát semmit nem zárnak ki, csak szerkesztő-javaslatok. Az <code>attack.t123</code> séma-érvényes. Rosszabb: a <code>generate_stats.py</code> <code>extract_techniques()</code>-e <code>attack\.t\d+</code>-re illeszt, ami <b>lazább a sémáénál</b> — a hibás tag nem egyszerűen átcsúszik, hanem <b>badge-et és Navigator-cellát kap</b>, mintha valós lefedettség lenne.</p>
+        <p class="row-note"><span class="note-label">2026-08-06</span><b>A 4.3 munkája közben derült ki.</b> A 4.3 validátora ma elkapja, de <b>tanácsadó módban</b> — a séma és a generátor közti eltérés maga megmarad. Fix: vagy a séma <code>anyOf</code>-ját szűkíteni (kockázat: a legitim <code>attack.g####</code>/<code>s####</code>/<code>cve.*</code> tageket is ki kell engednie), vagy a generátor regexét a sémáéhoz igazítani, hogy legalább a két oldal ugyanazt mondja.</p>
+        <p class="row-note"><span class="note-label">2026-08-07</span><b>Közelebb került, de nem oldódott meg.</b> A <b>3.1</b> közös Sigma-loadert vezetett be, tehát most már van egy hely, ahová a technika-kinyerés kerülhet. Mérve: a repo <b>egyetlen tagje sem</b> viselkedik ma másképp a szigorú és a laza értelmezés szerint, tehát az összehangolás bájt-azonos kimenettel elvégezhető — a kockázat nem a mai adatban van, hanem a legközelebbi elgépelésben.</p>
+        <div class="refs"><span class="ref">sigma_schema.json</span><span class="ref">extract_techniques()</span><span class="ref">4.3-ból</span></div>
+      </div>
+    </div>
+
   </div>
 
   <!-- ============ 3. ARCHITEKTÚRA ============ -->
@@ -1252,9 +1263,9 @@
   <div class="register" data-sev="arch">
 
     <div class="row sev-arch" data-sev="arch" data-weight="2">
-      <input class="row-check" type="checkbox" id="i-3-1" aria-labelledby="t-3-1">
+      <input class="row-check" type="checkbox" id="i-3-1" aria-labelledby="t-3-1" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">3.1</span><span class="row-title" id="t-3-1">Egy manifest helyett négyszer parse-olod ugyanazt a metaadatot</span></div>
+        <div class="row-head"><span class="id">3.1</span><span class="row-title" id="t-3-1">Egy manifest helyett négyszer parse-olod ugyanazt a metaadatot</span><span class="tag done">kész</span></div>
         <p class="row-body">
           A rule-metaadat ma négy nyelven, négy helyen olvasódik ki: a converterben (YAML-ből), a
           workflow inline Pythonjában (YAML-ből), a <code>run_atomic.ps1</code>-ben (sidecarból), és
@@ -1291,9 +1302,9 @@
     </div>
 
     <div class="row sev-arch" data-sev="arch" data-weight="2">
-      <input class="row-check" type="checkbox" id="i-3-4" aria-labelledby="t-3-4">
+      <input class="row-check" type="checkbox" id="i-3-4" aria-labelledby="t-3-4" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">3.4</span><span class="row-title" id="t-3-4">A <code>generate_stats.py</code> egy 4392 soros monolit</span><span class="tag verified">mérve</span></div>
+        <div class="row-head"><span class="id">3.4</span><span class="row-title" id="t-3-4">A <code>generate_stats.py</code> egy 4392 soros monolit</span><span class="tag done">kész</span></div>
         <p class="row-body">
           Ebből ~3300 sor inline HTML/CSS/JS egyetlen Python r-stringben. Következmények: a
           front-endre nem húzható rá semmilyen eszköz (nincs lint, nincs formázás, nincs syntax
@@ -1330,9 +1341,9 @@
     </div>
 
     <div class="row sev-arch" data-sev="arch" data-weight="2">
-      <input class="row-check" type="checkbox" id="i-3-7" aria-labelledby="t-3-7">
+      <input class="row-check" type="checkbox" id="i-3-7" aria-labelledby="t-3-7" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">3.7</span><span class="row-title" id="t-3-7">Backend lock-in a converterben</span></div>
+        <div class="row-head"><span class="id">3.7</span><span class="row-title" id="t-3-7">Backend lock-in a converterben</span><span class="tag done">kész</span></div>
         <p class="row-body">A <code>pick_pipeline()</code> két pipeline-nevet hardcode-ol. Ha később Elastic-et vagy Sentinelt is céloznál, ez a függvény lesz a szűk keresztmetszet. Egy <code>config/backends.yml</code> (backend → pipeline → deployer) most néhány óra, később hetek.</p>
         <div class="refs"><span class="ref">sigma_to_spl.py:14-15</span><span class="ref">sigma_to_spl.py:41-47</span></div>
       </div>
@@ -1380,9 +1391,9 @@
     </div>
 
     <div class="row sev-enh" data-sev="enh" data-weight="1.5">
-      <input class="row-check" type="checkbox" id="i-4-3" aria-labelledby="t-4-3">
+      <input class="row-check" type="checkbox" id="i-4-3" aria-labelledby="t-4-3" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">4.3</span><span class="row-title" id="t-4-3">MITRE tag-validáció a már letöltött technique map ellen</span></div>
+        <div class="row-head"><span class="id">4.3</span><span class="row-title" id="t-4-3">MITRE tag-validáció a már letöltött technique map ellen</span><span class="tag done">kész</span></div>
         <p class="row-body">A <code>mitre_technique_map.json</code> már ott van cache-elve. Egy validátor, ami ellenőrzi, hogy minden <code>attack.tXXXX</code> létező, nem revoked technikára mutat, és hogy a tactic-tagek egyeznek a technika valós kill-chain fázisaival, néhány tíz sor — a séma ma szabad szöveget engedélyez, tehát egy elírt technika-ID csendben átmegy és meghamisítja a coverage-számot.</p>
         <div class="refs"><span class="ref">outputs/reports/mitre_technique_map.json</span></div>
       </div>
