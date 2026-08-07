@@ -30,6 +30,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 DEFAULT_RULES_DIR = "rules/sigma"
 DEFAULT_RESULTS_DIR = "outputs/results"
 
@@ -143,8 +145,11 @@ def classify(rule_path: Path, data: object, results_dir: Path) -> dict:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
+    # Inside main() to keep the friendly message and the exit-2 ("setup", not
+    # "findings") code -- lib.rules imports pyyaml, so a top-level import would
+    # raise first. Same note as check_mitre_tags.py.
     try:
-        import yaml  # type: ignore
+        from lib.rules import RuleLoadError, discover, load_rule
     except Exception as ex:
         eprint(f"[FATAL] Missing dependency: pyyaml. ({ex})")
         return 2
@@ -156,14 +161,14 @@ def main(argv: list[str] | None = None) -> int:
 
     results_dir = Path(args.results_dir)
 
-    rule_paths = sorted(list(rules_dir.rglob("*.yml")) + list(rules_dir.rglob("*.yaml")))
-
     entries: list[dict] = []
-    for rule_path in rule_paths:
+    for rule_path in discover(rules_dir):
         try:
-            data = yaml.safe_load(rule_path.read_text(encoding="utf-8"))
-        except (OSError, yaml.YAMLError) as ex:
-            eprint(f"WARNING: {rule_path} could not be read ({ex}) -- selecting it.")
+            data = load_rule(rule_path)
+        except RuleLoadError as ex:
+            # Unchanged policy: a rule we cannot read is a rule we cannot claim
+            # is verified, so it goes into the run rather than being skipped.
+            eprint(f"WARNING: {ex} -- selecting it.")
             data = None
         entries.append(classify(rule_path, data, results_dir))
 

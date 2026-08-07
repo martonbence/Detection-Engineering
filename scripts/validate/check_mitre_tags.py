@@ -501,8 +501,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
+    # Imported here rather than at module scope to keep this guard reachable.
+    # lib.rules imports pyyaml, so a top-level import would raise before main()
+    # ran -- turning a friendly "install pyyaml" into a traceback, and exit 2
+    # ("setup is broken") into exit 1, which CI reads as "this script found
+    # problems with the rules". Nothing above main() needs these names.
     try:
-        import yaml  # type: ignore
+        from lib.rules import RuleLoadError, discover, load_rule
     except Exception as ex:
         eprint(f"[FATAL] Missing dependency: pyyaml. ({ex})")
         return 2
@@ -517,7 +522,7 @@ def main(argv: list[str] | None = None) -> int:
     if stale:
         print(f"::warning title=Stale ATT&CK technique map::{stale}")
 
-    rule_paths = [Path(r) for r in args.rules] if args.rules else sorted(DEFAULT_RULES_DIR.rglob("*.yml"))
+    rule_paths = [Path(r) for r in args.rules] if args.rules else discover(DEFAULT_RULES_DIR)
 
     findings: list[dict] = []
     checked = 0
@@ -525,11 +530,11 @@ def main(argv: list[str] | None = None) -> int:
 
     for path in rule_paths:
         try:
-            data = yaml.safe_load(path.read_text(encoding="utf-8"))
-        except (OSError, yaml.YAMLError) as ex:
+            data = load_rule(path)
+        except RuleLoadError as ex:
             # validate_sigma.py owns malformed rules and already fails the run
             # for them; saying it twice for one cause only splits the diagnosis.
-            eprint(f"SKIP: {path} could not be read ({ex})")
+            eprint(f"SKIP: {ex}")
             continue
 
         checked += 1

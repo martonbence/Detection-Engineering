@@ -21,11 +21,15 @@ import html as _html
 import json
 import re
 import subprocess
+import sys
 import urllib.request
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import yaml
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from lib.rules import RuleLoadError, discover, load_rule
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -127,17 +131,18 @@ VERDICT_BADGE = {
 
 def load_sigma_rules() -> list[dict]:
     rules = []
-    sigma_dir = REPO_ROOT / "rules" / "sigma"
-    if not sigma_dir.exists():
-        return rules
-    for p in sorted(sigma_dir.glob("*.yml")):
+    for path in discover(REPO_ROOT / "rules" / "sigma"):
         try:
-            data = yaml.safe_load(p.read_text(encoding="utf-8"))
-            if isinstance(data, dict):
-                data["_file_path"] = f"rules/sigma/{p.name}"
-                rules.append(data)
-        except Exception:
-            pass
+            data = load_rule(path)
+        except RuleLoadError:
+            # Unchanged policy: drop it and carry on. A dashboard is not a gate
+            # -- validate_sigma.py already fails the run for a malformed rule,
+            # and refusing to render the page as well helps nobody.
+            continue
+        # Derived from the path rather than assembled from the filename, so a
+        # rule in a subdirectory gets a link that resolves (register 3.8).
+        data["_file_path"] = path.relative_to(REPO_ROOT).as_posix()
+        rules.append(data)
     return rules
 
 
