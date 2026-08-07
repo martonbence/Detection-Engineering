@@ -31,6 +31,9 @@ import os
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from lib.summary import MARK_WARN, escape_cell
+
 DEFAULT_WORKFLOW = ".github/workflows/ci_dev_workflow.yml"
 
 # The two env vars run_atomic.ps1 filters on. A step that sets both is, by
@@ -231,7 +234,11 @@ def write_step_summary(findings: list[dict]) -> None:
         "| --- | --- | --- |",
     ]
     for f in findings:
-        lines.append(f"| `{f['detect_id']}` | `{f['type'] or '-'}` | `{f['runner'] or '(unset)'}` |")
+        lines.append(
+            f"| {MARK_WARN} `{escape_cell(f['detect_id'])}` "
+            f"| `{escape_cell(f['type'] or '-')}` "
+            f"| `{escape_cell(f['runner'] or '(unset)')}` |"
+        )
     lines.append("")
 
     try:

@@ -124,13 +124,6 @@ VERDICT_BADGE = {
     "NOT_VERIFIED": "![](https://img.shields.io/badge/NOT%20VERIFIED-9A6700?style=flat-square)",
 }
 
-VERDICT_EMOJI = {
-    "PASS": "✅ PASS",
-    "FAIL": "❌ FAIL",
-    "N/A": "⬜ N/A",
-    "NOT_VERIFIED": "⚠️ NOT VERIFIED",
-}
-
 
 def load_sigma_rules() -> list[dict]:
     rules = []

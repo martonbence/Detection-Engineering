@@ -11,6 +11,7 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lib.env import announce_tls_mode, env_bool, env_reader
 from lib.rule_naming import saved_search_name
+from lib.summary import MARK_FAIL, MARK_INFO, MARK_PASS, escape_cell
 
 
 def die(msg: str, code: int = 1) -> None:
@@ -230,6 +231,15 @@ OUTCOME_LABELS = {
     "failed": "FAILED",
 }
 
+# A deliberate skip is neither success nor failure, so it gets the neutral mark
+# rather than a tick that would imply the rule went to Splunk.
+OUTCOME_MARKS = {
+    "created": MARK_PASS,
+    "updated": MARK_PASS,
+    "skipped_deprecated": MARK_INFO,
+    "failed": MARK_FAIL,
+}
+
 
 def write_step_summary(records: list[dict]) -> None:
     """Put the same facts where a human sees them without downloading anything."""
@@ -248,14 +258,22 @@ def write_step_summary(records: list[dict]) -> None:
         "",
         f"{len(records)} rule(s) — {counts}",
         "",
-        "| Rule | Saved search | Version | Outcome |",
-        "| --- | --- | --- | --- |",
+        "| Rule | Saved search | Version | Outcome | Detail |",
+        "|:---|:---|---:|:---|:---|",
     ]
     for r in records:
-        detail = f" — {r['detail']}" if r.get("detail") else ""
+        outcome = r["outcome"]
+        # The detail moved out of the Outcome cell and into its own column.
+        # It carries Splunk error text, which is JSON, which is long -- inlined
+        # it pushed the one word a reader is looking for off to the left of a
+        # paragraph. escape_cell() is what keeps a pipe inside that JSON from
+        # ending the cell and shifting every column after it.
         lines.append(
-            f"| `{r['detect_id'] or '-'}` | `{r['search_name'] or '-'}` | "
-            f"`{r['rule_version'] or '-'}` | {OUTCOME_LABELS.get(r['outcome'], r['outcome'])}{detail} |"
+            f"| `{escape_cell(r['detect_id'] or '-')}` "
+            f"| `{escape_cell(r['search_name'] or '-')}` "
+            f"| `{escape_cell(r['rule_version'] or '-')}` "
+            f"| {OUTCOME_MARKS.get(outcome, MARK_INFO)} {OUTCOME_LABELS.get(outcome, outcome)} "
+            f"| {escape_cell(r['detail']) if r.get('detail') else ''} |"
         )
     lines.append("")
 

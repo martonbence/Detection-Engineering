@@ -42,6 +42,18 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from lib.summary import (
+    ALERT_FAIL,
+    ALERT_PASS,
+    ALERT_WARN,
+    MARK_FAIL,
+    MARK_PASS,
+    MARK_UNKNOWN,
+    alert,
+    escape_cell,
+)
+
 PASS = "PASS"
 FAIL = "FAIL"
 NOT_VERIFIED = "NOT_VERIFIED"
@@ -55,14 +67,10 @@ DISPLAY_LABEL = {
     NOT_VERIFIED: "NOT VERIFIED",
 }
 
-PASS_EMOJI = "✅"
-FAIL_EMOJI = "❌"
-NOT_VERIFIED_EMOJI = "⚠️"
-
-EMOJI_BY_VERDICT = {
-    PASS: PASS_EMOJI,
-    FAIL: FAIL_EMOJI,
-    NOT_VERIFIED: NOT_VERIFIED_EMOJI,
+MARK_BY_VERDICT = {
+    PASS: MARK_PASS,
+    FAIL: MARK_FAIL,
+    NOT_VERIFIED: MARK_UNKNOWN,
 }
 
 
@@ -71,8 +79,8 @@ def verdict_label(verdict: str) -> str:
     return DISPLAY_LABEL.get(verdict, verdict)
 
 
-def verdict_emoji(verdict: str) -> str:
-    return EMOJI_BY_VERDICT.get(verdict, FAIL_EMOJI)
+def verdict_mark(verdict: str) -> str:
+    return MARK_BY_VERDICT.get(verdict, MARK_FAIL)
 
 
 def _sanitize_marker_name(detect_id: str) -> str:
@@ -132,45 +140,77 @@ def evaluate(
 
 def write_github_summary(path: str, report: dict) -> None:
     overall = report["overall"]
-    emoji = PASS_EMOJI if overall == PASS else FAIL_EMOJI
     passed = report["passed"]
     failed = report["failed"]
     not_verified = report.get("not_verified", 0)
     total = report["total_rules"]
     run_ts = report["run_timestamp"]
+    min_pass = report["min_pass"]
+    max_pass = report["max_pass"]
 
-    lines = [
-        f"# {emoji} Detection Verification — {verdict_label(overall)}",
-        "",
-        f"**{passed} / {total}** rules passed &nbsp;·&nbsp; "
-        f"**{failed}** failed &nbsp;·&nbsp; "
-        f"**{not_verified}** not verified &nbsp;·&nbsp; "
-        f"threshold: **{report['min_pass']}–{report['max_pass']} events**",
-        "",
-        f"> Run timestamp: `{run_ts}`",
+    if overall == PASS:
+        alert_kind = ALERT_PASS
+    elif overall == NOT_VERIFIED:
+        alert_kind = ALERT_WARN
+    else:
+        alert_kind = ALERT_FAIL
+
+    # The counts line names only the states that actually occurred. A run where
+    # everything passed used to still read "0 failed · 0 not verified", which
+    # spends the most-read line in the summary describing things that did not
+    # happen.
+    tallies = [f"{passed} passed"]
+    if failed:
+        tallies.append(f"{failed} failed")
+    if not_verified:
+        tallies.append(f"{not_verified} not verified")
+
+    lines = ["## Detection verification", ""]
+    lines += alert(
+        alert_kind,
+        # The two trailing spaces are a markdown hard break. Without them the
+        # verdict line and the context line join into one paragraph, which is
+        # exactly what this layout exists to avoid.
+        f"**{verdict_mark(overall)} {verdict_label(overall)}** — "
+        f"{' · '.join(tallies)} of {total} rule(s)  \n"
+        f"Pass band: {min_pass}–{max_pass} events · run `{run_ts}`",
+    )
+    lines += [
         "",
         "| Rule | Title | Events | Verdict | Reason |",
-        "|:-----|:------|-------:|:-------:|:-------|",
+        "|:---|:---|---:|:---|:---|",
     ]
 
     for r in report["rules"]:
-        v_emoji = verdict_emoji(r["verdict"])
         lines.append(
-            f"| `{r['detect_id']}` | {r['title']} | {r['event_count']} "
-            f"| {v_emoji} {verdict_label(r['verdict'])} | {r['reason']} |"
+            f"| `{escape_cell(r['detect_id'])}` "
+            f"| {escape_cell(r['title'])} "
+            f"| {r['event_count']} "
+            f"| {verdict_mark(r['verdict'])} {verdict_label(r['verdict'])} "
+            f"| {escape_cell(r['reason'])} |"
         )
 
-    lines += [
-        "",
-        "---",
-        f"Pass criteria: **{report['min_pass']} ≤ events ≤ {report['max_pass']}**  ",
-        f"{NOT_VERIFIED_EMOJI} NOT VERIFIED: the attack did not complete (Atomic Red Team "
-        "test cut short) or the measurement did not complete (Splunk search did not finish) "
-        "-- unknown, not broken; treated the same as FAIL for gating purposes.  ",
-        "Results saved to `outputs/results/`",
-    ]
+    # The NOT VERIFIED legend is a footnote about a state, so it belongs in the
+    # summary only when that state occurred. Printed unconditionally it told
+    # every clean run at length about a failure mode it had not hit.
+    if not_verified:
+        lines += [
+            "",
+            f"{MARK_UNKNOWN} **NOT VERIFIED** — the attack did not complete (Atomic Red Team "
+            "test cut short) or the measurement did not complete (Splunk search did not "
+            "finish). Unknown, not broken; gated the same as FAIL.",
+        ]
 
-    Path(path).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    lines += ["", "<sub>Per-rule detail in `outputs/results/`.</sub>", ""]
+
+    # Appended, not written. This used to truncate the file, which is safe only
+    # as long as nothing else writes a summary in the same step -- a constraint
+    # nothing enforced and no other writer in the repo relies on.
+    try:
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write("\n".join(lines) + "\n")
+    except OSError as ex:
+        print(f"WARNING: could not write the step summary: {ex}", file=sys.stderr)
 
 
 def main(argv: list[str]) -> int:
@@ -332,8 +372,7 @@ def main(argv: list[str]) -> int:
         )
 
         report_rows.append(result)
-        v_emoji = verdict_emoji(verdict)
-        print(f"  {v_emoji}  {detect_id}  →  {verdict_label(verdict)}  ({event_count} events)  {reason}")
+        print(f"  {verdict_mark(verdict)}  {detect_id}  →  {verdict_label(verdict)}  ({event_count} events)  {reason}")
 
     overall = PASS if all_pass else FAIL
     aggregate_report = {
@@ -352,10 +391,9 @@ def main(argv: list[str]) -> int:
     if summary_path:
         write_github_summary(summary_path, aggregate_report)
 
-    overall_emoji = PASS_EMOJI if overall == PASS else FAIL_EMOJI
     print(
         f"\n{'─' * 60}"
-        f"\n{overall_emoji}  Overall: {verdict_label(overall)}  "
+        f"\n{verdict_mark(overall)}  Overall: {verdict_label(overall)}  "
         f"({aggregate_report['passed']}/{aggregate_report['total_rules']} rules passed, "
         f"{aggregate_report['not_verified']} not verified)"
         f"\n{'─' * 60}"
