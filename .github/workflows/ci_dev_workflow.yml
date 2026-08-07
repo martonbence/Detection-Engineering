@@ -19,7 +19,19 @@ on:
       - "scripts/convert/**"
       - "config/**"
       - "scripts/deploy/deploy_spl_to_splunk.py"
-      - "scripts/lib/rule_naming.py"
+      # A glob, for the same reason and by the same argument as
+      # scripts/convert/** above. This used to name rule_naming.py alone, and
+      # register item 3.6 then put scripts/lib/env.py beside it -- a module the
+      # deploy, both verify scripts and reconcile.py all import. Editing it
+      # changes the behaviour of four pipeline scripts and started no run at
+      # all. Anything under scripts/lib/ exists to be imported by something in
+      # this pipeline, so the false-positive cost is one cheap
+      # validate-and-convert run.
+      #
+      # The full-rebuild list below keeps naming rule_naming.py by hand and
+      # deliberately does not gain env.py: env.py cannot change a rule's SPL or
+      # its saved search name, so it is no reason to re-attack all 27 rules.
+      - "scripts/lib/**"
       - "scripts/atomic/run_atomic.ps1"
       - "scripts/verify/**"
       - "scripts/state/**"
@@ -41,7 +53,19 @@ on:
       - "scripts/convert/**"
       - "config/**"
       - "scripts/deploy/deploy_spl_to_splunk.py"
-      - "scripts/lib/rule_naming.py"
+      # A glob, for the same reason and by the same argument as
+      # scripts/convert/** above. This used to name rule_naming.py alone, and
+      # register item 3.6 then put scripts/lib/env.py beside it -- a module the
+      # deploy, both verify scripts and reconcile.py all import. Editing it
+      # changes the behaviour of four pipeline scripts and started no run at
+      # all. Anything under scripts/lib/ exists to be imported by something in
+      # this pipeline, so the false-positive cost is one cheap
+      # validate-and-convert run.
+      #
+      # The full-rebuild list below keeps naming rule_naming.py by hand and
+      # deliberately does not gain env.py: env.py cannot change a rule's SPL or
+      # its saved search name, so it is no reason to re-attack all 27 rules.
+      - "scripts/lib/**"
       - "scripts/atomic/run_atomic.ps1"
       - "scripts/verify/**"
       - "scripts/state/**"
@@ -502,7 +526,29 @@ jobs:
 
           cp scripts/atomic/run_atomic.ps1 pipeline_bundle/scripts/atomic/run_atomic.ps1
           cp scripts/deploy/deploy_spl_to_splunk.py pipeline_bundle/scripts/deploy/deploy_spl_to_splunk.py
-          cp scripts/lib/rule_naming.py pipeline_bundle/scripts/lib/rule_naming.py
+
+          # Register item 3.6, and the bug it caused. This was a single `cp` of
+          # rule_naming.py. That refactor moved the env helpers into
+          # scripts/lib/env.py and rewrote deploy_spl_to_splunk.py to import
+          # them -- and a copy list maintained by hand cannot know that, so the
+          # bundle shipped without env.py and the deploy died 0.1s in on the lab
+          # runner with `ModuleNotFoundError: No module named 'lib.env'`
+          # (run #67), long after this job had gone green.
+          #
+          # Wholesale rather than one more line: naming files by hand is the
+          # failure mode itself, and the next module under lib/ would reproduce
+          # it exactly. lib/ holds only small, non-secret, importable helpers
+          # shared by the bundled scripts, so copying all of it costs nothing
+          # and cannot leak anything the deploy script does not already carry.
+          #
+          # `scripts/lib/.` and not `scripts/lib`, which would nest the
+          # directory as pipeline_bundle/scripts/lib/lib.
+          cp -r scripts/lib/. pipeline_bundle/scripts/lib/
+
+          # Only reachable because the copy is wholesale: bytecode is not part
+          # of the bundle's contract, and it is not something to ship in a
+          # downloadable artifact just because it happened to be on disk.
+          find pipeline_bundle/scripts/lib -type d -name '__pycache__' -prune -exec rm -rf {} +
 
           mapfile -t rules <<'EOF'
           ${{ steps.changes.outputs.rule_files }}
@@ -620,6 +666,78 @@ jobs:
             --workflow .github/workflows/ci_dev_workflow.yml \
             --job-flags \
             "${selected[@]}"
+
+      # Register item 3.6, the guard side. The packaging fault above was
+      # invisible on this runner and only surfaced on the far side of an
+      # artifact upload, a queue wait and a download -- in deploy_to_splunk,
+      # the one job whose failure also takes all three attack jobs and the
+      # verification with it. Nothing between the two ends checked that the
+      # bundle was even importable.
+      #
+      # Now it does, here, where the bundle was built and where being wrong
+      # costs seconds. Deliberately placed after the SPL commit step: the
+      # converted SPL is correct regardless of how the bundle was packed, and
+      # there is no reason to withhold it over a packaging fault.
+      #
+      # Nothing is contacted and no Splunk credential is involved. argparse
+      # prints usage and exits 0 well before the first env_required(), and the
+      # import pass only executes module-level code -- which in every bundled
+      # script is definitions behind an `if __name__ == "__main__"` guard.
+      # The only third-party import in the bundle today is `requests`, and it
+      # comes from the pinned install above -- so this adds no dependency of
+      # its own and cannot drift from what the lab runner will use.
+      - name: Smoke-test the pipeline bundle
+        if: steps.bundle.outputs.has_spl == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Invoked exactly the way deploy_to_splunk invokes it -- `python
+          # pipeline_bundle/...` from the repo root -- because that is what
+          # decides how the script's own sys.path.insert(parents[1]) resolves
+          # `lib.env` and `lib.rule_naming`. A --help that exits 0 means the
+          # whole module-level import chain resolved inside the bundle.
+          python pipeline_bundle/scripts/deploy/deploy_spl_to_splunk.py --help > /dev/null
+          echo "OK  pipeline_bundle/scripts/deploy/deploy_spl_to_splunk.py (--help)"
+
+          # And every other Python file in the bundle, so a second entrypoint
+          # added later is covered without anyone remembering to extend this.
+          python - <<'PY'
+          import importlib.util
+          import sys
+          import traceback
+          from pathlib import Path
+
+          root = Path("pipeline_bundle/scripts").resolve()
+          # The same directory the bundled scripts put on sys.path themselves.
+          sys.path.insert(0, str(root))
+
+          modules = sorted(root.rglob("*.py"))
+          failed = []
+
+          for mod in modules:
+              rel = mod.relative_to(root.parents[1])
+              spec = importlib.util.spec_from_file_location(f"_bundle_{mod.stem}", mod)
+              try:
+                  spec.loader.exec_module(importlib.util.module_from_spec(spec))
+              except Exception:
+                  traceback.print_exc()
+                  failed.append(str(rel))
+              else:
+                  print(f"OK  {rel}")
+
+          if failed:
+              print(
+                  "::error title=Pipeline bundle is incomplete::"
+                  f"Bundled script(s) cannot import their dependencies: {', '.join(failed)}. "
+                  "Something they import was not copied into pipeline_bundle -- see the "
+                  "'Build pipeline bundle' step. Fixing this here is the point: uploaded as "
+                  "is, the bundle fails on the self-hosted lab runner instead."
+              )
+              sys.exit(1)
+
+          print(f"Bundle smoke test passed: {len(modules)} module(s) import cleanly.")
+          PY
 
       - name: Upload pipeline bundle
         if: steps.bundle.outputs.has_spl == 'true'
