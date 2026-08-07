@@ -159,6 +159,42 @@ def splunk_post(session: requests.Session, url: str, data: dict) -> requests.Res
 # code, which is the contract.
 
 
+def _perm_set(value: str) -> set[str]:
+    """Splunk returns perms as a list; the config carries them comma-separated."""
+    if isinstance(value, list):
+        return {str(v).strip() for v in value if str(v).strip()}
+    return {part.strip() for part in str(value or "").split(",") if part.strip()}
+
+
+def read_acl(session: requests.Session, acl_url: str) -> dict | None:
+    """The object's current ACL, or None when it cannot be read.
+
+    None means "could not determine", never "no permissions" -- the caller
+    falls through to the POST rather than assuming anything, so an unreadable
+    ACL behaves exactly as it did before this comparison existed.
+    """
+    try:
+        r = session.get(acl_url, timeout=30)
+    except requests.RequestException:
+        return None
+    if r.status_code != 200:
+        return None
+    try:
+        entries = r.json().get("entry") or []
+    except ValueError:
+        return None
+    return (entries[0].get("acl") or {}) if entries else None
+
+
+def acl_matches(current: dict, sharing: str, perms_read: str, perms_write: str) -> bool:
+    perms = current.get("perms") or {}
+    return (
+        str(current.get("sharing") or "").strip() == sharing.strip()
+        and _perm_set(perms.get("read")) == _perm_set(perms_read)
+        and _perm_set(perms.get("write")) == _perm_set(perms_write)
+    )
+
+
 def set_acl(
     session: requests.Session,
     base_url: str,
@@ -170,12 +206,32 @@ def set_acl(
     perms_write: str,
 ) -> tuple[bool, str]:
     """
-    Set object-level ACL for a saved search to ensure consistent sharing and permissions.
+    Bring the object's ACL to the configured sharing and permissions.
+
+    Reads before writing, which is what stops this being the noisiest line in
+    every run. Splunk promotes an object to app scope once; POSTing the same
+    promotion to an object that is *already* app-scoped is rejected with
+    HTTP 409 "Cannot overwrite existing app object". Since the deploy updates
+    far more often than it creates, the old unconditional POST meant a 409 per
+    rule per run -- 27 of them on a full run, all of them meaning "the ACL is
+    already correct".
+
+    That noise was the smaller problem. Because the 409 came back whether the
+    ACL was right or wrong, the deploy could never tell the two apart, and so
+    could never correct real ACL drift: change SPLUNK_PERMS_READ and existing
+    objects keep the old permissions forever, reporting it with the same warning
+    everyone has learned to scroll past. Comparing first separates them -- a
+    matching ACL is silent, and a mismatch that will not apply is now a warning
+    that means something.
     """
     acl_url = (
         f"{base_url}/servicesNS/{quote(owner, safe='')}/{quote(app, safe='')}"
         f"/saved/searches/{quote(search_name, safe='')}/acl?output_mode=json"
     )
+
+    current = read_acl(session, acl_url)
+    if current is not None and acl_matches(current, sharing, perms_read, perms_write):
+        return True, "ACL already correct"
 
     payload = {
         "owner": owner,               # Splunk's ACL endpoint treats this as required --
@@ -190,6 +246,18 @@ def set_acl(
 
     if r.status_code == 200:
         return True, "ACL updated"
+
+    # Reaching a 409 now means something the old code could not say: the ACL
+    # does not match what we asked for, and Splunk will not let us change it.
+    # Naming that explicitly, because "Cannot overwrite existing app object"
+    # reads like a benign duplicate and is no longer one.
+    if r.status_code == 409 and current is not None:
+        return False, (
+            f"ACL differs from the configured sharing/permissions and Splunk refused the "
+            f"change (HTTP 409). Current: sharing={current.get('sharing')!r}, "
+            f"perms={current.get('perms')!r}; wanted: sharing={sharing!r}, "
+            f"read={perms_read!r}, write={perms_write!r}"
+        )
 
     return False, f"ACL update failed HTTP {r.status_code}: {r.text[:300]}"
 
