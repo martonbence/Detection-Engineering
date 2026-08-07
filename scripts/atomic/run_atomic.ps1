@@ -411,6 +411,63 @@ function Test-LeftoverDefenderFailsafe {
     }
 }
 
+function Wait-DefenderRealtimeState {
+    <#
+        .SYNOPSIS
+        Block until Defender's effective real-time state matches $Expected.
+
+        Set-MpPreference returns once the *preference* is written;
+        Get-MpComputerStatus reports the *engine's* state, which catches up a
+        moment later. Reading it on the very next line therefore returns the
+        state from before the call -- wrong in both directions. That is why the
+        log's last word about Defender used to be
+        "RealTimeProtectionEnabled: False" immediately after a re-enable that
+        had in fact worked, and "True" right after a disable.
+
+        Worth more than the cosmetics: this is the only way the script can
+        notice Tamper Protection. With it on -- the default on current Windows
+        -- Set-MpPreference completes without error and the engine ignores the
+        change entirely. Nothing else here would ever find out, and the caller
+        would go on to remove the restore failsafe on the strength of an
+        exception that was never thrown.
+
+        Returns an object rather than a bool so the caller can report what it
+        actually saw, and can tell "disagreed" apart from "could not ask".
+    #>
+    param(
+        [Parameter(Mandatory = $true)][bool]$Expected,
+        [int]$TimeoutSeconds = 20
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $observed = $null
+
+    do {
+        try {
+            # Split rather than [bool](Get-MpComputerStatus).Prop -- the cast
+            # and member access bind correctly there, but not obviously so to a
+            # reader, and this file has no local way to run a parse check.
+            $status = Get-MpComputerStatus
+            $observed = [bool]$status.RealTimeProtectionEnabled
+        }
+        catch {
+            return [pscustomobject]@{
+                Confirmed = $false
+                Observed  = $null
+                Error     = $_.Exception.Message
+            }
+        }
+
+        if ($observed -eq $Expected) {
+            return [pscustomobject]@{ Confirmed = $true; Observed = $observed; Error = $null }
+        }
+
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    return [pscustomobject]@{ Confirmed = $false; Observed = $observed; Error = $null }
+}
+
 function Disable-DefenderRealtimeIfRequested {
     param(
         [string]$Requested,
@@ -440,7 +497,24 @@ function Disable-DefenderRealtimeIfRequested {
 
     Write-Host "Disabling Microsoft Defender real-time monitoring for Atomic execution."
     Set-MpPreference -DisableRealtimeMonitoring $true
-    Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled | Out-String | Write-Host
+
+    $state = Wait-DefenderRealtimeState -Expected $false
+    if ($state.Confirmed) {
+        Write-Host "Defender real-time monitoring is OFF (confirmed by Get-MpComputerStatus)."
+    }
+    elseif ($null -ne $state.Error) {
+        Write-Warning "Could not confirm Defender was disabled: $($state.Error). Proceeding; the failsafe is registered."
+    }
+    else {
+        # Almost always Tamper Protection. Not fatal -- the tests can still run
+        # -- but the operator needs to know, because a FAIL from here on may be
+        # Defender eating the attack rather than the rule missing it.
+        Write-Warning "Set-MpPreference reported success, but real-time monitoring is still reported as ON after polling. Tamper Protection is the usual cause."
+        Write-Host "::warning title=Defender still active::Real-time monitoring did not switch off despite Set-MpPreference succeeding -- most likely Tamper Protection. Atomic tests may be blocked or altered, so a FAIL verdict from this run may be Defender, not the detection."
+    }
+
+    # True regardless: the preference was written and the failsafe is
+    # registered, so the caller must still run the restore path and clean up.
     return $true
 }
 
@@ -456,7 +530,6 @@ function Enable-DefenderRealtimeIfNeeded {
     Write-Host "Re-enabling Microsoft Defender real-time monitoring after Atomic execution."
     try {
         Set-MpPreference -DisableRealtimeMonitoring $false
-        Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled | Out-String | Write-Host
     }
     catch {
         # Do not remove the failsafe in this case -- it is now the only thing
@@ -465,6 +538,32 @@ function Enable-DefenderRealtimeIfNeeded {
         return
     }
 
+    # The gate that decides whether the failsafe may be removed.
+    #
+    # It used to be "Set-MpPreference did not throw", which is a weaker claim
+    # than it looks: with Tamper Protection on, the call succeeds and the engine
+    # ignores it. That combination -- protection still off, restore task
+    # deleted, step exits 0 -- left a lab VM unprotected with nothing scheduled
+    # to fix it and nothing in the log saying so.
+    #
+    # Now the failsafe is removed only once the engine itself reports
+    # protection back on. Every other path leaves the task registered: the
+    # deadman timer and the at-startup trigger then remain the safety net they
+    # were built to be.
+    $state = Wait-DefenderRealtimeState -Expected $true
+    if (-not $state.Confirmed) {
+        if ($null -ne $state.Error) {
+            $reason = "could not query Defender ($($state.Error))"
+        }
+        else {
+            $reason = "Defender still reports real-time monitoring as OFF"
+        }
+        Write-Warning "Set-MpPreference succeeded but $reason. Leaving the failsafe task in place to restore protection."
+        Write-Host "::warning title=Defender not confirmed restored::Real-time monitoring could not be confirmed back on after the Atomic run. The restore failsafe task has deliberately been left registered on this runner; it fires on its deadman timer and at next startup."
+        return
+    }
+
+    Write-Host "Defender real-time monitoring is ON (confirmed by Get-MpComputerStatus)."
     Unregister-DefenderRestoreFailsafe -TaskName $script:DefenderFailsafeTaskName
 }
 
