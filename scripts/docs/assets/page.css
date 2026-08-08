@@ -1414,3 +1414,24 @@
       .chart-card-canvas-wrap { height:240px; }
     }
 
+
+    /* ---------- Deployment panel (register item 4.7) ----------
+       Server-rendered, so there is no JS counterpart to keep in step. Two
+       columns on a wide screen and stacked below, because the two environments
+       are read against each other -- "dev deployed today, prod eleven days ago"
+       is the comparison the panel exists to make, and it only lands when both
+       are in view at once. */
+    .dep-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:14px; margin-top:14px; }
+    .dep-env { background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px; }
+    .dep-env-name { font-family:var(--font); font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--text3); margin-bottom:9px; }
+    .dep-table { width:100%; border-collapse:collapse; font-size:12.5px; }
+    .dep-table th { text-align:left; font-weight:500; color:var(--text2); padding:4px 12px 4px 0; white-space:nowrap; vertical-align:top; }
+    .dep-table td { text-align:right; color:var(--text); padding:4px 0; font-variant-numeric:tabular-nums; }
+    .dep-table code { font-family:var(--font); font-size:11.5px; }
+    /* The age sits under the timestamp rather than beside it: it is the part
+       people actually read, and on a narrow screen a single line would push the
+       timestamp out of view. */
+    .dep-age { display:block; font-size:11px; color:var(--text3); }
+    .dep-ok { color:var(--green); }
+    .dep-drift { color:var(--amber); }
+    .dep-unknown { color:var(--text3); font-style:italic; }
