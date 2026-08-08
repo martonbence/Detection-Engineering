@@ -231,6 +231,14 @@
       "mitre_covered_techniques": 11,
       "mitre_total_techniques": 222,
       "mitre_coverage_pct": 5.0
+    },
+    {
+      "date": "2026-08-08",
+      "timestamp": "2026-08-08T17:50:06.741627+00:00",
+      "git_sha": "57d54dc1db8caa6ed7667309b90387118b02ece8",
+      "mitre_covered_techniques": 11,
+      "mitre_total_techniques": 222,
+      "mitre_coverage_pct": 5.0
     }
   ]
 }
