@@ -1,8 +1,14 @@
 {
   "environments": {
     "prod": {
+      "last_deploy": {
+        "at": "2026-08-08T17:56:04Z",
+        "commit": "a88668b8b389ed71c7b48363799382d00fd7ccdf",
+        "run_id": "31270660683",
+        "run_url": "https://github.com/martonbence/Detection-Engineering/actions/runs/31270660683"
+      },
       "splunk_state": {
-        "checked_at": "2026-08-08T19:17:53.966832+00:00",
+        "checked_at": "2026-08-08T19:23:02.196007+00:00",
         "duplicate_names": 0,
         "has_drift": false,
         "in_sync": 27,
