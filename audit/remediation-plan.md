@@ -21,8 +21,8 @@ Nincs menetrend — a tempó ad-hoc, tételenként.
 
 ## Pontszám
 
-Jelenlegi: **6,5 / 10** (kiindulás). Mai állás: **8,4 / 10**, kész súly **70 / 92,5**
-(40 tétel az 54-ből). A számláló korábban tévesen 69,5-ként szerepelt itt — a 4-es szakaszban
+Jelenlegi: **6,5 / 10** (kiindulás). Mai állás: **8,4 / 10**, kész súly **71,5 / 92,5**
+(41 tétel az 54-ből). A számláló korábban tévesen 69,5-ként szerepelt itt — a 4-es szakaszban
 kettő kész (4.3, 4.10), nem három; a `register.html` DOM-jából számolva is 68 volt. A 3.9
 felvétele előtt 68/90,5 = **8,4** volt, felvétele után 68/92,5 = **8,3** (a pontszám azért esett,
 mert új tétel került a nevezőbe, nem mert bármi visszalépett), elvégzése után pedig 70/92,5 =
@@ -149,7 +149,7 @@ mint az 1.2, tehát a register fő témájába; és a **3.2** artifact-promóci�
 - [ ] **4.4** Splunk ES / RBA a deploy payloadban: `alert.suppress` throttling, drilldown, severity → risk score · `deploy_spl_to_splunk.py:115-129`
 - [ ] **4.5** `new_rule.py` scaffolder (következő szabad `detect_id`, séma-konform skeleton) + `Makefile` a lokális futtatáshoz
 - [ ] **4.6** Per-rule verdict history (append-only `history.jsonl`) a „flaky / mikor romlott el" kérdésekhez
-- [ ] **4.7** Deployment inventory a dashboardon (dev/prod hol él, milyen verzióval) — a 3.3 kimenetéből
+- [x] **4.7** Deployment inventory a dashboardon (dev/prod hol él, milyen verzióval) — a 3.3 kimenetéből · **kész 2026-08-08:** az adat mindig megvolt, csak eldobtuk — a deploy riportja (2.4) és a reconcile kimenete (3.3) is `.gitignore`-olt könyvtárba írt és artifactként utazott, a dashboard viszont repo-fájlokból generálódik. **1. fázis:** új `scripts/state/deployment_inventory.py`, desztillált leltár (változatlan futáson bájtra azonos, tehát nem keletkezik commit), környezetenként **merge-el**, nem felülír; a dev deploy végre kap `--report`-ot, és a leltár a commit-lépésben, a `git reset --hard` **után** épül fel, mert a bemenetei `.gitignore`-oltak. **2. fázis:** új `ci_prod_audit.yml` — naponta 05:40 és kézre, reconcile a prod appra **csak olvasva** (se `--apply`, se `--apply-removals`: ütemezetten futó dolog nem szüntethet meg éles detekciót), sodródásra `::warning`, nem bukó futás. A workflow **két jobra vált**, és ez jogosultsági határ: a `dev` ág védett és az `enforce_admins` ki van kapcsolva, tehát a `GITHUB_TOKEN` nem tud rá írni, a PAT viszont a `dev` environmenthez kötött, amit egy `environment: prod` job nem lát — így a prod-oldali job olvas és sehova nem ír, a dev-oldali írja a repót és a Splunkhoz nem nyúl. **Dashboard:** szerver-oldalon renderelt panel (a `page.js`-hez nem nyúl), ami leltár nélkül meg sem jelenik, és külön sorban mondja meg, mit küldtünk és mi van ott. **Élesben igazolva, két futásban** — és az első kihozta, hogy a tétel fele nem működik: a prod „melyik commitból települt" adata csendben elveszett, mert a `last_deploy` csak deploy-riportból épült, a prodnál viszont az Actions API a forrás. Javítva; a második futás után a leltárban ott a prod commitja, időpontja és a CI-futás linkje, a prod pedig 27/27 in sync
 - [ ] **4.8** A `rule_documentations/` generálása a `stats.json`-ból (runbook-oldal szabályonként)
 - [ ] **4.9** A promotion PR body-ja legyen érdemi: per-szabály breakdown · `ci_dev_workflow.yml:814`
 - [x] **4.10** Saját CI a pipeline-ra: ruff, pytest, actionlint, PSScriptAnalyzer, shellcheck, pip-audit · **kész 2026-08-04, mind a hat eszközzel.** 2026-08-03: `ci_code_checks.yml` ruff + pytest-tel (pinelve a `.github/requirements-dev.txt`-ben), az 1.6-ot lezárva; majd PSScriptAnalyzer külön `powershell_analysis` jobban (parse check + analyzer, pin 1.25.0). 2026-08-04: új `workflow_analysis` job **actionlint 1.7.12**-vel, checksum-ellenőrzött letöltéssel — és vele a **shellcheck** is, mert az actionlint maga futtatja minden `run:` blokkon (külön shellcheck-step nem tudná kinyerni a scripteket a YAML-ből); plusz `dependency_audit` job **pip-audit 2.10.1**-gyel, **`continue-on-error`-ral**, mert egy éjjel publikált CVE különben minden független PR-t pirosra váltana. A hatból négy eszköz **kapu**, a pip-audit riport
@@ -875,3 +875,32 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   ezért látszik reportként és nem alertként, és ezért nem is csinál semmit. A prod 409-zaja
   ráadásul a takarítás *előtt* megszűnik: az ACL-olvasás a `nobody` úton az app-szintű ACL-t oldja
   fel, egyezést lát, és nem POST-ol.
+
+- **2026-08-08 (este)** — **4.7 kész, két fázisban, és az éles futás kihozta, hogy a fele nem
+  működik.** A tétel nem hiányzó feature volt, hanem egy **meghozott döntés**: a `.gitignore`
+  kimondja, hogy a deploy riportja és a reconcile kimenete „egy pillanatnyi Splunk-állapot, nem a
+  repóé", ezért artifactként utazik. Az indoklás jó, csak túl széles — egy per-futás dump tényleg
+  semmit nem mond a kódról, egy **desztillált leltár** viszont mást mond, és változatlan futáson
+  bájtra azonos, tehát commit sem keletkezik. Ezt a feszültséget oldottuk fel, nem kerültük meg.
+  **A két fél, amit a tétel szövege összemosott:** az (a) leltár azt mondja meg, *mit küldtünk*, a
+  (b) sodródás-figyelés azt, *mi van ott*. A 08-07-i kézi törlést csak a (b) fogta volna meg, a
+  08-08-i „a merge nem ért ki prodba" esetet csak az (a). Mindkettő elkészült.
+  **Amit a jogosultságok kikényszerítettek, és amire nem számítottam:** a prod audit eredetileg egy
+  jobból állt volna. Ellenőrzés közben derült ki, hogy a `dev` ág védett, az `enforce_admins` ki van
+  kapcsolva (ezért megy át az én pushom, adminként), és hogy a dev pipeline pont ezért használ
+  `GH_PAT_DEV_PUSH`-t. A `GITHUB_TOKEN` nem admin — a commit-lépés **minden éjjel 05:40-kor
+  elbukott volna, úgy hogy senki nem nézi.** A PAT viszont a `dev` environmenthez kötött, amit egy
+  `environment: prod` job nem lát. Így a környezetek ott vágták ketté a munkát, ahol a jogok is: a
+  prod-oldali job olvas és sehova nem ír, a dev-oldali írja a repót és a Splunkhoz nem nyúl. Ez a
+  szerkezet nem tervezés volt, hanem egy ellenőrzés mellékterméke.
+  **Az első éles futás verdiktje:** minden lépés zöld, a prod 27/27 in sync — és a leltárban
+  `no deploy recorded` egy hónapok óta telepített környezetre. A workflow kikérte az API-tól a
+  commitot, át is adta; a script viszont a `last_deploy` blokkot csak deploy-riportból építette.
+  Pontosan az az adat veszett el, ami a 08-08-i néma rést láthatóvá tette volna. A második futás
+  után rendben: commit, időpont, CI-link. **A tanulság ugyanaz, mint a 3.9-é volt, csak fordítva:
+  ott a mérés olcsóbb volt az érvelésnél, itt a mérés az egyetlen, ami megmondta, hogy a saját
+  javításom fele nem működik.** Egy „minden teszt zöld" ezt nem fogta volna meg, mert a hiányzó
+  ágra nem volt teszt — most van, három is.
+  **Ami még nyitva van, de nem hiba:** a leltár dev szekciója az első dev futáson jelenik meg, a
+  napi 05:40-es audit pedig a `main`-re kerüléssel kapcsolt be (a `schedule:` csak a default ágról
+  él). A panel addig is helyesen viselkedik: amiről nincs adat, arról nem állít semmit.
