@@ -45,7 +45,6 @@ import json
 import sys
 from datetime import date
 from pathlib import Path
-from urllib.parse import quote
 
 import requests
 
@@ -59,6 +58,7 @@ from lib.rule_naming import saved_search_name
 from lib.rules import RuleLoadError, discover, is_deprecated, load_rule
 from lib.rules import detect_id as rule_detect_id
 from lib.rules import title as rule_title
+from lib.splunk_ns import ALL_OWNERS, saved_search_url, saved_searches_url
 
 # The deploy script stamps this into every description it writes
 # (deploy_spl_to_splunk.py: build_savedsearch_description). It is therefore
@@ -144,20 +144,26 @@ def load_desired(rules_dir: Path) -> dict[str, dict]:
 def fetch_actual(
     session: requests.Session,
     base_url: str,
-    owner: str,
     app: str,
 ) -> dict[str, dict]:
     """
     Actual state: saved searches that exist in the target app, keyed by name.
 
-    Scoped to the same servicesNS/{owner}/{app} namespace the deploy writes to,
-    so this compares like with like. count=0 disables Splunk's default 30-row
-    page limit -- without it a library larger than 30 rules would silently
-    report every rule past the first page as missing.
+    Listed through the wildcard owner (`servicesNS/-/{app}`) rather than any one
+    account, because a single-owner path shows one configuration layer and hides
+    the other. That is not a hypothetical: a private stanza sitting over an
+    app-level object is exactly the shadow item 3.9 is about, and this listing
+    is where the duplicate-name reporting below gets its evidence. Addressing
+    one owner would let this script report a clean state while looking at half
+    the picture -- which it has done before.
+
+    count=0 disables Splunk's default 30-row page limit -- without it a library
+    larger than 30 rules would silently report every rule past the first page as
+    missing.
     """
     url = (
-        f"{base_url}/servicesNS/{quote(owner, safe='')}/{quote(app, safe='')}"
-        f"/saved/searches?output_mode=json&count=0"
+        f"{saved_searches_url(base_url, app, ALL_OWNERS)}"
+        f"?output_mode=json&count=0"
     )
 
     response = session.get(url, timeout=30)
@@ -352,18 +358,21 @@ def has_drift(report: dict) -> bool:
     return any(not item["retired"] for item in report["orphan_removed"])
 
 
-def object_url(base_url: str, owner: str, app: str, name: str) -> str:
-    return (
-        f"{base_url}/servicesNS/{quote(owner, safe='')}/{quote(app, safe='')}"
-        f"/saved/searches/{quote(name, safe='')}?output_mode=json"
-    )
+def object_url(base_url: str, app: str, name: str) -> str:
+    """Writes go to the app-level object, in the namespace the deploy writes to.
+
+    The listing above uses the wildcard owner because it has to see every layer;
+    a write has to pick one, and picking the deploy's is what keeps this script
+    acting on the same object the deploy created (register item 3.9).
+    """
+    return f"{saved_search_url(base_url, app, name)}?output_mode=json"
 
 
 def delete_saved_search(
-    session: requests.Session, base_url: str, owner: str, app: str, name: str
+    session: requests.Session, base_url: str, app: str, name: str
 ) -> tuple[bool, str]:
     """Remove a rename orphan. Its replacement is already deployed and running."""
-    response = session.delete(object_url(base_url, owner, app, name), timeout=30)
+    response = session.delete(object_url(base_url, app, name), timeout=30)
 
     if response.status_code in (200, 201):
         return True, "deleted"
@@ -377,7 +386,6 @@ def delete_saved_search(
 def retire_saved_search(
     session: requests.Session,
     base_url: str,
-    owner: str,
     app: str,
     name: str,
     description: str,
@@ -393,7 +401,7 @@ def retire_saved_search(
     marked = f"{RETIRED_MARKER} {date.today().isoformat()}] {description}".rstrip()
 
     response = session.post(
-        object_url(base_url, owner, app, name),
+        object_url(base_url, app, name),
         data={"disabled": 1, "description": marked},
         timeout=30,
     )
@@ -406,7 +414,6 @@ def retire_saved_search(
 def apply_changes(
     session: requests.Session,
     base_url: str,
-    owner: str,
     app: str,
     report: dict,
     include_removals: bool,
@@ -429,7 +436,7 @@ def apply_changes(
             )
             continue
 
-        ok, detail = delete_saved_search(session, base_url, owner, app, item["name"])
+        ok, detail = delete_saved_search(session, base_url, app, item["name"])
         actions.append({"action": "delete", "name": item["name"], "ok": ok, "detail": detail})
         failures += 0 if ok else 1
         print(f"  {'OK  ' if ok else 'FAIL'} delete {item['name']} -- {detail}")
@@ -443,7 +450,7 @@ def apply_changes(
                 print(f"  SKIP retire {item['name']} -- already retired")
                 continue
             ok, detail = retire_saved_search(
-                session, base_url, owner, app, item["name"], item["description"]
+                session, base_url, app, item["name"], item["description"]
             )
             actions.append({"action": "retire", "name": item["name"], "ok": ok, "detail": detail})
             failures += 0 if ok else 1
@@ -575,11 +582,10 @@ def main(argv: list[str] | None = None) -> int:
         username = env_required("SPLUNK_USERNAME")
         password = env_required("SPLUNK_PASSWORD")
         app = env_required("SPLUNK_APP")
-        # Mirrors the deploy's namespace choice, which is itself dictated by
-        # Splunk assigning ownership to whoever authenticates. Addressing a
-        # different owner here would list a different namespace than the one
-        # the deploy writes to, and every rule would look missing.
-        owner = username
+        # No owner variable any more: this script reads through the wildcard
+        # namespace and writes through the deploy's, and both are decided in
+        # lib/splunk_ns.py rather than here. `username` authenticates the
+        # session and nothing else (register item 3.9).
 
         verify_tls = env_bool("SPLUNK_VERIFY_TLS", default=True)
         announce_tls_mode(verify_tls)
@@ -590,7 +596,7 @@ def main(argv: list[str] | None = None) -> int:
         session.headers.update({"Accept": "application/json"})
 
         desired = load_desired(Path(args.rules_dir))
-        actual = fetch_actual(session, base_url, owner, app)
+        actual = fetch_actual(session, base_url, app)
     except ReconcileError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
@@ -605,7 +611,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.apply:
         try:
             applied = apply_changes(
-                session, base_url, owner, app, report, args.apply_removals
+                session, base_url, app, report, args.apply_removals
             )
         except requests.RequestException as exc:
             print(f"ERROR: could not reach Splunk while applying: {exc}", file=sys.stderr)
