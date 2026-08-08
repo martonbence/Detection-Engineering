@@ -1435,3 +1435,48 @@
     .dep-ok { color:var(--green); }
     .dep-drift { color:var(--amber); }
     .dep-unknown { color:var(--text3); font-style:italic; }
+
+    /* ---------- Deployment: per-rule table ----------
+       Fixed height with its own scroll, so a library that grows to 200 rules
+       does not push the rest of the dashboard off the screen. The header stays
+       put while the body scrolls, because a version number means nothing once
+       its column heading has scrolled away. */
+    .dep-table-wrap { margin-top:16px; max-height:360px; overflow-y:auto; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg3); }
+    .dep-rules { width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; }
+    .dep-rules thead th { position:sticky; top:0; z-index:1; background:var(--bg4); color:var(--text3); font-family:var(--font); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; font-weight:500; text-align:right; padding:8px 12px; border-bottom:1px solid var(--border); }
+    .dep-rules thead th:first-child { text-align:left; }
+    .dep-rules tbody th, .dep-rules tbody td { padding:6px 12px; border-bottom:1px solid var(--border2); }
+    .dep-rules tbody tr:last-child th, .dep-rules tbody tr:last-child td { border-bottom:0; }
+    .dep-id { text-align:left; font-weight:400; color:var(--text); font-family:var(--font); white-space:nowrap; }
+    .dep-repo-ver { text-align:right; color:var(--text3); font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .dep-cell { text-align:right; white-space:nowrap; }
+    .dep-ver { font-variant-numeric:tabular-nums; margin-left:8px; }
+
+    /* The state line. A short trace rather than a dot, because the four states
+       differ in shape as well as colour -- colour alone would leave the panel
+       unreadable to a red/green-blind reader, and this table is nearly all
+       state. */
+    .dep-trace { display:inline-block; width:34px; height:10px; vertical-align:middle; border-radius:2px;
+                 background-repeat:no-repeat; background-position:center; background-size:34px 10px; }
+    .dep-live .dep-trace, .dep-key .dep-live { background-image:linear-gradient(var(--green), var(--green)); background-size:34px 2px; }
+    .dep-live .dep-ver { color:var(--green); }
+    .dep-behind .dep-trace, .dep-key .dep-behind { background-image:repeating-linear-gradient(90deg, var(--amber) 0 6px, transparent 6px 10px); background-size:34px 2px; }
+    .dep-behind .dep-ver { color:var(--amber); }
+    .dep-absent .dep-trace, .dep-key .dep-absent { background-image:repeating-linear-gradient(90deg, var(--text3) 0 2px, transparent 2px 6px); background-size:34px 1px; opacity:.55; }
+    .dep-absent .dep-ver { color:var(--text3); }
+    .dep-gone .dep-trace, .dep-key .dep-gone { background-image:linear-gradient(var(--red), var(--red)); background-size:34px 2px; }
+    .dep-gone .dep-ver { color:var(--red); }
+
+    /* Motion only here, and only for the state that needs a person: an object
+       that should be running and is not. Everything else is still, so movement
+       on this page always means the same thing. */
+    .dep-gone .dep-trace { animation:dep-alarm 1.6s ease-in-out infinite; }
+    @keyframes dep-alarm { 0%, 100% { opacity:1; } 50% { opacity:.35; } }
+    @media (prefers-reduced-motion: reduce) { .dep-gone .dep-trace { animation:none; } }
+
+    .dep-legend { display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:12px; font-size:11.5px; color:var(--text2); }
+    .dep-key { display:inline-flex; align-items:center; gap:7px; }
+    .dep-key .dep-trace { width:26px; background-size:26px 2px; }
+    .visually-hidden { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+
+    @media (max-width: 640px) { .dep-table-wrap { max-height:280px; } .dep-trace { width:22px; background-size:22px 2px; } }
