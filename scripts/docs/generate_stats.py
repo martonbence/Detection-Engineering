@@ -1391,6 +1391,13 @@ _DEP_STATES = {
     "behind": ("dep-behind", "deployed, but an older version than the repo"),
     "absent": ("dep-absent", "not deployed here"),
     "gone": ("dep-gone", "deployed, but Splunk no longer has it"),
+    # Five states, because the fifth is the difference between "we looked and
+    # this rule is not there" and "we have not looked per rule at all". An
+    # environment whose deploy report has not been ingested yet has no rule map,
+    # and rendering that as 27 absences would announce an empty production app
+    # that is in fact fully deployed -- the panel's first and worst possible
+    # lie, in the section built to stop the page claiming things it cannot know.
+    "unrecorded": ("dep-unrecorded", "per-rule versions not recorded for this environment"),
 }
 
 
@@ -1430,6 +1437,10 @@ def _deployment_state(env_section: dict, detect_id: str, repo_version: str) -> t
     # panel exists.
     if detect_id in set(state_info.get("missing_ids") or []):
         return "gone", version
+    if not rules:
+        # Nothing per-rule known about this environment at all -- not the same
+        # claim as "this rule is missing from it".
+        return "unrecorded", ""
     if not entry:
         return "absent", ""
     if repo_version and version and version != repo_version:
@@ -1490,7 +1501,8 @@ def render_deployment_html(inventory: dict, repo: str, rules: list[dict] | None 
         f'<span class="dep-key"><span class="dep-trace {css}" aria-hidden="true"></span>'
         f"{_html.escape(meaning)}</span>"
         for css, meaning in (
-            (_DEP_STATES[key][0], _DEP_STATES[key][1]) for key in ("current", "behind", "absent", "gone")
+            (_DEP_STATES[key][0], _DEP_STATES[key][1])
+            for key in ("current", "behind", "absent", "gone", "unrecorded")
         )
     )
 

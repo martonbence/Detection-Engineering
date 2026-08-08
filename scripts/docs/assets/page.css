@@ -1480,3 +1480,7 @@
     .visually-hidden { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
 
     @media (max-width: 640px) { .dep-table-wrap { max-height:280px; } .dep-trace { width:22px; background-size:22px 2px; } }
+    /* Not "absent": a question mark rather than a flat line, because the claim
+       is about our knowledge, not about the environment. */
+    .dep-unrecorded .dep-trace, .dep-key .dep-unrecorded { background-image:repeating-linear-gradient(90deg, var(--text3) 0 1px, transparent 1px 5px); background-size:34px 1px; opacity:.35; }
+    .dep-unrecorded .dep-ver { color:var(--text3); }
