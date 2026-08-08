@@ -1421,9 +1421,10 @@
        are read against each other -- "dev deployed today, prod eleven days ago"
        is the comparison the panel exists to make, and it only lands when both
        are in view at once. */
-    .dep-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:14px; margin-top:14px; }
-    .dep-env { background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px; }
-    .dep-env-name { font-family:var(--font); font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--text3); margin-bottom:9px; }
+    /* A chart-card now, so it matches the cards it sits beside; only the
+       inner spacing differs, because a five-row table needs less room than a
+       canvas. */
+    .dep-env { justify-content:flex-start; }
     .dep-table { width:100%; border-collapse:collapse; font-size:12.5px; }
     .dep-table th { text-align:left; font-weight:500; color:var(--text2); padding:4px 12px 4px 0; white-space:nowrap; vertical-align:top; }
     .dep-table td { text-align:right; color:var(--text); padding:4px 0; font-variant-numeric:tabular-nums; }
@@ -1441,30 +1442,52 @@
        does not push the rest of the dashboard off the screen. The header stays
        put while the body scrolls, because a version number means nothing once
        its column heading has scrolled away. */
-    .dep-table-wrap { margin-top:16px; max-height:360px; overflow-y:auto; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg3); }
+    /* Same 300px as .chart-card-canvas-wrap, so the panel sits at the height
+       the eye is already calibrated to from the charts above it. */
+    /* The canvas height of the chart cards, so the table card lines up with the
+       Verification Age card next to it. flex:none stops the flex parent from
+       stretching it past that. */
+    .dep-table-wrap { flex:none; height:300px; overflow-y:auto; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg3); }
     .dep-rules { width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; }
-    .dep-rules thead th { position:sticky; top:0; z-index:1; background:var(--bg4); color:var(--text3); font-family:var(--font); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; font-weight:500; text-align:right; padding:8px 12px; border-bottom:1px solid var(--border); }
+    .dep-rules thead th { position:sticky; top:0; z-index:1; background:var(--bg4); color:var(--text3); font-family:var(--font); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; font-weight:500; text-align:right; padding:8px 7px; border-bottom:1px solid var(--border); white-space:nowrap; }
     .dep-rules thead th:first-child { text-align:left; }
-    .dep-rules tbody th, .dep-rules tbody td { padding:6px 12px; border-bottom:1px solid var(--border2); }
+    .dep-rules tbody th, .dep-rules tbody td { padding:6px 7px; border-bottom:1px solid var(--border2); }
+    /* The id column absorbs all the slack, so the value columns collapse to
+       their own width and end up next to each other instead of being spread
+       across the panel. width:1% is the standard way to say "as narrow as the
+       content allows" in a table that is otherwise full width. */
+    /* max-width:0 with width:100% is the standard way to make one column absorb
+       the slack *and* give way when there is none. Without it the id column --
+       every cell of which is nowrap -- sets a minimum table width larger than
+       the card, and the value columns are pushed out of the scroll box
+       entirely: the table then shows nothing but rule names. Now the id
+       truncates with an ellipsis and the values always stay in view, which is
+       the right way round, since the values are what the table is for and the
+       full id is in the row's title attribute. */
+    .dep-rules thead th:first-child, .dep-id { width:100%; max-width:0; overflow:hidden; text-overflow:ellipsis; }
+    .dep-rules thead th:not(:first-child), .dep-repo-ver, .dep-cell { width:1%; }
+    /* Belt and braces: whatever happens to the columns, nothing escapes
+       sideways. The height is the scrollable axis here, not the width. */
+    .dep-table-wrap { overflow-x:hidden; }
     .dep-rules tbody tr:last-child th, .dep-rules tbody tr:last-child td { border-bottom:0; }
     .dep-id { text-align:left; font-weight:400; color:var(--text); font-family:var(--font); white-space:nowrap; }
-    .dep-repo-ver { text-align:right; color:var(--text3); font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .dep-repo-ver { text-align:right; color:var(--text3); font-variant-numeric:tabular-nums; white-space:nowrap; padding-right:10px; }
     .dep-cell { text-align:right; white-space:nowrap; }
-    .dep-ver { font-variant-numeric:tabular-nums; margin-left:8px; }
+    .dep-ver { font-variant-numeric:tabular-nums; margin-left:6px; display:inline-block; min-width:2.6em; text-align:right; }
 
     /* The state line. A short trace rather than a dot, because the four states
        differ in shape as well as colour -- colour alone would leave the panel
        unreadable to a red/green-blind reader, and this table is nearly all
        state. */
-    .dep-trace { display:inline-block; width:34px; height:10px; vertical-align:middle; border-radius:2px;
-                 background-repeat:no-repeat; background-position:center; background-size:34px 10px; }
-    .dep-live .dep-trace, .dep-key .dep-live { background-image:linear-gradient(var(--green), var(--green)); background-size:34px 2px; }
+    .dep-trace { display:inline-block; width:26px; height:10px; vertical-align:middle; border-radius:2px;
+                 background-repeat:no-repeat; background-position:center; background-size:26px 10px; }
+    .dep-live .dep-trace, .dep-key .dep-live { background-image:linear-gradient(var(--green), var(--green)); background-size:26px 2px; }
     .dep-live .dep-ver { color:var(--green); }
-    .dep-behind .dep-trace, .dep-key .dep-behind { background-image:repeating-linear-gradient(90deg, var(--amber) 0 6px, transparent 6px 10px); background-size:34px 2px; }
+    .dep-behind .dep-trace, .dep-key .dep-behind { background-image:repeating-linear-gradient(90deg, var(--amber) 0 6px, transparent 6px 10px); background-size:26px 2px; }
     .dep-behind .dep-ver { color:var(--amber); }
-    .dep-absent .dep-trace, .dep-key .dep-absent { background-image:repeating-linear-gradient(90deg, var(--text3) 0 2px, transparent 2px 6px); background-size:34px 1px; opacity:.55; }
+    .dep-absent .dep-trace, .dep-key .dep-absent { background-image:repeating-linear-gradient(90deg, var(--text3) 0 2px, transparent 2px 6px); background-size:26px 1px; opacity:.55; }
     .dep-absent .dep-ver { color:var(--text3); }
-    .dep-gone .dep-trace, .dep-key .dep-gone { background-image:linear-gradient(var(--red), var(--red)); background-size:34px 2px; }
+    .dep-gone .dep-trace, .dep-key .dep-gone { background-image:linear-gradient(var(--red), var(--red)); background-size:26px 2px; }
     .dep-gone .dep-ver { color:var(--red); }
 
     /* Motion only here, and only for the state that needs a person: an object
@@ -1482,5 +1505,5 @@
     @media (max-width: 640px) { .dep-table-wrap { max-height:280px; } .dep-trace { width:22px; background-size:22px 2px; } }
     /* Not "absent": a question mark rather than a flat line, because the claim
        is about our knowledge, not about the environment. */
-    .dep-unrecorded .dep-trace, .dep-key .dep-unrecorded { background-image:repeating-linear-gradient(90deg, var(--text3) 0 1px, transparent 1px 5px); background-size:34px 1px; opacity:.35; }
+    .dep-unrecorded .dep-trace, .dep-key .dep-unrecorded { background-image:repeating-linear-gradient(90deg, var(--text3) 0 1px, transparent 1px 5px); background-size:26px 1px; opacity:.35; }
     .dep-unrecorded .dep-ver { color:var(--text3); }
