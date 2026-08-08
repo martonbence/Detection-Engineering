@@ -166,13 +166,35 @@ def test_an_older_version_reads_as_behind_and_shows_both_numbers():
     assert "1.2 vs 1.4" in html
 
 
-def test_a_rule_never_deployed_is_absent_not_dead():
-    """Register item 1.1 closed "not promoted yet" as normal, so it is not red."""
+def test_an_environment_with_no_rule_map_is_unrecorded_not_empty():
+    """The panel's worst possible lie: announcing an empty production app.
+
+    Prod's per-rule versions arrive by ingesting a deploy-report artifact. Until
+    that has happened there is no rule map, and rendering it as 27 absences
+    would report a fully deployed environment as deploying nothing.
+    """
     inv = inventory(prod=env_with({}))
+    inv["environments"]["prod"]["last_deploy"]["at"] = "2026-08-08T17:56:04Z"
     html = gs.render_deployment_html(inv, "o/r", repo_rules(("DETECT-2026-0001", "1.0")))
 
-    assert "dep-absent" in html
-    assert "dep-gone" not in html.split("dep-legend")[0]
+    body = html.split("dep-legend")[0]
+    assert "dep-unrecorded" in body
+    assert "dep-absent" not in body
+
+
+def test_a_rule_never_deployed_is_absent_not_dead():
+    """Register item 1.1 closed "not promoted yet" as normal, so it is not red.
+
+    The environment is known per rule -- other rules are recorded in it -- so
+    this rule's absence is a measured fact rather than a gap in our knowledge.
+    """
+    inv = inventory(prod=env_with({"DETECT-2026-0002": {"rule_version": "1.0"}}))
+    rules = repo_rules(("DETECT-2026-0001", "1.0"), ("DETECT-2026-0002", "1.0"))
+    html = gs.render_deployment_html(inv, "o/r", rules)
+
+    body = html.split("dep-legend")[0]
+    assert "dep-absent" in body
+    assert "dep-gone" not in body
 
 
 def test_a_rule_splunk_no_longer_has_is_the_one_alarm():
