@@ -1371,7 +1371,7 @@ def _deployment_env_html(env: str, section: dict, repo: str) -> str:
         f'<tr><th scope="row">{_html.escape(label)}</th><td>{value}</td></tr>' for label, value in rows
     )
     return (
-        f'<div class="dep-env"><div class="dep-env-name">{_html.escape(env)}</div>'
+        f'<div class="chart-card dep-env"><div class="chart-card-title">{_html.escape(env)}</div>'
         f'<table class="dep-table"><tbody>{body}</tbody></table></div>'
     )
 
@@ -1506,20 +1506,34 @@ def render_deployment_html(inventory: dict, repo: str, rules: list[dict] | None 
         )
     )
 
+    # Laid out as chart cards in the same four-track grid the charts above use,
+    # so the per-rule table is exactly the width and height of the Verification
+    # Age card beside it. The environment summaries take one track each, which
+    # fills the row rather than leaving the table floating in half of it -- and
+    # puts "what we sent" next to "what is actually there", which is the
+    # comparison the panel is for.
+    table_card = (
+        '<div class="chart-card chart-card-wide2">'
+        '<div class="chart-card-title">Rule deployment</div>'
+        '<div class="chart-card-sub">Which version each environment was last given, per rule</div>'
+        f"{table}"
+        f'<div class="dep-legend">{legend}</div>'
+        "</div>"
+        if table
+        else ""
+    )
+
     return f"""<div class="dash-section">
       <div class="dash-section-title">Deployment</div>
       <div class="info-note">Where each rule actually lives. Everything else on this page describes
-      the repository; this describes the two Splunk apps it deploys to, recorded by the pipeline
-      itself. <strong>Last deployed</strong> is what we sent. <strong>Splunk checked</strong> is when
-      anything last looked at what is really there &mdash; the two can disagree, and that
-      disagreement is the point.</div>
-      <div class="dep-grid">{columns}</div>
-      {table}
-      <div class="dep-legend">{legend}</div>
-      <div class="info-note">A version cell shows what that environment was last <em>given</em>, so a
-      rule sitting below the repo version has not been redeployed since it changed &mdash; it is not
-      broken, it is behind. An empty cell means no deploy of that rule has been recorded here, which
-      for prod is often simply a rule that has not been promoted yet.</div>
+      the repository; this describes the Splunk apps it deploys to, recorded by the pipeline itself.
+      A version cell shows what that environment was last <em>given</em>, so a rule sitting below the
+      repo version has not been redeployed since it changed &mdash; it is not broken, it is behind.
+      <strong>Splunk checked</strong> is when anything last looked at what is really there; that and
+      the deploy log can disagree, and the disagreement is the point.</div>
+      <div class="dash-section-grid dash-section-grid-row2">
+        {table_card}{columns}
+      </div>
     </div>"""
 
 
