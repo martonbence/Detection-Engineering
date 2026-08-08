@@ -30,6 +30,7 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lib.env import announce_tls_mode, env_bool, env_reader
 from lib.rule_naming import saved_search_name
+from lib.splunk_ns import saved_search_url
 
 
 def die(msg: str, code: int = 1) -> None:
@@ -86,10 +87,17 @@ def dispatch_saved_search(
     (events, error_msg, error_kind).  Uses /saved/searches/{name}/dispatch — no
     SPL re-parsing needed.  error_kind is one of ERR_UNMEASURED / ERR_RULE, and
     is None exactly when error_msg is None.
+
+    Two namespaces are in play, and conflating them is a real bug rather than a
+    style point (register item 3.9). The saved search is a configuration object
+    and is addressed through `nobody`, the same namespace the deploy writes to,
+    so the dispatch resolves the app-level object rather than any private layer
+    over it. The job it returns is not a configuration object -- it belongs to
+    whoever dispatched it -- so `owner`, the authenticating account, is what
+    addresses the job endpoints below.
     """
     dispatch_url = (
-        f"{base_url}/servicesNS/{quote(owner, safe='')}/{quote(app, safe='')}"
-        f"/saved/searches/{quote(search_name, safe='')}/dispatch?output_mode=json"
+        f"{saved_search_url(base_url, app, search_name)}/dispatch?output_mode=json"
     )
     payload = {
         "dispatch.earliest_time": earliest,
@@ -219,8 +227,8 @@ def main(argv: list[str]) -> int:
     username = env_required("SPLUNK_USERNAME")
     password = env_required("SPLUNK_PASSWORD")
     app = env_required("SPLUNK_APP")
-    # See deploy_spl_to_splunk.py's main() for why this mirrors username
-    # rather than reading a separate SPLUNK_OWNER secret.
+    # The account that owns the dispatched *jobs*. Saved-search paths do not use
+    # it -- those go through the `nobody` namespace via lib/splunk_ns.py.
     owner = username
     verify_tls = env_bool("SPLUNK_VERIFY_TLS", default=True)
     announce_tls_mode(verify_tls)

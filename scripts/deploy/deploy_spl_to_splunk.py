@@ -4,13 +4,13 @@ import json
 import os
 import sys
 from pathlib import Path
-from urllib.parse import quote
 
 import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lib.env import announce_tls_mode, env_bool, env_reader
 from lib.rule_naming import saved_search_name
+from lib.splunk_ns import saved_search_url, saved_searches_url
 from lib.summary import MARK_FAIL, MARK_INFO, MARK_PASS, escape_cell
 
 
@@ -198,7 +198,7 @@ def acl_matches(current: dict, sharing: str, perms_read: str, perms_write: str) 
 def set_acl(
     session: requests.Session,
     base_url: str,
-    owner: str,
+    acl_owner: str,
     app: str,
     search_name: str,
     sharing: str,
@@ -223,10 +223,15 @@ def set_acl(
     everyone has learned to scroll past. Comparing first separates them -- a
     matching ACL is silent, and a mismatch that will not apply is now a warning
     that means something.
+
+    `acl_owner` is the authenticating account, and is only ever the *payload*
+    owner -- the URL goes through the `nobody` namespace like every other write
+    here. See lib/splunk_ns.py: `nobody` in the payload is read as an ownership
+    change and refused with 403, while the account's own name is accepted and
+    still applies sharing and permissions.
     """
     acl_url = (
-        f"{base_url}/servicesNS/{quote(owner, safe='')}/{quote(app, safe='')}"
-        f"/saved/searches/{quote(search_name, safe='')}/acl?output_mode=json"
+        f"{saved_search_url(base_url, app, search_name)}/acl?output_mode=json"
     )
 
     current = read_acl(session, acl_url)
@@ -234,9 +239,11 @@ def set_acl(
         return True, "ACL already correct"
 
     payload = {
-        "owner": owner,               # Splunk's ACL endpoint treats this as required --
-                                       # omitting it was read as an implicit (and rejected)
-                                       # ownership change, even when owner wasn't moving.
+        "owner": acl_owner,          # Required, and must be the authenticating account:
+                                     # omitting it and naming `nobody` both come back 403
+                                     # ("You do not have permission to change the owner of
+                                     # this object"); this value changes nothing and is
+                                     # what makes the call succeed.
         "sharing": sharing,          # "app" or "global"
         "perms.read": perms_read,    # "*" or "admin,power"
         "perms.write": perms_write,  # "admin" or "ci_deploy_savedsearches"
@@ -377,14 +384,15 @@ def main(argv: list[str]) -> int:
     username = env_required("SPLUNK_USERNAME")
     password = env_required("SPLUNK_PASSWORD")
     app = env_required("SPLUNK_APP")
-    # Namespace owner deliberately mirrors the authenticating user: Splunk
-    # assigns real object ownership to whoever authenticates the request,
-    # regardless of the {owner} path segment used to address it, so any
-    # divergence here just made every ACL update fail with "You do not have
-    # permission to change the owner of this object." (the service account
-    # doesn't have admin_all_objects). Read/write access is governed by
-    # perms.read/perms.write below, not by who nominally owns the object.
-    owner = username
+    # Register item 3.9. Writes go through the `nobody` namespace so objects are
+    # app-level from creation; addressing them as the service account instead
+    # made every update deposit a private stanza over the live object. The full
+    # measurement, and why the earlier attempt at this misread its own 403, is
+    # in lib/splunk_ns.py.
+    #
+    # `username` still appears below, but only as the ACL payload's owner field.
+    # The two are genuinely different values here, which is the part that took
+    # so long to see.
     verify_tls = env_bool("SPLUNK_VERIFY_TLS", default=True)
     announce_tls_mode(verify_tls)
 
@@ -406,10 +414,7 @@ def main(argv: list[str]) -> int:
     s.auth = (username, password)
     s.headers.update({"Accept": "application/json"})
 
-    create_url = (
-        f"{base_url}/servicesNS/{quote(owner, safe='')}/{quote(app, safe='')}"
-        f"/saved/searches?output_mode=json"
-    )
+    create_url = f"{saved_searches_url(base_url, app)}?output_mode=json"
 
     failed = 0
 
@@ -474,10 +479,7 @@ def main(argv: list[str]) -> int:
         # it was there and is now updated, 404 means it is not there yet.
         # Nothing is inferred from prose, and the common case -- a rule that has
         # been deployed before -- now takes one call instead of two.
-        object_url = (
-            f"{base_url}/servicesNS/{quote(owner, safe='')}/{quote(app, safe='')}"
-            f"/saved/searches/{quote(search_name, safe='')}?output_mode=json"
-        )
+        object_url = f"{saved_search_url(base_url, app, search_name)}?output_mode=json"
 
         # `name` belongs in the URL here, not the body: this endpoint addresses
         # an existing object rather than creating one.
@@ -491,7 +493,7 @@ def main(argv: list[str]) -> int:
 
         if r.status_code == 200:
             print(f"Updated: {search_name}")
-            ok, msg = set_acl(s, base_url, owner, app, search_name, sharing, perms_read, perms_write)
+            ok, msg = set_acl(s, base_url, username, app, search_name, sharing, perms_read, perms_write)
             if not ok:
                 print(f"WARNING: {search_name}: {msg}", file=sys.stderr)
             record("updated", f, meta, search_name, "" if ok else f"ACL warning: {msg}")
@@ -546,7 +548,7 @@ def main(argv: list[str]) -> int:
                     file=sys.stderr,
                 )
 
-            ok, msg = set_acl(s, base_url, owner, app, search_name, sharing, perms_read, perms_write)
+            ok, msg = set_acl(s, base_url, username, app, search_name, sharing, perms_read, perms_write)
             if not ok:
                 print(f"WARNING: {search_name}: {msg}", file=sys.stderr)
             record("created", f, meta, search_name, "" if ok else f"ACL warning: {msg}")

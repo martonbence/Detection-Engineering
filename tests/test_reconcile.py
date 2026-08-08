@@ -219,7 +219,7 @@ def test_fetch_actual_marks_ci_owned_objects():
     }
     session = FakeSession(FakeResponse(200, payload))
 
-    actual = fetch_actual(session, "https://splunk:8089", "svc", "app")
+    actual = fetch_actual(session, "https://splunk:8089", "app")
 
     assert actual["DETECT-2026-0001_Alpha"]["managed"] is True
     assert actual["Analyst search"]["managed"] is False
@@ -229,10 +229,14 @@ def test_fetch_actual_disables_paging():
     """Without count=0 Splunk returns 30 rows and every later rule looks missing."""
     session = FakeSession(FakeResponse(200, {"entry": []}))
 
-    fetch_actual(session, "https://splunk:8089", "svc", "app")
+    fetch_actual(session, "https://splunk:8089", "app")
 
     assert "count=0" in session.requested_url
-    assert "/servicesNS/svc/app/saved/searches" in session.requested_url
+    # Register item 3.9: the wildcard owner, not the service account. A
+    # single-owner listing shows one configuration layer and hides the other,
+    # which is how a private stanza sitting over a live object stayed invisible
+    # -- and this script's duplicate reporting is only as good as this URL.
+    assert "/servicesNS/-/app/saved/searches" in session.requested_url
 
 
 @pytest.mark.parametrize("status", [401, 403])
@@ -241,14 +245,14 @@ def test_permission_errors_are_fatal_not_an_empty_actual_state(status):
     session = FakeSession(FakeResponse(status, None, "denied"))
 
     with pytest.raises(ReconcileError):
-        fetch_actual(session, "https://splunk:8089", "svc", "app")
+        fetch_actual(session, "https://splunk:8089", "app")
 
 
 def test_non_json_response_is_fatal():
     session = FakeSession(FakeResponse(200, None, "<html>proxy error</html>"))
 
     with pytest.raises(ReconcileError):
-        fetch_actual(session, "https://splunk:8089", "svc", "app")
+        fetch_actual(session, "https://splunk:8089", "app")
 
 
 # --- report shape -----------------------------------------------------------
@@ -304,12 +308,15 @@ def test_apply_deletes_rename_orphans():
     })
     session = RecordingSession()
 
-    result = apply_changes(session, "https://splunk:8089", "svc", "app", report, include_removals=False)
+    result = apply_changes(session, "https://splunk:8089", "app", report, include_removals=False)
 
     assert result["failures"] == 0
     assert len(session.deleted) == 1
     assert "DETECT-2026-0001_Old-Title" in session.deleted[0]
-    assert "/servicesNS/svc/app/saved/searches/" in session.deleted[0]
+    # Writes go to the app-level object, in the namespace the deploy writes to.
+    # Reading through the wildcard and writing through it are different things:
+    # `-` addresses no single layer, so it is a listing view only.
+    assert "/servicesNS/nobody/app/saved/searches/" in session.deleted[0]
 
 
 def test_apply_will_not_delete_the_old_object_if_the_new_one_is_not_live():
@@ -320,7 +327,7 @@ def test_apply_will_not_delete_the_old_object_if_the_new_one_is_not_live():
     report = removal_report({"DETECT-2026-0001_Old-Title": managed()})
     session = RecordingSession()
 
-    result = apply_changes(session, "https://splunk:8089", "svc", "app", report, include_removals=False)
+    result = apply_changes(session, "https://splunk:8089", "app", report, include_removals=False)
 
     assert report["counts"]["orphan_renamed"] == 1
     assert report["counts"]["missing"] == 1
@@ -336,7 +343,7 @@ def test_apply_leaves_removal_orphans_alone_without_the_second_flag():
     })
     session = RecordingSession()
 
-    apply_changes(session, "https://splunk:8089", "svc", "app", report, include_removals=False)
+    apply_changes(session, "https://splunk:8089", "app", report, include_removals=False)
 
     assert session.deleted == []
     assert session.posted == []
@@ -349,7 +356,7 @@ def test_apply_removals_disables_rather_than_deletes():
     })
     session = RecordingSession()
 
-    apply_changes(session, "https://splunk:8089", "svc", "app", report, include_removals=True)
+    apply_changes(session, "https://splunk:8089", "app", report, include_removals=True)
 
     # Reversible: no DELETE was issued for it.
     assert session.deleted == []
@@ -371,7 +378,7 @@ def test_retiring_is_idempotent():
     })
     session = RecordingSession()
 
-    apply_changes(session, "https://splunk:8089", "svc", "app", report, include_removals=True)
+    apply_changes(session, "https://splunk:8089", "app", report, include_removals=True)
 
     assert session.posted == []
 
@@ -400,7 +407,7 @@ def test_delete_treats_a_missing_object_as_success():
     """A concurrent run or a manual cleanup got there first -- same end state."""
     session = RecordingSession(delete_status=404)
 
-    ok, detail = delete_saved_search(session, "https://splunk:8089", "svc", "app", "X")
+    ok, detail = delete_saved_search(session, "https://splunk:8089", "app", "X")
 
     assert ok
     assert "absent" in detail
@@ -413,7 +420,7 @@ def test_delete_failure_is_counted():
     })
     session = RecordingSession(delete_status=500)
 
-    result = apply_changes(session, "https://splunk:8089", "svc", "app", report, include_removals=False)
+    result = apply_changes(session, "https://splunk:8089", "app", report, include_removals=False)
 
     assert result["failures"] == 1
     assert result["actions"][0]["ok"] is False
@@ -422,7 +429,7 @@ def test_delete_failure_is_counted():
 def test_retire_failure_is_reported():
     session = RecordingSession(post_status=403)
 
-    ok, detail = retire_saved_search(session, "https://splunk:8089", "svc", "app", "X", "desc")
+    ok, detail = retire_saved_search(session, "https://splunk:8089", "app", "X", "desc")
 
     assert not ok
     assert "403" in detail
@@ -433,7 +440,7 @@ def test_unmanaged_objects_are_never_written_to():
     report = reconcile({}, {"Analyst search": unmanaged()})
     session = RecordingSession()
 
-    apply_changes(session, "https://splunk:8089", "svc", "app", report, include_removals=True)
+    apply_changes(session, "https://splunk:8089", "app", report, include_removals=True)
 
     assert session.deleted == []
     assert session.posted == []
@@ -480,7 +487,7 @@ def two_copies_payload():
 def test_both_copies_of_a_duplicated_name_are_kept():
     session = FakeSession(FakeResponse(200, two_copies_payload()))
 
-    actual = fetch_actual(session, "https://splunk:8089", "svc", "app")
+    actual = fetch_actual(session, "https://splunk:8089", "app")
 
     assert len(actual) == 1, "still keyed by name"
     assert len(actual["test3"]["copies"]) == 2, "but no longer forgets the other one"
@@ -491,7 +498,7 @@ def test_the_visible_record_is_still_the_last_one_seen():
     """Behaviour-preserving: no name may change the bucket it lands in."""
     session = FakeSession(FakeResponse(200, two_copies_payload()))
 
-    actual = fetch_actual(session, "https://splunk:8089", "svc", "app")
+    actual = fetch_actual(session, "https://splunk:8089", "app")
 
     # The last entry in the payload is the retired private copy -- exactly what
     # the old `actual[name] = ...` loop would have left behind.
@@ -524,7 +531,7 @@ def test_a_single_copy_is_not_a_duplicate():
         "entry": [{"name": "solo", "content": {"description": CI_MARKER}, "acl": {"sharing": "app"}}]
     }))
 
-    actual = fetch_actual(session, "https://splunk:8089", "svc", "app")
+    actual = fetch_actual(session, "https://splunk:8089", "app")
     report = reconcile({}, actual)
 
     assert actual["solo"]["copies"] == [actual["solo"]["copies"][0]]
