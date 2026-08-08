@@ -1325,7 +1325,12 @@ def _deployment_env_html(env: str, section: dict, repo: str) -> str:
         when = _html.escape(deployed_at[:16].replace("T", " ")) if deployed_at else "unknown"
         when_cell = f"{when}<span class=\"dep-age\">{_html.escape(age)}</span>" if age else when
         rows.append(("Last deployed", when_cell))
-        rows.append(("Rules deployed", str(len(rules))))
+        # Only when we actually counted them. Prod's entry is assembled from the
+        # Actions API rather than from a deploy report, so there is no per-rule
+        # map to size -- and rendering "0" for "not recorded here" would be the
+        # page stating something false in the one panel that exists to stop it.
+        if rules:
+            rows.append(("Rules deployed", str(len(rules))))
         if commit:
             short = _html.escape(commit[:7])
             link = f"https://github.com/{repo}/commit/{_html.escape(commit)}"

@@ -65,6 +65,7 @@ jobs:
       last_sha: ${{ steps.lastdeploy.outputs.sha }}
       last_run_id: ${{ steps.lastdeploy.outputs.id }}
       last_run_url: ${{ steps.lastdeploy.outputs.url }}
+      last_at: ${{ steps.lastdeploy.outputs.at }}
 
     steps:
       # main, not dev: prod is deployed from main, so main's rule set is what
@@ -154,6 +155,7 @@ jobs:
             echo "sha=$(jq -r .sha <<<"$run_json")"
             echo "id=$(jq -r .id <<<"$run_json")"
             echo "url=$(jq -r .url <<<"$run_json")"
+            echo "at=$(jq -r .at <<<"$run_json")"
           } >> "$GITHUB_OUTPUT"
 
       - name: Say so if prod drifted
@@ -284,7 +286,8 @@ jobs:
               --reconcile outputs/state/prod_reconcile.json \
               --commit "${{ needs.audit_prod.outputs.last_sha }}" \
               --run-id "${{ needs.audit_prod.outputs.last_run_id }}" \
-              --run-url "${{ needs.audit_prod.outputs.last_run_url }}"
+              --run-url "${{ needs.audit_prod.outputs.last_run_url }}" \
+              --deployed-at "${{ needs.audit_prod.outputs.last_at }}"
 
             git add outputs/reports/deployment_inventory.json
 

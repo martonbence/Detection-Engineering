@@ -89,6 +89,53 @@ def test_a_file_with_no_detect_id_stays_out_of_the_per_rule_map(tmp_path):
     assert dev["totals"] == {"updated": 1, "failed": 1}
 
 
+def test_prod_records_its_deploy_from_metadata_alone(tmp_path):
+    """The first prod audit run recorded "no deploy recorded" -- this is why.
+
+    Prod deploys are logged by a workflow that cannot commit, so the audit
+    learns which commit production runs from the Actions API rather than from a
+    report file. The metadata arrived and was silently dropped, leaving the
+    inventory blank for an environment that had been deployed all along -- the
+    exact blind spot item 4.7 exists to remove.
+    """
+    _, data = run(
+        tmp_path,
+        "prod",
+        reconcile=reconcile_report(),
+        extra=[
+            "--commit", "3354100",
+            "--run-id", "31270660683",
+            "--run-url", "https://github.com/o/r/actions/runs/31270660683",
+            "--deployed-at", "2026-08-08T17:56:04Z",
+        ],
+    )
+
+    last = data["environments"]["prod"]["last_deploy"]
+    assert last["commit"] == "3354100"
+    assert last["at"] == "2026-08-08T17:56:04Z"
+    assert last["run_id"] == "31270660683"
+
+
+def test_metadata_does_not_wipe_a_report_derived_entry(tmp_path):
+    """Updating a timestamp must not cost the per-rule map a report brought."""
+    run(tmp_path, "prod", deploy=deploy_report())
+    _, data = run(
+        tmp_path, "prod", reconcile=reconcile_report(), extra=["--commit", "newsha1"]
+    )
+
+    last = data["environments"]["prod"]["last_deploy"]
+    assert last["commit"] == "newsha1"
+    assert "DETECT-2026-0007" in last["rules"]
+
+
+def test_a_reconcile_with_no_deploy_metadata_records_no_deploy(tmp_path):
+    """The counterpart: absent metadata must not invent an empty deploy entry."""
+    _, data = run(tmp_path, "dev", reconcile=reconcile_report())
+
+    assert "last_deploy" not in data["environments"]["dev"]
+    assert data["environments"]["dev"]["splunk_state"]["in_sync"] == 27
+
+
 # --- what it refuses to do ---------------------------------------------------
 
 
