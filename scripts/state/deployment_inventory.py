@@ -180,6 +180,7 @@ def update(
     commit: str,
     run_id: str,
     run_url: str,
+    deployed_at: str,
     now: str,
 ) -> dict:
     envs = inventory.setdefault("environments", {})
@@ -187,6 +188,31 @@ def update(
 
     if deploy is not None:
         section["last_deploy"] = deploy_section(deploy, commit, run_id, run_url)
+    elif commit or run_id or deployed_at:
+        # The prod path, and the reason this branch exists at all.
+        #
+        # Prod deploys are recorded by a workflow that cannot commit, so the
+        # audit learns "which commit is production running" from the Actions
+        # API instead of from a report file. Without this the fields arrived
+        # and were silently dropped, leaving the inventory saying "no deploy
+        # recorded" for an environment that has been deployed all along --
+        # exactly the blind spot item 4.7 exists to remove.
+        #
+        # Merged into whatever is already there rather than replacing it: a
+        # report-derived entry carries a per-rule map that this path has no way
+        # to know, and overwriting it with metadata alone would lose real
+        # information in the name of updating a timestamp.
+        last = dict(section.get("last_deploy") or {})
+        if deployed_at:
+            last["at"] = deployed_at
+        if commit:
+            last["commit"] = commit
+        if run_id:
+            last["run_id"] = run_id
+        if run_url:
+            last["run_url"] = run_url
+        section["last_deploy"] = last
+
     if reconcile is not None:
         section["splunk_state"] = state_section(reconcile, now)
 
@@ -257,6 +283,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--commit", default="", help="The commit the deploy ran from")
     parser.add_argument("--run-id", default="", help="The CI run id that deployed")
     parser.add_argument("--run-url", default="", help="Link to that CI run")
+    parser.add_argument(
+        "--deployed-at",
+        default="",
+        help="When that deploy ran, ISO 8601. Used when there is no report to read it from.",
+    )
     args = parser.parse_args(argv)
 
     if not args.deploy_report and not args.reconcile:
@@ -282,6 +313,7 @@ def main(argv: list[str] | None = None) -> int:
         commit=args.commit,
         run_id=args.run_id,
         run_url=args.run_url,
+        deployed_at=args.deployed_at,
         now=datetime.now(UTC).isoformat(),
     )
 
