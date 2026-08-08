@@ -102,9 +102,30 @@ def load_inventory(path: Path) -> dict:
     return existing
 
 
-def deploy_section(report: dict, commit: str, run_id: str, run_url: str) -> dict:
-    """The per-rule half: what this deploy sent, and at which version."""
-    rules: dict[str, dict] = {}
+def deploy_section(
+    report: dict, commit: str, run_id: str, run_url: str, previous: dict | None = None
+) -> dict:
+    """The per-rule half: what this deploy sent, and at which version.
+
+    The rule map is *merged* into what was already known, not replaced, and the
+    reason is the dev pipeline's deploy: it only ever ships the rules that
+    changed in that push. A replacing map would therefore show one or two rules
+    on dev and nothing else -- reading as "25 rules are not deployed" when they
+    are all deployed and simply were not touched today.
+
+    Merging makes each entry mean "this is the version dev was last given, and
+    when", which is the honest per-rule statement and also the useful one: a
+    rule sitting at 1.1 while the repo is at 1.4 has not been redeployed since,
+    and that is exactly the gap this panel exists to show. Each entry therefore
+    carries its own timestamp rather than inheriting the run's.
+
+    Prod needs none of this -- its deploy ships the whole library from
+    `git ls-files` every time -- but the same code serves both, and the merge is
+    a no-op when every rule is present.
+    """
+    deployed_at = str(report.get("deployed_at") or "")
+    rules: dict[str, dict] = dict((previous or {}).get("rules") or {})
+
     for entry in report.get("rules") or []:
         detect_id = str(entry.get("detect_id") or "").strip()
         if not detect_id:
@@ -112,9 +133,16 @@ def deploy_section(report: dict, commit: str, run_id: str, run_url: str) -> dict
             # could be read. It belongs in the totals, not in a per-rule map
             # keyed by an id that does not exist.
             continue
+        outcome = str(entry.get("outcome") or "")
+        if outcome == "failed":
+            # A failed deploy did not change what is running, so recording it as
+            # the rule's state would replace a true version with a false one.
+            # The totals still carry the failure.
+            continue
         rules[detect_id] = {
             "rule_version": str(entry.get("rule_version") or ""),
-            "outcome": str(entry.get("outcome") or ""),
+            "outcome": outcome,
+            "at": deployed_at,
         }
 
     return {
@@ -163,6 +191,18 @@ def state_section(reconcile: dict, checked_at: str) -> dict:
         1 for item in (reconcile.get("orphan_removed") or []) if not item.get("retired")
     )
     section["orphan_removed_unretired"] = unretired
+
+    # The one place a count is not enough. "3 rules missing" tells the dashboard
+    # to colour something red but not *which* row -- and a per-rule table that
+    # cannot point at the offending rule is back to making the reader go and
+    # look somewhere else, which is the habit this item exists to break. Names
+    # rather than counts, so the panel can mark exactly the rules Splunk did not
+    # have. Bounded by the rule library, and normally empty.
+    section["missing_ids"] = sorted(
+        str(item.get("detect_id") or "").strip()
+        for item in (reconcile.get("missing") or [])
+        if str(item.get("detect_id") or "").strip()
+    )
     section["has_drift"] = bool(
         counts.get("missing")
         or counts.get("orphan_renamed")
@@ -187,7 +227,9 @@ def update(
     section = envs.setdefault(env, {})
 
     if deploy is not None:
-        section["last_deploy"] = deploy_section(deploy, commit, run_id, run_url)
+        section["last_deploy"] = deploy_section(
+            deploy, commit, run_id, run_url, previous=section.get("last_deploy")
+        )
     elif commit or run_id or deployed_at:
         # The prod path, and the reason this branch exists at all.
         #

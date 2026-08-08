@@ -62,7 +62,62 @@ def test_a_deploy_is_recorded_per_rule_with_its_version(tmp_path):
     assert code == 0
     dev = data["environments"]["dev"]["last_deploy"]
     assert dev["commit"] == "abc1234"
-    assert dev["rules"]["DETECT-2026-0007"] == {"rule_version": "1.2", "outcome": "updated"}
+    assert dev["rules"]["DETECT-2026-0007"] == {
+        "rule_version": "1.2",
+        "outcome": "updated",
+        # Per rule, not per run: with the dev deploy only ever shipping what
+        # changed, entries age at different rates and a single run-level
+        # timestamp would date all of them by the most recent one.
+        "at": "2026-08-08T18:00:00+00:00",
+    }
+
+
+def test_the_dev_rule_map_accumulates_across_runs(tmp_path):
+    """The dev deploy only ships what changed, so replacing would erase the rest.
+
+    A replacing map would show one rule on dev and nothing else, reading as "26
+    rules are not deployed" when they are all deployed and simply were not
+    touched today -- the panel would invent a problem out of a normal push.
+    """
+    run(tmp_path, "dev", deploy=deploy_report())
+    one_rule = deploy_report(
+        rules=[{"detect_id": "DETECT-2026-0007", "rule_version": "1.3", "outcome": "updated"}],
+        totals={"updated": 1},
+        deployed_at="2026-08-09T09:00:00+00:00",
+    )
+    _, data = run(tmp_path, "dev", deploy=one_rule)
+
+    rules = data["environments"]["dev"]["last_deploy"]["rules"]
+    assert rules["DETECT-2026-0007"]["rule_version"] == "1.3"
+    assert rules["DETECT-2026-0007"]["at"] == "2026-08-09T09:00:00+00:00"
+    # Untouched by this run, and still recorded at what it was last given.
+    assert rules["DETECT-2026-0028"]["rule_version"] == "1.8"
+    assert rules["DETECT-2026-0028"]["at"] == "2026-08-08T18:00:00+00:00"
+
+
+def test_a_failed_rule_does_not_overwrite_its_known_version(tmp_path):
+    """A failed deploy did not change what is running, so it must not be recorded."""
+    run(tmp_path, "dev", deploy=deploy_report())
+    failed = deploy_report(
+        rules=[{"detect_id": "DETECT-2026-0007", "rule_version": "1.9", "outcome": "failed"}],
+        totals={"failed": 1},
+    )
+    _, data = run(tmp_path, "dev", deploy=failed)
+
+    rules = data["environments"]["dev"]["last_deploy"]["rules"]
+    assert rules["DETECT-2026-0007"]["rule_version"] == "1.2"
+    assert data["environments"]["dev"]["last_deploy"]["totals"] == {"failed": 1}
+
+
+def test_missing_rules_are_named_not_just_counted(tmp_path):
+    """A per-rule table cannot point at a row from a count alone."""
+    report = reconcile_report(
+        {"missing": 1, "in_sync": 26},
+    )
+    report["missing"] = [{"name": "DETECT-2026-0028_Cached", "detect_id": "DETECT-2026-0028"}]
+    _, data = run(tmp_path, "prod", reconcile=report)
+
+    assert data["environments"]["prod"]["splunk_state"]["missing_ids"] == ["DETECT-2026-0028"]
 
 
 def test_splunk_state_is_recorded_separately_from_the_deploy(tmp_path):

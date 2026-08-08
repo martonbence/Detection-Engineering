@@ -1376,7 +1376,104 @@ def _deployment_env_html(env: str, section: dict, repo: str) -> str:
     )
 
 
-def render_deployment_html(inventory: dict, repo: str) -> str:
+# How a rule's state in one environment is drawn. Colour and shape carry the
+# meaning; motion is reserved for the one state that needs a person, because a
+# dashboard where everything moves is a dashboard nobody reads.
+#
+# The states are deliberately four, not three. "Not deployed" and "deployed but
+# gone from Splunk" look identical in a naive rendering and mean opposite
+# things: the first is usually a rule that has simply not been promoted yet
+# (register item 1.1 closed exactly that case as normal), the second is an
+# object that should be running and is not. Colouring the first red would teach
+# people to ignore red.
+_DEP_STATES = {
+    "current": ("dep-live", "deployed, same version as the repo"),
+    "behind": ("dep-behind", "deployed, but an older version than the repo"),
+    "absent": ("dep-absent", "not deployed here"),
+    "gone": ("dep-gone", "deployed, but Splunk no longer has it"),
+}
+
+
+def _deployment_cell(state: str, version: str, repo_version: str, env: str, detect_id: str) -> str:
+    """One rule in one environment: a state line plus the version it runs."""
+    css, meaning = _DEP_STATES[state]
+
+    if state == "behind":
+        label = f"{env}: {meaning} ({version} vs {repo_version})"
+    elif state == "current":
+        label = f"{env}: {meaning} ({version})"
+    else:
+        label = f"{env}: {meaning}"
+
+    shown = _html.escape(version) if version else "&mdash;"
+    return (
+        f'<td class="dep-cell {css}" title="{_html.escape(detect_id)} &mdash; {_html.escape(label)}">'
+        f'<span class="dep-trace" aria-hidden="true"></span>'
+        f'<span class="dep-ver">{shown}</span>'
+        f'<span class="visually-hidden">{_html.escape(label)}</span>'
+        "</td>"
+    )
+
+
+def _deployment_state(env_section: dict, detect_id: str, repo_version: str) -> tuple[str, str]:
+    """(state, deployed_version) for one rule in one environment."""
+    deploy = env_section.get("last_deploy") or {}
+    rules = deploy.get("rules") or {}
+    state_info = env_section.get("splunk_state") or {}
+
+    entry = rules.get(detect_id) or {}
+    version = str(entry.get("rule_version") or "")
+
+    # Splunk's own answer wins over the deploy log. The deploy says what was
+    # sent; the reconcile says what is there now, and when they disagree the
+    # second one is the fact -- that disagreement is the whole reason this
+    # panel exists.
+    if detect_id in set(state_info.get("missing_ids") or []):
+        return "gone", version
+    if not entry:
+        return "absent", ""
+    if repo_version and version and version != repo_version:
+        return "behind", version
+    return "current", version
+
+
+def _deployment_table(environments: dict, rules: list[dict], order: list[str]) -> str:
+    """Every rule in the library, against every environment we know about.
+
+    Driven by the repo's rule list rather than by the inventory's keys, so a
+    rule that has never been deployed anywhere still gets a row. An inventory-
+    driven table would quietly omit exactly the rules worth noticing.
+    """
+    head = "".join(f'<th scope="col">{_html.escape(env)}</th>' for env in order)
+
+    body = []
+    for rule in rules:
+        detect_id = str(rule.get("detect_id") or "")
+        if not detect_id:
+            continue
+        repo_version = str(rule.get("rule_version") or "")
+        title = str(rule.get("title") or "")
+
+        cells = []
+        for env in order:
+            state, version = _deployment_state(environments.get(env) or {}, detect_id, repo_version)
+            cells.append(_deployment_cell(state, version, repo_version, env, detect_id))
+
+        body.append(
+            f'<tr><th scope="row" class="dep-id" title="{_html.escape(title)}">'
+            f"{_html.escape(detect_id)}</th>"
+            f'<td class="dep-repo-ver">{_html.escape(repo_version)}</td>'
+            f"{''.join(cells)}</tr>"
+        )
+
+    return (
+        '<div class="dep-table-wrap"><table class="dep-rules">'
+        f'<thead><tr><th scope="col">Rule</th><th scope="col">repo</th>{head}</tr></thead>'
+        f"<tbody>{''.join(body)}</tbody></table></div>"
+    )
+
+
+def render_deployment_html(inventory: dict, repo: str, rules: list[dict] | None = None) -> str:
     """The whole panel, or an empty string when there is nothing to say."""
     environments = inventory.get("environments") if isinstance(inventory, dict) else None
     if not isinstance(environments, dict) or not environments:
@@ -1387,15 +1484,30 @@ def render_deployment_html(inventory: dict, repo: str) -> str:
     # so the panel does not reshuffle itself between builds.
     order = sorted(environments, key=lambda name: (name != "dev", name != "prod", name))
     columns = "".join(_deployment_env_html(env, environments[env] or {}, repo) for env in order)
+    table = _deployment_table(environments, rules or [], order) if rules else ""
+
+    legend = "".join(
+        f'<span class="dep-key"><span class="dep-trace {css}" aria-hidden="true"></span>'
+        f"{_html.escape(meaning)}</span>"
+        for css, meaning in (
+            (_DEP_STATES[key][0], _DEP_STATES[key][1]) for key in ("current", "behind", "absent", "gone")
+        )
+    )
 
     return f"""<div class="dash-section">
       <div class="dash-section-title">Deployment</div>
-      <div class="info-note">Where each rule set actually lives. Everything else on this page
-      describes the repository; this describes the two Splunk apps it deploys to, recorded by the
-      pipeline itself. <strong>Last deployed</strong> is what we sent. <strong>Splunk checked</strong>
-      is when anything last looked at what is really there &mdash; the two can disagree, and that
+      <div class="info-note">Where each rule actually lives. Everything else on this page describes
+      the repository; this describes the two Splunk apps it deploys to, recorded by the pipeline
+      itself. <strong>Last deployed</strong> is what we sent. <strong>Splunk checked</strong> is when
+      anything last looked at what is really there &mdash; the two can disagree, and that
       disagreement is the point.</div>
       <div class="dep-grid">{columns}</div>
+      {table}
+      <div class="dep-legend">{legend}</div>
+      <div class="info-note">A version cell shows what that environment was last <em>given</em>, so a
+      rule sitting below the repo version has not been redeployed since it changed &mdash; it is not
+      broken, it is behind. An empty cell means no deploy of that rule has been recorded here, which
+      for prod is often simply a rule that has not been promoted yet.</div>
     </div>"""
 
 
@@ -1483,7 +1595,10 @@ def render_html_summary(stats: dict, repo: str) -> str:
     )
 
     html = load_page_template()
-    html = html.replace("@@DEPLOYMENT_HTML@@", render_deployment_html(load_deployment_inventory(), repo))
+    html = html.replace(
+        "@@DEPLOYMENT_HTML@@",
+        render_deployment_html(load_deployment_inventory(), repo, stats.get("rules") or []),
+    )
     html = html.replace("@@TS@@", ts)
     html = html.replace("@@TOTAL@@", str(total))
     html = html.replace("@@PASSED@@", str(passed))
