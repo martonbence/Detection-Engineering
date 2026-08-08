@@ -1262,6 +1262,138 @@ def _read_asset(name: str) -> str:
         ) from None
 
 
+DEPLOYMENT_INVENTORY_PATH = Path("outputs/reports/deployment_inventory.json")
+
+
+def load_deployment_inventory(path: Path = DEPLOYMENT_INVENTORY_PATH) -> dict:
+    """The deployment inventory, or an empty dict (register item 4.7).
+
+    Absent is a normal state, not an error: the file appears the first time a
+    run deploys anything, and until then the page simply has no deployment
+    panel. Every other input to this generator describes the repo, which is
+    always here; this one describes two Splunk instances that the generator
+    cannot reach and must not pretend to know about.
+    """
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print(f"WARNING: could not read {path}: {exc}", file=sys.stderr)
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _relative_age(iso: str) -> str:
+    """"3 days ago", or "" when the timestamp is missing or unparseable.
+
+    Deliberately coarse. The point of the age is whether anyone has looked
+    recently, and a precise duration invites reading it as a measurement when
+    it is really a staleness signal.
+    """
+    if not iso:
+        return ""
+    try:
+        when = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=UTC)
+
+    days = (datetime.now(UTC).date() - when.astimezone(UTC).date()).days
+    if days <= 0:
+        return "today"
+    if days == 1:
+        return "yesterday"
+    return f"{days} days ago"
+
+
+def _deployment_env_html(env: str, section: dict, repo: str) -> str:
+    """One environment's column: what we sent, and what is actually there."""
+    deploy = section.get("last_deploy") or {}
+    state = section.get("splunk_state") or {}
+
+    rules = deploy.get("rules") or {}
+    commit = str(deploy.get("commit") or "")
+    run_url = str(deploy.get("run_url") or "")
+    deployed_at = str(deploy.get("at") or "")
+
+    rows = []
+
+    if deploy:
+        age = _relative_age(deployed_at)
+        when = _html.escape(deployed_at[:16].replace("T", " ")) if deployed_at else "unknown"
+        when_cell = f"{when}<span class=\"dep-age\">{_html.escape(age)}</span>" if age else when
+        rows.append(("Last deployed", when_cell))
+        rows.append(("Rules deployed", str(len(rules))))
+        if commit:
+            short = _html.escape(commit[:7])
+            link = f"https://github.com/{repo}/commit/{_html.escape(commit)}"
+            rows.append(("From commit", f'<a href="{link}" target="_blank" rel="noopener"><code>{short}</code></a>'))
+        if run_url:
+            rows.append(("CI run", f'<a href="{_html.escape(run_url)}" target="_blank" rel="noopener">workflow run</a>'))
+    else:
+        rows.append(("Last deployed", '<span class="dep-unknown">no deploy recorded</span>'))
+
+    if state:
+        checked = _relative_age(str(state.get("checked_at") or "")) or "unknown"
+        drift = bool(state.get("has_drift"))
+        # The two halves are stated separately on purpose. "We sent 27" staying
+        # true while "27 are there" stops being true is exactly the 2026-08-07
+        # case this panel exists for, and merging them would hide it again.
+        verdict = (
+            '<span class="dep-drift">drift — see the audit run</span>'
+            if drift
+            else '<span class="dep-ok">matches the repo</span>'
+        )
+        rows.append(("Splunk checked", _html.escape(checked)))
+        rows.append(("Comparison", verdict))
+        if drift:
+            detail = ", ".join(
+                f"{state.get(key) or 0} {key.replace('_', ' ')}"
+                for key in ("missing", "orphan_renamed", "duplicate_names")
+                if state.get(key)
+            )
+            unretired = state.get("orphan_removed_unretired") or 0
+            if unretired:
+                detail = ", ".join(filter(None, [detail, f"{unretired} awaiting retirement"]))
+            if detail:
+                rows.append(("What differs", _html.escape(detail)))
+    else:
+        rows.append(("Splunk checked", '<span class="dep-unknown">never</span>'))
+
+    body = "".join(
+        f'<tr><th scope="row">{_html.escape(label)}</th><td>{value}</td></tr>' for label, value in rows
+    )
+    return (
+        f'<div class="dep-env"><div class="dep-env-name">{_html.escape(env)}</div>'
+        f'<table class="dep-table"><tbody>{body}</tbody></table></div>'
+    )
+
+
+def render_deployment_html(inventory: dict, repo: str) -> str:
+    """The whole panel, or an empty string when there is nothing to say."""
+    environments = inventory.get("environments") if isinstance(inventory, dict) else None
+    if not isinstance(environments, dict) or not environments:
+        return ""
+
+    # dev before prod when both exist, because that is the direction the
+    # pipeline runs; anything else in alphabetical order rather than dict order,
+    # so the panel does not reshuffle itself between builds.
+    order = sorted(environments, key=lambda name: (name != "dev", name != "prod", name))
+    columns = "".join(_deployment_env_html(env, environments[env] or {}, repo) for env in order)
+
+    return f"""<div class="dash-section">
+      <div class="dash-section-title">Deployment</div>
+      <div class="info-note">Where each rule set actually lives. Everything else on this page
+      describes the repository; this describes the two Splunk apps it deploys to, recorded by the
+      pipeline itself. <strong>Last deployed</strong> is what we sent. <strong>Splunk checked</strong>
+      is when anything last looked at what is really there &mdash; the two can disagree, and that
+      disagreement is the point.</div>
+      <div class="dep-grid">{columns}</div>
+    </div>"""
+
+
 def load_page_template() -> str:
     """The full page template, assembled from its assets and cached per run."""
     global _page_template_cache
@@ -1346,6 +1478,7 @@ def render_html_summary(stats: dict, repo: str) -> str:
     )
 
     html = load_page_template()
+    html = html.replace("@@DEPLOYMENT_HTML@@", render_deployment_html(load_deployment_inventory(), repo))
     html = html.replace("@@TS@@", ts)
     html = html.replace("@@TOTAL@@", str(total))
     html = html.replace("@@PASSED@@", str(passed))

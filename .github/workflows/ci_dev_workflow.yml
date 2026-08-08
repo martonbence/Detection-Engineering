@@ -932,7 +932,24 @@ jobs:
             exit 0
           fi
 
-          python pipeline_bundle/scripts/deploy/deploy_spl_to_splunk.py "${bundle_files[@]}"
+          # Register item 4.7. The prod side has written a --report since item
+          # 2.4; dev never did, which left the inventory able to say what
+          # production runs and not what dev runs -- an asymmetry with no reason
+          # behind it beyond the order the two items were done in.
+          python pipeline_bundle/scripts/deploy/deploy_spl_to_splunk.py \
+            --report outputs/deploy/dev_deploy_report.json \
+            "${bundle_files[@]}"
+
+      # always(): a failed deploy is when the record matters most, because it
+      # names which rules reached dev Splunk before the run stopped.
+      - name: Upload dev deploy report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dev-deploy-report-${{ github.run_id }}
+          path: outputs/deploy/dev_deploy_report.json
+          if-no-files-found: warn
+          retention-days: 90
 
   atomic_verify:
     name: Atomic Red Team Test
@@ -1237,6 +1254,22 @@ jobs:
         with:
           name: spl-pipeline-bundle
           path: pipeline_bundle
+
+      # Register item 4.7. Crosses the job boundary as an artifact rather than
+      # being read off the runner's disk: the dev deploy and this job happen to
+      # land on the same lab machine today, and relying on that would make the
+      # inventory silently incomplete the day they do not.
+      #
+      # continue-on-error: a run where no rule changed deploys nothing and so
+      # uploads no report. That must not fail the verification job -- the
+      # inventory simply keeps the deploy it already knew about, which is the
+      # honest record of what dev is running.
+      - name: Download dev deploy report
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dev-deploy-report-${{ github.run_id }}
+          path: outputs/deploy
 
       # Ground truth for the NOT_VERIFIED gate in pass_fail_eval.py: each atomic
       # job writes its own <detect_id>.json progress markers and uploads them as
@@ -1699,6 +1732,31 @@ jobs:
 
             # Overlay our result files (overwrite whatever dev already has)
             cp -r "$tmp/results/." outputs/results/
+
+            # Register item 4.7. Deliberately *after* the reset, not before it:
+            # this step resets the checkout to origin/dev's tip, and only
+            # outputs/results/ is snapshotted across that. The inventory is
+            # rebuilt here instead of preserved, which it can be because both of
+            # its inputs live in .gitignore'd directories -- git does not manage
+            # outputs/deploy/ or outputs/state/, so `git reset --hard` leaves
+            # them exactly where the earlier steps wrote them.
+            #
+            # Only the dev section is touched. Prod's is written by the prod
+            # audit workflow, which is the only thing that can see the prod app,
+            # and deployment_inventory.py merges rather than overwrites so the
+            # two never erase each other.
+            #
+            # Not fatal on failure: an inventory that missed one run is a far
+            # smaller loss than a verification run whose results never got
+            # committed because a bookkeeping step failed.
+            python scripts/state/deployment_inventory.py \
+              --env dev \
+              --deploy-report outputs/deploy/dev_deploy_report.json \
+              --reconcile outputs/state/reconcile.json \
+              --commit "${GITHUB_SHA}" \
+              --run-id "${GITHUB_RUN_ID}" \
+              --run-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+              || echo "::warning title=Inventory not updated::deployment_inventory.py failed; the dashboard will show the previous deployment state."
 
             # Re-generate aggregated stats (picks up results from all concurrent runs)
             python scripts/docs/generate_stats.py

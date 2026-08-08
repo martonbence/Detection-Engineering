@@ -367,6 +367,15 @@
       </div>
     </div>
 
+    <!-- Register item 4.7. Rendered server-side into a single placeholder
+         rather than driven from page.js, because it answers a question the rest
+         of the page cannot: everything else here describes the repo, and this
+         describes two Splunk instances the page has no way to reach. It is also
+         the one section that can legitimately be absent -- before the first run
+         that writes an inventory there is nothing to show, and an empty panel
+         claiming "0 deployed" would be a worse answer than no panel. -->
+    @@DEPLOYMENT_HTML@@
+
     <div class="dash-section">
       <div class="dash-section-title">Trends Over Time</div>
       <div class="trend-range-bar">
