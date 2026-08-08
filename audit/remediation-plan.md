@@ -68,12 +68,23 @@ A különbséget egyetlen mérés adta meg — a jogosultságok a `nobody` alatt
 igazolva ugyanaznap:** egy dispatchelt prod futás mind a 27 szabályt frissítette, utána nulla
 árnyék és nulla 409 — tiszta kiindulásból, tehát a régi kóddal 27 árnyék keletkezett volna.
 
-A következő kör újra szabadon választható, és érdemes megnézni, mi maradt valóban nyitott: a
-register a 2026-07-26-i állapotra készült, azóta több tétel a saját munkája mellékhatásaként
-oldódott meg (lásd az 1.12-t). Kézenfekvő jelöltek: a **4.10** maradéka (actionlint, shellcheck,
-pip-audit), a **2.x** blokk olcsó darabjai (**2.2** `timeout-minutes`), a **2.22** gyökere (a
-technika-kinyerés összehangolása, amihez a 3.1 loadere már megvan), vagy a nagyobb
-architektúra-lépések (**3.2** artifact-promóció, **3.4** 2. fázisa, **3.8** alkönyvtárak).
+A következő kör újra szabadon választható. Az itt korábban felsorolt jelöltek egy része azóta
+elkészült — a **2.2** és a **4.10** is kész, a bekezdés csak nem követte —, tehát a mai nyitott
+halmaz 14 tétel: **2.22**, **3.2**, **3.5**, **3.6**, **3.8**, **4.1**, **4.2**, **4.4**–**4.9**,
+**4.11**.
+
+**A legerősebb jelölt a 4.7** (deployment inventory), mert kétszer bizonyította magát méréssel,
+nem érveléssel. 2026-08-07: egy prodból kézzel törölt szabályról semmi nem szólt — sem a repo, sem
+a reconcile (csak a dev appot nézi), sem a dashboard. 2026-08-08: a 3.9 javítása mergelődött
+`main`-be, és **nem ért ki prodba**, mert a prod workflow `paths:` szűrője csak `rules/sigma/**`-ra
+tüzel; ezt sem jelezte semmi, egy kézi `workflow_dispatch` kellett hozzá. A telepítési lánc
+egyirányú: ami a végén történik (vagy nem történik), arról a rendszer elején semmi nem tud.
+A **3.3** kimenete és a **2.4** deploy-riportja már megvan hozzá alapanyagnak.
+
+Két másik, más jellegű jelölt: a **4.11** hitelességi rés (egy lejárt vagy felülírt verdiktű
+szabály soha nem blokkolja a promóciót, ma 15 ilyen ül prodban) — ez ugyanabba a családba tartozik,
+mint az 1.2, tehát a register fő témájába; és a **3.2** artifact-promóció, ami architektúra-lépés,
+és a mellékhatásaként az 1.3 drift-gate-je törölhetővé válik.
 
 ---
 
