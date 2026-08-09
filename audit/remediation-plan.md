@@ -904,3 +904,35 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   **Ami még nyitva van, de nem hiba:** a leltár dev szekciója az első dev futáson jelenik meg, a
   napi 05:40-es audit pedig a `main`-re kerüléssel kapcsolt be (a `schedule:` csak a default ágról
   él). A panel addig is helyesen viselkedik: amiről nincs adat, arról nem állít semmit.
+
+- **2026-08-09** — **4.7 dashboard: a per-szabály tábla csak a szabálynevet mutatta, méréssel
+  javítva.** A felhasználó a 4.7 eredeti kérését tesztelte élesben (Detect ID + dev/prod verzió +
+  vizuális jelzés a cellán belül), és azt találta, hogy a `repo`/`dev`/`prod` oszlopok nem
+  látszanak — ugyanaz a tünet, amit két korábbi vak CSS-javítás nem oldott meg
+  ([[project-deployment-table-layout]]). Böngésző-automatizálással megmért tényleges pixelértékek
+  találták meg a valódi okot: egy oldal-szintű `table { table-layout: fixed; }` szabály (a fő
+  szabály-böngésző rácsához írva) csendben felülírta a `.dep-rules` táblán a `width:1%`/
+  `max-width:0` szélesség-trükköt, ami csak `table-layout: auto` alatt működik — fixed layout alatt
+  a böngésző az első sor deklarált szélességei alapján osztja szét a helyet, a tartalomtól
+  függetlenül, ezért az érték-oszlopok pár pixelre lapultak. Egysoros javítás: `table-layout:auto`
+  a `.dep-rules`-on. Ezután kiderült, hogy a szélesség-trükk maga is felesleges volt — a
+  `detect_id` fix formátumú, sosem kell törnie —, és helyette `width:fit-content`-tel a tábla a
+  tartalmához igazodik, nem a kártya teljes szélességéhez, ami megszüntette a nagy üres helyet az
+  ID és az értékek között.
+  **Vizuális kérés, ugyanabban a menetben:** a felhasználó nagyobb és mozgó vonalat kért a statikus
+  csík helyett. Egy tényleges kis EKG-hullám (`clip-path` szalag, `transform: translateX()`-szel
+  csúsztatva) váltotta a korábbi szín-csíkot; élő = zöld normál pulzus, sodródik = borostyán
+  gyorsabb pulzus, eltűnt = piros egyenes vonal mozogva a meglévő vaku-villogás alatt (szó szerint
+  „leállt a szív"), hiányzik/nem ismert = szándékosan mozdulatlan (azok a tudásunkról szólnak, nem
+  az élő állapotról). **Két zsákutca vezetett a végső megoldáshoz, mindkettő méréssel zárva:**
+  `mask-image` egy SVG-csempével látható szakadást hagyott a periódusok között, de csak animáció
+  közben — egy statikus, egymás mellé tett 5 példányos ellenőrzés mindkétszer hibátlannak tűnt.
+  Sima ismétlődő `background-image` ugyanígy szakadt, csempeszélesség és doboz-szélesség minden
+  kombinációjában. A `clip-path` + `transform` végleges, mert nincs kép, amit a renderelőnek
+  csempéznie/összeillesztenie kellene — hat animációs fázisban, képpontról képpontra ellenőrizve,
+  a vonal folytonos.
+  **Amit ez a tétel nem old meg:** a dashboard `dev` oszlopa a publikált oldalon üres, mert a repóba
+  committolt `deployment_inventory.json`-ban jelenleg csak `prod` szekció van — a `dev` szekciót a
+  dev workflow saját deploy+reconcile futása tölti fel, amit a `paths:` szűrő csak
+  szabály-/converter-/deploy-script-változásra indít el, dokumentáció- vagy CSS-változásra nem.
+  Ez a mai commit nem indította el; a felhasználó saját maga intézi a dev workflow indítását.
