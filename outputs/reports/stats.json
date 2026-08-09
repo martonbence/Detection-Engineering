@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-09T08:26:35.143932+00:00",
+  "generated_at": "2026-08-09T08:27:57.657071+00:00",
   "total_rules": 27,
   "total_sigma_rules": 27,
   "total_compiled_sigma_rules": 26,
@@ -54,8 +54,8 @@
       "status": "test",
       "source": "native_spl",
       "verdict": "PASS",
-      "run_id": "31209015915",
-      "verdict_at": "2026-08-07T18:55:02.857387+00:00",
+      "run_id": "31303520739",
+      "verdict_at": "2026-08-09T08:27:49.065178+00:00",
       "verdict_rule_version": "1.4",
       "tactics": [
         "Execution"
