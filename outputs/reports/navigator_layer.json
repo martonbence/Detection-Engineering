@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-08-09T11:37:10 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
+  "description": "Auto-generated detection coverage. 2026-08-09T11:39:25 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
   "filters": {
     "platforms": [
       "Windows",
