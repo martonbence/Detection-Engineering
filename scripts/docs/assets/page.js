@@ -39,6 +39,7 @@
   const LEVEL_DISPLAY = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low', informational: 'Info' };
 
   let dashboardChartsBuilt = false;
+  let deploymentSyncCounterBuilt = false;
 
   // Chart.js 4.5.1 has a confirmed bug (verified empirically, not from docs):
   // if a chart's canvas container has a FRACTIONAL CSS pixel width/height at
@@ -1972,6 +1973,79 @@
     }
   });
 
+  // ── Deployment panel: live header elements (dataviz follow-up, 2026-08-09) ─
+  // The Deployment section itself is fully server-rendered HTML (see
+  // generate_stats.py's render_deployment_html) -- these two attach to
+  // markup that already exists at parse time, they do not build any of it.
+
+  // "N / total in sync" counts up from 0 once, the same reveal-on-first-view
+  // treatment buildDashboardCharts() gives the charts beside it and for the
+  // same reason: without deferring to a real paint of the (initially
+  // display:none) Dashboards pane, the animation's wall-clock duration can
+  // elapse before anyone ever sees a frame of it. Guarded to run once ever,
+  // not once per tab visit -- a counter that replays every time you switch
+  // back to the tab reads as broken, not lively.
+  function initDeploymentSyncCounter() {
+    if (deploymentSyncCounterBuilt) return;
+    deploymentSyncCounterBuilt = true;
+    const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    document.querySelectorAll('.dep-sync-counter').forEach(el => {
+      const target = parseInt(el.dataset.target, 10) || 0;
+      const n = el.querySelector('.dep-sync-n');
+      if (!n) return;
+      if (reduceMotion || !target) { n.textContent = String(target); return; }
+      const duration = 700;
+      let start = null;
+      const step = (ts) => {
+        if (start === null) start = ts;
+        const progress = Math.min(1, (ts - start) / duration);
+        n.textContent = String(Math.round(progress * target));
+        if (progress < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    });
+  }
+
+  // The "Splunk checked" freshness ring: genuinely re-derived every second
+  // from data-checked-at (an ISO timestamp generate_stats.py renders as-is),
+  // not a CSS keyframe loop -- a page left open overnight keeps draining and
+  // recolouring on its own, the same way the pass rate and coverage fraction
+  // elsewhere on this page keep re-deriving themselves rather than freezing
+  // at their build-time value. Unlike the counter above, this starts
+  // immediately at load and is never gated behind the Dashboards tab
+  // becoming visible: it is a continuous value, not a from-zero reveal, so
+  // there is nothing for an invisible first frame to spoil -- whatever it
+  // has drifted to by the time the tab is opened is simply correct.
+  //
+  // The ring's radius (10) has to match _DEP_FRESH_RING_R in
+  // generate_stats.py for the circumference used here to mean the same
+  // thing as the stroke-dasharray rendered server-side; the freshness
+  // window does not, since it is read from each ring's own
+  // data-window-hours rather than duplicated as a constant.
+  function initDeploymentFreshnessRings() {
+    const rings = document.querySelectorAll('.dep-fresh-ring');
+    if (!rings.length) return;
+    const CIRC = 2 * Math.PI * 10;
+    const paint = () => {
+      const now = Date.now();
+      rings.forEach(wrap => {
+        const iso = wrap.dataset.checkedAt;
+        if (!iso) return;
+        const when = new Date(iso).getTime();
+        if (Number.isNaN(when)) return;
+        const windowHours = parseFloat(wrap.dataset.windowHours) || 72;
+        const elapsedHours = (now - when) / 3600000;
+        const frac = Math.max(0, Math.min(1, 1 - elapsedHours / windowHours));
+        const fill = wrap.querySelector('.dep-fresh-ring-fill');
+        if (!fill) return;
+        fill.setAttribute('stroke-dashoffset', String(CIRC * (1 - frac)));
+        fill.setAttribute('stroke', elapsedHours < 24 ? 'var(--green)' : elapsedHours < 72 ? 'var(--amber)' : 'var(--red)');
+      });
+    };
+    paint();
+    setInterval(paint, 1000);
+  }
+
   // ── Tabs ─────────────────────────────────────────────────────────────────
 
   function setActiveTab(name, opts) {
@@ -2007,7 +2081,10 @@
       // at least one real paint has already happened before the charts (and
       // their animation clocks) are created, on first load or later clicks
       // alike.
-      requestAnimationFrame(() => requestAnimationFrame(() => buildDashboardCharts()));
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        buildDashboardCharts();
+        initDeploymentSyncCounter();
+      }));
     }
     if (!opts.skipHash) updateHash();
   }
@@ -2859,4 +2936,5 @@
   renderStripTotal();
   applyState(decodeState(location.hash));
   initResizableColumns();
+  initDeploymentFreshnessRings();
 

@@ -536,7 +536,18 @@
 
     #table-body { transition: opacity 0.12s ease; }
 
-    table {
+    /* Scoped to .table-wrap (the main rule-library grid's own wrapper), not a
+       bare `table` selector: an unscoped rule here does not just style the
+       library grid, it becomes the width/layout default for *every* table on
+       the page, including the Deployment section's two unrelated tables. That
+       was the actual cause of the dead gap between the Detect-ID and
+       repo-version columns in .dep-rules (see its own comment below) --
+       nth-child column widths sized for this table's 10 columns were landing
+       on .dep-rules' 2nd <th> purely because both are a `th:nth-child(2)`,
+       with nothing about either table's content in common. table-layout:fixed
+       leaking the same way is why .dep-rules has to fight it back with an
+       explicit table-layout:auto rather than simply not inheriting it. */
+    .table-wrap table {
       width: 100%;
       border-collapse: separate;
       border-spacing: 0;
@@ -576,19 +587,25 @@
     th.sorted::after { content: '\25BC'; display: inline-block; font-size: 9px; font-weight: 900; margin-left: 5px; vertical-align: 1px; }
     th.sorted.desc::after { content: '\25B2'; }
 
-    th:nth-child(1) { width: 160px; }
-    th:nth-child(2) { width: 380px; }
-    th:nth-child(3) { width: 110px; }
-    th:nth-child(4) { width: 100px; }
-    th:nth-child(5) { width: 130px; }
-    th:nth-child(6) { width: 150px; }
-    th:nth-child(7) { width: 150px; }
-    th:nth-child(8) { width: 140px; }
-    th:nth-child(9) { width: 120px; }
-    th:nth-child(10) { width: 110px; }
+    /* Same scoping reason as .table-wrap table above: these are per-column
+       widths for this table's specific 10 columns, addressed purely by
+       position. Left unscoped, they are indistinguishable from a rule meant
+       for any other table's 2nd, 3rd, ... column -- which is exactly how
+       380px (this table's wide Title column) ended up sizing .dep-rules'
+       tiny repo-version column instead. */
+    .table-wrap th:nth-child(1) { width: 160px; }
+    .table-wrap th:nth-child(2) { width: 380px; }
+    .table-wrap th:nth-child(3) { width: 110px; }
+    .table-wrap th:nth-child(4) { width: 100px; }
+    .table-wrap th:nth-child(5) { width: 130px; }
+    .table-wrap th:nth-child(6) { width: 150px; }
+    .table-wrap th:nth-child(7) { width: 150px; }
+    .table-wrap th:nth-child(8) { width: 140px; }
+    .table-wrap th:nth-child(9) { width: 120px; }
+    .table-wrap th:nth-child(10) { width: 110px; }
 
-    th:nth-child(8), th:nth-child(9), th:nth-child(10),
-    td:nth-child(8), td:nth-child(9), td:nth-child(10) {
+    .table-wrap th:nth-child(8), .table-wrap th:nth-child(9), .table-wrap th:nth-child(10),
+    .table-wrap td:nth-child(8), .table-wrap td:nth-child(9), .table-wrap td:nth-child(10) {
       text-align: center;
     }
 
@@ -1424,7 +1441,24 @@
     /* A chart-card now, so it matches the cards it sits beside; only the
        inner spacing differs, because a five-row table needs less room than a
        canvas. */
-    .dep-env { justify-content:flex-start; }
+    /* CSS Grid items default to align-items:stretch, so plain
+       .dash-section-grid-row2 (used as-is by the Verification section's own
+       row) would make dev/prod match the *tallest* item in the row -- which,
+       once the Rule deployment card grew to ~473px (300px scrolling table +
+       the header-live strip + a 5-item legend), stretched these six-row
+       summary cards to that same height for no reason of their own: mostly
+       empty space below a handful of label/value rows. .dep-deploy-grid
+       scopes align-items:start to this specific row (the Verification row's
+       two cards are close enough in natural height already that stretch
+       there was never visibly wrong, so it is left alone) so dev/prod size
+       to their own content instead of the table's. */
+    .dep-deploy-grid { align-items: start; }
+    /* min-height, not height: matches Rules by Severity's rendered box
+       height (265px, measured with Playwright) for the common case so the
+       row reads as consistent card sizes, but a fixed height would clip the
+       occasional extra "What differs" row a drift day adds -- min-height
+       lets the rare case grow instead of losing information. */
+    .dep-env { justify-content:flex-start; min-height: 265px; }
     .dep-table { width:100%; border-collapse:collapse; font-size:12.5px; }
     .dep-table th { text-align:left; font-weight:500; color:var(--text2); padding:4px 12px 4px 0; white-space:nowrap; vertical-align:top; }
     .dep-table td { text-align:right; color:var(--text); padding:4px 0; font-variant-numeric:tabular-nums; }
@@ -1456,20 +1490,32 @@
        id column was swallowing the card and the value columns were flattened
        to a few px each, twice, through two rounds of width tuning that never
        touched this property. */
-    /* width: fit-content, not 100%: detect_id is a fixed-format string
-       (`DETECT-2026-NNNN`), so the id column never needs to shrink or
-       truncate -- the width:100%/max-width:0 trick this replaced was solving
-       a wrapping problem that can't happen here, and its side effect was
-       telling auto-layout to hand the id column every pixel of slack in the
-       card, leaving a dead gap between the id and the version columns once
-       they were actually visible. A percentage width anywhere in the row
-       forces that same slack-distribution behaviour even with the table
-       itself set to fit-content (the percentage has to resolve against
-       *something*, so the browser falls back to stretching) -- hence no
-       width:1% on the value columns either. Every column now just takes the
-       width its own content needs, and the table stops exactly where its
-       columns end instead of stretching to the card. */
-    .dep-rules { width:fit-content; max-width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; table-layout:auto; }
+    /* width: max-content, not fit-content or 100%: detect_id is a
+       fixed-format string (`DETECT-2026-NNNN`), so the id column never needs
+       to shrink or truncate -- the width:100%/max-width:0 trick this replaced
+       was solving a wrapping problem that can't happen here, and its side
+       effect was telling auto-layout to hand the id column every pixel of
+       slack in the card, leaving a dead gap between the id and the version
+       columns once they were actually visible. A percentage width anywhere in
+       the row forces that same slack-distribution behaviour even with the
+       table itself set to fit-content -- hence no width:1% on the value
+       columns either.
+       fit-content still left a gap, just relocated: the sticky thead
+       (position:sticky below) makes the browser compute the table's
+       fit-content width against the *scroll container's* available width,
+       not the table's own content -- fit-content's available-space term wins
+       even though max-content is smaller, and whichever column carried no
+       width hint (the repo-version column, past the id/trace fix above)
+       absorbed the entire difference. max-content has no available-space
+       term to win: it is always the table's true content width, sticky
+       header or not (confirmed empirically -- switching thead th to
+       position:static made fit-content behave correctly too, isolating the
+       interaction to sticky specifically). max-width:100% is the guard for
+       when content genuinely exceeds the card (narrow viewports): max-content
+       does not clamp to the container on its own, .dep-table-wrap's
+       overflow-x:hidden below is the actual backstop, and this repo's four
+       columns never come close to that width at any breakpoint in practice. */
+    .dep-rules { width:max-content; max-width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; table-layout:auto; }
     .dep-rules thead th { position:sticky; top:0; z-index:1; background:var(--bg4); color:var(--text3); font-family:var(--font); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; font-weight:500; text-align:right; padding:8px 10px; border-bottom:1px solid var(--border); white-space:nowrap; }
     .dep-rules thead th:first-child { text-align:left; }
     .dep-rules tbody th, .dep-rules tbody td { padding:6px 10px; border-bottom:1px solid var(--border2); }
@@ -1491,53 +1537,77 @@
     /* position:relative + overflow:hidden turns this into a viewport onto
        .dep-trace-fill rather than a paint surface of its own. */
     .dep-trace { display:inline-block; position:relative; overflow:hidden; width:40px; height:20px; vertical-align:middle; border-radius:2px; }
-    .dep-trace-fill { position:absolute; top:0; left:0; width:80px; height:20px; }
+    /* An <svg>, not a plain div, since 2026-08-09: see _deployment_trace_svg's
+       own comment in generate_stats.py for why. The element being scrolled by
+       the animation is now the <svg> itself rather than a div with a
+       background-color -- position/size/animation stay the same, only the
+       thing being positioned changed shape. */
+    .dep-trace-fill { position:absolute; top:0; left:0; width:80px; height:20px; overflow:visible; }
+    /* fill:none + stroke-width here once, so every state below only has to
+       set a stroke colour, not repeat the geometry. stroke:none by default:
+       absent/unrecorded intentionally never get a colour rule (see below),
+       and an un-stroked polyline is exactly as invisible as the old
+       colourless div was, not merely close to it. */
+    .dep-trace-fill polyline { fill:none; stroke:none; stroke-width:2.6px; stroke-linecap:round; stroke-linejoin:round; }
 
-    /* Live and behind draw an actual small heartbeat blip -- a solid ribbon
-       shaped with clip-path, scrolled continuously by animating transform --
-       because a moving trace reads as "this is alive right now" the way a
-       still one never does, and that is exactly the claim these two states
-       make: deployed and reporting, whether or not the version matches the
-       repo. Gone reuses the same mechanism with a flat ribbon instead of a
-       blip -- a monitor's flatline, still scrolling, under the existing alarm
-       blink -- because moving *and* flat reads as "this stopped" more clearly
-       than either alone. Absent and unrecorded stay static further down:
-       those are claims about what we know, not about whether something is
+    /* Live and behind draw an actual small heartbeat blip -- a real stroked
+       line, scrolled continuously by animating transform -- because a moving
+       trace reads as "this is alive right now" the way a still one never
+       does, and that is exactly the claim these two states make: deployed
+       and reporting, whether or not the version matches the repo. Gone
+       reuses the same mechanism with a flat line instead of a blip -- a
+       monitor's flatline, still scrolling, under the existing alarm blink --
+       because moving *and* flat reads as "this stopped" more clearly than
+       either alone. Absent and unrecorded stay static further down: those
+       are claims about what we know, not about whether something is
        running, and animating them would imply a liveness signal that was
        never actually sent. */
-    /* clip-path + transform, not a tiled image: both a mask-image and a plain
-       background-image built from the same repeating SVG tile left a visible
-       seam between repeats once the animation was actually moving, in this
-       browser, regardless of whether the tile was drawn once, twice, or
-       repeated across a wider box -- a static side-by-side render of several
-       copies always looked perfect, so the seam was specific to compositing a
-       tiled image while it moves. A clip-path is geometry, not an image the
-       renderer has to tile and stitch back together, so there is nothing for
-       that seam to come from. The fill is drawn at *double* the visible
-       width (80px = two 40px periods, the second an exact copy of the first
-       shifted over) and clipped by .dep-trace's overflow:hidden; sliding it
-       left by exactly one period and looping is then trivially seamless,
-       because the pixels at the end of the loop are the pixels the start
-       already had. */
-    .dep-live .dep-trace-fill, .dep-key .dep-live .dep-trace-fill,
-    .dep-behind .dep-trace-fill, .dep-key .dep-behind .dep-trace-fill {
-      clip-path: polygon(0px 8.7px, 13px 8.7px, 16px 1.7px, 19px 15.7px, 22px 8.7px, 40px 8.7px, 53px 8.7px, 56px 1.7px, 59px 15.7px, 62px 8.7px, 80px 8.7px, 80px 11.3px, 62px 11.3px, 59px 18.3px, 56px 4.3px, 53px 11.3px, 40px 11.3px, 22px 11.3px, 19px 18.3px, 16px 4.3px, 13px 11.3px, 0px 11.3px);
+    /* An actual stroked <polyline>, not a clip-path polygon standing in for
+       one, and not a tiled image either: a mask-image/background-image built
+       from a repeating tile left a visible seam between repeats once the
+       animation was actually moving, in this browser, regardless of how the
+       tile was drawn (documented at length in an earlier version of this
+       comment) -- a real DOM element that gets *translated* isn't tiling
+       anything, so that class of bug does not apply here.
+       The clip-path polygon this replaced hand-offset each centerline vertex
+       *vertically* by a constant 1.3px to fake a 2.6px-wide ribbon -- correct
+       on the flat stretches (where vertical offset IS perpendicular to the
+       line) but only ~1.0px of visible thickness on the spike's steep
+       diagonals (2.6 * cos(66.8deg) from vertical), a real, visible width
+       mismatch between the flat and diagonal segments, not a rendering
+       artifact. stroke-width on a real <polyline> is perpendicular-to-the-
+       line by construction, at every vertex, for free -- the geometry in
+       generate_stats.py's _deployment_trace_svg is now just the centerline
+       the old polygon was already built around, with no offset math at all.
+       The shape is still drawn at *double* the visible width (80px = two
+       40px periods, the second an exact copy of the first shifted over) and
+       clipped by .dep-trace's overflow:hidden; sliding it left by exactly
+       one period and looping is then trivially seamless, because the pixels
+       at the end of the loop are the pixels the start already had. */
+    /* .dep-heartbeat variants added alongside .dep-key: the card-header
+       composite trace (register/dataviz follow-up, 2026-08-09) puts the
+       state class on the same element as .dep-trace, exactly like the
+       legend does and unlike the per-row cells (state class on the
+       ancestor .dep-cell) -- so it rides the .dep-key selectors' pattern,
+       not the bare .dep-live/.dep-behind/.dep-gone ones. */
+    .dep-live .dep-trace-fill, .dep-key .dep-live .dep-trace-fill, .dep-heartbeat .dep-live .dep-trace-fill,
+    .dep-behind .dep-trace-fill, .dep-key .dep-behind .dep-trace-fill, .dep-heartbeat .dep-behind .dep-trace-fill {
       animation: dep-beat 1.4s linear infinite;
     }
-    .dep-live .dep-trace-fill, .dep-key .dep-live .dep-trace-fill { background-color:var(--green); }
+    .dep-live .dep-trace-fill polyline, .dep-key .dep-live .dep-trace-fill polyline, .dep-heartbeat .dep-live .dep-trace-fill polyline { stroke:var(--green); }
     .dep-live .dep-ver { color:var(--green); }
-    .dep-behind .dep-trace-fill, .dep-key .dep-behind .dep-trace-fill { background-color:var(--amber); animation-duration:1s; }
+    .dep-behind .dep-trace-fill, .dep-key .dep-behind .dep-trace-fill, .dep-heartbeat .dep-behind .dep-trace-fill { animation-duration:1s; }
+    .dep-behind .dep-trace-fill polyline, .dep-key .dep-behind .dep-trace-fill polyline, .dep-heartbeat .dep-behind .dep-trace-fill polyline { stroke:var(--amber); }
     .dep-behind .dep-ver { color:var(--amber); }
     /* Absent stays a static dashed mark directly on the 40px outer element,
        not the 80px fill: it never animates, so none of the sliding-ribbon
        machinery above applies to it. */
-    .dep-absent .dep-trace, .dep-key .dep-absent { background-image:repeating-linear-gradient(90deg, var(--text3) 0 3px, transparent 3px 9px); background-repeat:no-repeat; background-position:center; background-size:40px 1px; opacity:.55; }
+    .dep-absent .dep-trace, .dep-key .dep-absent, .dep-heartbeat .dep-absent { background-image:repeating-linear-gradient(90deg, var(--text3) 0 3px, transparent 3px 9px); background-repeat:no-repeat; background-position:center; background-size:40px 1px; opacity:.55; }
     .dep-absent .dep-ver { color:var(--text3); }
-    .dep-gone .dep-trace-fill, .dep-key .dep-gone .dep-trace-fill {
-      background-color:var(--red);
-      clip-path: polygon(0px 8.7px, 80px 8.7px, 80px 11.3px, 0px 11.3px);
+    .dep-gone .dep-trace-fill, .dep-key .dep-gone .dep-trace-fill, .dep-heartbeat .dep-gone .dep-trace-fill {
       animation: dep-beat 1.4s linear infinite, dep-alarm 1.6s ease-in-out infinite;
     }
+    .dep-gone .dep-trace-fill polyline, .dep-key .dep-gone .dep-trace-fill polyline, .dep-heartbeat .dep-gone .dep-trace-fill polyline { stroke:var(--red); }
     .dep-gone .dep-ver { color:var(--red); }
 
     @keyframes dep-beat { from { transform:translateX(0); } to { transform:translateX(-40px); } }
@@ -1556,3 +1626,33 @@
        is about our knowledge, not about the environment. */
     .dep-unrecorded .dep-trace, .dep-key .dep-unrecorded { background-image:repeating-linear-gradient(90deg, var(--text3) 0 1px, transparent 1px 5px); background-repeat:no-repeat; background-position:center; background-size:40px 1px; opacity:.35; }
     .dep-unrecorded .dep-ver { color:var(--text3); }
+
+    /* ---------- Deployment: card-header live elements (2026-08-09) ----------
+       Two additions to the "Rule deployment" card and the environment
+       summary cards, both live rather than merely animated -- picked over
+       the third option shown alongside them (a plain pulsing header dot). */
+    .dep-table-head { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:2px; }
+    .dep-table-head-live { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+
+    /* The per-rule EKG trace rolled up one level: same .dep-trace/.dep-trace-fill
+       mechanism as every row, just four of them abutting inside a recessed
+       track so the header reads as one small composite instrument rather
+       than four separate row-cells that escaped the table. Sized identically
+       to a row's trace (40x20) -- a bigger or re-proportioned copy would read
+       as a different element instead of "the same thing, one level up". */
+    .dep-heartbeat { display:inline-flex; align-items:center; height:20px; border-radius:3px; overflow:hidden; background:var(--bg4); }
+    /* The real, accessible half of the claim the (aria-hidden) heartbeat
+       shape makes -- see _deployment_sync_counter's own comment. */
+    .dep-sync-counter { font-family:var(--font-ui); font-size:12px; color:var(--text2); white-space:nowrap; }
+    .dep-sync-n { font-family:var(--font); font-variant-numeric:tabular-nums; font-weight:700; color:var(--green); font-size:14px; }
+
+    /* Live freshness ring beside "Splunk checked": genuinely re-derived every
+       second by page.js from data-checked-at, not a CSS keyframe loop -- see
+       _deployment_freshness_ring's comment for why that distinction matters
+       here specifically. transition (not the animation shorthand) is what
+       makes each JS-driven update glide instead of jump. */
+    .dep-checked-cell { display:inline-flex; align-items:center; gap:6px; }
+    .dep-fresh-ring-svg { transform:rotate(-90deg); flex-shrink:0; }
+    .dep-fresh-ring-track { fill:none; stroke:var(--border2); stroke-width:2.5; }
+    .dep-fresh-ring-fill { fill:none; stroke-width:2.5; stroke-linecap:round; transition:stroke-dashoffset 1s linear, stroke 1s linear; }
+    @media (prefers-reduced-motion: reduce) { .dep-fresh-ring-fill { transition:none; } }
