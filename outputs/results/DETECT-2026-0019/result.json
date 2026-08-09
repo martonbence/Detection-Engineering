@@ -1,15 +1,15 @@
 {
   "detect_id": "DETECT-2026-0019",
   "title": "LSASS Memory Access by Non-Standard Process",
-  "verdict": "FAIL",
-  "reason": "Too many events: 11 (max expected: 10)",
-  "event_count": 11,
+  "verdict": "PASS",
+  "reason": "Event count 1 within expected range [1–10]",
+  "event_count": 1,
   "min_pass": 1,
   "max_pass": 10,
-  "earliest": "1786274695",
+  "earliest": "1786276260",
   "latest": "now",
-  "run_timestamp": "2026-08-09T11:32:45.334350+00:00",
+  "run_timestamp": "2026-08-09T11:52:31.625973+00:00",
   "rule_version": "1.5",
-  "git_sha": "75496327fd679cf3818ee12d6540e1c48d7fcd24",
-  "run_id": "31310720711"
+  "git_sha": "a2aadc99d948b6c1d0a846e478382a7872e3b96b",
+  "run_id": "31311810674"
 }
