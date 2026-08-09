@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-09T11:32:52.698586+00:00",
+  "generated_at": "2026-08-09T11:37:10.662550+00:00",
   "total_rules": 27,
   "total_sigma_rules": 27,
   "total_compiled_sigma_rules": 26,
@@ -216,8 +216,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "FAIL",
-      "run_id": "31310720711",
-      "verdict_at": "2026-08-09T11:32:45.334350+00:00",
+      "run_id": "31311154486",
+      "verdict_at": "2026-08-09T11:37:03.314218+00:00",
       "verdict_rule_version": "1.19",
       "tactics": [
         "Execution",
