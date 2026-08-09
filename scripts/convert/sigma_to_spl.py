@@ -405,6 +405,20 @@ def main() -> int:
         default="",
         help="Path to the backend config. Defaults to config/backends.yml next to the repo root.",
     )
+    ap.add_argument(
+        "--meta-only",
+        action="store_true",
+        help=(
+            "Regenerate only the .meta.json sidecar for each rule, without touching its .spl. "
+            "For rules whose .spl is already committed and unchanged -- build_meta_dict() only "
+            "reads the parsed rule dict, never the sigma-cli subprocess in run_sigma_convert(), "
+            "so this is cheap regardless of rule count (register item 3.2: the dev bundle needs "
+            "complete sidecar coverage for every currently-committed rule on every run, not just "
+            "the ones actually changed, and re-running full conversion on the unchanged majority "
+            "does not scale as the rule count grows). Requires the rule's .spl to already exist "
+            "in --outdir."
+        ),
+    )
     ap.add_argument("rules", nargs="+")
     args = ap.parse_args()
 
@@ -460,7 +474,18 @@ def main() -> int:
 
         service = _normalize_service(rule)
 
-        if raw_query:
+        if args.meta_only:
+            # Neither run_sigma_convert() (the sigma-cli subprocess) nor
+            # enforce_index_prefix() run here -- both act on .spl content,
+            # and this mode's entire point is to leave that content alone.
+            # The .spl this rule already has (committed, presumably
+            # unchanged) is the one that ships; only its sidecar is stale.
+            if not out_path.exists():
+                print(f"ERROR: --meta-only requires an existing .spl, found none: {out_path}", file=sys.stderr)
+                failed += 1
+                continue
+            print(f"Meta only: {rule_path} -> {out_path.stem}.meta.json (leaving {out_path.name} untouched)")
+        elif raw_query:
             # A raw_query rule never reaches the backend: the SPL is written by
             # hand in the Sigma file and copied out verbatim. The backend is
             # still loaded for it, because the run either knows its target or
@@ -478,13 +503,14 @@ def main() -> int:
                 failed += 1
                 continue  # do not write meta if conversion failed
 
-        # Burn Sigma custom.splunk.index into the beginning of the generated SPL query
-        try:
-            enforce_index_prefix(out_path, splunk_index)
-        except Exception as e:
-            print(f"ERROR: failed applying index prefix for {out_path}: {e}", file=sys.stderr)
-            failed += 1
-            continue
+        if not args.meta_only:
+            # Burn Sigma custom.splunk.index into the beginning of the generated SPL query
+            try:
+                enforce_index_prefix(out_path, splunk_index)
+            except Exception as e:
+                print(f"ERROR: failed applying index prefix for {out_path}: {e}", file=sys.stderr)
+                failed += 1
+                continue
 
         # Always write the meta sidecar AFTER successful query generation
         try:
