@@ -65,6 +65,39 @@ def test_leading_whitespace_before_the_pipe_is_still_a_generating_command():
     assert _inject_index_prefix(query, "sysmon") == query.strip()
 
 
+# --- streaming commands that open a pipeline (not generating commands) ------
+#
+# DETECT-2026-0007's actual bug: pySigma's backend cannot express a `|re:`
+# Sigma modifier as an inline search term, so it emits `| rex ... | eval ...`
+# as the whole query, with no leading `search`/index term of its own. The old
+# blanket "any leading `|` is a generating command" check swept this in with
+# `tstats`/`inputlookup`, silently dropping the Sigma index -- every deployed
+# run then searched Splunk's default index, not sysmon, and found nothing.
+
+
+def test_rex_opener_gets_a_search_index_prefix_not_left_alone():
+    query = '| rex field=CommandLine "(?<m>-enc)" | eval hit=if(isnotnull(m), "true", "false")'
+
+    result = _inject_index_prefix(query, "sysmon")
+
+    assert result == f"search index=sysmon {query}"
+
+
+def test_eval_opener_gets_a_search_index_prefix():
+    query = '| eval x=1 | search x=1'
+
+    assert _inject_index_prefix(query, "sysmon") == f"search index=sysmon {query}"
+
+
+def test_rex_opener_with_no_index_does_not_warn(capsys):
+    """Unlike a true generating command, this one always receives an index -- nothing to warn about."""
+    query = '| rex field=CommandLine "(?<m>-enc)"'
+
+    _inject_index_prefix(query, "sysmon")
+
+    assert capsys.readouterr().err == ""
+
+
 # --- degenerate input -------------------------------------------------------
 
 
