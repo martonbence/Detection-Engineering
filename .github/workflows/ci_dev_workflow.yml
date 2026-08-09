@@ -546,6 +546,66 @@ jobs:
           python scripts/convert/sigma_to_spl.py --outdir rules/splunk "${rules[@]}"
           echo "Conversion complete."
 
+      # Register item 3.2. The dev bundle (and the attestation it feeds) needs
+      # complete .meta.json coverage for every currently-committed rule, not
+      # just the ones this run actually changed -- prod downloads exactly one
+      # bundle per deploy and has no other source for a rule's sidecar
+      # (.meta.json is gitignored, never committed). Learned the hard way:
+      # a run that only touched DETECT-2026-0019 uploaded a bundle with only
+      # that rule's sidecar, prod's next deploy downloaded it, and every other
+      # rule's `deploy_spl_to_splunk.py` call died on a missing meta sidecar
+      # before writing anything to Splunk (run 31314423690).
+      #
+      # Full reconversion of the unchanged majority would fix that too, but
+      # does not scale as the rule count grows past today's 27 -- so this
+      # regenerates only their sidecars (--meta-only: no sigma-cli subprocess,
+      # just the already-parsed rule dict, see sigma_to_spl.py), leaving their
+      # already-committed .spl untouched. The atomic-test scope in the jobs
+      # below is unaffected: it still reads only steps.changes.outputs, never
+      # this step's output.
+      - name: Regenerate meta sidecars for unchanged rules
+        id: unchanged
+        if: steps.changes.outputs.has_rules == 'true'
+        shell: bash
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t changed_rules <<'EOF'
+          ${{ steps.changes.outputs.rule_files }}
+          EOF
+
+          mapfile -t all_rules < <(git ls-files "rules/sigma/*.yml" "rules/sigma/**/*.yml" "rules/sigma/*.yaml" "rules/sigma/**/*.yaml")
+
+          declare -A changed_set
+          for r in "${changed_rules[@]}"; do
+            [[ -z "$r" ]] && continue
+            changed_set["$r"]=1
+          done
+
+          unchanged_rules=()
+          for r in "${all_rules[@]}"; do
+            [[ -n "${changed_set[$r]:-}" ]] && continue
+            unchanged_rules+=("$r")
+          done
+
+          {
+            echo "unchanged_rules<<EOF"
+            printf '%s\n' "${unchanged_rules[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          if [[ "${#unchanged_rules[@]}" -eq 0 ]]; then
+            echo "No unchanged rules need a meta refresh."
+            exit 0
+          fi
+
+          echo "Regenerating meta sidecars for ${#unchanged_rules[@]} unchanged rule(s) (no sigma-cli subprocess):"
+          printf ' - %s\n' "${unchanged_rules[@]}"
+          python scripts/convert/sigma_to_spl.py --outdir rules/splunk --meta-only "${unchanged_rules[@]}"
+
       - name: Build pipeline bundle
         id: bundle
         if: steps.changes.outputs.has_rules == 'true'
@@ -612,6 +672,33 @@ jobs:
             spl_files+=("$spl_path")
             mkdir -p "pipeline_bundle/$(dirname "$spl_path")"
             cp "$spl_path" "pipeline_bundle/$spl_path"
+            cp "$meta_path" "pipeline_bundle/$meta_path"
+          done
+
+          # Register item 3.2. Sidecars only, for every rule the step above
+          # refreshed -- these rules are not part of spl_files/has_spl below
+          # (that stays scoped to what this run actually changed and tested),
+          # they just need their meta.json riding along in the same bundle so
+          # prod's download has full coverage, not only the .spl.
+          mapfile -t unchanged_rules <<'EOF'
+          ${{ steps.unchanged.outputs.unchanged_rules }}
+          EOF
+
+          for rule in "${unchanged_rules[@]}"; do
+            [[ -z "$rule" ]] && continue
+
+            name="$(basename "$rule")"
+            name="${name%.yml}"
+            name="${name%.yaml}"
+            name="${name%.sigma}"
+
+            meta_path="rules/splunk/${name}.meta.json"
+            if [[ ! -f "$meta_path" ]]; then
+              echo "Expected refreshed meta sidecar is missing: $meta_path"
+              exit 1
+            fi
+
+            mkdir -p "pipeline_bundle/$(dirname "$meta_path")"
             cp "$meta_path" "pipeline_bundle/$meta_path"
           done
 

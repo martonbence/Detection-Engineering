@@ -209,6 +209,14 @@ jobs:
       # mismatched --signer-workflow, a mismatched --signer-repo, and a
       # tampered file are all correctly rejected -- the actual security
       # property this whole mechanism rests on, not merely assumed.
+      # Each `gh attestation verify` call is a network round-trip plus a real
+      # Sigstore signature check, observed at ~5s/file (run 31311925932: 27
+      # files, ~140s wall-clock, sequential). That is linear in rule count --
+      # fine at 27, a genuine bottleneck approaching hundreds. The calls are
+      # independent (each checks one file's own digest against its own
+      # attestation), so bounding a pool of background jobs turns wall-clock
+      # time from O(rules) into roughly O(rules / max_parallel) instead of
+      # changing anything about what gets checked or how strictly.
       - name: Verify build provenance of every SPL file about to be deployed
         shell: bash
         env:
@@ -217,18 +225,47 @@ jobs:
           set -euo pipefail
 
           mapfile -t spl_files < <(git ls-files "rules/splunk/*.spl" "rules/splunk/**/*.spl")
-          fail=0
-          for f in "${spl_files[@]}"; do
+
+          results_dir="$(mktemp -d)"
+          max_parallel=8
+          running=0
+
+          verify_one() {
+            local f="$1"
+            local tag
+            tag="$(basename "$f")"
             if gh attestation verify "$f" --repo "${{ github.repository }}" \
                  --signer-workflow "${{ github.repository }}/.github/workflows/ci_dev_workflow.yml" \
-                 --format json > /tmp/attest_result.json 2>/tmp/attest_err.txt; then
+                 --format json > "${results_dir}/${tag}.json" 2> "${results_dir}/${tag}.err"; then
+              echo "pass" > "${results_dir}/${tag}.result"
+            else
+              echo "fail" > "${results_dir}/${tag}.result"
+            fi
+          }
+
+          for f in "${spl_files[@]}"; do
+            verify_one "$f" &
+            running=$((running + 1))
+            if [[ "$running" -ge "$max_parallel" ]]; then
+              wait -n
+              running=$((running - 1))
+            fi
+          done
+          wait
+
+          fail=0
+          for f in "${spl_files[@]}"; do
+            tag="$(basename "$f")"
+            if [[ "$(cat "${results_dir}/${tag}.result")" == "pass" ]]; then
               echo "✅ $f: provenance verified"
             else
               echo "::error::$f has no valid, matching build-provenance attestation. This means it was never produced by ci_dev_workflow.yml with a matching digest -- a hand-edited .spl, a converter that ran outside dev, or a rule that was never (re-)attested. Fix: re-run the dev workflow so this file is regenerated, reviewed, and re-attested there."
-              cat /tmp/attest_err.txt
+              cat "${results_dir}/${tag}.err"
               fail=1
             fi
           done
+
+          rm -rf "$results_dir"
 
           if [[ "$fail" -eq 0 ]]; then
             echo "All deployed SPL files have valid, matching build-provenance attestations."
