@@ -165,6 +165,79 @@ jobs:
 
           echo "No drift: regenerated SPL is byte-identical to the reviewed, committed files."
 
+      # Register item 3.2, stage B. `de-lab` is a persistent, shared machine --
+      # the same one dev deploys run on -- so this installs into a job-scoped
+      # directory and prepends it to GITHUB_PATH rather than touching the
+      # runner's own /usr/bin/gh. That keeps the newer binary visible only to
+      # later steps of *this* job; nothing else on the runner (dev's own gh
+      # usage, the prod audit workflow) is affected, and rolling this back is a
+      # plain revert of this file, not a manual change on the physical box.
+      #
+      # Pinned + checksummed the same way ci_code_checks.yml pins actionlint:
+      # the version below is the one the attestation mechanism was actually
+      # tested against (2026-08-09, run 31307470773) -- confirmed empirically
+      # that `de-lab`'s own installed gh (2.45.0) predates the `attestation`
+      # subcommand entirely, so this step is not defensive, it is required.
+      - name: Install a modern gh CLI for attestation verification
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="2.97.0"
+          sha256="a2c9b8497e1f85b1ad0dfcb78b5a622e098801b8e461e459e88e1ee12f018112"
+          tarball="gh_${version}_linux_amd64.tar.gz"
+          install_dir="${RUNNER_TEMP}/gh-cli"
+
+          curl -fsSL -o "$tarball" \
+            "https://github.com/cli/cli/releases/download/v${version}/${tarball}"
+
+          echo "${sha256}  ${tarball}" | sha256sum --check --strict
+
+          mkdir -p "$install_dir"
+          tar -xzf "$tarball" --strip-components=1 -C "$install_dir"
+          echo "${install_dir}/bin" >> "$GITHUB_PATH"
+
+      # Additive only, alongside the drift-gate above, not instead of it: this
+      # runs for a real stretch of prod deploys to build confidence there are
+      # no false positives/negatives before stage C removes the reconversion
+      # this step is meant to eventually replace. Non-blocking on purpose
+      # (::warning, no exit 1) -- the drift-gate above is still what actually
+      # stops a bad deploy at this stage.
+      #
+      # --signer-workflow alone, not paired with --signer-repo: gh rejects the
+      # combination outright ("if any flags in the group [...] are set none of
+      # the others can be", confirmed empirically) -- one signer-identity flag
+      # is required, and --signer-workflow already pins the repo as part of
+      # its owner/repo/workflow-path value.
+      - name: Verify build provenance of every SPL file about to be deployed
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          export PATH="${RUNNER_TEMP}/gh-cli/bin:${PATH}"
+
+          mapfile -t spl_files < <(git ls-files "rules/splunk/*.spl" "rules/splunk/**/*.spl")
+          fail=0
+          for f in "${spl_files[@]}"; do
+            if gh attestation verify "$f" --repo "${{ github.repository }}" \
+                 --signer-workflow "${{ github.repository }}/.github/workflows/ci_dev_workflow.yml" \
+                 --format json > /tmp/attest_result.json 2>/tmp/attest_err.txt; then
+              echo "✅ $f: provenance verified"
+            else
+              echo "::warning::$f has no valid, matching build-provenance attestation (stage B: non-blocking)"
+              cat /tmp/attest_err.txt
+              fail=1
+            fi
+          done
+
+          if [[ "$fail" -eq 0 ]]; then
+            echo "All deployed SPL files have valid, matching build-provenance attestations."
+          else
+            echo "::warning title=Provenance verification incomplete::One or more .spl files have no matching attestation yet. Not blocking this stage -- see register item 3.2."
+          fi
+
       - name: Deploy all SPL files to prod Splunk
         id: deploy
         shell: bash
