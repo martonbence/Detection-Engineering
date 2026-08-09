@@ -166,6 +166,19 @@ jobs:
     # Here: pip install, validate + convert 27 rules, and up to 3 push attempts.
     timeout-minutes: 30
     environment: dev
+    # Job-level permissions *replace* the workflow-level block above for this
+    # job, they do not merge with it -- so contents/pull-requests have to be
+    # re-listed here, not just the two new grants. id-token + attestations are
+    # for register item 3.2 (Attest SPL provenance, below): they let
+    # actions/attest-build-provenance mint a Sigstore-backed OIDC signature and
+    # persist it, so prod can later verify *provenance* (this exact file was
+    # produced by this exact workflow run) instead of re-deriving the file
+    # itself and hoping the two conversions agree.
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+      attestations: write
     outputs:
       mode: ${{ steps.changes.outputs.mode }}
       has_rules: ${{ steps.changes.outputs.has_rules }}
@@ -621,6 +634,57 @@ jobs:
             printf '%s\n' "${spl_files[@]}"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
+
+      # Register item 3.2, stage A. This is deliberately its own step, placed
+      # before the commit below and with no continue-on-error: a failed
+      # attestation stops the job here, so nothing gets committed without a
+      # matching signed provenance record -- fail-closed by ordinary GitHub
+      # Actions semantics, no extra `if: success()` needed.
+      #
+      # Only .spl is attested, never *.meta.json: the sidecar carries
+      # convert_time/git_sha/rule_version, which are expected to differ on
+      # every regeneration (sigma_to_spl.py) -- attesting a file whose bytes
+      # are never meant to repeat would make the attestation meaningless as a
+      # trust anchor. subject-path is a glob, which produces one multi-subject
+      # attestation rather than one per file; that's fine, GitHub's
+      # attestation store still indexes by each subject's own digest, so
+      # `gh attestation verify <single-file>` on the prod side works
+      # file-by-file regardless of how many subjects one statement covers.
+      #
+      # This stage is additive only: nothing downstream reads or verifies this
+      # attestation yet. Stage B adds prod-side verification *alongside* the
+      # existing rebuild+diff gate; stage C removes that gate once stage B has
+      # run clean on real deploys. See audit/remediation-plan.md item 3.2.
+      - name: Attest SPL provenance
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev' &&
+          steps.bundle.outputs.has_spl == 'true'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: rules/splunk/**/*.spl
+
+      # Companion to the attestation above: a small, git-tracked pointer
+      # recording *which run* produced the bundle whose files just got
+      # attested. Content-based on purpose, not commit-graph position -- this
+      # repo has merge commit, squash, and rebase all enabled for the
+      # dev->main promotion PR (confirmed via `gh api repos/.../[repo]`), and
+      # squash/rebase both discard the ancestry a "walk main's parents back to
+      # the dev commit" approach would need. A tracked file's *content*
+      # survives all three merge strategies identically, so this is what prod
+      # will read (once stage C lands) to know which artifact/attestation run
+      # to check against, instead of trying to reverse-engineer it from git
+      # history or the GitHub API after the fact.
+      - name: Record which run produced this bundle
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev' &&
+          steps.bundle.outputs.has_spl == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg run_id "${{ github.run_id }}" \
+            --arg attempt "${{ github.run_attempt }}" \
+            --arg sha "${{ github.sha }}" \
+            '{workflow_run_id: $run_id, run_attempt: $attempt, commit_sha: $sha, artifact_name: "spl-pipeline-bundle"}' \
+            > rules/splunk/.bundle-provenance.json
 
       - name: Commit converted SPL outputs to dev
         if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev' &&
