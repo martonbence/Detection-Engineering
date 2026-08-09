@@ -1448,24 +1448,31 @@
        Verification Age card next to it. flex:none stops the flex parent from
        stretching it past that. */
     .dep-table-wrap { flex:none; height:300px; overflow-y:auto; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg3); }
-    .dep-rules { width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; }
-    .dep-rules thead th { position:sticky; top:0; z-index:1; background:var(--bg4); color:var(--text3); font-family:var(--font); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; font-weight:500; text-align:right; padding:8px 7px; border-bottom:1px solid var(--border); white-space:nowrap; }
+    /* table-layout: auto, against the page-wide `table { table-layout: fixed }`
+       rule above (written for the main rule-browser grid): the width:1% /
+       max-width:0 shrink trick previously here only works under auto layout.
+       Under the inherited fixed layout the browser sizes columns from the
+       first row's declared widths alone, ignoring content -- which is why the
+       id column was swallowing the card and the value columns were flattened
+       to a few px each, twice, through two rounds of width tuning that never
+       touched this property. */
+    /* width: fit-content, not 100%: detect_id is a fixed-format string
+       (`DETECT-2026-NNNN`), so the id column never needs to shrink or
+       truncate -- the width:100%/max-width:0 trick this replaced was solving
+       a wrapping problem that can't happen here, and its side effect was
+       telling auto-layout to hand the id column every pixel of slack in the
+       card, leaving a dead gap between the id and the version columns once
+       they were actually visible. A percentage width anywhere in the row
+       forces that same slack-distribution behaviour even with the table
+       itself set to fit-content (the percentage has to resolve against
+       *something*, so the browser falls back to stretching) -- hence no
+       width:1% on the value columns either. Every column now just takes the
+       width its own content needs, and the table stops exactly where its
+       columns end instead of stretching to the card. */
+    .dep-rules { width:fit-content; max-width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; table-layout:auto; }
+    .dep-rules thead th { position:sticky; top:0; z-index:1; background:var(--bg4); color:var(--text3); font-family:var(--font); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; font-weight:500; text-align:right; padding:8px 10px; border-bottom:1px solid var(--border); white-space:nowrap; }
     .dep-rules thead th:first-child { text-align:left; }
-    .dep-rules tbody th, .dep-rules tbody td { padding:6px 7px; border-bottom:1px solid var(--border2); }
-    /* The id column absorbs all the slack, so the value columns collapse to
-       their own width and end up next to each other instead of being spread
-       across the panel. width:1% is the standard way to say "as narrow as the
-       content allows" in a table that is otherwise full width. */
-    /* max-width:0 with width:100% is the standard way to make one column absorb
-       the slack *and* give way when there is none. Without it the id column --
-       every cell of which is nowrap -- sets a minimum table width larger than
-       the card, and the value columns are pushed out of the scroll box
-       entirely: the table then shows nothing but rule names. Now the id
-       truncates with an ellipsis and the values always stay in view, which is
-       the right way round, since the values are what the table is for and the
-       full id is in the row's title attribute. */
-    .dep-rules thead th:first-child, .dep-id { width:100%; max-width:0; overflow:hidden; text-overflow:ellipsis; }
-    .dep-rules thead th:not(:first-child), .dep-repo-ver, .dep-cell { width:1%; }
+    .dep-rules tbody th, .dep-rules tbody td { padding:6px 10px; border-bottom:1px solid var(--border2); }
     /* Belt and braces: whatever happens to the columns, nothing escapes
        sideways. The height is the scrollable axis here, not the width. */
     .dep-table-wrap { overflow-x:hidden; }
@@ -1478,32 +1485,74 @@
     /* The state line. A short trace rather than a dot, because the four states
        differ in shape as well as colour -- colour alone would leave the panel
        unreadable to a red/green-blind reader, and this table is nearly all
-       state. */
-    .dep-trace { display:inline-block; width:26px; height:10px; vertical-align:middle; border-radius:2px;
-                 background-repeat:no-repeat; background-position:center; background-size:26px 10px; }
-    .dep-live .dep-trace, .dep-key .dep-live { background-image:linear-gradient(var(--green), var(--green)); background-size:26px 2px; }
+       state. Sized at 40x20 (was 26x10): the row has the room now that the id
+       column no longer eats it, and the shape needs to read at a glance, not
+       just be present. */
+    /* position:relative + overflow:hidden turns this into a viewport onto
+       .dep-trace-fill rather than a paint surface of its own. */
+    .dep-trace { display:inline-block; position:relative; overflow:hidden; width:40px; height:20px; vertical-align:middle; border-radius:2px; }
+    .dep-trace-fill { position:absolute; top:0; left:0; width:80px; height:20px; }
+
+    /* Live and behind draw an actual small heartbeat blip -- a solid ribbon
+       shaped with clip-path, scrolled continuously by animating transform --
+       because a moving trace reads as "this is alive right now" the way a
+       still one never does, and that is exactly the claim these two states
+       make: deployed and reporting, whether or not the version matches the
+       repo. Gone reuses the same mechanism with a flat ribbon instead of a
+       blip -- a monitor's flatline, still scrolling, under the existing alarm
+       blink -- because moving *and* flat reads as "this stopped" more clearly
+       than either alone. Absent and unrecorded stay static further down:
+       those are claims about what we know, not about whether something is
+       running, and animating them would imply a liveness signal that was
+       never actually sent. */
+    /* clip-path + transform, not a tiled image: both a mask-image and a plain
+       background-image built from the same repeating SVG tile left a visible
+       seam between repeats once the animation was actually moving, in this
+       browser, regardless of whether the tile was drawn once, twice, or
+       repeated across a wider box -- a static side-by-side render of several
+       copies always looked perfect, so the seam was specific to compositing a
+       tiled image while it moves. A clip-path is geometry, not an image the
+       renderer has to tile and stitch back together, so there is nothing for
+       that seam to come from. The fill is drawn at *double* the visible
+       width (80px = two 40px periods, the second an exact copy of the first
+       shifted over) and clipped by .dep-trace's overflow:hidden; sliding it
+       left by exactly one period and looping is then trivially seamless,
+       because the pixels at the end of the loop are the pixels the start
+       already had. */
+    .dep-live .dep-trace-fill, .dep-key .dep-live .dep-trace-fill,
+    .dep-behind .dep-trace-fill, .dep-key .dep-behind .dep-trace-fill {
+      clip-path: polygon(0px 8.7px, 13px 8.7px, 16px 1.7px, 19px 15.7px, 22px 8.7px, 40px 8.7px, 53px 8.7px, 56px 1.7px, 59px 15.7px, 62px 8.7px, 80px 8.7px, 80px 11.3px, 62px 11.3px, 59px 18.3px, 56px 4.3px, 53px 11.3px, 40px 11.3px, 22px 11.3px, 19px 18.3px, 16px 4.3px, 13px 11.3px, 0px 11.3px);
+      animation: dep-beat 1.4s linear infinite;
+    }
+    .dep-live .dep-trace-fill, .dep-key .dep-live .dep-trace-fill { background-color:var(--green); }
     .dep-live .dep-ver { color:var(--green); }
-    .dep-behind .dep-trace, .dep-key .dep-behind { background-image:repeating-linear-gradient(90deg, var(--amber) 0 6px, transparent 6px 10px); background-size:26px 2px; }
+    .dep-behind .dep-trace-fill, .dep-key .dep-behind .dep-trace-fill { background-color:var(--amber); animation-duration:1s; }
     .dep-behind .dep-ver { color:var(--amber); }
-    .dep-absent .dep-trace, .dep-key .dep-absent { background-image:repeating-linear-gradient(90deg, var(--text3) 0 2px, transparent 2px 6px); background-size:26px 1px; opacity:.55; }
+    /* Absent stays a static dashed mark directly on the 40px outer element,
+       not the 80px fill: it never animates, so none of the sliding-ribbon
+       machinery above applies to it. */
+    .dep-absent .dep-trace, .dep-key .dep-absent { background-image:repeating-linear-gradient(90deg, var(--text3) 0 3px, transparent 3px 9px); background-repeat:no-repeat; background-position:center; background-size:40px 1px; opacity:.55; }
     .dep-absent .dep-ver { color:var(--text3); }
-    .dep-gone .dep-trace, .dep-key .dep-gone { background-image:linear-gradient(var(--red), var(--red)); background-size:26px 2px; }
+    .dep-gone .dep-trace-fill, .dep-key .dep-gone .dep-trace-fill {
+      background-color:var(--red);
+      clip-path: polygon(0px 8.7px, 80px 8.7px, 80px 11.3px, 0px 11.3px);
+      animation: dep-beat 1.4s linear infinite, dep-alarm 1.6s ease-in-out infinite;
+    }
     .dep-gone .dep-ver { color:var(--red); }
 
-    /* Motion only here, and only for the state that needs a person: an object
-       that should be running and is not. Everything else is still, so movement
-       on this page always means the same thing. */
-    .dep-gone .dep-trace { animation:dep-alarm 1.6s ease-in-out infinite; }
+    @keyframes dep-beat { from { transform:translateX(0); } to { transform:translateX(-40px); } }
+    /* Motion here too, stacked on top of the scroll above: an object that
+       should be running and is not gets the alarm on top of the flatline. */
     @keyframes dep-alarm { 0%, 100% { opacity:1; } 50% { opacity:.35; } }
-    @media (prefers-reduced-motion: reduce) { .dep-gone .dep-trace { animation:none; } }
+    @media (prefers-reduced-motion: reduce) { .dep-live .dep-trace-fill, .dep-behind .dep-trace-fill, .dep-gone .dep-trace-fill { animation:none; } }
 
     .dep-legend { display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:12px; font-size:11.5px; color:var(--text2); }
     .dep-key { display:inline-flex; align-items:center; gap:7px; }
-    .dep-key .dep-trace { width:26px; background-size:26px 2px; }
+    .dep-key .dep-trace { width:40px; }
     .visually-hidden { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
 
-    @media (max-width: 640px) { .dep-table-wrap { max-height:280px; } .dep-trace { width:22px; background-size:22px 2px; } }
+    @media (max-width: 640px) { .dep-table-wrap { max-height:280px; } .dep-trace { width:30px; } }
     /* Not "absent": a question mark rather than a flat line, because the claim
        is about our knowledge, not about the environment. */
-    .dep-unrecorded .dep-trace, .dep-key .dep-unrecorded { background-image:repeating-linear-gradient(90deg, var(--text3) 0 1px, transparent 1px 5px); background-size:26px 1px; opacity:.35; }
+    .dep-unrecorded .dep-trace, .dep-key .dep-unrecorded { background-image:repeating-linear-gradient(90deg, var(--text3) 0 1px, transparent 1px 5px); background-repeat:no-repeat; background-position:center; background-size:40px 1px; opacity:.35; }
     .dep-unrecorded .dep-ver { color:var(--text3); }
