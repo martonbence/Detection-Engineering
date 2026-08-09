@@ -1415,7 +1415,7 @@ def _deployment_cell(state: str, version: str, repo_version: str, env: str, dete
     shown = _html.escape(version) if version else "&mdash;"
     return (
         f'<td class="dep-cell {css}" title="{_html.escape(detect_id)} &mdash; {_html.escape(label)}">'
-        f'<span class="dep-trace" aria-hidden="true"></span>'
+        f'<span class="dep-trace" aria-hidden="true"><span class="dep-trace-fill"></span></span>'
         f'<span class="dep-ver">{shown}</span>'
         f'<span class="visually-hidden">{_html.escape(label)}</span>'
         "</td>"
@@ -1498,8 +1498,9 @@ def render_deployment_html(inventory: dict, repo: str, rules: list[dict] | None 
     table = _deployment_table(environments, rules or [], order) if rules else ""
 
     legend = "".join(
-        f'<span class="dep-key"><span class="dep-trace {css}" aria-hidden="true"></span>'
-        f"{_html.escape(meaning)}</span>"
+        f'<span class="dep-key"><span class="dep-trace {css}" aria-hidden="true"><span class="dep-trace-fill"></span></span></span>'
+        f"{_html.escape(meaning)}"
+        f"</span>"
         for css, meaning in (
             (_DEP_STATES[key][0], _DEP_STATES[key][1])
             for key in ("current", "behind", "absent", "gone", "unrecorded")
