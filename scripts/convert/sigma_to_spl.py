@@ -157,6 +157,35 @@ def _flatten_testing_meta(rule: dict) -> dict:
     return testing_meta
 
 
+# Splunk's own "generating" commands: the only ones that can legitimately open
+# a search with no preceding `search`/index term, because they produce a
+# result set from scratch (an accelerated summary, a lookup table, metadata
+# about an index) rather than filtering raw events. Deliberately not every
+# command that merely *can* start a pipeline -- `rex`, `eval`, `where`, a
+# second `search`, etc. are ordinary streaming/transforming commands that
+# pySigma's regex backend can emit as the first command in a chain, and those
+# are safe to prefix with `search index=x`, unlike anything in this set.
+_GENERATING_COMMANDS = {
+    "tstats",
+    "mstats",
+    "datamodel",
+    "pivot",
+    "metadata",
+    "inputlookup",
+    "inputcsv",
+    "dbxquery",
+    "rest",
+    "from",
+    "mcatalog",
+    "savedsearch",
+    "loadjob",
+    "makeresults",
+    "multisearch",
+    "union",
+    "gentimes",
+}
+
+
 def _inject_index_prefix(query: str, index_value: str) -> str:
     """
     Ensure SPL starts with the Sigma-defined index.
@@ -164,7 +193,8 @@ def _inject_index_prefix(query: str, index_value: str) -> str:
     Behavior:
       - "search <...>" -> "search index=<idx> <...>"
       - "index=<...> <...>" -> replace leading index with Sigma index
-      - "| <generating command>" -> left alone (see below)
+      - "| <true generating command>" -> left alone (see below)
+      - "| <streaming/transforming command>" -> "search index=<idx> | <...>"
       - everything else -> prefix with "index=<idx> "
     """
     q = (query or "").strip()
@@ -173,27 +203,49 @@ def _inject_index_prefix(query: str, index_value: str) -> str:
     if not q or not idx:
         return q
 
-    # A query that opens with a generating command (`| tstats`, `| inputlookup`,
-    # `| from datamodel`, ...) cannot take an index prefix: the old fallthrough
-    # produced `index=x | tstats ...`, which is not valid SPL, and Splunk would
-    # only reject it at deploy or search time -- long after the point where the
-    # mistake was made. Nothing in the repo emits one today, but the sysmon
-    # acceleration pipeline can produce tstats, and raw_query rules can contain
-    # anything (register item 2.9).
+    # A query that opens with a *true* generating command (`| tstats`,
+    # `| inputlookup`, `| from datamodel`, ...) cannot take a leading index the
+    # normal way: these commands produce their own result set from scratch
+    # (an accelerated summary, a lookup table, metadata about the index
+    # itself) rather than filtering raw events, so `index=x | tstats ...` is
+    # not valid SPL, and Splunk would only reject it at deploy or search time
+    # -- long after the point where the mistake was made. The sysmon
+    # acceleration pipeline can produce tstats, and raw_query rules can
+    # contain anything (register item 2.9).
     #
-    # It is returned unchanged rather than rejected. Some generating commands
-    # legitimately never touch an index at all (`| inputlookup`), so failing the
-    # conversion would invent an error for correct input. What is worth saying
-    # out loud is the case where the query neither carries an index of its own
-    # nor could receive ours -- that one is silently searching everything.
+    # This used to treat *any* leading `|` as a generating command, which
+    # silently misfired on regex-based Sigma rules: pySigma's backend cannot
+    # express a `|re:` modifier as an inline
+    # search term, so it emits `| rex ... | eval ... | search ...` instead --
+    # a chain of ordinary streaming/transforming commands, not a generating
+    # one. Those are exactly as prefixable as a bare field expression; they
+    # just need `search index=x` in front of the *whole* pipeline rather than
+    # a single term. DETECT-2026-0007 (the only rule using `|re:` so far) hit
+    # this: the blanket check matched its `| rex` opener, silently skipped the
+    # index, and every deployed run of it searched Splunk's default index --
+    # not sysmon, where the events actually live -- so it always found zero
+    # events, quietly, with only a stderr warning nobody was watching for.
+    #
+    # Genuinely non-generating commands are returned unchanged rather than
+    # rejected. Some legitimately never touch an index at all (`| inputlookup`),
+    # so failing the conversion would invent an error for correct input. What
+    # is worth saying out loud is the case where the query neither carries an
+    # index of its own nor could receive ours -- that one is silently
+    # searching everything.
     if q.startswith("|"):
-        if not re.search(r"(?i)\bindex\s*=", q):
-            print(
-                f"WARNING: query begins with a generating command and names no index, "
-                f"so the Sigma index '{idx}' could not be applied: {q[:80]}",
-                file=sys.stderr,
-            )
-        return q
+        command_match = re.match(r"\|\s*([A-Za-z][A-Za-z0-9_]*)", q)
+        command = command_match.group(1).lower() if command_match else ""
+
+        if command in _GENERATING_COMMANDS:
+            if not re.search(r"(?i)\bindex\s*=", q):
+                print(
+                    f"WARNING: query begins with a generating command and names no index, "
+                    f"so the Sigma index '{idx}' could not be applied: {q[:80]}",
+                    file=sys.stderr,
+                )
+            return q
+
+        return f"search index={idx} {q}"
 
     m = re.match(r"(?i)^search\s+", q)
     if m:
