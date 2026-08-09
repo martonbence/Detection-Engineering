@@ -99,86 +99,35 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install deps
+      # Register item 3.2, stage C. Only requests: deploy_spl_to_splunk.py's
+      # sole third-party import. Prod no longer converts Sigma to SPL (see the
+      # provenance-verification step below), so it has no reason to install
+      # the conversion toolchain (.github/requirements.txt) any more.
+      - name: Install deploy runtime deps
         shell: bash
         run: |
           set -euo pipefail
-          # Same pinned file dev installs from. The re-conversion below is only
-          # reproducible if this side runs the identical converter, so the pin
-          # is load-bearing here, not hygiene.
           python -m pip install --upgrade pip
-          python -m pip install -r .github/requirements.txt
+          python -m pip install -r .github/requirements-deploy.txt
 
-      - name: Regenerate SPL + meta sidecars from Sigma source
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          mapfile -t rule_files < <(git ls-files "rules/sigma/*.yml" "rules/sigma/**/*.yml" "rules/sigma/*.yaml" "rules/sigma/**/*.yaml")
-
-          if [[ "${#rule_files[@]}" -eq 0 ]]; then
-            echo "No Sigma rules found."
-            exit 0
-          fi
-
-          # What this step is FOR: regenerating the .meta.json sidecars, which
-          # are gitignored and never committed, but which deploy_spl_to_splunk.py
-          # needs.
-          #
-          # What it also DOES: rewrites every .spl on disk. sigma_to_spl.py has
-          # no sidecar-only mode -- it writes the query file, then rewrites it
-          # again in enforce_index_prefix(), and the deploy step below reads
-          # file *contents* from the working tree (git ls-files only supplies
-          # the path list). So the bytes that reach prod Splunk are the ones
-          # produced here, not the ones reviewed and atomic-tested on dev.
-          #
-          # Those are only the same bytes if this runner ran the same converter,
-          # which .github/requirements.txt now pins. The pin is an assertion; the drift
-          # gate in the next step is the check. Do not delete one and keep the
-          # other -- together they turn the old "output is byte-identical"
-          # comment from a claim into something CI proves on every run.
-          python scripts/convert/sigma_to_spl.py --outdir rules/splunk "${rule_files[@]}"
-
-      - name: Fail if regenerated SPL drifted from what was reviewed
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          # Compares the just-regenerated .spl files against the committed ones
-          # that went through review and atomic verification on dev. Any
-          # difference means prod is about to deploy a query nobody approved --
-          # a converter upgrade, a pipeline change, an edited Sigma rule that
-          # never went through dev.
-          #
-          # Scope note: this catches MODIFIED tracked files. A Sigma rule with
-          # no committed .spl at all produces an untracked file, which git diff
-          # does not report and git ls-files will not deploy either -- that gap
-          # is register item 1.1/3.3 (reconcile), deliberately not solved here.
-          if ! git diff --exit-code -- rules/splunk; then
-            echo "::error::Regenerated SPL differs from the reviewed, committed .spl above. Prod deploy stopped."
-            echo "This means the converter on this runner does not reproduce what dev committed."
-            echo "Likely causes: .github/requirements.txt pins changed, a converter/pipeline change landed"
-            echo "without re-running dev, or a Sigma rule was edited directly on main."
-            echo "Fix: re-run the dev workflow so the .spl is regenerated, reviewed and verified there."
-            exit 1
-          fi
-
-          echo "No drift: regenerated SPL is byte-identical to the reviewed, committed files."
-
-      # Register item 3.2, stage B. `de-lab` is a persistent, shared machine --
-      # the same one dev deploys run on -- so this installs into a job-scoped
-      # directory and prepends it to GITHUB_PATH rather than touching the
-      # runner's own /usr/bin/gh. That keeps the newer binary visible only to
-      # later steps of *this* job; nothing else on the runner (dev's own gh
-      # usage, the prod audit workflow) is affected, and rolling this back is a
-      # plain revert of this file, not a manual change on the physical box.
+      # `de-lab` is a persistent, shared machine -- the same one dev deploys
+      # run on -- so this installs into a job-scoped directory and prepends it
+      # to GITHUB_PATH rather than touching the runner's own /usr/bin/gh. That
+      # keeps the newer binary visible only to later steps of *this* job;
+      # nothing else on the runner (dev's own gh usage, the prod audit
+      # workflow) is affected, and rolling this back is a plain revert of this
+      # file, not a manual change on the physical box.
       #
       # Pinned + checksummed the same way ci_code_checks.yml pins actionlint:
       # the version below is the one the attestation mechanism was actually
       # tested against (2026-08-09, run 31307470773) -- confirmed empirically
       # that `de-lab`'s own installed gh (2.45.0) predates the `attestation`
       # subcommand entirely, so this step is not defensive, it is required.
-      - name: Install a modern gh CLI for attestation verification
+      # Ahead of the two steps below because both use gh -- the sidecar
+      # download only strictly needs the old one, but there is no reason to
+      # run two different gh binaries in the same job when one already has to
+      # be here.
+      - name: Install a modern gh CLI
         shell: bash
         run: |
           set -euo pipefail
@@ -197,26 +146,75 @@ jobs:
           tar -xzf "$tarball" --strip-components=1 -C "$install_dir"
           echo "${install_dir}/bin" >> "$GITHUB_PATH"
 
-      # Additive only, alongside the drift-gate above, not instead of it: this
-      # runs for a real stretch of prod deploys to build confidence there are
-      # no false positives/negatives before stage C removes the reconversion
-      # this step is meant to eventually replace. Non-blocking on purpose
-      # (::warning, no exit 1) -- the drift-gate above is still what actually
-      # stops a bad deploy at this stage.
-      #
-      # --signer-workflow alone, not paired with --signer-repo: gh rejects the
-      # combination outright ("if any flags in the group [...] are set none of
-      # the others can be", confirmed empirically) -- one signer-identity flag
-      # is required, and --signer-workflow already pins the repo as part of
-      # its owner/repo/workflow-path value.
-      - name: Verify build provenance of every SPL file about to be deployed
+      # Register item 3.2, stage C. Replaces the old "regenerate from Sigma
+      # source, then diff" pair: that reconversion existed for two reasons --
+      # proving the committed .spl hadn't drifted (the step below does this
+      # now, and more strongly), and producing the gitignored .meta.json
+      # sidecars deploy_spl_to_splunk.py requires (extract_meta() at
+      # deploy_spl_to_splunk.py:40-46 die()s per file without one). The
+      # sidecars still have to come from *somewhere* on this runner; they come
+      # from the same spl-pipeline-bundle artifact dev already built and
+      # uploaded, named by the pointer file dev committed alongside the .spl
+      # it describes.
+      - name: Download meta sidecars from the attested dev bundle
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
-          export PATH="${RUNNER_TEMP}/gh-cli/bin:${PATH}"
+          pointer="rules/splunk/.bundle-provenance.json"
+          if [[ ! -f "$pointer" ]]; then
+            echo "::error::$pointer not found on main -- cannot locate the dev run that produced the committed .spl. Re-run the dev workflow so it is written and committed."
+            exit 1
+          fi
+
+          run_id="$(jq -r '.workflow_run_id' "$pointer")"
+          artifact_name="$(jq -r '.artifact_name' "$pointer")"
+
+          echo "Downloading '$artifact_name' from dev run $run_id..."
+          gh run download "$run_id" \
+            --repo "${{ github.repository }}" \
+            --name "$artifact_name" \
+            --dir _bundle_download
+
+          # Only the sidecars -- the .spl content that gets deployed stays the
+          # git-checked-out copy, so what a promotion-PR reviewer saw diffed is
+          # exactly what reaches Splunk. The bundle's own .spl is used for
+          # nothing here; the provenance step below is what vouches for it.
+          shopt -s globstar nullglob
+          meta_files=(_bundle_download/rules/splunk/**/*.meta.json)
+          if [[ "${#meta_files[@]}" -eq 0 ]]; then
+            echo "::error::No .meta.json sidecars found in the downloaded bundle. Deploy cannot proceed without them."
+            exit 1
+          fi
+          for f in "${meta_files[@]}"; do
+            cp "$f" "rules/splunk/$(basename "$f")"
+          done
+          echo "Copied ${#meta_files[@]} meta sidecar(s) from the dev bundle."
+
+      # Register item 3.2, stage C. Was non-blocking (stage B, run alongside
+      # the old reconversion+diff gate) for one real deploy cycle
+      # (2026-08-09, run 31311925932: all 27 committed .spl verified clean, no
+      # false positives or negatives) before this promotion. Now the sole
+      # integrity/provenance gate -- a failure here stops the deploy exactly
+      # as hard as the old drift-gate did, because nothing else checks that
+      # what is about to reach Splunk is what dev actually built and tested.
+      #
+      # --signer-workflow alone, not paired with --signer-repo: gh rejects the
+      # combination outright ("if any flags in the group [...] are set none of
+      # the others can be", confirmed empirically) -- one signer-identity flag
+      # is required, and --signer-workflow already pins the repo as part of
+      # its owner/repo/workflow-path value. Confirmed empirically too: a
+      # mismatched --signer-workflow, a mismatched --signer-repo, and a
+      # tampered file are all correctly rejected -- the actual security
+      # property this whole mechanism rests on, not merely assumed.
+      - name: Verify build provenance of every SPL file about to be deployed
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
 
           mapfile -t spl_files < <(git ls-files "rules/splunk/*.spl" "rules/splunk/**/*.spl")
           fail=0
@@ -226,7 +224,7 @@ jobs:
                  --format json > /tmp/attest_result.json 2>/tmp/attest_err.txt; then
               echo "✅ $f: provenance verified"
             else
-              echo "::warning::$f has no valid, matching build-provenance attestation (stage B: non-blocking)"
+              echo "::error::$f has no valid, matching build-provenance attestation. This means it was never produced by ci_dev_workflow.yml with a matching digest -- a hand-edited .spl, a converter that ran outside dev, or a rule that was never (re-)attested. Fix: re-run the dev workflow so this file is regenerated, reviewed, and re-attested there."
               cat /tmp/attest_err.txt
               fail=1
             fi
@@ -235,7 +233,8 @@ jobs:
           if [[ "$fail" -eq 0 ]]; then
             echo "All deployed SPL files have valid, matching build-provenance attestations."
           else
-            echo "::warning title=Provenance verification incomplete::One or more .spl files have no matching attestation yet. Not blocking this stage -- see register item 3.2."
+            echo "::error title=Provenance verification failed::One or more .spl files have no matching attestation. Prod deploy stopped -- see register item 3.2."
+            exit 1
           fi
 
       - name: Deploy all SPL files to prod Splunk
