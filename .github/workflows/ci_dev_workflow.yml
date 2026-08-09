@@ -831,7 +831,13 @@ jobs:
           name: spl-pipeline-bundle
           path: pipeline_bundle
           if-no-files-found: error
-          retention-days: 1
+          # 7 days, not the 1 this originally had: 1 day was plenty when the
+          # only consumers were this same run's later jobs, but register item
+          # 3.2's prod-side step now downloads this same artifact too, days
+          # later if a promotion PR sits unreviewed that long -- 1 day would
+          # let it expire out from under a slow reviewer and fail the prod
+          # deploy on a missing artifact rather than a real problem.
+          retention-days: 7
 
       # Register item 2.20. The failure mode of a manual switch is forgetting to
       # switch it back, and the symptom -- rules that quietly never reach Splunk
@@ -1909,7 +1915,7 @@ jobs:
             --base main --head dev \
             --title "Promote verified detections from dev to main" \
             --label "automated-promotion" \
-            --body "Automatically opened because the dev pipeline run ${{ github.run_id }} reported PASS. This promotes the already-verified, already-compiled SPL to the prod Splunk App. Review and merge manually to deploy to production -- this PR does not auto-merge.")
+            --body "Automatically opened because the dev pipeline run ${{ github.run_id }} reported PASS. This promotes the already-verified, already-compiled SPL to the prod Splunk App. Review and merge manually to deploy to production -- this PR does not auto-merge. If you edit any \`.spl\` content in this review, re-run the dev workflow before merging (push to \`dev\` again, or a manual \`workflow_dispatch\`): prod verifies the build-provenance signature recorded for the exact bytes that run produced, so a hand-edited file with no matching signature will stop the deploy.")
 
           echo "Opened promotion PR: $pr_url"
           {
