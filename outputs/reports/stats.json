@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-09T11:52:38.840151+00:00",
+  "generated_at": "2026-08-09T12:43:38.120120+00:00",
   "total_rules": 27,
   "total_sigma_rules": 27,
   "total_compiled_sigma_rules": 26,
@@ -791,8 +791,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "31311810674",
-      "verdict_at": "2026-08-09T11:52:31.625973+00:00",
+      "run_id": "31313938338",
+      "verdict_at": "2026-08-09T12:43:30.845076+00:00",
       "verdict_rule_version": "1.5",
       "tactics": [
         "Credential Access"
