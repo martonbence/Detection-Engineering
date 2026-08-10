@@ -52,6 +52,14 @@ on:
       - ".github/workflows/**"
       - ".github/PSScriptAnalyzerSettings.psd1"
       - ".github/actionlint.yaml"
+  # Lets Publish Console be forced from the Actions tab when docs/index.html
+  # on dev is already correct but never made it to Pages -- e.g. a fix
+  # committed directly rather than through the auto-regenerate step, so
+  # Regenerate Console finds nothing new to commit and Publish Console has
+  # nothing to trigger on. ci_dev_workflow.yml's deploy_pages job could also
+  # republish, but only as a side effect of the full Splunk/Atomic run; this
+  # is the light path that does only the regenerate-and-publish work.
+  workflow_dispatch:
 
 concurrency:
   group: code-checks-${{ github.ref }}
@@ -380,10 +388,10 @@ jobs:
   regenerate_console:
     name: Regenerate Console
     needs: [static_analysis, powershell_analysis, workflow_analysis]
-    # Only on dev, and only for real pushes: a PR must not rewrite generated
-    # files on someone's branch, and main gets its copy through the promotion
-    # PR like everything else.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    # Only on dev, and only for real pushes or a manual dispatch: a PR must
+    # not rewrite generated files on someone's branch, and main gets its copy
+    # through the promotion PR like everything else.
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
     # Regenerates the whole console (generate_stats.py, including a git
     # log --follow per rule) and commits, so it gets more room than the two
@@ -520,12 +528,16 @@ jobs:
   publish_console:
     name: Publish Console
     needs: regenerate_console
-    # Only when something actually changed. GitHub Pages publishes from an
-    # uploaded artifact, not from the branch, so committing docs/index.html
-    # above updates the repo but NOT the live site -- without this job the
-    # published page would still wait for the next rule change to go out,
-    # which is half of what register item 1.6 is about.
-    if: needs.regenerate_console.outputs.published == 'true'
+    # Runs when something actually changed, OR when manually dispatched --
+    # GitHub Pages publishes from an uploaded artifact, not from the branch,
+    # so committing docs/index.html above updates the repo but NOT the live
+    # site. Without the first arm the published page would wait for the next
+    # rule change to go out (half of what register item 1.6 is about);
+    # without the second, dev's docs/index.html has no way to reach Pages
+    # once it is already correct in the repo but was never actually
+    # published (e.g. a fix committed by hand rather than by the
+    # auto-regenerate step above, which then finds nothing new to commit).
+    if: needs.regenerate_console.outputs.published == 'true' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev')
     runs-on: ubuntu-latest
     # Also bounds how long this can hold the repo-wide `pages` concurrency
     # group that the dev pipeline's own publish job queues behind.
