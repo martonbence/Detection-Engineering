@@ -21,14 +21,13 @@ Nincs menetrend — a tempó ad-hoc, tételenként.
 
 ## Pontszám
 
-Jelenlegi: **6,5 / 10** (kiindulás). Mai állás: **8,5 / 10**, kész súly **73,5 / 92,5**
-(42 tétel az 54-ből) — 2026-08-09-én a **3.2** (artifact-promóció, digest-alapú build-provenance)
-zárult le, élesben bizonyítva. A számláló korábban tévesen 69,5-ként szerepelt itt — a 4-es szakaszban
-kettő kész (4.3, 4.10), nem három; a `register.html` DOM-jából számolva is 68 volt. A 3.9
-felvétele előtt 68/90,5 = **8,4** volt, felvétele után 68/92,5 = **8,3** (a pontszám azért esett,
-mert új tétel került a nevezőbe, nem mert bármi visszalépett), elvégzése után pedig 70/92,5 =
-**8,4** — ugyanaz a szám, más okból: most már a számláló is nagyobb. (A nevező nőtt: a 2.19, 2.20 és 2.21 új, munka közben talált tétel — a súlyuk a kész oldalon *és* a teljes oldalon is beleszámít. A **2.22** szintén így került be, a 4.3 munkája közben, és a **3.9** ugyanígy, 2026-08-07-én; mindkettő egyelőre csak a teljes oldalon számít.)
-Minden tétel elvégzése után: **9,0 / 10**.
+Jelenlegi: **6,5 / 10** (kiindulás). Mai állás: **8,5 / 10**, kész súly **75,0 / 92,5**
+(43 tétel az 54-ből) — 2026-08-10-én a **4.11** (elévülés-riportálás, nem kapu) zárult le. A
+számláló ismét el volt csúszva: a `register.html` DOM-ja csak 40/70,0-t mutatott, mert a **3.9** és
+a **4.7** `[x]`-e a `remediation-plan.md`-ben (az egyetlen igazság-forrás) sosem került át a
+publikált oldal checkbox-jaira — ez most, a 4.11 `checked`-jével együtt javítva, a két fájl
+egyezik. 2026-08-09-én a **3.2** (artifact-promóció, digest-alapú build-provenance) zárult le,
+élesben bizonyítva. Minden tétel elvégzése után: **9,0 / 10**.
 A register meterének súlyozása: kritikus ×3, architektúra ×2, feature ×1,5, kisebb ×1.
 A teljes súly ma **92,5** = 12×3 + 22×1 + 9×2 + 11×1,5; a korábban itt szereplő **88** a 2.22
 felvétele előtti állapot volt, és a szöveg nem követte.
@@ -163,7 +162,7 @@ ellenőrzés váltotta. A mai nyitott halmaz ezzel 13 tételre csökkent: **2.22
 - [ ] **4.8** A `rule_documentations/` generálása a `stats.json`-ból (runbook-oldal szabályonként)
 - [ ] **4.9** A promotion PR body-ja legyen érdemi: per-szabály breakdown · `ci_dev_workflow.yml:814`
 - [x] **4.10** Saját CI a pipeline-ra: ruff, pytest, actionlint, PSScriptAnalyzer, shellcheck, pip-audit · **kész 2026-08-04, mind a hat eszközzel.** 2026-08-03: `ci_code_checks.yml` ruff + pytest-tel (pinelve a `.github/requirements-dev.txt`-ben), az 1.6-ot lezárva; majd PSScriptAnalyzer külön `powershell_analysis` jobban (parse check + analyzer, pin 1.25.0). 2026-08-04: új `workflow_analysis` job **actionlint 1.7.12**-vel, checksum-ellenőrzött letöltéssel — és vele a **shellcheck** is, mert az actionlint maga futtatja minden `run:` blokkon (külön shellcheck-step nem tudná kinyerni a scripteket a YAML-ből); plusz `dependency_audit` job **pip-audit 2.10.1**-gyel, **`continue-on-error`-ral**, mert egy éjjel publikált CVE különben minden független PR-t pirosra váltana. A hatból négy eszköz **kapu**, a pip-audit riport
-- [ ] **4.11** Az elévülés riportálási korrekció, nem kapu — a `splunk_verify` exit kódja és a promotion PR gate csak az adott futás szabályait látja, azok verdiktje pedig definíció szerint friss, így egy lejárt vagy felülírt verdiktű szabály **soha nem blokkolja a promóciót**, és mérés nélkül ülhet prodban akármeddig (ma 15 ilyen). A dashboard 2026-07-30 óta megmondja, a pipeline nem tesz vele semmit · fix: re-validation gate a promotion előtt, vagy ütemezett újramérés az elévült halmazra · a `docs-maintainer` észrevétele az 1.2 dokumentálása közben
+- [x] **4.11** Az elévülés riportálási korrekció, nem kapu — a `splunk_verify` exit kódja és a promotion PR gate csak az adott futás szabályait látja, azok verdiktje pedig definíció szerint friss, így egy lejárt vagy felülírt verdiktű szabály **soha nem blokkolja a promóciót**, és mérés nélkül ülhet prodban akármeddig · **kész 2026-08-10:** riportálás, nem tömeges újramérés és nem gate — mindkettőt felvetettem, a felhasználó mindkettőt elutasította, mert 500+ szabálynál nem skálázna, és pont ezért létezik a dashboard Evidence-jelölése: a szelektív, kézi újrafuttatás legyen a mechanizmus, ne egy automatikus tömeges. A tényleges hiány nem a mérés hiánya volt — a `stats.json` `verified_expired`+`verified_superseded` számlálója már megvolt, csak a dashboardon élt, senki nem látta promóció pillanatában. Az `open_promotion_pr` job (`ci_dev_workflow.yml`) mostantól a Contents API-n (nem checkout-tal, hogy a job „egy maréknyi `gh` CLI hívás" jellege megmaradjon) kiolvassa a `splunk_verify` által ugyanabban a futásban frissen legenerált `stats.json`-t a `dev` HEAD-ről, összeadja a két számlálót, és ha `>0`, egy GFM `[!WARNING]` blockquote-ot told a PR body végére és a step summary-ba (a `scripts/lib/summary.py` `MARK_WARN`/`ALERT_WARN` konvencióját követve kézzel, mert bash nem importálja), plusz egy `::warning::` annotációt az Actions futás oldalára. Sem blokkol, sem újratesztel semmit. Best-effort: a Contents API hívás hibája (jogosultság, hálózat) csendben 0-ra esik vissza `set -e` alatt is, nem buktatja a PR nyitást — mockolt `gh`/`jq`-val három ágat (van elévült / nincs / API-hiba) ellenőrizve helyi bash-teszttel, a PR body/step-summary formázását (blockquote, sorvégek) is beleértve, mielőtt élesben futna
 
 ---
 
@@ -985,3 +984,33 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   (~140mp → ~20mp, mérve, 27 fájlon). **A második Stage C futás (run 31315921964) hibamentes:**
   27/27 sidecar a bundle-ből, 27/27 attesztáció ~20mp alatt, sikeres deploy.
   Kész súly: 73,5/92,5, pontszám **8,5/10**.
+
+- **2026-08-10 — 4.11 lezárva: riportálás, nem kapu és nem tömeges újramérés.** Két javaslatot
+  tettem — re-validation gate a promóció előtt, illetve ütemezett újramérés az elévült halmazra —,
+  a felhasználó mindkettőt elutasította: 500+ szabálynál egyik sem skálázna, és pont ezért létezik
+  a dashboard Evidence-jelölése, hogy a szelektív, kézi újrafuttatás emberi döntés maradjon, ne
+  automatikus tömeges. A tényleges hiány nem a mérés hiánya volt — a `stats.json`
+  `verified_expired`+`verified_superseded` számlálója már megvolt (1.2 óta), csak a dashboardon
+  élt, senki nem látta a promóció pillanatában.
+  **A megoldás:** az `open_promotion_pr` job (`ci_dev_workflow.yml`) a Contents API-n (nem
+  checkout-tal, hogy a job „egy maréknyi `gh` CLI hívás" jellege megmaradjon) kiolvassa a
+  `splunk_verify` által *ugyanabban a futásban* frissen legenerált `stats.json`-t a `dev` HEAD-ről,
+  összeadja a két számlálót, és ha `>0`, egy GFM `[!WARNING]` blockquote-ot told a PR body végére és
+  a step summary-ba (a `scripts/lib/summary.py` `MARK_WARN`/`ALERT_WARN` konvencióját követve
+  kézzel, mert bash nem importálja azt), plusz egy `::warning::` annotációt az Actions futás
+  oldalára. Sem blokkol, sem újratesztel semmit — pontosan a tétel saját címe szerint.
+  **Best-effort, szándékosan:** a Contents API hívás hibája (jogosultság, hálózat) csendben 0-ra
+  esik vissza `set -e` alatt is, nem buktatja a PR nyitást — ez a kiegészítés maga sosem válhat a
+  tényleges promóció blokkolójává. Mockolt `gh`/`jq`-val három ágat ellenőrizve helyi bash-teszttel
+  élesítés előtt: van elévült szabály / nincs / a Contents API hívás elbukik — mindhárom helyesen
+  viselkedett, a harmadik esetben `stale_count` némán 0-ra esett és a PR nyitása változatlanul
+  lefutott. Egy első próbálkozás a blockquote szövegét a YAML `run:` blokk sortöréseivel próbálta
+  tagolni, ami a bash-indentációt (10 szóköz) szó szerint a markdown-szövegbe szivárogtatta volna —
+  ezt a helyi teszt fogta meg, mielőtt élesben futott volna; a végleges verzió `$'\n'`
+  konkatenációval építi a többsoros stringet, indentáció-mentesen.
+  **Melléktermékként két, ettől független drift is előkerült és javítva lett:** a publikált
+  `audit/register.html` checkbox-ai nem követték a `remediation-plan.md` `[x]`-eit két korábban lezárt
+  tételnél (**3.9**, **4.7**) — a DOM-ból számolt kész súly 70,0/92,5 volt a fájl tetején írt
+  73,5/92,5 helyett. A register.html az egyetlen igazság-forrás (`remediation-plan.md`) szerint most
+  szinkronban van, mindkét fájlból ugyanaz a szám jön ki: **43/54 tétel, kész súly 75,0/92,5,
+  pontszám 8,53 → 8,5/10.**

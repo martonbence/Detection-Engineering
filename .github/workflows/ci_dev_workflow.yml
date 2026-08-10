@@ -1986,6 +1986,33 @@ jobs:
 
           existing_url=$(gh pr list --repo "${{ github.repository }}" --head dev --base main --state open --json url --jq '.[0].url // empty')
 
+          # Register item 4.11: pass_fail_eval.py only scores the rules this
+          # run touched, so a verdict that quietly expired (>REVIEW_INTERVAL_DAYS
+          # old) or was superseded (rule body changed since) on an UNTOUCHED
+          # rule never fails anything and could sit in prod unmeasured
+          # indefinitely -- the title of 4.11 says "a report, not a gate", so
+          # this surfaces the count instead of blocking on it. splunk_verify
+          # just regenerated stats.json over the WHOLE rule set on the current
+          # wall clock, so its counts are fresh as of this run, not a stale
+          # snapshot. Fetched via the contents API rather than a checkout, to
+          # keep this job at "a handful of gh CLI calls and nothing else" (see
+          # the timeout-minutes comment above). Best-effort: a failure here
+          # must never block opening the actual PR, so it falls back to 0
+          # rather than aborting under set -e.
+          stale_count=0
+          if stats_json=$(gh api "repos/${{ github.repository }}/contents/outputs/reports/stats.json?ref=dev" -H "Accept: application/vnd.github.raw" 2>/dev/null); then
+            stale_count=$(jq -r '((.verified_expired // 0) + (.verified_superseded // 0))' <<<"$stats_json" 2>/dev/null || echo 0)
+          fi
+
+          # Mark and alert-kind kept in sync by hand with scripts/lib/summary.py
+          # (MARK_WARN / ALERT_WARN) -- bash cannot import it. That module is
+          # where they are explained.
+          stale_note=""
+          if [[ "$stale_count" -gt 0 ]]; then
+            stale_note="> [!WARNING]"$'\n'"> 🟡 ${stale_count} rule(s) already deployed to prod have an expired or superseded verification verdict -- no evidence they still work, through no fault of this run. See the Evidence card on the Console for which ones. This does not block promotion; schedule a manual re-run for them when convenient."
+            echo "::warning::${stale_count} rule(s) in prod have an expired or superseded verdict -- see the Console's Evidence card"
+          fi
+
           if [[ -n "$existing_url" ]]; then
             echo "A dev -> main promotion PR is already open: $existing_url"
             # Marks kept in sync by hand with scripts/lib/summary.py -- bash
@@ -1994,21 +2021,34 @@ jobs:
               echo "### Promotion PR"
               echo ""
               echo "⚪ Already open: $existing_url"
+              if [[ -n "$stale_note" ]]; then
+                echo ""
+                echo "$stale_note"
+              fi
             } >> "$GITHUB_STEP_SUMMARY"
             exit 0
+          fi
+
+          body="Automatically opened because the dev pipeline run ${{ github.run_id }} reported PASS. This promotes the already-verified, already-compiled SPL to the prod Splunk App. Review and merge manually to deploy to production -- this PR does not auto-merge. If you edit any \`.spl\` content in this review, re-run the dev workflow before merging (push to \`dev\` again, or a manual \`workflow_dispatch\`): prod verifies the build-provenance signature recorded for the exact bytes that run produced, so a hand-edited file with no matching signature will stop the deploy."
+          if [[ -n "$stale_note" ]]; then
+            body="${body}"$'\n\n'"${stale_note}"
           fi
 
           pr_url=$(gh pr create --repo "${{ github.repository }}" \
             --base main --head dev \
             --title "Promote verified detections from dev to main" \
             --label "automated-promotion" \
-            --body "Automatically opened because the dev pipeline run ${{ github.run_id }} reported PASS. This promotes the already-verified, already-compiled SPL to the prod Splunk App. Review and merge manually to deploy to production -- this PR does not auto-merge. If you edit any \`.spl\` content in this review, re-run the dev workflow before merging (push to \`dev\` again, or a manual \`workflow_dispatch\`): prod verifies the build-provenance signature recorded for the exact bytes that run produced, so a hand-edited file with no matching signature will stop the deploy.")
+            --body "$body")
 
           echo "Opened promotion PR: $pr_url"
           {
             echo "### Promotion PR"
             echo ""
             echo "🟢 Opened: $pr_url"
+            if [[ -n "$stale_note" ]]; then
+              echo ""
+              echo "$stale_note"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
           if item_id=$(gh project item-add 3 --owner martonbence --url "$pr_url" --format json --jq '.id' 2>&1); then
