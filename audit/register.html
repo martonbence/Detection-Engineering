@@ -1361,7 +1361,7 @@
     </div>
 
     <div class="row sev-arch" data-sev="arch" data-weight="2">
-      <input class="row-check" type="checkbox" id="i-3-9" aria-labelledby="t-3-9">
+      <input class="row-check" type="checkbox" id="i-3-9" aria-labelledby="t-3-9" checked>
       <div class="row-main">
         <div class="row-head"><span class="id">3.9</span><span class="row-title" id="t-3-9">A deploy a szolgáltatásfiók privát névterébe ír, ezért minden frissítés árnyék-objektumot hagy</span><span class="tag verified">mérve</span><span class="tag done">kész</span></div>
         <p class="row-body">Mind a négy Splunk-facing script <code>owner&nbsp;=&nbsp;SPLUNK_USERNAME</code>-mel építi a REST-útvonalat, tehát <code>servicesNS/ci_splunk_deploy/&lt;app&gt;/…</code>-ra ír. Egy <b>app-szintű</b> objektumra ezen az úton írva a Splunk nem azt módosítja, hanem <b>felhasználói szintű felülíró réteget</b> készít fölé. Innen a szabályonkénti két sor a Splunk UI-ban: az élő app-szintű Alert, és egy privát, ütemezetlen Report, ami semmit nem csinál.</p>
@@ -1442,7 +1442,7 @@
     </div>
 
     <div class="row sev-enh" data-sev="enh" data-weight="1.5">
-      <input class="row-check" type="checkbox" id="i-4-7" aria-labelledby="t-4-7">
+      <input class="row-check" type="checkbox" id="i-4-7" aria-labelledby="t-4-7" checked>
       <div class="row-main">
         <div class="row-head"><span class="id">4.7</span><span class="row-title" id="t-4-7">Deployment inventory a dashboardon</span><span class="tag verified">mérve</span><span class="tag done">kész</span></div>
         <p class="row-body">A 3.3-as reconcile kimenetéből: minden szabály mellett látszódjon, hogy dev-ben és/vagy prodban él-e, milyen verzióval. Ez teszi az 1.1-es hibát <em>strukturálisan</em> láthatóvá, nem csak egyszer kijavítottá. Egy „13 rule not deployed to prod" figyelmeztetés a dashboard tetején sokkal profibb, mint a hallgatás.</p>
@@ -1488,23 +1488,24 @@
     </div>
 
     <div class="row sev-enh" data-sev="enh" data-weight="1.5">
-      <input class="row-check" type="checkbox" id="i-4-11" aria-labelledby="t-4-11">
+      <input class="row-check" type="checkbox" id="i-4-11" aria-labelledby="t-4-11" checked>
       <div class="row-main">
         <div class="row-head">
           <span class="id">4.11</span>
           <span class="row-title" id="t-4-11">Az elévülés riportálási korrekció, nem kapu</span>
-          <span class="tag new">új</span>
+          <span class="tag done">kész</span>
         </div>
         <p class="row-body">
           Az 1.2 óta a dashboard megmondja, hogy egy verdikt lejárt (&gt;180 nap) vagy felülíródott
-          (a szabály változott azóta) — ma <b>15 ilyen a 27-ből</b>. A pipeline viszont nem tesz vele
-          semmit: a <code>splunk_verify</code> exit kódja és a promotion PR gate csak az <em>adott
-          futás</em> szabályait látja, azok verdiktje pedig definíció szerint friss. Egy elévült
-          verdiktű szabály tehát soha nem blokkolja a promóciót, és mérés nélkül ülhet prodban
-          akármeddig. A hitelesség így a riportban helyreállt, a folyamatban nem.
+          (a szabály változott azóta). A pipeline viszont nem tett vele semmit: a
+          <code>splunk_verify</code> exit kódja és a promotion PR gate csak az <em>adott futás</em>
+          szabályait látja, azok verdiktje pedig definíció szerint friss. Egy elévült verdiktű
+          szabály tehát soha nem blokkolta a promóciót, és mérés nélkül ülhetett prodban akármeddig.
+          A hitelesség így a riportban helyreállt, a folyamatban nem.
         </p>
-        <p class="row-fix"><span class="fix-label">javítás</span>Re-validation gate a promóció előtt (elévült verdikttel nem mehet ki), vagy — enyhébben — ütemezett újramérés az elévült halmazra, ami magától visszahozza őket frissbe.</p>
-        <div class="refs"><span class="ref">ci_dev_workflow.yml: promotion gate</span><span class="ref">ma 15 elévült</span><span class="ref">docs-maintainer észrevétele</span></div>
+        <p class="row-fix"><span class="fix-label">javítás</span>Riportálás, nem újramérés és nem gate — a felhasználó mindkét eredeti javaslatot (re-validation gate, ütemezett tömeges újramérés) elutasította, mert 500+ szabálynál egyik sem skálázna, és pont ezért létezik a dashboard Evidence-jelölése: a szelektív, kézi újrafuttatás legyen a mechanizmus.</p>
+        <p class="row-note"><span class="note-label">2026-08-10</span>A <code>stats.json</code> <code>verified_expired</code>+<code>verified_superseded</code> számlálója már megvolt (1.2 óta), csak a dashboardon élt — senki nem látta promóció pillanatában. Az <code>open_promotion_pr</code> job mostantól a Contents API-n (nem checkout-tal, hogy a job „egy maréknyi <code>gh</code> CLI hívás" jellege megmaradjon) kiolvassa a <code>splunk_verify</code> által <em>ugyanabban a futásban</em> frissen legenerált <code>stats.json</code>-t a <code>dev</code> HEAD-ről, összeadja a két számlálót, és ha &gt;0, egy GFM <code>[!WARNING]</code> blockquote-ot told a PR body végére és a step summary-ba (a <code>scripts/lib/summary.py</code> <code>MARK_WARN</code>/<code>ALERT_WARN</code> konvencióját követve), plusz egy <code>::warning::</code> annotációt az Actions futás oldalára. Sem blokkol, sem újratesztel semmit. Best-effort: a Contents API hívás hibája csendben 0-ra esik vissza <code>set -e</code> alatt is, nem buktatja a PR nyitást — mockolt <code>gh</code>/<code>jq</code>-val három ágat (van elévült / nincs / API-hiba) ellenőrizve helyi bash-teszttel, a blockquote formázását is beleértve, mielőtt élesben futna.</p>
+        <div class="refs"><span class="ref">ci_dev_workflow.yml: open_promotion_pr</span><span class="ref">scripts/lib/summary.py konvenció</span><span class="ref">docs-maintainer észrevétele</span></div>
       </div>
     </div>
 
