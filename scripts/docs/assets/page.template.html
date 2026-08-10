@@ -6,6 +6,7 @@
   the workflow runs. Edit the template in that script instead.
 -->
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -25,9 +26,10 @@
   <meta name="twitter:title" content="Detection Engineer Console">
   <meta name="twitter:description" content="@@META_DESC@@">
   <style>
-@@INLINE_CSS@@
+    @@INLINE_CSS@@
   </style>
 </head>
+
 <body>
   <div class="stats-strip">
     <div class="strip-brand">
@@ -41,8 +43,13 @@
         <button class="tab-btn" data-tab="dashboards">Dashboards</button>
       </div>
     </div>
-    <button class="info-btn" id="info-btn" onclick="toggleInfo()" aria-haspopup="dialog" aria-expanded="false" title="Legend and how this page works">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="11"/><line x1="12" y1="8" x2="12" y2="8.01"/></svg>
+    <button class="info-btn" id="info-btn" onclick="toggleInfo()" aria-haspopup="dialog" aria-expanded="false"
+      title="Legend and how this page works">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="16" x2="12" y2="11" />
+        <line x1="12" y1="8" x2="12" y2="8.01" />
+      </svg>
       <span class="info-btn-label">Legend</span>
     </button>
   </div>
@@ -61,27 +68,56 @@
           <span class="k"><span class="badge verdict-pass">PASS</span></span>
           <span>The Atomic Red Team test ran and the Splunk detection fired.</span>
           <span class="k"><span class="badge verdict-fail">FAIL</span></span>
-          <span>The test ran to completion and no alert fired — a confirmed negative. Also covers the cases where the rule itself is at fault: the saved search isn't in Splunk, or the search errored when Splunk ran it.</span>
+          <span>The test ran to completion and no alert fired — a confirmed negative. Also covers the cases where the
+            rule itself is at fault: the saved search isn't in Splunk, or the search errored when Splunk ran it.</span>
           <span class="k"><span class="badge verdict-notverified">NOT VERIFIED</span></span>
-          <span>Deployed and attempted, but something didn't finish — so nothing is known either way. Unknown, not broken. Two routes reach it: the <strong>attack</strong> didn't complete (the Atomic Red Team run was cut short by its timeout), or the <strong>measurement</strong> didn't complete (the Splunk search never finished, or the query errored on the way). The first only applies to rules tested by Atomic Red Team — for an <strong>Emulation</strong>-verified rule (see <em>Verification</em> below) a test that never started still reads as a FAIL, because all the pipeline sees is an absence of events. The second applies to every rule, however it is tested.</span>
+          <span>Deployed and attempted, but something didn't finish — so nothing is known either way. Unknown, not
+            broken. Two routes reach it: the <strong>attack</strong> didn't complete (the Atomic Red Team run was cut
+            short by its timeout), or the <strong>measurement</strong> didn't complete (the Splunk search never
+            finished, or the query errored on the way). The first only applies to rules tested by Atomic Red Team — for
+            an <strong>Emulation</strong>-verified rule (see <em>Verification</em> below) a test that never started
+            still reads as a FAIL, because all the pipeline sees is an absence of events. The second applies to every
+            rule, however it is tested.</span>
           <span class="k"><span class="badge verdict-na">N/A</span></span>
           <span>Never tested — no test result exists for this rule.</span>
         </div>
-        <div class="info-note" style="margin-top:11px">A verdict badge links to the GitHub Actions run it came from, and the rule's drawer shows when it was last tested.</div>
+        <div class="info-note" style="margin-top:11px">A verdict badge links to the GitHub Actions run it came from, and
+          the rule's drawer shows when it was last tested.</div>
       </div>
 
       <div>
         <div class="info-sec-title">Evidence — whether that verdict still holds</div>
-        <div class="info-note" style="margin-top:0">A verdict is a certificate: it stops being evidence about the rule as it stands either because the rule changed underneath it, or because it simply got old. Both mean the same thing — we do not know today — and both are fixed by the same thing, a re-run. So neither counts toward the Pass Rate, and a badge in either state is drawn <em>hollow</em>. The marker beside it says which happened.</div>
-        <div class="info-grid" style="margin-top:11px">
-          <span class="k"><span class="badge verdict-pass verdict-lapsed">PASS</span><span class="verdict-drift"><svg viewBox="0 0 24 24"><path d="M12 5 L20.5 19 H3.5 Z"/></svg></span></span>
-          <span><strong>Superseded.</strong> Measured on an <em>earlier version</em> of the rule — the logic has changed since, so the badge describes text that is no longer there. The certain case: what was tested is provably not what is deployed. Independent of age, a rule edited this morning is superseded even if it passed yesterday.</span>
-          <span class="k"><span class="badge verdict-pass verdict-lapsed">PASS</span><span class="review-due">&#9679;</span></span>
-          <span><strong>Expired.</strong> Same logic as when it was tested, but the verdict is older than @@REVIEW_DAYS@@ days. The probabilistic case: nothing in the rule moved, but telemetry, Splunk config and attacker tooling may have. The age is measured against <em>your</em> clock as you read this, so a rule crosses the line on its own between pipeline runs — and the Pass Rate above the chart is recomputed with it.</span>
+        <div class="info-note" style="margin-top:0">A verdict is a certificate: it stops being evidence about the rule
+          as it stands either because the rule changed underneath it, or because it simply got old. Both mean the same
+          thing — we do not know today — and both are fixed by the same thing, a re-run. So neither counts toward the
+          Pass Rate, and a badge in either state is drawn <em>hollow</em>. The marker beside it says which happened.
         </div>
-        <div class="info-note" style="margin-top:11px">The <strong>Verdict &rarr; Evidence</strong> filter splits the library on exactly this: <em>Current</em>, <em>Superseded</em>, <em>Expired</em>, <em>Never tested</em> — and the <strong>Evidence</strong> chart on the Dashboards tab is the same four values as a ring. <em>Expired</em> is simply not drawn while nothing has expired.</div>
-        <div class="info-note">A rule's version comes from its commit history, so any edit to the file supersedes its verdict — a re-worded description counts the same as re-written logic. That is deliberately blunt: it can only ever overstate how much needs re-testing, never understate it.</div>
-        <div class="info-note">Lapsing is a correction to the numbers, not a gate. Nothing in the pipeline blocks a rule from staying in production on a verdict that no longer holds; this page is where you find out.</div>
+        <div class="info-grid" style="margin-top:11px">
+          <span class="k"><span class="badge verdict-pass verdict-lapsed">PASS</span><span class="verdict-drift"><svg
+                viewBox="0 0 24 24">
+                <path d="M12 5 L20.5 19 H3.5 Z" />
+              </svg></span></span>
+          <span><strong>Superseded.</strong> Measured on an <em>earlier version</em> of the rule — the logic has changed
+            since, so the badge describes text that is no longer there. The certain case: what was tested is provably
+            not what is deployed. Independent of age, a rule edited this morning is superseded even if it passed
+            yesterday.</span>
+          <span class="k"><span class="badge verdict-pass verdict-lapsed">PASS</span><span
+              class="review-due">&#9679;</span></span>
+          <span><strong>Expired.</strong> Same logic as when it was tested, but the verdict is older than
+            @@REVIEW_DAYS@@ days. The probabilistic case: nothing in the rule moved, but telemetry, Splunk config and
+            attacker tooling may have. The age is measured against <em>your</em> clock as you read this, so a rule
+            crosses the line on its own between pipeline runs — and the Pass Rate above the chart is recomputed with
+            it.</span>
+        </div>
+        <div class="info-note" style="margin-top:11px">The <strong>Verdict &rarr; Evidence</strong> filter splits the
+          library on exactly this: <em>Current</em>, <em>Superseded</em>, <em>Expired</em>, <em>Never tested</em> — and
+          the <strong>Evidence</strong> chart on the Dashboards tab is the same four values as a ring. <em>Expired</em>
+          is simply not drawn while nothing has expired.</div>
+        <div class="info-note">A rule's version comes from its commit history, so any edit to the file supersedes its
+          verdict — a re-worded description counts the same as re-written logic. That is deliberately blunt: it can only
+          ever overstate how much needs re-testing, never understate it.</div>
+        <div class="info-note">Lapsing is a correction to the numbers, not a gate. Nothing in the pipeline blocks a rule
+          from staying in production on a verdict that no longer holds; this page is where you find out.</div>
       </div>
 
       <div>
@@ -90,15 +126,21 @@
           <span class="k">Severity</span>
           <span>The Sigma rule's own <code>level</code> — critical, high, medium, low.</span>
           <span class="k">Status</span>
-          <span>The Sigma <code>status</code> field: stable, test, experimental or deprecated. It describes the rule's maturity, not whether it works — that's the verdict.</span>
+          <span>The Sigma <code>status</code> field: stable, test, experimental or deprecated. It describes the rule's
+            maturity, not whether it works — that's the verdict.</span>
           <span class="k">Row</span>
-          <span>Click any row to open the full record: metadata, ATT&amp;CK mapping, references, the verification run, and the complete Sigma YAML or SPL with a copy button.</span>
+          <span>Click any row to open the full record: metadata, ATT&amp;CK mapping, references, the verification run,
+            and the complete Sigma YAML or SPL with a copy button.</span>
           <span class="k">Verification</span>
-          <span>Not what the verdict said, but how it was reached: <strong>Method</strong> is Atomic Red Team or Emulation, <strong>Runner</strong> the host the test ran on. Filter-only, no column — an emulation-backed PASS and an ATT&amp;CK-test-backed PASS carry the same green badge but not the same weight, and this is how you separate them. The rule's drawer spells the same thing out in a sentence.</span>
+          <span>Not what the verdict said, but how it was reached: <strong>Method</strong> is Atomic Red Team or
+            Emulation, <strong>Runner</strong> the host the test ran on. Filter-only, no column — an emulation-backed
+            PASS and an ATT&amp;CK-test-backed PASS carry the same green badge but not the same weight, and this is how
+            you separate them. The rule's drawer spells the same thing out in a sentence.</span>
           <span class="k">Columns</span>
           <span>Click a header to sort; drag its right edge to resize.</span>
           <span class="k">Keyboard</span>
-          <span><span class="kbd">/</span> search &nbsp; <span class="kbd">&uarr;&darr;</span> move &nbsp; <span class="kbd">&crarr;</span> open &nbsp; <span class="kbd">Esc</span> close</span>
+          <span><span class="kbd">/</span> search &nbsp; <span class="kbd">&uarr;&darr;</span> move &nbsp; <span
+              class="kbd">&crarr;</span> open &nbsp; <span class="kbd">Esc</span> close</span>
         </div>
       </div>
 
@@ -106,32 +148,60 @@
         <div class="info-sec-title">MITRE Navigator</div>
         <div class="info-grid">
           <span class="k"><span class="sw sw-pass"></span></span>
-          <span>Covered technique. The coloured left rail is the <em>best</em> verdict among the rules mapped to it — green PASS, amber NOT VERIFIED, red FAIL, grey N/A.</span>
+          <span>Covered technique. The coloured left rail is the <em>best</em> verdict among the rules mapped to it —
+            green PASS, amber NOT VERIFIED, red FAIL, grey N/A.</span>
           <span class="k"><span class="sw sw-pass sw-dot"></span></span>
-          <span>A sub-technique carries the same verdict as a dot instead of a tint. Parent techniques get the tint.</span>
+          <span>A sub-technique carries the same verdict as a dot instead of a tint. Parent techniques get the
+            tint.</span>
           <span class="k"><span class="sw sw-uncov"></span></span>
           <span>No rule maps to this technique — a gap.</span>
           <span class="k"><span class="sw sw-uncov sw-hascov"></span></span>
-          <span>The technique itself has no rule, but one or more of its sub-techniques does. The <code>n/m</code> badge counts them; expand the cell to see which.</span>
+          <span>The technique itself has no rule, but one or more of its sub-techniques does. The <code>n/m</code> badge
+            counts them; expand the cell to see which.</span>
           <span class="k"><span class="sw sw-pass sw-flag"></span></span>
-          <span>At least one rule covering this technique <strong>FAILed</strong>, even though the cell shows a better verdict. On a parent cell the flag can be inherited from a sub-technique. Hover the cell for the rule list.</span>
+          <span>At least one rule covering this technique <strong>FAILed</strong>, even though the cell shows a better
+            verdict. On a parent cell the flag can be inherited from a sub-technique. Hover the cell for the rule
+            list.</span>
         </div>
-        <div class="info-note" style="margin-top:12px"><strong>Verdict</strong> and <strong>Covered / Gaps</strong> answer different questions: Covered/Gaps is whether a detection exists at all, Verdict is how the existing ones performed. They combine, so Gaps plus any verdict is deliberately empty.</div>
-        <div class="info-note">Hover a cell for its rules, click <strong>&#9776;</strong> for the detail panel, and use the tactic header caret to collapse a column. <strong>Export view</strong> writes out exactly what the current filters show.</div>
-        <div class="info-note">The same menu's <strong>ATT&amp;CK Navigator JSON</strong> is a different thing: the full coverage as a standard layer file. Load it into the official MITRE Navigator (<em>Open Existing Layer &rarr; Load from URL</em>) to compare this coverage against another layer — a threat actor's technique set, a red team's results, an earlier snapshot. Techniques whose covering rules include a failure are marked <code>&#9888;</code> there too.</div>
+        <div class="info-note" style="margin-top:12px"><strong>Verdict</strong> and <strong>Covered / Gaps</strong>
+          answer different questions: Covered/Gaps is whether a detection exists at all, Verdict is how the existing
+          ones performed. They combine, so Gaps plus any verdict is deliberately empty.</div>
+        <div class="info-note">Hover a cell for its rules, click <strong>&#9776;</strong> for the detail panel, and use
+          the tactic header caret to collapse a column. <strong>Export view</strong> writes out exactly what the current
+          filters show.</div>
+        <div class="info-note">The same menu's <strong>ATT&amp;CK Navigator JSON</strong> is a different thing: the full
+          coverage as a standard layer file. Load it into the official MITRE Navigator (<em>Open Existing Layer &rarr;
+            Load from URL</em>) to compare this coverage against another layer — a threat actor's technique set, a red
+          team's results, an earlier snapshot. Techniques whose covering rules include a failure are marked
+          <code>&#9888;</code> there too.</div>
       </div>
 
       <div>
         <div class="info-sec-title">Dashboards</div>
-        <div class="info-note"><strong>Rule Overview</strong> breaks the library down by type, severity, status and verification outcome. <strong>MITRE ATT&amp;CK Alignment</strong> shows overall technique coverage and how the rules spread across tactics. <strong>Trends Over Time</strong> tracks coverage and rule count from the repo's own history — one data point per day the pipeline ran, so gaps in the line are days with no run.</div>
-        <div class="info-note"><strong>Evidence</strong> and <strong>Verification</strong> are two rings because they are two questions, and a slice can only carry one name. Evidence asks how much of the library has a verdict worth reading — all @@TOTAL@@ rules, split into Current / Superseded / Expired / Never tested. Verification asks what those readable verdicts actually say, and counts <em>only</em> the current ones, so its ring is the Current slice of the one beside it, not the whole library. A lapsed PASS is not a pass that happens to be old — it is an absence of present-tense evidence, so it is counted once, on the left, and never as a pass on the right.</div>
-        <div class="info-note">Read the two together: <strong>Pass Rate</strong> says how much of what was measured works, <strong>Current</strong> how much of the library was measured. Alone, either one flatters. Both are recomputed in your browser on every load, so they stay true as verdicts age past the review interval after this page was built — and <strong>Verification Age</strong> is the distribution behind Evidence's <em>Expired</em> slice.</div>
+        <div class="info-note"><strong>Rule Overview</strong> breaks the library down by type, severity, status and
+          verification outcome. <strong>MITRE ATT&amp;CK Alignment</strong> shows overall technique coverage and how the
+          rules spread across tactics. <strong>Trends Over Time</strong> tracks coverage and rule count from the repo's
+          own history — one data point per day the pipeline ran, so gaps in the line are days with no run.</div>
+        <div class="info-note"><strong>Evidence</strong> and <strong>Verification</strong> are two rings because they
+          are two questions, and a slice can only carry one name. Evidence asks how much of the library has a verdict
+          worth reading — all @@TOTAL@@ rules, split into Current / Superseded / Expired / Never tested. Verification
+          asks what those readable verdicts actually say, and counts <em>only</em> the current ones, so its ring is the
+          Current slice of the one beside it, not the whole library. A lapsed PASS is not a pass that happens to be old
+          — it is an absence of present-tense evidence, so it is counted once, on the left, and never as a pass on the
+          right.</div>
+        <div class="info-note">Read the two together: <strong>Pass Rate</strong> says how much of what was measured
+          works, <strong>Current</strong> how much of the library was measured. Alone, either one flatters. Both are
+          recomputed in your browser on every load, so they stay true as verdicts age past the review interval after
+          this page was built — and <strong>Verification Age</strong> is the distribution behind Evidence's
+          <em>Expired</em> slice.</div>
         <div class="info-note">Legend entries are clickable: they toggle their series in and out of the chart.</div>
       </div>
 
       <div>
         <div class="info-sec-title">Sharing a view</div>
-        <div class="info-note">The address bar tracks the active tab, every filter, the search text, the sort order, the Navigator's own filters and any open technique panel. Copy the URL and whoever opens it lands on exactly what you were looking at.</div>
+        <div class="info-note">The address bar tracks the active tab, every filter, the search text, the sort order, the
+          Navigator's own filters and any open technique panel. Copy the URL and whoever opens it lands on exactly what
+          you were looking at.</div>
       </div>
 
     </div>
@@ -143,15 +213,26 @@
       <div class="filters-panel" id="filters-panel"></div>
       <div class="content">
         <div class="search-row">
-          <button class="filters-toggle" id="filters-toggle" onclick="toggleFiltersPanel()" aria-expanded="false" aria-controls="filters-panel">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+          <button class="filters-toggle" id="filters-toggle" onclick="toggleFiltersPanel()" aria-expanded="false"
+            aria-controls="filters-panel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+            </svg>
             Filters
           </button>
           <div class="search-input-wrap">
-            <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input class="search-input" id="search-input" type="text" placeholder="Search title, description, ID, product…" oninput="onSearchInput()">
-            <button class="search-clear" id="search-clear" onclick="clearSearch()" title="Clear search" aria-label="Clear search">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            <svg viewBox="0 0 24 24" stroke-width="2">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input class="search-input" id="search-input" type="text"
+              placeholder="Search title, description, ID, product…" oninput="onSearchInput()">
+            <button class="search-clear" id="search-clear" onclick="clearSearch()" title="Clear search"
+              aria-label="Clear search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
             </button>
           </div>
           <span class="result-count" id="result-count"></span>
@@ -162,17 +243,20 @@
           <div class="export-wrap">
             <button class="export-btn" id="export-btn" onclick="toggleExportMenu(event)">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
               </svg>
               Export
             </button>
             <div class="export-menu" id="export-menu">
               <div class="export-menu-head">Current view (<span id="export-count">0</span> rules)</div>
-              <div class="export-menu-item" onclick="exportView('csv')"><span class="ext">CSV</span><span class="desc">Spreadsheet</span></div>
-              <div class="export-menu-item" onclick="exportView('json')"><span class="ext">JSON</span><span class="desc">Full metadata</span></div>
-              <div class="export-menu-item" onclick="exportView('md')"><span class="ext">MD</span><span class="desc">Markdown table</span></div>
+              <div class="export-menu-item" onclick="exportView('csv')"><span class="ext">CSV</span><span
+                  class="desc">Spreadsheet</span></div>
+              <div class="export-menu-item" onclick="exportView('json')"><span class="ext">JSON</span><span
+                  class="desc">Full metadata</span></div>
+              <div class="export-menu-item" onclick="exportView('md')"><span class="ext">MD</span><span
+                  class="desc">Markdown table</span></div>
             </div>
           </div>
         </div>
@@ -195,7 +279,11 @@
             <tbody id="table-body"></tbody>
           </table>
           <div id="no-results" class="no-results" style="display:none;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/><line x1="7" y1="10" x2="13" y2="10"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="10" cy="10" r="7" />
+              <line x1="21" y1="21" x2="15" y2="15" />
+              <line x1="7" y1="10" x2="13" y2="10" />
+            </svg>
             <div class="no-results-title">No matching rules</div>
             <div class="no-results-sub">Try adjusting your filters or search terms.</div>
           </div>
@@ -208,10 +296,18 @@
     <div class="nav-wrap">
       <div class="nav-toolbar">
         <div class="nav-search-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input class="nav-search-input" id="nav-search" type="text" placeholder="Jump to technique — ID or name…" oninput="onNavSearch()">
-          <button class="nav-search-clear" id="nav-search-clear" onclick="clearNavSearch()" title="Clear" aria-label="Clear search">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input class="nav-search-input" id="nav-search" type="text" placeholder="Jump to technique — ID or name…"
+            oninput="onNavSearch()">
+          <button class="nav-search-clear" id="nav-search-clear" onclick="clearNavSearch()" title="Clear"
+            aria-label="Clear search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
           </button>
         </div>
         <span class="nav-search-count" id="nav-search-count"></span>
@@ -219,39 +315,64 @@
         <div class="nav-verdict-wrap">
           <button class="nav-verdict-btn" id="nav-verdict-btn" onclick="toggleVerdictMenu(event)">
             <span>Verdict</span><span class="nav-verdict-active" id="nav-verdict-active"></span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
           </button>
           <div class="nav-verdict-menu" id="nav-verdict-menu">
-            <div class="nav-verdict-item" data-filter="pass"><span class="nav-legend-dot" style="background:#21262d;border-left:3px solid #2EA44F"></span><span class="lbl">PASS</span><span class="nav-legend-count" data-count="pass"></span></div>
-            <div class="nav-verdict-item" data-filter="notver"><span class="nav-legend-dot" style="background:#21262d;border-left:3px solid #d29922"></span><span class="lbl">NOT VERIFIED</span><span class="nav-legend-count" data-count="notver"></span></div>
-            <div class="nav-verdict-item" data-filter="fail"><span class="nav-legend-dot" style="background:#21262d;border-left:3px solid #CF222E"></span><span class="lbl">FAIL</span><span class="nav-legend-count" data-count="fail"></span></div>
-            <div class="nav-verdict-item" data-filter="nv"><span class="nav-legend-dot" style="background:#21262d;border-left:3px solid #6e7681"></span><span class="lbl">N/A</span><span class="nav-legend-count" data-count="nv"></span></div>
+            <div class="nav-verdict-item" data-filter="pass"><span class="nav-legend-dot"
+                style="background:#21262d;border-left:3px solid #2EA44F"></span><span class="lbl">PASS</span><span
+                class="nav-legend-count" data-count="pass"></span></div>
+            <div class="nav-verdict-item" data-filter="notver"><span class="nav-legend-dot"
+                style="background:#21262d;border-left:3px solid #d29922"></span><span class="lbl">NOT
+                VERIFIED</span><span class="nav-legend-count" data-count="notver"></span></div>
+            <div class="nav-verdict-item" data-filter="fail"><span class="nav-legend-dot"
+                style="background:#21262d;border-left:3px solid #CF222E"></span><span class="lbl">FAIL</span><span
+                class="nav-legend-count" data-count="fail"></span></div>
+            <div class="nav-verdict-item" data-filter="nv"><span class="nav-legend-dot"
+                style="background:#21262d;border-left:3px solid #6e7681"></span><span class="lbl">N/A</span><span
+                class="nav-legend-count" data-count="nv"></span></div>
           </div>
         </div>
         <div class="nav-quickfilters">
-          <button class="nav-qf" id="nav-qf-covered" onclick="toggleNavScope('covered')">Covered<span class="nav-qf-count" data-count="covered"></span></button>
-          <button class="nav-qf" id="nav-qf-gaps" onclick="toggleNavScope('gaps')">Gaps<span class="nav-qf-count" data-count="uncov"></span></button>
+          <button class="nav-qf" id="nav-qf-covered" onclick="toggleNavScope('covered')">Covered<span
+              class="nav-qf-count" data-count="covered"></span></button>
+          <button class="nav-qf" id="nav-qf-gaps" onclick="toggleNavScope('gaps')">Gaps<span class="nav-qf-count"
+              data-count="uncov"></span></button>
         </div>
         <span class="nav-tb-sep"></span>
         <button id="expand-all-btn">&#9660; Expand All</button>
         <div class="export-wrap" id="nav-export-wrap">
           <button class="export-btn" onclick="toggleNavExportMenu(event)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
             Export view
           </button>
           <div class="export-menu" id="nav-export-menu">
             <div class="export-menu-head">Current view (<span id="nav-export-count">0</span> techniques)</div>
-            <div class="export-menu-item" onclick="exportNavView('csv')"><span class="ext">CSV</span><span class="desc">Spreadsheet</span></div>
-            <div class="export-menu-item" onclick="exportNavView('json')"><span class="ext">JSON</span><span class="desc">Full metadata</span></div>
-            <div class="export-menu-item" onclick="exportNavView('md')"><span class="ext">MD</span><span class="desc">Markdown table</span></div>
+            <div class="export-menu-item" onclick="exportNavView('csv')"><span class="ext">CSV</span><span
+                class="desc">Spreadsheet</span></div>
+            <div class="export-menu-item" onclick="exportNavView('json')"><span class="ext">JSON</span><span
+                class="desc">Full metadata</span></div>
+            <div class="export-menu-item" onclick="exportNavView('md')"><span class="ext">MD</span><span
+                class="desc">Markdown table</span></div>
             <div class="export-menu-head">Full coverage</div>
-            <a class="export-menu-item" href="@@LAYER_URL@@" target="_blank" rel="noopener" title="Load in the official ATT&amp;CK Navigator via Open Existing Layer &rarr; Load from URL"><span class="ext">LAYER</span><span class="desc">ATT&amp;CK Navigator JSON</span></a>
+            <a class="export-menu-item" href="@@LAYER_URL@@" target="_blank" rel="noopener"
+              title="Load in the official ATT&amp;CK Navigator via Open Existing Layer &rarr; Load from URL"><span
+                class="ext">LAYER</span><span class="desc">ATT&amp;CK Navigator JSON</span></a>
           </div>
         </div>
       </div>
       @@MATRIX_HTML@@
       <div id="nav-no-results" class="no-results" style="display:none;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/><line x1="7" y1="10" x2="13" y2="10"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="10" cy="10" r="7" />
+          <line x1="21" y1="21" x2="15" y2="15" />
+          <line x1="7" y1="10" x2="13" y2="10" />
+        </svg>
         <div class="no-results-title">No matching techniques</div>
         <div class="no-results-sub">Every tactic column is filtered out by the current verdict, scope or search.</div>
         <button class="nav-clear-btn" onclick="clearNavFilters()">Clear Navigator filters</button>
@@ -267,7 +388,9 @@
           <div class="chart-card-title">Rule Type</div>
           <div class="severity-card-body">
             <div class="chart-card-canvas-wrap severity-canvas-wrap">
-              <canvas id="chart-source" aria-label="Stacked column chart showing the number of Sigma rules versus Native SPL rules" role="img"></canvas>
+              <canvas id="chart-source"
+                aria-label="Stacked column chart showing the number of Sigma rules versus Native SPL rules"
+                role="img"></canvas>
             </div>
             <div class="sev-legend" id="source-legend"></div>
           </div>
@@ -276,7 +399,8 @@
           <div class="chart-card-title">Rules by Severity</div>
           <div class="severity-card-body">
             <div class="chart-card-canvas-wrap severity-canvas-wrap">
-              <canvas id="chart-severity" aria-label="Doughnut chart showing rule counts broken down by severity level" role="img"></canvas>
+              <canvas id="chart-severity" aria-label="Doughnut chart showing rule counts broken down by severity level"
+                role="img"></canvas>
             </div>
             <div class="sev-legend" id="sev-legend"></div>
           </div>
@@ -285,7 +409,8 @@
           <div class="chart-card-title">Status</div>
           <div class="severity-card-body">
             <div class="chart-card-canvas-wrap severity-canvas-wrap">
-              <canvas id="chart-status" aria-label="Doughnut chart showing rule counts broken down by status" role="img"></canvas>
+              <canvas id="chart-status" aria-label="Doughnut chart showing rule counts broken down by status"
+                role="img"></canvas>
               <div class="verify-overlay">
                 <div class="verify-overlay-pct" id="status-overlay-pct">—</div>
                 <div class="verify-overlay-label">Stable</div>
@@ -303,7 +428,9 @@
                    once the row wraps, carries that whole story, and saying it
                    twice made two cards answer the same question. It stays in
                    the aria-label, where there is no neighbour to lean on. -->
-              <canvas id="chart-verify" aria-label="Doughnut chart showing what the current verdicts say: pass, fail, not verified — pass rate @@PASS_RATE@@% across the @@VERIFIED_CURRENT@@ of @@TOTAL@@ rules whose verdict is still current evidence" role="img"></canvas>
+              <canvas id="chart-verify"
+                aria-label="Doughnut chart showing what the current verdicts say: pass, fail, not verified — pass rate @@PASS_RATE@@% across the @@VERIFIED_CURRENT@@ of @@TOTAL@@ rules whose verdict is still current evidence"
+                role="img"></canvas>
               <div class="verify-overlay">
                 <div class="verify-overlay-pct">@@PASS_RATE@@%</div>
                 <div class="verify-overlay-label">Pass Rate</div>
@@ -325,7 +452,9 @@
           <div class="chart-card-title">Evidence</div>
           <div class="verify-card-body verify-card-body-evidence">
             <div class="chart-card-canvas-wrap verify-canvas-wrap">
-              <canvas id="chart-evidence" aria-label="Doughnut chart showing how many rules have a current verdict versus one that has been superseded by a rule change, has expired, or was never measured" role="img"></canvas>
+              <canvas id="chart-evidence"
+                aria-label="Doughnut chart showing how many rules have a current verdict versus one that has been superseded by a rule change, has expired, or was never measured"
+                role="img"></canvas>
               <div class="verify-overlay">
                 <div class="verify-overlay-pct" id="evidence-overlay-pct">—</div>
                 <div class="verify-overlay-label">Current</div>
@@ -336,9 +465,12 @@
         </div>
         <div class="chart-card chart-card-wide2">
           <div class="chart-card-title">Verification Age</div>
-          <div class="chart-card-sub">How long ago each rule was last verified &middot; measured as of now, not at build time</div>
+          <div class="chart-card-sub">How long ago each rule was last verified &middot; measured as of now, not at build
+            time</div>
           <div class="chart-card-canvas-wrap age-canvas-wrap">
-            <canvas id="chart-age" aria-label="Horizontal bar chart showing how many rules fall into each verification-age band, up to and beyond the @@REVIEW_DAYS@@-day review interval" role="img"></canvas>
+            <canvas id="chart-age"
+              aria-label="Horizontal bar chart showing how many rules fall into each verification-age band, up to and beyond the @@REVIEW_DAYS@@-day review interval"
+              role="img"></canvas>
           </div>
         </div>
       </div>
@@ -350,7 +482,9 @@
         <div class="chart-card">
           <div class="chart-card-title">MITRE ATT&amp;CK Coverage</div>
           <div class="chart-card-canvas-wrap gauge-canvas-wrap">
-            <canvas id="chart-coverage" aria-label="Half-doughnut gauge showing MITRE ATT&amp;CK technique coverage: @@MITRE_PCT@@%, @@MITRE_COVERED@@ of @@MITRE_TOTAL@@ techniques" role="img"></canvas>
+            <canvas id="chart-coverage"
+              aria-label="Half-doughnut gauge showing MITRE ATT&amp;CK technique coverage: @@MITRE_PCT@@%, @@MITRE_COVERED@@ of @@MITRE_TOTAL@@ techniques"
+              role="img"></canvas>
             <div class="gauge-overlay">
               <div class="gauge-overlay-title">MITRE ATT&amp;CK Coverage</div>
               <div class="gauge-pct">@@MITRE_PCT@@%</div>
@@ -361,7 +495,8 @@
         <div class="chart-card">
           <div class="chart-card-title">Rules per MITRE ATT&amp;CK Tactic</div>
           <div class="chart-card-canvas-wrap">
-            <canvas id="chart-tactics" aria-label="Horizontal bar chart showing rule counts per MITRE ATT&amp;CK tactic" role="img"></canvas>
+            <canvas id="chart-tactics" aria-label="Horizontal bar chart showing rule counts per MITRE ATT&amp;CK tactic"
+              role="img"></canvas>
           </div>
         </div>
       </div>
@@ -391,13 +526,17 @@
         <div class="chart-card">
           <div class="chart-card-title">MITRE ATT&amp;CK Coverage Over Time</div>
           <div class="chart-card-canvas-wrap">
-            <canvas id="chart-coverage-trend" aria-label="Line chart showing MITRE ATT&amp;CK technique coverage percentage over time" role="img"></canvas>
+            <canvas id="chart-coverage-trend"
+              aria-label="Line chart showing MITRE ATT&amp;CK technique coverage percentage over time"
+              role="img"></canvas>
           </div>
         </div>
         <div class="chart-card">
           <div class="chart-card-title">Rule Count Growth</div>
           <div class="chart-card-canvas-wrap">
-            <canvas id="chart-rule-growth" aria-label="Line chart showing Sigma rule count and Native SPL rule count as two independent series over time" role="img"></canvas>
+            <canvas id="chart-rule-growth"
+              aria-label="Line chart showing Sigma rule count and Native SPL rule count as two independent series over time"
+              role="img"></canvas>
           </div>
           <div class="trend-legend" id="growth-legend"></div>
         </div>
@@ -414,7 +553,10 @@
           <div class="drawer-title" id="d-title"></div>
         </div>
         <button class="drawer-close" onclick="closeDrawer()">
-          <svg viewBox="0 0 24 24" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          <svg viewBox="0 0 24 24" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
         </button>
       </div>
       <div class="drawer-badges" id="d-badges"></div>
@@ -424,7 +566,10 @@
 
   <div id="detail-panel">
     <div id="detail-header">
-      <div><div id="detail-title"></div><div id="detail-tid"></div></div>
+      <div>
+        <div id="detail-title"></div>
+        <div id="detail-tid"></div>
+      </div>
       <button id="detail-close">&#215;</button>
     </div>
     <div id="detail-body"></div>
@@ -435,7 +580,8 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2/dist/chartjs-plugin-datalabels.min.js"></script>
   <script>
-@@INLINE_JS@@
+    @@INLINE_JS @@
   </script>
 </body>
+
 </html>
