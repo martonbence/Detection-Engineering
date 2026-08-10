@@ -1553,6 +1553,12 @@ def load_page_template() -> str:
     if _page_template_cache is None:
         template = _read_asset("page.template.html")
         for marker, asset in _INLINE_ASSETS:
+            if marker not in template:
+                raise SystemExit(
+                    f"generate_stats.py: marker {marker!r} not found in "
+                    f"page.template.html; docs/index.html would render with a "
+                    f"literal placeholder instead of {asset}, so nothing is written."
+                )
             template = template.replace(marker, _read_asset(asset))
         _page_template_cache = template
     return _page_template_cache
@@ -1666,7 +1672,24 @@ def render_html_summary(stats: dict, repo: str) -> str:
         f"({pass_rate:.0f}% pass rate across the {verified_current} of {total} rules "
         f"verified against their current version) and {mitre_covered} techniques covered."
     ).replace('"', "&quot;")
-    return html.replace("@@META_DESC@@", meta_desc)
+    html = html.replace("@@META_DESC@@", meta_desc)
+
+    # A marker surviving every substitution above means one of the asset
+    # files drifted from the placeholder name/spacing this function replaces
+    # (e.g. "@@RULES_JSON@@" reformatted to "@@RULES_JSON @@") and the
+    # .replace() silently no-op'd -- exactly what happened to @@INLINE_JS@@
+    # once, leaving the literal marker in place of the page's data and
+    # breaking the dashboard with no error anywhere in the pipeline.
+    leftover = sorted(set(re.findall(r"@@[A-Z_]+ ?@@", html)))
+    if leftover:
+        raise SystemExit(
+            f"generate_stats.py: unreplaced marker(s) in docs/index.html: "
+            f"{', '.join(leftover)}; the asset that defines them no longer "
+            f"matches what this function substitutes, so nothing is written."
+        )
+    return html
+
+
 def update_html_summary(content: str) -> None:
     out_path = REPO_ROOT / "docs" / "index.html"
     out_path.parent.mkdir(parents=True, exist_ok=True)
