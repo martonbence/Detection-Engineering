@@ -1308,73 +1308,6 @@ def _relative_age(iso: str) -> str:
     return f"{days} days ago"
 
 
-# Radius of the small "Splunk checked" freshness ring rendered in
-# _deployment_freshness_ring below. Kept as a module constant, not a magic
-# number repeated in Python and CSS, because page.js has to reproduce the
-# same circumference to animate the ring's stroke-dashoffset -- if these three
-# ever disagree the ring subtly mis-draws instead of failing loudly.
-_DEP_FRESH_RING_R = 10
-_DEP_FRESH_RING_CIRC = 2 * 3.141592653589793 * _DEP_FRESH_RING_R  # 2*pi*r, r=10
-
-# How long the ring takes to fully drain, in hours. 72h (3 days), not a new
-# scale of its own: it just draws colour boundaries at the same "today /
-# yesterday / N days ago" coarseness _relative_age already reports at, so the
-# ring and the text beside it never disagree about what counts as stale.
-_DEP_FRESH_WINDOW_HOURS = 72.0
-
-
-def _deployment_freshness_state(elapsed_hours: float) -> tuple[float, str]:
-    """(fraction remaining, CSS colour) for the freshness ring.
-
-    Fraction is clamped to [0, 1] -- a check from long before the window
-    just shows an empty (fully-drained) ring, never a negative one.
-    """
-    frac = max(0.0, min(1.0, 1.0 - elapsed_hours / _DEP_FRESH_WINDOW_HOURS))
-    if elapsed_hours < 24:
-        color = "var(--green)"
-    elif elapsed_hours < 72:
-        color = "var(--amber)"
-    else:
-        color = "var(--red)"
-    return frac, color
-
-
-def _deployment_freshness_ring(checked_at_iso: str) -> str:
-    """A small radial meter beside "Splunk checked".
-
-    This is a live element, not a decorative one: page.js re-reads
-    `data-checked-at` every second and recomputes the same fraction/colour
-    client-side, so a page left open keeps draining and recolouring on its
-    own, the same way the pass rate and coverage fraction elsewhere on this
-    page keep re-deriving themselves from a timestamp rather than freezing at
-    the value true when the page was built. What is rendered here is that
-    same computation done once at build time, so a reader with JS disabled
-    (or before page.js's first tick) still sees the correct state rather than
-    a ring stuck at "just checked" forever.
-    """
-    if not checked_at_iso:
-        return ""
-    try:
-        when = datetime.fromisoformat(checked_at_iso.replace("Z", "+00:00"))
-    except ValueError:
-        return ""
-    if when.tzinfo is None:
-        when = when.replace(tzinfo=UTC)
-    elapsed_hours = (datetime.now(UTC) - when.astimezone(UTC)).total_seconds() / 3600.0
-    frac, color = _deployment_freshness_state(elapsed_hours)
-    offset = _DEP_FRESH_RING_CIRC * (1.0 - frac)
-    return (
-        f'<span class="dep-fresh-ring" data-checked-at="{_html.escape(checked_at_iso)}" '
-        f'data-window-hours="{_DEP_FRESH_WINDOW_HOURS:g}" aria-hidden="true">'
-        f'<svg class="dep-fresh-ring-svg" width="18" height="18" viewBox="0 0 26 26">'
-        f'<circle class="dep-fresh-ring-track" cx="13" cy="13" r="{_DEP_FRESH_RING_R}"/>'
-        f'<circle class="dep-fresh-ring-fill" cx="13" cy="13" r="{_DEP_FRESH_RING_R}" '
-        f'stroke="{color}" stroke-dasharray="{_DEP_FRESH_RING_CIRC:.3f}" '
-        f'stroke-dashoffset="{offset:.3f}"/>'
-        f"</svg></span>"
-    )
-
-
 def _deployment_env_html(env: str, section: dict, repo: str) -> str:
     """One environment's column: what we sent, and what is actually there."""
     deploy = section.get("last_deploy") or {}
@@ -1408,8 +1341,7 @@ def _deployment_env_html(env: str, section: dict, repo: str) -> str:
         rows.append(("Last deployed", '<span class="dep-unknown">no deploy recorded</span>'))
 
     if state:
-        checked_at_raw = str(state.get("checked_at") or "")
-        checked = _relative_age(checked_at_raw) or "unknown"
+        checked = _relative_age(str(state.get("checked_at") or "")) or "unknown"
         drift = bool(state.get("has_drift"))
         # The two halves are stated separately on purpose. "We sent 27" staying
         # true while "27 are there" stops being true is exactly the 2026-08-07
@@ -1419,8 +1351,7 @@ def _deployment_env_html(env: str, section: dict, repo: str) -> str:
             if drift
             else '<span class="dep-ok">matches the repo</span>'
         )
-        ring = _deployment_freshness_ring(checked_at_raw)
-        rows.append(("Splunk checked", f'<span class="dep-checked-cell">{_html.escape(checked)}{ring}</span>'))
+        rows.append(("Splunk checked", _html.escape(checked)))
         rows.append(("Comparison", verdict))
         if drift:
             detail = ", ".join(
@@ -1440,7 +1371,7 @@ def _deployment_env_html(env: str, section: dict, repo: str) -> str:
         f'<tr><th scope="row">{_html.escape(label)}</th><td>{value}</td></tr>' for label, value in rows
     )
     return (
-        f'<div class="chart-card dep-env"><div class="chart-card-title">{_html.escape(env)}</div>'
+        f'<div class="dep-env-block"><div class="dep-env-title">{_html.escape(env)}</div>'
         f'<table class="dep-table"><tbody>{body}</tbody></table></div>'
     )
 
@@ -1455,62 +1386,26 @@ def _deployment_env_html(env: str, section: dict, repo: str) -> str:
 # (register item 1.1 closed exactly that case as normal), the second is an
 # object that should be running and is not. Colouring the first red would teach
 # people to ignore red.
+# Third element is the short label shown in the legend itself -- the long
+# form stays on the per-cell tooltip/aria text, where there is room for it.
 _DEP_STATES = {
-    "current": ("dep-live", "deployed, same version as the repo"),
-    "behind": ("dep-behind", "deployed, but an older version than the repo"),
-    "absent": ("dep-absent", "not deployed here"),
-    "gone": ("dep-gone", "deployed, but Splunk no longer has it"),
+    "current": ("dep-live", "Live", "deployed, same version as the repo"),
+    "behind": ("dep-behind", "Behind", "deployed, but an older version than the repo"),
+    "absent": ("dep-absent", "Not deployed", "not deployed here"),
+    "gone": ("dep-gone", "Missing", "deployed, but Splunk no longer has it"),
     # Five states, because the fifth is the difference between "we looked and
     # this rule is not there" and "we have not looked per rule at all". An
     # environment whose deploy report has not been ingested yet has no rule map,
     # and rendering that as 27 absences would announce an empty production app
     # that is in fact fully deployed -- the panel's first and worst possible
     # lie, in the section built to stop the page claiming things it cannot know.
-    "unrecorded": ("dep-unrecorded", "per-rule versions not recorded for this environment"),
+    "unrecorded": ("dep-unrecorded", "Unknown", "per-rule versions not recorded for this environment"),
 }
-
-# Centerline points for the two trace shapes, at the same 80x20 (two 40x20
-# periods back to back) the old clip-path ribbon used. These replace a
-# clip-path polygon that offset each vertex *vertically* by a constant 1.3px
-# rather than perpendicular to the local segment direction -- correct
-# thickness on the flat stretches (where vertical IS perpendicular) but only
-# ~1.0px of visible stroke on the spike's steep diagonals (2.6 * cos(66.8 deg)
-# from vertical), a real inconsistency, not a rendering artifact, that got
-# more visible once this shape grew and was reused at heartbeat scale.
-# Rendering these as an actual <polyline stroke-width="2.6"> instead hands
-# the constant-width math to the SVG stroker, which does it correctly (and
-# joins the sharp vertices cleanly) natively -- no more hand-picked offsets.
-_DEP_TRACE_SPIKE_POINTS = "0,10 13,10 16,3 19,17 22,10 40,10 53,10 56,3 59,17 62,10 80,10"
-_DEP_TRACE_FLAT_POINTS = "0,10 80,10"
-
-
-def _deployment_trace_svg(state: str) -> str:
-    """The inner shape for a .dep-trace viewport: an SVG so the constant
-    2.6px stroke width is exact everywhere the line changes direction, not
-    just on its flat stretches (see the point-list comment above).
-
-    Kept as one function shared by the per-cell trace, the header heartbeat,
-    and the legend, so all three ever draw the same shape: the seam-free
-    looping trick (drawn at double width, one period ahead of a copy of
-    itself, then translated exactly one period via CSS animation) only stays
-    seamless if the two halves are byte-identical, and three independent
-    copies of this string would just be three chances for that to drift.
-    Absent/unrecorded states get the (harmless, invisible -- no CSS rule
-    gives their state class a stroke colour) spike shape too rather than a
-    special-cased empty element, since it costs nothing and keeps this
-    function's return value unconditional.
-    """
-    points = _DEP_TRACE_FLAT_POINTS if state == "gone" else _DEP_TRACE_SPIKE_POINTS
-    return (
-        '<svg class="dep-trace-fill" viewBox="0 0 80 20" width="80" height="20" aria-hidden="true">'
-        f'<polyline points="{points}"/>'
-        "</svg>"
-    )
 
 
 def _deployment_cell(state: str, version: str, repo_version: str, env: str, detect_id: str) -> str:
     """One rule in one environment: a state line plus the version it runs."""
-    css, meaning = _DEP_STATES[state]
+    css, _short, meaning = _DEP_STATES[state]
 
     if state == "behind":
         label = f"{env}: {meaning} ({version} vs {repo_version})"
@@ -1522,7 +1417,7 @@ def _deployment_cell(state: str, version: str, repo_version: str, env: str, dete
     shown = _html.escape(version) if version else "&mdash;"
     return (
         f'<td class="dep-cell {css}" title="{_html.escape(detect_id)} &mdash; {_html.escape(label)}">'
-        f'<span class="dep-trace" aria-hidden="true">{_deployment_trace_svg(state)}</span>'
+        f'<span class="dep-trace" aria-hidden="true"><span class="dep-trace-fill"></span></span>'
         f'<span class="dep-ver">{shown}</span>'
         f'<span class="visually-hidden">{_html.escape(label)}</span>'
         "</td>"
@@ -1555,85 +1450,16 @@ def _deployment_state(env_section: dict, detect_id: str, repo_version: str) -> t
     return "current", version
 
 
-# Worst-first. Mirrors the priority a reader would scan the legend in: a rule
-# that is "gone" anywhere is a bigger story than one that is merely "behind",
-# which is bigger than one that is simply "absent" (often just not promoted
-# yet). "current" and "unrecorded" are excluded on purpose -- the first is the
-# calm baseline the heartbeat is bookended with, the second is a gap in our
-# knowledge, not a problem with the rule, so it does not compete for one of
-# the two "something's wrong" slots below.
-_DEP_PROBLEM_SEVERITY = ("gone", "behind", "absent")
-
-
-def _deployment_heartbeat(states_seen: set[str]) -> str:
-    """A small composite trace beside the table's own title.
-
-    The per-rule EKG motif, rolled up one level: four segments, calm
-    "current" on both ends, with up to two of the worst states actually
-    present in the table filling the middle. This is not a proportional
-    chart -- a table of 200 rows cannot be represented by four segments, and
-    it does not try to be -- it is a shaped answer to "is anything in here
-    not fine", legible before scrolling the real table below it. The
-    accessible half of this claim is the sync counter next to it, not this
-    element: aria-hidden, because color/shape alone must never be the only
-    way to know what it says (dataviz palette rule), and the counter states
-    the same fact in words.
-    """
-    if not states_seen:
-        return ""
-    problems = [s for s in _DEP_PROBLEM_SEVERITY if s in states_seen]
-    middle = (problems + ["current", "current"])[:2]
-    segments = ["current", middle[0], middle[1], "current"]
-    spans = "".join(
-        f'<span class="dep-trace {_DEP_STATES[s][0]}" aria-hidden="true">{_deployment_trace_svg(s)}</span>'
-        for s in segments
-    )
-    return f'<span class="dep-heartbeat" aria-hidden="true">{spans}</span>'
-
-
-def _deployment_sync_counter(in_sync: int, total: int) -> str:
-    """"N / total in sync" -- a real, accessible count-up rather than
-    aria-hidden decoration, and the actual claim _deployment_heartbeat's
-    shape is standing in for.
-
-    "In sync" means every environment we have per-rule data for reports the
-    repo's current version -- an environment with no per-rule map at all
-    (`unrecorded`) does not disqualify a rule, the same way a single
-    unrecorded cell does not get painted as a failure: this panel does not
-    claim drift in an environment it has never actually looked at. A rule
-    that is unrecorded *everywhere* still does not count, since "in sync"
-    has to mean in sync with at least one real answer, not merely the
-    absence of a contradiction.
-    """
-    if not total:
-        return ""
-    return (
-        f'<span class="dep-sync-counter" data-target="{in_sync}">'
-        f'<span class="dep-sync-n">0</span> / {total} in sync</span>'
-    )
-
-
-def _deployment_table(environments: dict, rules: list[dict], order: list[str]) -> tuple[str, str]:
+def _deployment_table(environments: dict, rules: list[dict], order: list[str]) -> str:
     """Every rule in the library, against every environment we know about.
 
     Driven by the repo's rule list rather than by the inventory's keys, so a
     rule that has never been deployed anywhere still gets a row. An inventory-
     driven table would quietly omit exactly the rules worth noticing.
-
-    Returns (table_html, header_live_html) -- the second is the composite
-    heartbeat + sync counter meant for the card header above this table, kept
-    a separate return value rather than folded into the table markup because
-    it is computed from the same per-rule states this function already visits
-    and recomputing it a second time in the caller would just be two loops
-    that have to be kept in agreement instead of one.
     """
     head = "".join(f'<th scope="col">{_html.escape(env)}</th>' for env in order)
 
     body = []
-    problem_states = set(_DEP_PROBLEM_SEVERITY)
-    states_seen: set[str] = set()
-    total = 0
-    in_sync = 0
     for rule in rules:
         detect_id = str(rule.get("detect_id") or "")
         if not detect_id:
@@ -1642,16 +1468,9 @@ def _deployment_table(environments: dict, rules: list[dict], order: list[str]) -
         title = str(rule.get("title") or "")
 
         cells = []
-        rule_states = []
         for env in order:
             state, version = _deployment_state(environments.get(env) or {}, detect_id, repo_version)
-            rule_states.append(state)
-            states_seen.add(state)
             cells.append(_deployment_cell(state, version, repo_version, env, detect_id))
-
-        total += 1
-        if "current" in rule_states and not (problem_states & set(rule_states)):
-            in_sync += 1
 
         body.append(
             f'<tr><th scope="row" class="dep-id" title="{_html.escape(title)}">'
@@ -1660,15 +1479,11 @@ def _deployment_table(environments: dict, rules: list[dict], order: list[str]) -
             f"{''.join(cells)}</tr>"
         )
 
-    table_html = (
+    return (
         '<div class="dep-table-wrap"><table class="dep-rules">'
         f'<thead><tr><th scope="col">Rule</th><th scope="col">repo</th>{head}</tr></thead>'
         f"<tbody>{''.join(body)}</tbody></table></div>"
     )
-    heartbeat = _deployment_heartbeat(states_seen)
-    counter = _deployment_sync_counter(in_sync, total)
-    header_live = f'<div class="dep-table-head-live">{heartbeat}{counter}</div>' if heartbeat or counter else ""
-    return table_html, header_live
 
 
 def render_deployment_html(inventory: dict, repo: str, rules: list[dict] | None = None) -> str:
@@ -1681,31 +1496,36 @@ def render_deployment_html(inventory: dict, repo: str, rules: list[dict] | None 
     # pipeline runs; anything else in alphabetical order rather than dict order,
     # so the panel does not reshuffle itself between builds.
     order = sorted(environments, key=lambda name: (name != "dev", name != "prod", name))
-    columns = "".join(_deployment_env_html(env, environments[env] or {}, repo) for env in order)
-    table, header_live = _deployment_table(environments, rules or [], order) if rules else ("", "")
+    env_blocks = "".join(_deployment_env_html(env, environments[env] or {}, repo) for env in order)
+    # One card, environments stacked, rather than one card per environment --
+    # dev and prod are two facts about the same rule set, not two separate
+    # things, and a reader comparing them wants both under one title, not two
+    # cards apart in the grid.
+    columns = f'<div class="chart-card">{env_blocks}</div>' if env_blocks else ""
+    table = _deployment_table(environments, rules or [], order) if rules else ""
 
+    # Dot and label in the SAME span, not the dot's span closed before the
+    # label -- the earlier version closed </span> once too early, which
+    # kicked every label out of .dep-key's flex box (no gap, no vertical
+    # centering against its dot) and left a stray closing tag that ate into
+    # the next .dep-key, so alignment kept drifting entry to entry.
     legend = "".join(
-        f'<span class="dep-key"><span class="dep-trace {css}" aria-hidden="true">{_deployment_trace_svg(key)}</span></span>'
-        f"{_html.escape(meaning)}"
-        f"</span>"
-        for key, (css, meaning) in (
-            (key, _DEP_STATES[key]) for key in ("current", "behind", "absent", "gone", "unrecorded")
+        f'<span class="dep-key"><span class="dep-trace {css}" aria-hidden="true"></span>'
+        f"{_html.escape(label)}</span>"
+        for css, label in (
+            (_DEP_STATES[key][0], _DEP_STATES[key][1])
+            for key in ("current", "behind", "absent", "gone", "unrecorded")
         )
     )
 
-    # Laid out as chart cards in the same four-track grid the charts above use,
-    # so the per-rule table is exactly the width and height of the Verification
-    # Age card beside it. The environment summaries take one track each, which
-    # fills the row rather than leaving the table floating in half of it -- and
-    # puts "what we sent" next to "what is actually there", which is the
-    # comparison the panel is for.
+    # Laid out as chart cards in the same four-track grid the charts above use.
+    # The per-rule table takes one track, same width as Rules by Severity; the
+    # environments card takes the track beside it, dev and prod stacked inside
+    # it -- putting "what we sent" next to "what is actually there", which is
+    # the comparison the panel is for.
     table_card = (
-        '<div class="chart-card chart-card-wide2">'
-        '<div class="dep-table-head">'
-        '<div><div class="chart-card-title">Rule deployment</div>'
-        '<div class="chart-card-sub">Which version each environment was last given, per rule</div></div>'
-        f"{header_live}"
-        "</div>"
+        '<div class="chart-card">'        '<div class="chart-card-title">Rule deployment</div>'
+        '<div class="chart-card-sub">Which version each environment was last given, per rule</div>'
         f"{table}"
         f'<div class="dep-legend">{legend}</div>'
         "</div>"
@@ -1721,7 +1541,7 @@ def render_deployment_html(inventory: dict, repo: str, rules: list[dict] | None 
       repo version has not been redeployed since it changed &mdash; it is not broken, it is behind.
       <strong>Splunk checked</strong> is when anything last looked at what is really there; that and
       the deploy log can disagree, and the disagreement is the point.</div>
-      <div class="dash-section-grid dash-section-grid-row2 dep-deploy-grid">
+      <div class="dash-section-grid dash-section-grid-deploy">
         {table_card}{columns}
       </div>
     </div>"""

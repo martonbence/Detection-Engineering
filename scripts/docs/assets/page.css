@@ -1,4 +1,8 @@
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
     :root {
       --bg: #0d1117;
@@ -12,22 +16,25 @@
       --text3: #6e7681;
       --accent: #58a6ff;
       --accent2: #1f6feb;
-      --accent-bg: rgba(88,166,255,0.1);
+      --accent-bg: rgba(88, 166, 255, 0.1);
       --green: #2ea44f;
-      --green-bg: rgba(46,164,79,0.12);
+      --green-bg: rgba(46, 164, 79, 0.12);
       --amber: #d29922;
-      --amber-bg: rgba(210,153,34,0.12);
+      --amber-bg: rgba(210, 153, 34, 0.12);
       --red: #f85149;
-      --red-bg: rgba(248,81,73,0.12);
+      --red-bg: rgba(248, 81, 73, 0.12);
       --purple: #8f95d6;
-      --purple-bg: rgba(143,149,214,0.12);
+      --purple-bg: rgba(143, 149, 214, 0.12);
       --radius: 6px;
       --radius-lg: 10px;
       --font: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
       --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
     }
 
-    html, body { height: 100%; }
+    html,
+    body {
+      height: 100%;
+    }
 
     body {
       background: var(--bg);
@@ -40,16 +47,28 @@
       overflow: hidden;
     }
 
-    a { color: var(--accent); text-decoration: none; }
-    a:hover { text-decoration: underline; }
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
 
     /* Unified heading/title typography — every section header, card title and
        panel title shares the one UI sans family so headings read as a single
        system across the Rule Library, Navigator and Dashboards. Code-like
        identifiers (rule IDs, technique IDs, metadata values) intentionally
        keep the mono --font and are not covered here. */
-    .strip-title, .dash-section-title, .chart-card-title, .gauge-overlay-title,
-    .drawer-section-label, .drawer-title, #detail-title, .tc-hdr,
+    .strip-title,
+    .dash-section-title,
+    .chart-card-title,
+    .gauge-overlay-title,
+    .drawer-section-label,
+    .drawer-title,
+    #detail-title,
+    .tc-hdr,
     .no-results-title {
       font-family: var(--font-ui);
     }
@@ -68,7 +87,12 @@
       border-bottom: 1px solid var(--border);
     }
 
-    .strip-brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
+    .strip-brand {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-width: 0;
+    }
 
     .strip-title {
       font-size: 14px;
@@ -78,7 +102,12 @@
       white-space: nowrap;
     }
 
-    .strip-sep { width: 1px; height: 14px; background: var(--border2); flex-shrink: 0; }
+    .strip-sep {
+      width: 1px;
+      height: 14px;
+      background: var(--border2);
+      flex-shrink: 0;
+    }
 
     .strip-total {
       font-family: var(--font);
@@ -87,7 +116,10 @@
       white-space: nowrap;
     }
 
-    .strip-total strong { color: #ffaa00; font-weight: 700; }
+    .strip-total strong {
+      color: #ffaa00;
+      font-weight: 700;
+    }
 
     .filters-generated {
       text-align: center;
@@ -97,7 +129,12 @@
       padding-top: 4px;
     }
 
-    .tab-bar { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
+    .tab-bar {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+      align-items: center;
+    }
 
     .tab-btn {
       background: none;
@@ -112,7 +149,9 @@
       transition: all 0.12s;
     }
 
-    .tab-btn:hover { color: var(--text2); }
+    .tab-btn:hover {
+      color: var(--text2);
+    }
 
     .tab-btn.active {
       background: #ffaa00;
@@ -120,12 +159,28 @@
       color: #111111;
     }
 
-    .tab-pane { display: none; flex: 1; min-height: 0; overflow-y: auto; }
-    .tab-pane.active { display: block; }
-    #tab-rules.active { display: flex; flex-direction: column; }
+    .tab-pane {
+      display: none;
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+    }
+
+    .tab-pane.active {
+      display: block;
+    }
+
+    #tab-rules.active {
+      display: flex;
+      flex-direction: column;
+    }
 
     /* ── Layout ── */
-    .main { display: flex; flex: 1; min-height: 0; }
+    .main {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+    }
 
     .filters-panel {
       width: 250px;
@@ -139,42 +194,163 @@
       gap: 8px;
     }
 
-    .fc-source   { --fc:#ffffff; --fc-bg:rgba(255,255,255,0.10);  --fc-br:rgba(255,255,255,0.35); }
-    .fc-source-sigma      { --fc:#00acd7; --fc-bg:rgba(0,172,215,0.12); --fc-br:rgba(0,172,215,0.38); }
-    .fc-source-nativespl  { --fc:#ff6600; --fc-bg:rgba(255,102,0,0.12); --fc-br:rgba(255,102,0,0.38); }
-    .fc-category { --fc:#f85149; --fc-bg:rgba(248,81,73,0.13);   --fc-br:rgba(248,81,73,0.38); }
-    .fc-product  { --fc:#fb923c; --fc-bg:rgba(251,146,60,0.12);  --fc-br:rgba(251,146,60,0.38); }
-    .fc-service  { --fc:#3fb950; --fc-bg:rgba(63,185,80,0.13);   --fc-br:rgba(63,185,80,0.38); }
-    .fc-severity { --fc:#f778ba; --fc-bg:rgba(247,120,186,0.12); --fc-br:rgba(247,120,186,0.38); }
-    .fc-status   { --fc:#e3b341; --fc-bg:rgba(227,179,65,0.12);  --fc-br:rgba(227,179,65,0.38); }
-    .fc-verdict  { --fc:#bc8cff; --fc-bg:rgba(188,140,255,0.12); --fc-br:rgba(188,140,255,0.38); }
+    .fc-source {
+      --fc: #ffffff;
+      --fc-bg: rgba(255, 255, 255, 0.10);
+      --fc-br: rgba(255, 255, 255, 0.35);
+    }
+
+    .fc-source-sigma {
+      --fc: #00acd7;
+      --fc-bg: rgba(0, 172, 215, 0.12);
+      --fc-br: rgba(0, 172, 215, 0.38);
+    }
+
+    .fc-source-nativespl {
+      --fc: #ff6600;
+      --fc-bg: rgba(255, 102, 0, 0.12);
+      --fc-br: rgba(255, 102, 0, 0.38);
+    }
+
+    .fc-category {
+      --fc: #f85149;
+      --fc-bg: rgba(248, 81, 73, 0.13);
+      --fc-br: rgba(248, 81, 73, 0.38);
+    }
+
+    .fc-product {
+      --fc: #fb923c;
+      --fc-bg: rgba(251, 146, 60, 0.12);
+      --fc-br: rgba(251, 146, 60, 0.38);
+    }
+
+    .fc-service {
+      --fc: #3fb950;
+      --fc-bg: rgba(63, 185, 80, 0.13);
+      --fc-br: rgba(63, 185, 80, 0.38);
+    }
+
+    .fc-severity {
+      --fc: #f778ba;
+      --fc-bg: rgba(247, 120, 186, 0.12);
+      --fc-br: rgba(247, 120, 186, 0.38);
+    }
+
+    .fc-status {
+      --fc: #e3b341;
+      --fc-bg: rgba(227, 179, 65, 0.12);
+      --fc-br: rgba(227, 179, 65, 0.38);
+    }
+
+    .fc-verdict {
+      --fc: #bc8cff;
+      --fc-bg: rgba(188, 140, 255, 0.12);
+      --fc-br: rgba(188, 140, 255, 0.38);
+    }
+
     /* Teal is the one hue the facet rail didn't already use — white, red,
        orange, green, pink, amber, purple and periwinkle are all taken, and an
        amber Review would have collided with Status and the site accent. */
-    .fc-review   { --fc:#2dd4bf; --fc-bg:rgba(45,212,191,0.12);  --fc-br:rgba(45,212,191,0.38); }
+    .fc-review {
+      --fc: #2dd4bf;
+      --fc-bg: rgba(45, 212, 191, 0.12);
+      --fc-br: rgba(45, 212, 191, 0.38);
+    }
+
     /* Method and Runner share one chip colour: they are two readings of the
        same fact (how the verdict was produced), and giving them separate hues
        would imply a distinction that isn't there. Cyan is close to Review's
        teal, which is why the rail orders them Verification, Verdict, Review —
        the purple group sits between the two blue-greens so they never touch. */
-    .fc-verify   { --fc:#39c5cf; --fc-bg:rgba(57,197,207,0.12);  --fc-br:rgba(57,197,207,0.38); }
-    .fc-mitre    { --fc:#8f95d6; --fc-bg:rgba(143,149,214,0.12); --fc-br:rgba(143,149,214,0.38); }
+    .fc-verify {
+      --fc: #39c5cf;
+      --fc-bg: rgba(57, 197, 207, 0.12);
+      --fc-br: rgba(57, 197, 207, 0.38);
+    }
 
-    .fc-sev-critical      { --fc:#e05575; --fc-bg:rgba(128,20,50,0.28);  --fc-br:rgba(164,19,60,0.55); }
-    .fc-sev-high          { --fc:#f85149; --fc-bg:rgba(248,81,73,0.13); --fc-br:rgba(248,81,73,0.38); }
-    .fc-sev-medium        { --fc:#fb923c; --fc-bg:rgba(251,146,60,0.12);--fc-br:rgba(251,146,60,0.38); }
-    .fc-sev-low           { --fc:#3fb950; --fc-bg:rgba(63,185,80,0.13); --fc-br:rgba(63,185,80,0.38); }
-    .fc-sev-informational { --fc:#8b949e; --fc-bg:rgba(139,148,158,0.12);--fc-br:rgba(139,148,158,0.35); }
+    .fc-mitre {
+      --fc: #8f95d6;
+      --fc-bg: rgba(143, 149, 214, 0.12);
+      --fc-br: rgba(143, 149, 214, 0.38);
+    }
 
-    .fc-status-stable       { --fc:#3fb950; --fc-bg:rgba(63,185,80,0.13); --fc-br:rgba(63,185,80,0.38); }
-    .fc-status-test         { --fc:#fb923c; --fc-bg:rgba(251,146,60,0.12);--fc-br:rgba(251,146,60,0.38); }
-    .fc-status-experimental { --fc:#388bfd; --fc-bg:rgba(56,139,253,0.15);--fc-br:rgba(56,139,253,0.4); }
-    .fc-status-deprecated   { --fc:#8b949e; --fc-bg:rgba(139,148,158,0.12);--fc-br:rgba(139,148,158,0.35); }
+    .fc-sev-critical {
+      --fc: #e05575;
+      --fc-bg: rgba(128, 20, 50, 0.28);
+      --fc-br: rgba(164, 19, 60, 0.55);
+    }
 
-    .fc-verdict-pass         { --fc:#3fb950; --fc-bg:rgba(63,185,80,0.13);  --fc-br:rgba(63,185,80,0.38); }
-    .fc-verdict-notverified  { --fc:#d29922; --fc-bg:rgba(210,153,34,0.13); --fc-br:rgba(210,153,34,0.4); }
-    .fc-verdict-fail         { --fc:#f85149; --fc-bg:rgba(248,81,73,0.13); --fc-br:rgba(248,81,73,0.38); }
-    .fc-verdict-na           { --fc:#8b949e; --fc-bg:rgba(139,148,158,0.12);--fc-br:rgba(139,148,158,0.35); }
+    .fc-sev-high {
+      --fc: #f85149;
+      --fc-bg: rgba(248, 81, 73, 0.13);
+      --fc-br: rgba(248, 81, 73, 0.38);
+    }
+
+    .fc-sev-medium {
+      --fc: #fb923c;
+      --fc-bg: rgba(251, 146, 60, 0.12);
+      --fc-br: rgba(251, 146, 60, 0.38);
+    }
+
+    .fc-sev-low {
+      --fc: #3fb950;
+      --fc-bg: rgba(63, 185, 80, 0.13);
+      --fc-br: rgba(63, 185, 80, 0.38);
+    }
+
+    .fc-sev-informational {
+      --fc: #8b949e;
+      --fc-bg: rgba(139, 148, 158, 0.12);
+      --fc-br: rgba(139, 148, 158, 0.35);
+    }
+
+    .fc-status-stable {
+      --fc: #3fb950;
+      --fc-bg: rgba(63, 185, 80, 0.13);
+      --fc-br: rgba(63, 185, 80, 0.38);
+    }
+
+    .fc-status-test {
+      --fc: #fb923c;
+      --fc-bg: rgba(251, 146, 60, 0.12);
+      --fc-br: rgba(251, 146, 60, 0.38);
+    }
+
+    .fc-status-experimental {
+      --fc: #388bfd;
+      --fc-bg: rgba(56, 139, 253, 0.15);
+      --fc-br: rgba(56, 139, 253, 0.4);
+    }
+
+    .fc-status-deprecated {
+      --fc: #8b949e;
+      --fc-bg: rgba(139, 148, 158, 0.12);
+      --fc-br: rgba(139, 148, 158, 0.35);
+    }
+
+    .fc-verdict-pass {
+      --fc: #3fb950;
+      --fc-bg: rgba(63, 185, 80, 0.13);
+      --fc-br: rgba(63, 185, 80, 0.38);
+    }
+
+    .fc-verdict-notverified {
+      --fc: #d29922;
+      --fc-bg: rgba(210, 153, 34, 0.13);
+      --fc-br: rgba(210, 153, 34, 0.4);
+    }
+
+    .fc-verdict-fail {
+      --fc: #f85149;
+      --fc-bg: rgba(248, 81, 73, 0.13);
+      --fc-br: rgba(248, 81, 73, 0.38);
+    }
+
+    .fc-verdict-na {
+      --fc: #8b949e;
+      --fc-bg: rgba(139, 148, 158, 0.12);
+      --fc-br: rgba(139, 148, 158, 0.35);
+    }
 
     .filter-supergroup {
       border: 1px solid var(--border);
@@ -194,7 +370,9 @@
       user-select: none;
     }
 
-    .filter-supergroup-head:hover { background: rgba(233,220,196,0.10); }
+    .filter-supergroup-head:hover {
+      background: rgba(233, 220, 196, 0.10);
+    }
 
     .filter-supergroup-title {
       flex: 1;
@@ -205,9 +383,17 @@
       color: var(--text3);
     }
 
-    .filter-supergroup.open > .filter-supergroup-head .filter-supergroup-title { color: var(--group-accent, var(--text2)); }
-    .filter-supergroup-head .filter-active-count { background: var(--group-accent, var(--accent2)); }
-    .filter-supergroup.open > .filter-supergroup-head .filter-caret { transform: rotate(90deg); }
+    .filter-supergroup.open>.filter-supergroup-head .filter-supergroup-title {
+      color: var(--group-accent, var(--text2));
+    }
+
+    .filter-supergroup-head .filter-active-count {
+      background: var(--group-accent, var(--accent2));
+    }
+
+    .filter-supergroup.open>.filter-supergroup-head .filter-caret {
+      transform: rotate(90deg);
+    }
 
     .filter-supergroup-body {
       display: none;
@@ -216,7 +402,9 @@
       padding: 0 8px 8px;
     }
 
-    .filter-supergroup.open > .filter-supergroup-body { display: flex; }
+    .filter-supergroup.open>.filter-supergroup-body {
+      display: flex;
+    }
 
     .filter-section {
       border: 1px solid var(--border);
@@ -227,7 +415,10 @@
       flex-shrink: 0;
     }
 
-    .filter-section.open { border-color: var(--border2); border-left-color: var(--fc, var(--border2)); }
+    .filter-section.open {
+      border-color: var(--border2);
+      border-left-color: var(--fc, var(--border2));
+    }
 
     .filter-section-head {
       display: flex;
@@ -239,7 +430,9 @@
       transition: background 0.1s;
     }
 
-    .filter-section-head:hover { background: rgba(233,220,196,0.10); }
+    .filter-section-head:hover {
+      background: rgba(233, 220, 196, 0.10);
+    }
 
     .filter-caret {
       width: 9px;
@@ -251,7 +444,10 @@
       transition: transform 0.15s;
     }
 
-    .filter-section.open .filter-caret { transform: rotate(90deg); stroke: var(--fc, var(--accent)); }
+    .filter-section.open .filter-caret {
+      transform: rotate(90deg);
+      stroke: var(--fc, var(--accent));
+    }
 
     .filter-group-label {
       font-size: 10px;
@@ -262,9 +458,17 @@
       flex: 1;
     }
 
-    .filter-section.open .filter-group-label { color: var(--fc, var(--text2)); }
+    .filter-section.open .filter-group-label {
+      color: var(--fc, var(--text2));
+    }
 
-    .filter-uniq { font-family: var(--font); font-weight: 400; font-size: 9px; color: var(--text3); letter-spacing: 0; }
+    .filter-uniq {
+      font-family: var(--font);
+      font-weight: 400;
+      font-size: 9px;
+      color: var(--text3);
+      letter-spacing: 0;
+    }
 
     .filter-active-count {
       background: var(--fc, var(--accent2));
@@ -288,9 +492,13 @@
       overflow-y: auto;
     }
 
-    .filter-section:not(.open) .filter-chips { display: none; }
+    .filter-section:not(.open) .filter-chips {
+      display: none;
+    }
 
-    .chip.zero { opacity: 0.35; }
+    .chip.zero {
+      opacity: 0.35;
+    }
 
     .chip {
       padding: 3px 9px;
@@ -308,15 +516,45 @@
       gap: 5px;
     }
 
-    .chip:hover { border-color: var(--border2); color: var(--text); }
+    .chip:hover {
+      border-color: var(--border2);
+      color: var(--text);
+    }
 
-    .chip-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--fc, var(--text3)); flex-shrink: 0; }
+    .chip-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--fc, var(--text3));
+      flex-shrink: 0;
+    }
 
-    .chip.active { background: var(--fc-bg, var(--accent-bg)); border-color: var(--fc-br, var(--accent2)); color: var(--fc, var(--accent)); }
-    .chip.active .chip-dot { background: var(--fc, var(--accent)); box-shadow: 0 0 5px var(--fc, var(--accent)); }
+    .chip.active {
+      background: var(--fc-bg, var(--accent-bg));
+      border-color: var(--fc-br, var(--accent2));
+      color: var(--fc, var(--accent));
+    }
 
-    .chip .chip-count { background: var(--bg4); border-radius: 10px; padding: 0 5px; font-size: 10px; color: var(--text3); min-width: 18px; text-align: center; }
-    .chip.active .chip-count { background: var(--fc, var(--accent2)); color: #0d1117; font-weight: 700; }
+    .chip.active .chip-dot {
+      background: var(--fc, var(--accent));
+      box-shadow: 0 0 5px var(--fc, var(--accent));
+    }
+
+    .chip .chip-count {
+      background: var(--bg4);
+      border-radius: 10px;
+      padding: 0 5px;
+      font-size: 10px;
+      color: var(--text3);
+      min-width: 18px;
+      text-align: center;
+    }
+
+    .chip.active .chip-count {
+      background: var(--fc, var(--accent2));
+      color: #0d1117;
+      font-weight: 700;
+    }
 
     .clear-filters-btn {
       background: none;
@@ -332,7 +570,10 @@
       font-family: var(--font-ui);
     }
 
-    .clear-filters-btn:hover { border-color: #ffaa00; color: #ffaa00; }
+    .clear-filters-btn:hover {
+      border-color: #ffaa00;
+      color: #ffaa00;
+    }
 
     .expand-all-filters-btn {
       background: none;
@@ -348,10 +589,22 @@
       font-family: var(--font-ui);
     }
 
-    .expand-all-filters-btn:hover { border-color: #ffaa00; color: #ffaa00; }
+    .expand-all-filters-btn:hover {
+      border-color: #ffaa00;
+      color: #ffaa00;
+    }
 
     /* ── Content / search / table ── */
-    .content { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; padding: 0 20px 24px; display: flex; flex-direction: column; gap: 0; }
+    .content {
+      flex: 1;
+      min-width: 0;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 0 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
 
     .active-filter-row {
       display: flex;
@@ -362,7 +615,9 @@
       border-bottom: 1px solid var(--border);
     }
 
-    .active-filter-row.hidden { display: none; }
+    .active-filter-row.hidden {
+      display: none;
+    }
 
     .active-filter-tag {
       display: flex;
@@ -377,12 +632,33 @@
       font-family: var(--font);
     }
 
-    .active-filter-tag button { background: none; border: none; color: var(--fc, var(--accent)); cursor: pointer; padding: 0; font-size: 13px; line-height: 1; opacity: 0.7; }
-    .active-filter-tag button:hover { opacity: 1; }
+    .active-filter-tag button {
+      background: none;
+      border: none;
+      color: var(--fc, var(--accent));
+      cursor: pointer;
+      padding: 0;
+      font-size: 13px;
+      line-height: 1;
+      opacity: 0.7;
+    }
 
-    .search-row { display: flex; align-items: center; gap: 10px; margin-top: 16px; margin-bottom: 14px; }
+    .active-filter-tag button:hover {
+      opacity: 1;
+    }
 
-    .search-input-wrap { position: relative; flex: 1; }
+    .search-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 16px;
+      margin-bottom: 14px;
+    }
+
+    .search-input-wrap {
+      position: relative;
+      flex: 1;
+    }
 
     .search-input-wrap svg {
       position: absolute;
@@ -408,8 +684,13 @@
       transition: border-color 0.1s;
     }
 
-    .search-input:focus { border-color: #ffaa00; }
-    .search-input::placeholder { color: var(--text3); }
+    .search-input:focus {
+      border-color: #ffaa00;
+    }
+
+    .search-input::placeholder {
+      color: var(--text3);
+    }
 
     .search-clear {
       position: absolute;
@@ -430,13 +711,41 @@
       transition: all 0.12s;
     }
 
-    .search-clear.show { display: flex; }
-    .search-clear:hover { color: var(--text); background: var(--bg3); }
-    .search-clear svg { position: static; left: auto; top: auto; transform: none; width: 13px; height: 13px; stroke: currentColor; fill: none; }
+    .search-clear.show {
+      display: flex;
+    }
 
-    .result-count { font-size: 12px; color: var(--text3); white-space: nowrap; font-family: var(--font); }
+    .search-clear:hover {
+      color: var(--text);
+      background: var(--bg3);
+    }
 
-    .kbd-hint { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--text3); white-space: nowrap; }
+    .search-clear svg {
+      position: static;
+      left: auto;
+      top: auto;
+      transform: none;
+      width: 13px;
+      height: 13px;
+      stroke: currentColor;
+      fill: none;
+    }
+
+    .result-count {
+      font-size: 12px;
+      color: var(--text3);
+      white-space: nowrap;
+      font-family: var(--font);
+    }
+
+    .kbd-hint {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: var(--text3);
+      white-space: nowrap;
+    }
 
     .kbd {
       display: inline-block;
@@ -451,9 +760,13 @@
       line-height: 1.4;
     }
 
-    .export-wrap { position: relative; flex-shrink: 0; }
+    .export-wrap {
+      position: relative;
+      flex-shrink: 0;
+    }
 
-    .export-btn, .code-copy {
+    .export-btn,
+    .code-copy {
       display: flex;
       align-items: center;
       gap: 6px;
@@ -470,9 +783,27 @@
       white-space: nowrap;
     }
 
-    .export-btn:hover, .code-copy:hover { border-color: #ffaa00; color: #ffaa00; box-shadow: 0 0 0 2px rgba(255,170,0,0.14); }
-    .export-btn svg, .code-copy svg { width: 13px; height: 13px; stroke: currentColor; fill: none; }
-    .export-btn.ok, .code-copy.ok { border-color: var(--green); color: var(--green); box-shadow: none; }
+    .export-btn:hover,
+    .code-copy:hover {
+      border-color: #ffaa00;
+      color: #ffaa00;
+      box-shadow: 0 0 0 2px rgba(255, 170, 0, 0.14);
+    }
+
+    .export-btn svg,
+    .code-copy svg {
+      width: 13px;
+      height: 13px;
+      stroke: currentColor;
+      fill: none;
+    }
+
+    .export-btn.ok,
+    .code-copy.ok {
+      border-color: var(--green);
+      color: var(--green);
+      box-shadow: none;
+    }
 
     .export-menu {
       display: none;
@@ -483,12 +814,14 @@
       background: var(--bg2);
       border: 1px solid var(--border2);
       border-radius: var(--radius-lg);
-      box-shadow: 0 8px 28px rgba(0,0,0,0.5);
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
       z-index: 50;
       overflow: hidden;
     }
 
-    .export-menu.open { display: block; }
+    .export-menu.open {
+      display: block;
+    }
 
     .export-menu-head {
       padding: 8px 12px;
@@ -511,18 +844,47 @@
       border-bottom: 1px solid var(--border);
     }
 
-    .export-menu-item:nth-child(even) { background: rgba(255,255,255,0.022); }
-    .export-menu-item:last-child { border-bottom: none; }
-    .export-menu-item:hover { background: rgba(233,220,196,0.10); }
-    .export-menu-item .ext { font-family: var(--font); font-size: 11px; font-weight: 700; color: #ffaa00; min-width: 34px; }
-    .export-menu-item .desc { font-size: 11px; color: var(--text3); }
+    .export-menu-item:nth-child(even) {
+      background: rgba(255, 255, 255, 0.022);
+    }
+
+    .export-menu-item:last-child {
+      border-bottom: none;
+    }
+
+    .export-menu-item:hover {
+      background: rgba(233, 220, 196, 0.10);
+    }
+
+    .export-menu-item .ext {
+      font-family: var(--font);
+      font-size: 11px;
+      font-weight: 700;
+      color: #ffaa00;
+      min-width: 34px;
+    }
+
+    .export-menu-item .desc {
+      font-size: 11px;
+      color: var(--text3);
+    }
+
     /* The ATT&CK layer entry is a real link (the file is served from the repo,
        not built in the browser like the exports above it), so it has to opt out
        of link styling to sit in the same list. */
-    a.export-menu-item { text-decoration: none; color: inherit; }
-    a.export-menu-item:hover { text-decoration: none; }
+    a.export-menu-item {
+      text-decoration: none;
+      color: inherit;
+    }
+
+    a.export-menu-item:hover {
+      text-decoration: none;
+    }
+
     /* A second head mid-list needs its own top rule to read as a divider. */
-    .export-menu-item + .export-menu-head { border-top: 1px solid var(--border); }
+    .export-menu-item+.export-menu-head {
+      border-top: 1px solid var(--border);
+    }
 
     .table-wrap {
       background: var(--bg2);
@@ -534,27 +896,20 @@
       min-height: 0;
     }
 
-    #table-body { transition: opacity 0.12s ease; }
+    #table-body {
+      transition: opacity 0.12s ease;
+    }
 
-    /* Scoped to .table-wrap (the main rule-library grid's own wrapper), not a
-       bare `table` selector: an unscoped rule here does not just style the
-       library grid, it becomes the width/layout default for *every* table on
-       the page, including the Deployment section's two unrelated tables. That
-       was the actual cause of the dead gap between the Detect-ID and
-       repo-version columns in .dep-rules (see its own comment below) --
-       nth-child column widths sized for this table's 10 columns were landing
-       on .dep-rules' 2nd <th> purely because both are a `th:nth-child(2)`,
-       with nothing about either table's content in common. table-layout:fixed
-       leaking the same way is why .dep-rules has to fight it back with an
-       explicit table-layout:auto rather than simply not inheriting it. */
-    .table-wrap table {
+    table {
       width: 100%;
       border-collapse: separate;
       border-spacing: 0;
       table-layout: fixed;
     }
 
-    thead tr { box-shadow: 0 6px 14px -4px rgba(0,0,0,0.5); }
+    thead tr {
+      box-shadow: 0 6px 14px -4px rgba(0, 0, 0, 0.5);
+    }
 
     thead th {
       position: sticky;
@@ -583,39 +938,97 @@
       position: relative;
     }
 
-    th:hover { color: #000000; }
-    th.sorted::after { content: '\25BC'; display: inline-block; font-size: 9px; font-weight: 900; margin-left: 5px; vertical-align: 1px; }
-    th.sorted.desc::after { content: '\25B2'; }
+    th:hover {
+      color: #000000;
+    }
 
-    /* Same scoping reason as .table-wrap table above: these are per-column
-       widths for this table's specific 10 columns, addressed purely by
-       position. Left unscoped, they are indistinguishable from a rule meant
-       for any other table's 2nd, 3rd, ... column -- which is exactly how
-       380px (this table's wide Title column) ended up sizing .dep-rules'
-       tiny repo-version column instead. */
-    .table-wrap th:nth-child(1) { width: 160px; }
-    .table-wrap th:nth-child(2) { width: 380px; }
-    .table-wrap th:nth-child(3) { width: 110px; }
-    .table-wrap th:nth-child(4) { width: 100px; }
-    .table-wrap th:nth-child(5) { width: 130px; }
-    .table-wrap th:nth-child(6) { width: 150px; }
-    .table-wrap th:nth-child(7) { width: 150px; }
-    .table-wrap th:nth-child(8) { width: 140px; }
-    .table-wrap th:nth-child(9) { width: 120px; }
-    .table-wrap th:nth-child(10) { width: 110px; }
+    th.sorted::after {
+      content: '\25BC';
+      display: inline-block;
+      font-size: 9px;
+      font-weight: 900;
+      margin-left: 5px;
+      vertical-align: 1px;
+    }
 
-    .table-wrap th:nth-child(8), .table-wrap th:nth-child(9), .table-wrap th:nth-child(10),
-    .table-wrap td:nth-child(8), .table-wrap td:nth-child(9), .table-wrap td:nth-child(10) {
+    th.sorted.desc::after {
+      content: '\25B2';
+    }
+
+    th:nth-child(1) {
+      width: 160px;
+    }
+
+    th:nth-child(2) {
+      width: 380px;
+    }
+
+    th:nth-child(3) {
+      width: 110px;
+    }
+
+    th:nth-child(4) {
+      width: 100px;
+    }
+
+    th:nth-child(5) {
+      width: 130px;
+    }
+
+    th:nth-child(6) {
+      width: 150px;
+    }
+
+    th:nth-child(7) {
+      width: 150px;
+    }
+
+    th:nth-child(8) {
+      width: 140px;
+    }
+
+    th:nth-child(9) {
+      width: 120px;
+    }
+
+    th:nth-child(10) {
+      width: 110px;
+    }
+
+    th:nth-child(8),
+    th:nth-child(9),
+    th:nth-child(10),
+    td:nth-child(8),
+    td:nth-child(9),
+    td:nth-child(10) {
       text-align: center;
     }
 
-    tbody tr { cursor: pointer; transition: background 0.08s; }
-    tbody tr:nth-child(even) { background: rgba(255,255,255,0.022); }
-    tbody td { border-bottom: 1px solid var(--border); }
-    tbody tr:last-child td { border-bottom: none; }
+    tbody tr {
+      cursor: pointer;
+      transition: background 0.08s;
+    }
 
-    tbody tr:hover, tbody tr.selected { background: rgba(233,220,196,0.10); }
-    tbody tr.selected { box-shadow: inset 0 0 0 1px rgba(233,220,196,0.28); }
+    tbody tr:nth-child(even) {
+      background: rgba(255, 255, 255, 0.022);
+    }
+
+    tbody td {
+      border-bottom: 1px solid var(--border);
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    tbody tr:hover,
+    tbody tr.selected {
+      background: rgba(233, 220, 196, 0.10);
+    }
+
+    tbody tr.selected {
+      box-shadow: inset 0 0 0 1px rgba(233, 220, 196, 0.28);
+    }
 
     td {
       padding: 9px 12px;
@@ -637,7 +1050,9 @@
       padding-left: 18px;
     }
 
-    td.rule-id a { color: inherit; }
+    td.rule-id a {
+      color: inherit;
+    }
 
     td.rule-id::before {
       content: '';
@@ -652,14 +1067,28 @@
       transition: width 0.14s, box-shadow 0.14s;
     }
 
-    tbody tr:hover td.rule-id::before, tbody tr.selected td.rule-id::before {
+    tbody tr:hover td.rule-id::before,
+    tbody tr.selected td.rule-id::before {
       width: 8px;
       box-shadow: 12px 0 24px -2px var(--rid-glow, transparent);
     }
 
-    td.title-cell { font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    td.title-cell {
+      font-size: 12px;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
 
-    .cell-pills { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; overflow: visible; white-space: normal; }
+    .cell-pills {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+      overflow: visible;
+      white-space: normal;
+    }
 
     .badge {
       display: inline-block;
@@ -672,34 +1101,125 @@
       white-space: nowrap;
     }
 
-    .badge-source-sigma      { background: rgba(0,172,215,0.1);  color: #00acd7; border: 1px solid rgba(0,172,215,0.25); }
-    .badge-source-nativespl  { background: rgba(255,102,0,0.1);  color: #ff6600; border: 1px solid rgba(255,102,0,0.25); }
-    .badge-category { background: rgba(248,81,73,0.13);  color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
-    .badge-product  { background: rgba(251,146,60,0.1);  color: #fb923c; border: 1px solid rgba(251,146,60,0.25); }
-    .badge-service  { background: var(--green-bg);       color: var(--green); border: 1px solid rgba(63,185,80,0.25); }
+    .badge-source-sigma {
+      background: rgba(0, 172, 215, 0.1);
+      color: #00acd7;
+      border: 1px solid rgba(0, 172, 215, 0.25);
+    }
+
+    .badge-source-nativespl {
+      background: rgba(255, 102, 0, 0.1);
+      color: #ff6600;
+      border: 1px solid rgba(255, 102, 0, 0.25);
+    }
+
+    .badge-category {
+      background: rgba(248, 81, 73, 0.13);
+      color: #f85149;
+      border: 1px solid rgba(248, 81, 73, 0.3);
+    }
+
+    .badge-product {
+      background: rgba(251, 146, 60, 0.1);
+      color: #fb923c;
+      border: 1px solid rgba(251, 146, 60, 0.25);
+    }
+
+    .badge-service {
+      background: var(--green-bg);
+      color: var(--green);
+      border: 1px solid rgba(63, 185, 80, 0.25);
+    }
 
     .badge-mitre {
-      background: rgba(143,149,214,0.14);
+      background: rgba(143, 149, 214, 0.14);
       color: #b3b8e8;
-      border: 1px solid rgba(143,149,214,0.35);
+      border: 1px solid rgba(143, 149, 214, 0.35);
     }
-    a.badge-mitre:hover { text-decoration: none; filter: brightness(1.25); }
 
-    .sev-critical      { background: rgba(128,20,50,0.28);  color: #e05575; border: 1px solid rgba(164,19,60,0.55); }
-    .sev-high          { background: rgba(248,81,73,0.13); color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
-    .sev-medium        { background: rgba(251,146,60,0.1); color: #fb923c;     border: 1px solid rgba(251,146,60,0.25); }
-    .sev-low           { background: var(--green-bg);      color: var(--green); border: 1px solid rgba(63,185,80,0.25); }
-    .sev-informational { background: rgba(139,148,158,0.12); color: #8b949e; border: 1px solid var(--border); }
+    a.badge-mitre:hover {
+      text-decoration: none;
+      filter: brightness(1.25);
+    }
 
-    .status-stable       { background: var(--green-bg); color: var(--green); border: 1px solid rgba(63,185,80,0.25); }
-    .status-test         { background: rgba(251,146,60,0.1); color: #fb923c; border: 1px solid rgba(251,146,60,0.25); }
-    .status-experimental { background: rgba(56,139,253,0.15); color: #388bfd; border: 1px solid rgba(56,139,253,0.4); }
-    .status-deprecated   { background: rgba(139,148,158,0.1); color: var(--text3); border: 1px solid var(--border); }
+    .sev-critical {
+      background: rgba(128, 20, 50, 0.28);
+      color: #e05575;
+      border: 1px solid rgba(164, 19, 60, 0.55);
+    }
 
-    .verdict-pass         { background: var(--green-bg); color: var(--green); border: 1px solid rgba(63,185,80,0.25); }
-    .verdict-notverified  { background: rgba(210,153,34,0.15); color: #d29922; border: 1px solid rgba(210,153,34,0.4); }
-    .verdict-fail         { background: rgba(248,81,73,0.13); color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
-    .verdict-na           { background: rgba(139,148,158,0.12); color: #8b949e; border: 1px solid var(--border); }
+    .sev-high {
+      background: rgba(248, 81, 73, 0.13);
+      color: #f85149;
+      border: 1px solid rgba(248, 81, 73, 0.3);
+    }
+
+    .sev-medium {
+      background: rgba(251, 146, 60, 0.1);
+      color: #fb923c;
+      border: 1px solid rgba(251, 146, 60, 0.25);
+    }
+
+    .sev-low {
+      background: var(--green-bg);
+      color: var(--green);
+      border: 1px solid rgba(63, 185, 80, 0.25);
+    }
+
+    .sev-informational {
+      background: rgba(139, 148, 158, 0.12);
+      color: #8b949e;
+      border: 1px solid var(--border);
+    }
+
+    .status-stable {
+      background: var(--green-bg);
+      color: var(--green);
+      border: 1px solid rgba(63, 185, 80, 0.25);
+    }
+
+    .status-test {
+      background: rgba(251, 146, 60, 0.1);
+      color: #fb923c;
+      border: 1px solid rgba(251, 146, 60, 0.25);
+    }
+
+    .status-experimental {
+      background: rgba(56, 139, 253, 0.15);
+      color: #388bfd;
+      border: 1px solid rgba(56, 139, 253, 0.4);
+    }
+
+    .status-deprecated {
+      background: rgba(139, 148, 158, 0.1);
+      color: var(--text3);
+      border: 1px solid var(--border);
+    }
+
+    .verdict-pass {
+      background: var(--green-bg);
+      color: var(--green);
+      border: 1px solid rgba(63, 185, 80, 0.25);
+    }
+
+    .verdict-notverified {
+      background: rgba(210, 153, 34, 0.15);
+      color: #d29922;
+      border: 1px solid rgba(210, 153, 34, 0.4);
+    }
+
+    .verdict-fail {
+      background: rgba(248, 81, 73, 0.13);
+      color: #f85149;
+      border: 1px solid rgba(248, 81, 73, 0.3);
+    }
+
+    .verdict-na {
+      background: rgba(139, 148, 158, 0.12);
+      color: #8b949e;
+      border: 1px solid var(--border);
+    }
+
     /* A verdict that has stopped being evidence, by either route — superseded
        or expired. One rule for both, because the badge is saying the same thing
        in both cases (this is a record, not a current claim); which route it was
@@ -710,25 +1230,101 @@
        rather than coining an umbrella term. Listed after the four verdict rules
        above so it wins on the shared properties without needing !important; the
        text colour is left to whichever verdict class it is paired with. */
-    .badge.verdict-lapsed { background: transparent; border: 1px dashed rgba(188,140,255,0.65); }
+    .badge.verdict-lapsed {
+      background: transparent;
+      border: 1px dashed rgba(188, 140, 255, 0.65);
+    }
 
-    .no-results { padding: 56px 32px; text-align: center; color: var(--text3); }
-    .no-results svg { width: 34px; height: 34px; stroke: var(--text3); opacity: 0.6; margin: 0 auto 14px; display: block; }
-    .no-results-title { font-size: 14px; font-weight: 600; color: var(--text2); margin-bottom: 4px; }
-    .no-results-sub { font-size: 12px; color: var(--text3); }
+    .no-results {
+      padding: 56px 32px;
+      text-align: center;
+      color: var(--text3);
+    }
+
+    .no-results svg {
+      width: 34px;
+      height: 34px;
+      stroke: var(--text3);
+      opacity: 0.6;
+      margin: 0 auto 14px;
+      display: block;
+    }
+
+    .no-results-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text2);
+      margin-bottom: 4px;
+    }
+
+    .no-results-sub {
+      font-size: 12px;
+      color: var(--text3);
+    }
+
     /* Navigator's variant adds a way out — with every column hidden there is no
        longer anything on screen to click to undo the filtering. */
-    .nav-clear-btn { margin-top: 14px; background: none; border: 1px solid var(--border2); color: var(--text2); border-radius: var(--radius); padding: 6px 14px; font-size: 12px; font-weight: 600; font-family: var(--font-ui); cursor: pointer; transition: all 0.12s; }
-    .nav-clear-btn:hover { border-color: #ffaa00; color: var(--text); }
+    .nav-clear-btn {
+      margin-top: 14px;
+      background: none;
+      border: 1px solid var(--border2);
+      color: var(--text2);
+      border-radius: var(--radius);
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: var(--font-ui);
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+
+    .nav-clear-btn:hover {
+      border-color: #ffaa00;
+      color: var(--text);
+    }
 
     /* ── Resizable columns ── */
-    .col-resizer { position: absolute; right: 0; top: 0; bottom: 0; width: 8px; cursor: col-resize; user-select: none; z-index: 10; display: flex; align-items: center; justify-content: center; }
-    .col-resizer::after { content: ''; display: block; width: 1px; height: 60%; background: var(--border2); border-radius: 1px; transition: background 0.1s; }
-    .col-resizer:hover::after, .col-resizer.dragging::after { background: #000000; }
+    .col-resizer {
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 8px;
+      cursor: col-resize;
+      user-select: none;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .col-resizer::after {
+      content: '';
+      display: block;
+      width: 1px;
+      height: 60%;
+      background: var(--border2);
+      border-radius: 1px;
+      transition: background 0.1s;
+    }
+
+    .col-resizer:hover::after,
+    .col-resizer.dragging::after {
+      background: #000000;
+    }
 
     /* ── Drawer ── */
-    .drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; display: none; }
-    .drawer-overlay.open { display: block; }
+    .drawer-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 200;
+      display: none;
+    }
+
+    .drawer-overlay.open {
+      display: block;
+    }
 
     .drawer {
       position: fixed;
@@ -745,7 +1341,9 @@
       transition: transform 0.2s ease;
     }
 
-    .drawer.open { transform: translateX(0); }
+    .drawer.open {
+      transform: translateX(0);
+    }
 
     .drawer-header {
       padding: 18px 20px 14px;
@@ -756,10 +1354,32 @@
       z-index: 1;
     }
 
-    .drawer-header-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
-    .drawer-rule-id { font-family: var(--font); font-size: 15px; font-weight: 700; color: #ffffff; margin-bottom: 4px; }
-    .drawer-rule-id a { color: inherit; }
-    .drawer-title { font-size: 14px; font-weight: 400; color: var(--text); line-height: 1.4; }
+    .drawer-header-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .drawer-rule-id {
+      font-family: var(--font);
+      font-size: 15px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 4px;
+    }
+
+    .drawer-rule-id a {
+      color: inherit;
+    }
+
+    .drawer-title {
+      font-size: 14px;
+      font-weight: 400;
+      color: var(--text);
+      line-height: 1.4;
+    }
 
     .drawer-close {
       background: none;
@@ -776,13 +1396,33 @@
       transition: all 0.1s;
     }
 
-    .drawer-close:hover { border-color: #ffaa00; color: #ffaa00; box-shadow: 0 0 0 2px rgba(255,170,0,0.14); }
-    .drawer-close svg { width: 14px; height: 14px; stroke: currentColor; fill: none; }
+    .drawer-close:hover {
+      border-color: #ffaa00;
+      color: #ffaa00;
+      box-shadow: 0 0 0 2px rgba(255, 170, 0, 0.14);
+    }
 
-    .drawer-badges { display: flex; flex-wrap: wrap; gap: 5px; }
-    .drawer-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+    .drawer-close svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      fill: none;
+    }
 
-    .drawer-body > div {
+    .drawer-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .drawer-body {
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .drawer-body>div {
       background: var(--bg3);
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
@@ -801,20 +1441,49 @@
       padding-bottom: 5px;
       border-bottom: 2px solid var(--border2);
     }
-    .drawer-desc { font-size: 13px; color: var(--text2); line-height: 1.6; }
-    .drawer-desc p { margin: 0; }
-    .drawer-desc p + p { margin-top: 10px; }
 
-    .meta-grid { display: grid; grid-template-columns: 130px 1fr; gap: 7px 12px; }
-    .meta-key { font-size: 12px; color: var(--text3); }
-    .meta-val { font-size: 12px; color: var(--text); font-family: var(--font); word-break: break-word; }
+    .drawer-desc {
+      font-size: 13px;
+      color: var(--text2);
+      line-height: 1.6;
+    }
 
-    .mitre-pills { display: flex; flex-wrap: wrap; gap: 5px; }
+    .drawer-desc p {
+      margin: 0;
+    }
+
+    .drawer-desc p+p {
+      margin-top: 10px;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 130px 1fr;
+      gap: 7px 12px;
+    }
+
+    .meta-key {
+      font-size: 12px;
+      color: var(--text3);
+    }
+
+    .meta-val {
+      font-size: 12px;
+      color: var(--text);
+      font-family: var(--font);
+      word-break: break-word;
+    }
+
+    .mitre-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
 
     .mitre-pill {
       padding: 3px 8px;
-      background: rgba(143,149,214,0.16);
-      border: 1px solid rgba(143,149,214,0.42);
+      background: rgba(143, 149, 214, 0.16);
+      border: 1px solid rgba(143, 149, 214, 0.42);
       border-radius: var(--radius);
       font-size: 11px;
       font-family: var(--font);
@@ -822,9 +1491,16 @@
       color: #b3b8e8;
     }
 
-    a.mitre-pill:hover { filter: brightness(1.25); text-decoration: none; }
+    a.mitre-pill:hover {
+      filter: brightness(1.25);
+      text-decoration: none;
+    }
 
-    .drawer-list { display: flex; flex-direction: column; gap: 6px; }
+    .drawer-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
 
     .drawer-list-item {
       font-size: 12px;
@@ -839,7 +1515,9 @@
       word-break: break-word;
     }
 
-    .drawer-list-item a { color: #ffffff; }
+    .drawer-list-item a {
+      color: #ffffff;
+    }
 
     .drawer-cta {
       display: inline-flex;
@@ -856,39 +1534,111 @@
       transition: all 0.1s;
     }
 
-    .drawer-cta:hover { background: var(--accent-bg); text-decoration: none; }
-    .drawer-cta svg { width: 12px; height: 12px; stroke: currentColor; fill: none; }
+    .drawer-cta:hover {
+      background: var(--accent-bg);
+      text-decoration: none;
+    }
 
-    .drawer-cta.verify-pass { border-color: var(--green); color: var(--green); }
-    .drawer-cta.verify-pass:hover { background: var(--green-bg); }
-    .drawer-cta.verify-notver { border-color: #d29922; color: #d29922; }
-    .drawer-cta.verify-notver:hover { background: rgba(210,153,34,0.13); }
-    .drawer-cta.verify-fail { border-color: #f85149; color: #f85149; }
-    .drawer-cta.verify-fail:hover { background: rgba(248,81,73,0.13); }
+    .drawer-cta svg {
+      width: 12px;
+      height: 12px;
+      stroke: currentColor;
+      fill: none;
+    }
+
+    .drawer-cta.verify-pass {
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    .drawer-cta.verify-pass:hover {
+      background: var(--green-bg);
+    }
+
+    .drawer-cta.verify-notver {
+      border-color: #d29922;
+      color: #d29922;
+    }
+
+    .drawer-cta.verify-notver:hover {
+      background: rgba(210, 153, 34, 0.13);
+    }
+
+    .drawer-cta.verify-fail {
+      border-color: #f85149;
+      color: #f85149;
+    }
+
+    .drawer-cta.verify-fail:hover {
+      background: rgba(248, 81, 73, 0.13);
+    }
 
     /* When the verdict was measured, and against which version of the rule. A
        verdict is evidence about the rule text that was actually fired at, and
        nothing else — these two lines are what turns the badge above from a
        claim into a dated measurement. Deliberately muted, not a warning: see
        the note on version drift where this is built. */
-    .verify-meta { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; font-family: var(--font); font-size: 11px; color: var(--text3); line-height: 1.5; }
-    .verify-meta .warn { color: #d29922; }
-    .verify-meta .drift { color: #bc8cff; }
+    .verify-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-top: 8px;
+      font-family: var(--font);
+      font-size: 11px;
+      color: var(--text3);
+      line-height: 1.5;
+    }
+
+    .verify-meta .warn {
+      color: #d29922;
+    }
+
+    .verify-meta .drift {
+      color: #bc8cff;
+    }
+
     /* Verdict markers next to a badge in the table. Amber ● = the verdict is
        old; purple Δ = the verdict was measured on a different version of the
        rule. Two independent states, so two glyphs — a rule can carry either,
        both, or neither, and collapsing them into one marker would lose the
        distinction between "nobody has re-run this" and "this no longer
        describes the rule". */
-    .review-due { color: #d29922; font-size: 8px; margin-left: 5px; vertical-align: middle; cursor: help; }
+    .review-due {
+      color: #d29922;
+      font-size: 8px;
+      margin-left: 5px;
+      vertical-align: middle;
+      cursor: help;
+    }
+
     /* A drawn delta rather than the &#916; character: at 10px the glyph picks
        up whatever weight and baseline the row's font feels like giving it and
        sits a shade too low next to the badge, where a stroked path keeps an
        even line and the same round joins as every other icon on the page. */
-    .verdict-drift { color: #bc8cff; margin-left: 5px; cursor: help; display: inline-flex; align-items: center; vertical-align: middle; }
-    .verdict-drift svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 2.4; stroke-linejoin: round; }
+    .verdict-drift {
+      color: #bc8cff;
+      margin-left: 5px;
+      cursor: help;
+      display: inline-flex;
+      align-items: center;
+      vertical-align: middle;
+    }
 
-    .code-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .verdict-drift svg {
+      width: 11px;
+      height: 11px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2.4;
+      stroke-linejoin: round;
+    }
+
+    .code-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
 
     .rule-body-pre {
       background: var(--bg);
@@ -905,42 +1655,174 @@
     }
 
     /* ── Rule body syntax highlight (Sigma YAML / SPL) ── */
-    .t-kw   { color: #ff7b72; font-weight: 600; }  /* keywords: search, stats… (SPL) */
-    .t-op   { color: #8b949e; }                    /* operators/punctuation: =, - , : */
-    .t-fld  { color: #7ee787; }                     /* field names */
-    .t-val  { color: #ffffff; }                     /* literal values, strings, numbers */
-    .t-fn   { color: #d2a8ff; }                     /* functions: count, sum… (SPL) */
-    .t-com  { color: #6e7681; font-style: italic; } /* comments */
-    .t-id   { color: #c9d1d9; }                     /* neutral wrapper key (e.g. "detection") */
-    .t-sel  { color: #ffa657; }                     /* sigma selection/filter block names */
-    .t-mod  { color: #79c0ff; }                     /* sigma field modifier: endswith, contains… */
-    .t-pipe { color: #a5b4d4; }                     /* the | separating field and modifier */
-    .t-cond { color: #ff7b72; font-weight: 600; }  /* sigma condition key + expression */
+    .t-kw {
+      color: #ff7b72;
+      font-weight: 600;
+    }
 
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
-    ::-webkit-scrollbar-corner { background: transparent; }
+    /* keywords: search, stats… (SPL) */
+    .t-op {
+      color: #8b949e;
+    }
+
+    /* operators/punctuation: =, - , : */
+    .t-fld {
+      color: #7ee787;
+    }
+
+    /* field names */
+    .t-val {
+      color: #ffffff;
+    }
+
+    /* literal values, strings, numbers */
+    .t-fn {
+      color: #d2a8ff;
+    }
+
+    /* functions: count, sum… (SPL) */
+    .t-com {
+      color: #6e7681;
+      font-style: italic;
+    }
+
+    /* comments */
+    .t-id {
+      color: #c9d1d9;
+    }
+
+    /* neutral wrapper key (e.g. "detection") */
+    .t-sel {
+      color: #ffa657;
+    }
+
+    /* sigma selection/filter block names */
+    .t-mod {
+      color: #79c0ff;
+    }
+
+    /* sigma field modifier: endswith, contains… */
+    .t-pipe {
+      color: #a5b4d4;
+    }
+
+    /* the | separating field and modifier */
+    .t-cond {
+      color: #ff7b72;
+      font-weight: 600;
+    }
+
+    /* sigma condition key + expression */
+
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border2);
+      border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--text3);
+    }
+
+    ::-webkit-scrollbar-corner {
+      background: transparent;
+    }
 
     /* Dashboards */
-    #tab-dashboards { padding: 16px 20px 20px; }
-    .dash-section { background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius-lg); padding:18px; }
-    .dash-section + .dash-section { margin-top:16px; }
-    .dash-section-title { font-size:12px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:var(--text2); margin-bottom:14px; }
-    .dash-section-grid { display:grid; gap:16px; }
-    .dash-section-grid-4 { grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); }
-    .dash-section-grid-mitre { grid-template-columns: minmax(300px, 400px) minmax(360px, 1fr); }
-    @media (max-width: 900px) {
-      .dash-section-grid-mitre { grid-template-columns: 1fr; }
+    #tab-dashboards {
+      padding: 16px 20px 20px;
     }
-    .chart-card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius-lg); padding:20px; display:flex; flex-direction:column; gap:12px; }
-    .chart-card-title { font-size:13px; font-weight:700; color:var(--text); letter-spacing:-0.1px; }
+
+    .dash-section {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+    }
+
+    .dash-section+.dash-section {
+      margin-top: 16px;
+    }
+
+    .dash-section-title {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: #111111;
+      background: #ffaa00;
+      border: 1px solid #ffaa00;
+      border-radius: 5px;
+      padding: 3px 10px;
+      margin-bottom: 14px;
+    }
+
+    .dash-section-grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .dash-section-grid-4 {
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    }
+
+    .dash-section-grid-mitre {
+      grid-template-columns: minmax(300px, 400px) minmax(360px, 1fr);
+    }
+
+    @media (max-width: 900px) {
+      .dash-section-grid-mitre {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .dash-section-grid-deploy {
+      grid-template-columns: minmax(300px, 400px) minmax(280px, 1fr);
+    }
+
+    @media (max-width: 900px) {
+      .dash-section-grid-deploy {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .chart-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .chart-card-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.1px;
+    }
+
     /* Every other number on this tab is a property of the rules themselves and
        only moves when the pipeline runs; verification AGE moves on its own. The
        subtitle says so, because the panel's "Generated …" stamp does not apply
        to this card. */
-    .chart-card-sub { font-size:11px; color:var(--text3); line-height:1.45; margin-top:-6px; }
+    .chart-card-sub {
+      font-size: 11px;
+      color: var(--text3);
+      line-height: 1.45;
+      margin-top: -6px;
+    }
+
     /* Second row of the Rule Overview section. Its own grid so the four cards
        above keep exactly the track sizing they had before this card existed.
        Two fixed tracks, not the auto-fit above: auto-fit COLLAPSES its empty
@@ -958,27 +1840,88 @@
        different, more important kind of card than the four above them. The row
        just ends early instead. Steps down in the same places the top row's
        auto-fit does, so the two never disagree about how many fit. */
-    .dash-section-grid-row2 { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 16px; }
+    .dash-section-grid-row2 {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 16px;
+    }
+
     /* Two tracks wide. Dropped back to a single track once the grid itself is
        down to two columns, so the card never becomes the whole row while the
        one beside it gets pushed onto a line of its own. */
-    .chart-card-wide2 { grid-column: span 2; }
-    @media (max-width: 1100px) {
-      .dash-section-grid-row2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .chart-card-wide2 { grid-column: auto; }
+    .chart-card-wide2 {
+      grid-column: span 2;
     }
-    @media (max-width: 560px) { .dash-section-grid-row2 { grid-template-columns: 1fr; } }
+
+    @media (max-width: 1100px) {
+      .dash-section-grid-row2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .chart-card-wide2 {
+        grid-column: auto;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .dash-section-grid-row2 {
+        grid-template-columns: 1fr;
+      }
+    }
+
     /* Compound selector on purpose: the generic .chart-card-canvas-wrap 300px
        rule is declared further down and would otherwise win on source order,
        leaving four very fat bars. */
-    .chart-card-canvas-wrap.age-canvas-wrap { height:200px; }
-    .chart-card-canvas-wrap { position:relative; height:300px; }
-    .gauge-canvas-wrap { height:260px; }
-    .gauge-overlay { position:absolute; left:50%; top:62%; transform:translate(-50%, -12%); width:70%; text-align:center; pointer-events:none; }
-    .gauge-overlay-title { font-size:15px; font-weight:700; color:#FFAA00; margin-bottom:6px; }
-    .gauge-pct { font-size:34px; font-weight:800; color:#FFAA00; line-height:1.1; }
-    .gauge-frac { font-size:12px; color:#e6edf3; margin-top:2px; }
-    .severity-card-body { display:flex; align-items:center; gap:14px; flex:1; min-height:0; }
+    .chart-card-canvas-wrap.age-canvas-wrap {
+      height: 200px;
+    }
+
+    .chart-card-canvas-wrap {
+      position: relative;
+      height: 300px;
+    }
+
+    .gauge-canvas-wrap {
+      height: 260px;
+    }
+
+    .gauge-overlay {
+      position: absolute;
+      left: 50%;
+      top: 62%;
+      transform: translate(-50%, -12%);
+      width: 70%;
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .gauge-overlay-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #FFAA00;
+      margin-bottom: 6px;
+    }
+
+    .gauge-pct {
+      font-size: 34px;
+      font-weight: 800;
+      color: #FFAA00;
+      line-height: 1.1;
+    }
+
+    .gauge-frac {
+      font-size: 12px;
+      color: #e6edf3;
+      margin-top: 2px;
+    }
+
+    .severity-card-body {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex: 1;
+      min-height: 0;
+    }
+
     /* Fixed (not height:100%-of-flex-fill) so the doughnut/column tiles are
        compact and don't inherit a tall flex-stretched box with a lot of
        empty space around a width-constrained circle. Also used by Rule
@@ -988,11 +1931,40 @@
        Playwright that the ring is WIDTH-constrained (canvas ~136x180, so
        width is the binding dimension for radius), and a little extra height
        gives the hoverOffset pop-out more room on the vertical axis too. */
-    .severity-canvas-wrap { flex:1 1 auto; height:196px; min-width:0; }
-    .sev-legend { display:flex; flex-direction:column; gap:9px; flex-shrink:0; }
-    .sev-legend-item { display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; color:#e6edf3; user-select:none; }
-    .sev-legend-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; transition:opacity .15s; }
-    .sev-legend-item.off .sev-legend-dot { opacity:0.25; }
+    .severity-canvas-wrap {
+      flex: 1 1 auto;
+      height: 196px;
+      min-width: 0;
+    }
+
+    .sev-legend {
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      flex-shrink: 0;
+    }
+
+    .sev-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      color: #e6edf3;
+      user-select: none;
+    }
+
+    .sev-legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      transition: opacity .15s;
+    }
+
+    .sev-legend-item.off .sev-legend-dot {
+      opacity: 0.25;
+    }
 
     /* Status, Verification and Rule Type reuse Severity's exact doughnut/
        column-tile markup (.severity-card-body / .severity-canvas-wrap /
@@ -1009,7 +1981,12 @@
        #sev-legend, no special case) to one shared explicit width, sized to
        fit the longest realistically-occurring label ("Experimental",
        measured ~93.9px natural width) plus a small buffer. */
-    #sev-legend, #status-legend, #verify-legend, #source-legend { width: 96px; }
+    #sev-legend,
+    #status-legend,
+    #verify-legend,
+    #source-legend {
+      width: 96px;
+    }
 
     /* Verification — doughnut + center pass-rate overlay + side legend.
        Canvas-wrap height matches .severity-canvas-wrap exactly (180px) so
@@ -1025,11 +2002,46 @@
        and Verification's (.verify-canvas-wrap) are byte-for-byte identical
        in sizing (196px height, flex:1 1 auto, min-width:0), so there is no
        geometry difference to justify duplicating the rule. */
-    .verify-card-body { display:flex; align-items:center; gap:14px; flex:1; min-height:0; }
-    .verify-canvas-wrap { flex:1 1 auto; height:196px; min-width:0; }
-    .verify-overlay { position:absolute; left:50%; top:50%; transform:translate(-50%, -50%); width:68%; text-align:center; pointer-events:none; }
-    .verify-overlay-pct { font-size:24px; font-weight:800; color:var(--text); line-height:1.1; }
-    .verify-overlay-label { font-size:8px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:var(--text3); margin-top:2px; }
+    .verify-card-body {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .verify-canvas-wrap {
+      flex: 1 1 auto;
+      height: 196px;
+      min-width: 0;
+    }
+
+    .verify-overlay {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 68%;
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .verify-overlay-pct {
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1.1;
+    }
+
+    .verify-overlay-label {
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--text3);
+      margin-top: 2px;
+    }
+
     /* Allowed to shrink, unlike the flex-shrink:0 this carried while its only
        user was Verification's three short labels. Evidence's are "Superseded"
        and "Never tested", which at max-content pushed the legend straight out
@@ -1037,14 +2049,45 @@
        min-width:0), and a label that still doesn't fit wraps to a second line
        rather than being clipped -- truncating "Never tested" to "Never…" would
        turn a state into a different, wrong-looking word. */
-    .verify-legend { display:flex; flex-direction:column; gap:9px; flex-shrink:1; min-width:0; }
-    .verify-legend-item { display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; color:#e6edf3; user-select:none; min-width:0; }
-    .verify-legend-item .vdot { width:10px; height:10px; border-radius:50%; flex-shrink:0; transition:opacity .15s; }
+    .verify-legend {
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      flex-shrink: 1;
+      min-width: 0;
+    }
+
+    .verify-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      color: #e6edf3;
+      user-select: none;
+      min-width: 0;
+    }
+
+    .verify-legend-item .vdot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      transition: opacity .15s;
+    }
+
     /* The label needs to be a real element, not the bare text node it used to
        be: an anonymous flex item has min-width:auto and refuses to wrap below
        max-content, which is what made the shrink above insufficient on its own. */
-    .verify-legend-item .vlabel { min-width:0; overflow-wrap:break-word; line-height:1.25; }
-    .verify-legend-item.off .vdot { opacity:0.25; }
+    .verify-legend-item .vlabel {
+      min-width: 0;
+      overflow-wrap: break-word;
+      line-height: 1.25;
+    }
+
+    .verify-legend-item.off .vdot {
+      opacity: 0.25;
+    }
 
     /* Evidence carries the longest labels of any doughnut legend on this page
        ("Superseded", "Never tested") in a quarter-width card, so the wrap
@@ -1054,16 +2097,36 @@
        labels start nearer the ring rather than the ring being squeezed for the
        whole difference. Scoped to Evidence so Verification's short labels keep
        the roomier gap. */
-    .verify-card-body-evidence { gap:6px; }
-    #evidence-legend { width:104px; flex-shrink:0; }
+    .verify-card-body-evidence {
+      gap: 6px;
+    }
+
+    #evidence-legend {
+      width: 104px;
+      flex-shrink: 0;
+    }
 
     /* Trends Over Time — line/area/bar tiles, plain (non-flex-body) canvas
        wraps like Rules per Tactic / Coverage gauge above, no snap-to-integer
        fix needed (that bug is specific to the doughnut controller). */
-    .trend-legend { display:flex; flex-wrap:wrap; justify-content:center; gap:16px; }
+    .trend-legend {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 16px;
+    }
+
     .trend-empty {
-      position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-      text-align:center; padding:0 24px; color:var(--text3); font-size:12.5px; line-height:1.5;
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 0 24px;
+      color: var(--text3);
+      font-size: 12.5px;
+      line-height: 1.5;
     }
 
     /* Trend range bar — one shared row above both trend charts (a filter row
@@ -1075,225 +2138,1071 @@
        only makes sense — and so only appears — once a granularity that
        needs one (Quarterly/Monthly) is active; Yearly/All show every year
        at once, so the picker would be a control with nothing to do. */
-    .trend-range-bar { display:flex; align-items:center; gap:10px; margin:-6px 0 14px; flex-wrap:wrap; }
-    .trend-gran-group { display:flex; gap:6px; flex-shrink:0; }
+    .trend-range-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: -6px 0 14px;
+      flex-wrap: wrap;
+    }
+
+    .trend-gran-group {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
     .trend-gran-btn {
-      height:28px; padding:0 12px; background:transparent; border:1px solid var(--border2);
-      border-radius:var(--radius); color:var(--text2); font-size:12px; font-family:var(--font-ui);
-      cursor:pointer; transition:all 0.1s;
+      height: 28px;
+      padding: 0 12px;
+      background: transparent;
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      color: var(--text2);
+      font-size: 12px;
+      font-family: var(--font-ui);
+      cursor: pointer;
+      transition: all 0.1s;
     }
-    .trend-gran-btn:hover { border-color:#ffaa00; color:#ffaa00; box-shadow:0 0 0 2px rgba(255,170,0,0.14); }
-    .trend-gran-btn.active { border-color:#ffaa00; color:#ffaa00; box-shadow:0 0 0 2px rgba(255,170,0,0.14); }
+
+    .trend-gran-btn:hover {
+      border-color: #ffaa00;
+      color: #ffaa00;
+      box-shadow: 0 0 0 2px rgba(255, 170, 0, 0.14);
+    }
+
+    .trend-gran-btn.active {
+      border-color: #ffaa00;
+      color: #ffaa00;
+      box-shadow: 0 0 0 2px rgba(255, 170, 0, 0.14);
+    }
+
     .trend-year-select {
-      height:28px; padding:0 10px; background:transparent; border:1px solid var(--border2);
-      border-radius:var(--radius); color:var(--text2); font-size:12px; font-family:var(--font-ui);
-      cursor:pointer; transition:all 0.1s;
+      height: 28px;
+      padding: 0 10px;
+      background: transparent;
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      color: var(--text2);
+      font-size: 12px;
+      font-family: var(--font-ui);
+      cursor: pointer;
+      transition: all 0.1s;
     }
-    .trend-year-select:hover { border-color:#ffaa00; color:#ffaa00; box-shadow:0 0 0 2px rgba(255,170,0,0.14); }
+
+    .trend-year-select:hover {
+      border-color: #ffaa00;
+      color: #ffaa00;
+      box-shadow: 0 0 0 2px rgba(255, 170, 0, 0.14);
+    }
 
     /* MITRE Navigator */
-    .nav-wrap { background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:16px; margin:16px 20px; }
+    .nav-wrap {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px;
+      margin: 16px 20px;
+    }
+
     /* .nav-legend-dot / -count are the Verdict dropdown's swatch and count; the
        inline legend row they were named for no longer exists (its job is the
        Legend dialog now). */
-    .nav-legend-dot { width:12px; height:12px; border-radius:2px; flex-shrink:0; }
-    .nav-legend-count { font-family:var(--font); font-size:11px; font-weight:700; color:var(--text2); }
-    .nav-import { margin-left:auto; font-size:12px; }
+    .nav-legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .nav-legend-count {
+      font-family: var(--font);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text2);
+    }
+
+    .nav-import {
+      margin-left: auto;
+      font-size: 12px;
+    }
+
     /* Navigator toolbar: one unified bar with thin dividers between groups */
-    .nav-toolbar { display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap; }
-    .nav-tb-sep { width:1px; height:22px; background:var(--border2); flex-shrink:0; }
-    .nav-search-wrap { position:relative; display:flex; align-items:center; flex:1; min-width:220px; max-width:420px; }
-    .nav-search-wrap > svg { position:absolute; left:10px; width:15px; height:15px; stroke:var(--text3); fill:none; pointer-events:none; }
-    .nav-search-input { width:100%; height:32px; padding:0 30px 0 32px; background:var(--bg); border:1px solid var(--border2); border-radius:var(--radius); color:var(--text); font-family:var(--font-ui); font-size:13px; }
-    .nav-search-input:focus { outline:none; border-color:#ffaa00; box-shadow:0 0 0 2px rgba(255,170,0,0.14); }
-    .nav-search-clear { position:absolute; right:6px; display:none; align-items:center; justify-content:center; width:20px; height:20px; background:none; border:none; color:var(--text3); cursor:pointer; }
-    .nav-search-clear svg { width:13px; height:13px; }
-    .nav-search-clear:hover { color:var(--text); }
-    .nav-search-clear.show { display:flex; }
-    .nav-search-count { font-family:var(--font); font-size:12px; color:var(--text3); white-space:nowrap; }
+    .nav-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .nav-tb-sep {
+      width: 1px;
+      height: 22px;
+      background: var(--border2);
+      flex-shrink: 0;
+    }
+
+    .nav-search-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      flex: 1;
+      min-width: 220px;
+      max-width: 420px;
+    }
+
+    .nav-search-wrap>svg {
+      position: absolute;
+      left: 10px;
+      width: 15px;
+      height: 15px;
+      stroke: var(--text3);
+      fill: none;
+      pointer-events: none;
+    }
+
+    .nav-search-input {
+      width: 100%;
+      height: 32px;
+      padding: 0 30px 0 32px;
+      background: var(--bg);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 13px;
+    }
+
+    .nav-search-input:focus {
+      outline: none;
+      border-color: #ffaa00;
+      box-shadow: 0 0 0 2px rgba(255, 170, 0, 0.14);
+    }
+
+    .nav-search-clear {
+      position: absolute;
+      right: 6px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      background: none;
+      border: none;
+      color: var(--text3);
+      cursor: pointer;
+    }
+
+    .nav-search-clear svg {
+      width: 13px;
+      height: 13px;
+    }
+
+    .nav-search-clear:hover {
+      color: var(--text);
+    }
+
+    .nav-search-clear.show {
+      display: flex;
+    }
+
+    .nav-search-count {
+      font-family: var(--font);
+      font-size: 12px;
+      color: var(--text3);
+      white-space: nowrap;
+    }
+
     /* Segmented Covered/Gaps control */
-    .nav-quickfilters { display:inline-flex; border:1px solid var(--border2); border-radius:8px; overflow:hidden; }
-    .nav-qf { background:none; border:none; border-right:1px solid var(--border2); color:var(--text2); padding:5px 13px; font-size:12px; font-weight:600; font-family:var(--font-ui); cursor:pointer; transition:all 0.12s; }
-    .nav-qf:last-child { border-right:none; }
-    .nav-qf:hover { color:var(--text); background:rgba(255,170,0,.08); }
-    .nav-qf.active { background:#ffaa00; color:#111; }
+    .nav-quickfilters {
+      display: inline-flex;
+      border: 1px solid var(--border2);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .nav-qf {
+      background: none;
+      border: none;
+      border-right: 1px solid var(--border2);
+      color: var(--text2);
+      padding: 5px 13px;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: var(--font-ui);
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+
+    .nav-qf:last-child {
+      border-right: none;
+    }
+
+    .nav-qf:hover {
+      color: var(--text);
+      background: rgba(255, 170, 0, .08);
+    }
+
+    .nav-qf.active {
+      background: #ffaa00;
+      color: #111;
+    }
+
     /* Coverage counts live on the buttons themselves — "Not covered" is no
        longer a Verdict entry, so this is the only place the gap total shows. */
-    .nav-qf-count { font-family:var(--font); font-size:11px; font-weight:700; color:var(--text3); margin-left:6px; }
-    .nav-qf.active .nav-qf-count { color:rgba(17,17,17,0.72); }
-    .nav-qf-count:empty { display:none; }
-    #nav-export-wrap { margin-left:auto; }
+    .nav-qf-count {
+      font-family: var(--font);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text3);
+      margin-left: 6px;
+    }
+
+    .nav-qf.active .nav-qf-count {
+      color: rgba(17, 17, 17, 0.72);
+    }
+
+    .nav-qf-count:empty {
+      display: none;
+    }
+
+    #nav-export-wrap {
+      margin-left: auto;
+    }
+
     /* Verdict filter dropdown */
-    .nav-verdict-wrap { position:relative; }
-    .nav-verdict-btn { display:inline-flex; align-items:center; gap:6px; background:none; border:1px solid var(--border2); color:var(--text2); border-radius:var(--radius); padding:5px 10px; font-size:12px; font-family:var(--font-ui); font-weight:600; cursor:pointer; white-space:nowrap; transition:all 0.12s; }
-    .nav-verdict-btn svg { width:13px; height:13px; stroke:currentColor; fill:none; }
-    .nav-verdict-btn:hover, .nav-verdict-btn.has-active { border-color:#ffaa00; color:var(--text); }
-    .nav-verdict-active { font-family:var(--font); font-size:11px; font-weight:700; color:#ffaa00; }
-    .nav-verdict-active:empty { display:none; }
-    .nav-verdict-menu { display:none; position:absolute; left:0; top:calc(100% + 5px); min-width:200px; background:var(--bg2); border:1px solid var(--border2); border-radius:var(--radius-lg); box-shadow:0 8px 28px rgba(0,0,0,0.5); z-index:50; overflow:hidden; }
-    .nav-verdict-menu.open { display:block; }
-    .nav-verdict-item { display:flex; align-items:center; gap:8px; padding:8px 12px; cursor:pointer; border-bottom:1px solid var(--border); font-size:12px; color:var(--text2); transition:background 0.08s; }
-    .nav-verdict-item:last-child { border-bottom:none; }
-    .nav-verdict-item:hover { background:rgba(233,220,196,0.10); }
-    .nav-verdict-item .nav-legend-dot { width:12px; height:12px; border-radius:2px; flex-shrink:0; position:relative; }
-    .nav-verdict-item .lbl { flex:1; }
-    .nav-verdict-item.checked { color:var(--text); background:rgba(255,170,0,0.10); }
-    .nav-verdict-item.checked .nav-legend-dot::after { content:'✓'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; font-size:9px; font-weight:900; }
-    .att-matrix { display:flex; gap:2px; overflow-x:auto; padding-bottom:4px; scrollbar-width:none; }
-    .att-matrix::-webkit-scrollbar { display:none; }
-    .tc-col { flex:0 0 175px; display:flex; flex-direction:column; gap:1px; }
-    .tc-hdr { position:relative; background:#FFAA00; color:#111; font-size:12px; font-weight:700; padding:6px 5px; text-align:center; border-radius:3px 3px 0 0; min-height:44px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; }
-    .tc-count { font-size:10px; font-weight:400; opacity:.75; }
-    .tc-hdr a { color:#111; text-decoration:none; }
+    .nav-verdict-wrap {
+      position: relative;
+    }
+
+    .nav-verdict-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: none;
+      border: 1px solid var(--border2);
+      color: var(--text2);
+      border-radius: var(--radius);
+      padding: 5px 10px;
+      font-size: 12px;
+      font-family: var(--font-ui);
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.12s;
+    }
+
+    .nav-verdict-btn svg {
+      width: 13px;
+      height: 13px;
+      stroke: currentColor;
+      fill: none;
+    }
+
+    .nav-verdict-btn:hover,
+    .nav-verdict-btn.has-active {
+      border-color: #ffaa00;
+      color: var(--text);
+    }
+
+    .nav-verdict-active {
+      font-family: var(--font);
+      font-size: 11px;
+      font-weight: 700;
+      color: #ffaa00;
+    }
+
+    .nav-verdict-active:empty {
+      display: none;
+    }
+
+    .nav-verdict-menu {
+      display: none;
+      position: absolute;
+      left: 0;
+      top: calc(100% + 5px);
+      min-width: 200px;
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+      z-index: 50;
+      overflow: hidden;
+    }
+
+    .nav-verdict-menu.open {
+      display: block;
+    }
+
+    .nav-verdict-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text2);
+      transition: background 0.08s;
+    }
+
+    .nav-verdict-item:last-child {
+      border-bottom: none;
+    }
+
+    .nav-verdict-item:hover {
+      background: rgba(233, 220, 196, 0.10);
+    }
+
+    .nav-verdict-item .nav-legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+      flex-shrink: 0;
+      position: relative;
+    }
+
+    .nav-verdict-item .lbl {
+      flex: 1;
+    }
+
+    .nav-verdict-item.checked {
+      color: var(--text);
+      background: rgba(255, 170, 0, 0.10);
+    }
+
+    .nav-verdict-item.checked .nav-legend-dot::after {
+      content: '✓';
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 9px;
+      font-weight: 900;
+    }
+
+    .att-matrix {
+      display: flex;
+      gap: 2px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      scrollbar-width: none;
+    }
+
+    .att-matrix::-webkit-scrollbar {
+      display: none;
+    }
+
+    .tc-col {
+      flex: 0 0 175px;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .tc-hdr {
+      position: relative;
+      background: #FFAA00;
+      color: #111;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 6px 5px;
+      text-align: center;
+      border-radius: 3px 3px 0 0;
+      min-height: 44px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+    }
+
+    .tc-count {
+      font-size: 10px;
+      font-weight: 400;
+      opacity: .75;
+    }
+
+    .tc-hdr a {
+      color: #111;
+      text-decoration: none;
+    }
+
     /* Per-tactic coverage bar (item: column header ratio) */
-    .tc-cov-bar { width:78%; height:3px; background:rgba(0,0,0,.22); border-radius:2px; overflow:hidden; }
-    .tc-cov-fill { display:block; height:100%; background:#111; opacity:.55; border-radius:2px; }
+    .tc-cov-bar {
+      width: 78%;
+      height: 3px;
+      background: rgba(0, 0, 0, .22);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .tc-cov-fill {
+      display: block;
+      height: 100%;
+      background: #111;
+      opacity: .55;
+      border-radius: 2px;
+    }
+
     /* Column collapse toggle + collapsed state */
-    .tc-col-toggle { position:absolute; top:2px; right:3px; background:none; border:none; color:#111; opacity:.6; cursor:pointer; font-size:11px; line-height:1; padding:1px 3px; }
-    .tc-col-toggle:hover { opacity:1; }
-    .tc-col.collapsed { flex:0 0 40px; }
-    .tc-col.collapsed > *:not(.tc-hdr) { display:none !important; }
-    .tc-col.collapsed .tc-count, .tc-col.collapsed .tc-cov-bar { display:none; }
-    .tc-col.collapsed .tc-hdr { writing-mode:vertical-rl; min-height:150px; justify-content:flex-start; padding:22px 4px 8px; gap:0; }
-    .tc-col.collapsed .tc-col-toggle { writing-mode:horizontal-tb; top:4px; right:auto; left:50%; transform:translateX(-50%); }
-    .tc-hdr a:hover { text-decoration:underline; }
-    .tc { font-size:12px; padding:5px 6px; border-radius:2px; cursor:default; display:flex; flex-direction:column; min-height:40px; gap:1px; position:relative; }
-    .tc.uncov { background:#1c2128; color:#484f58; }
-    .tc.uncov.has-cov { background:rgba(255,170,0,.13); color:#545f6e; border-left:2px solid rgba(255,170,0,.55); }
+    .tc-col-toggle {
+      position: absolute;
+      top: 2px;
+      right: 3px;
+      background: none;
+      border: none;
+      color: #111;
+      opacity: .6;
+      cursor: pointer;
+      font-size: 11px;
+      line-height: 1;
+      padding: 1px 3px;
+    }
+
+    .tc-col-toggle:hover {
+      opacity: 1;
+    }
+
+    .tc-col.collapsed {
+      flex: 0 0 40px;
+    }
+
+    .tc-col.collapsed>*:not(.tc-hdr) {
+      display: none !important;
+    }
+
+    .tc-col.collapsed .tc-count,
+    .tc-col.collapsed .tc-cov-bar {
+      display: none;
+    }
+
+    .tc-col.collapsed .tc-hdr {
+      writing-mode: vertical-rl;
+      min-height: 150px;
+      justify-content: flex-start;
+      padding: 22px 4px 8px;
+      gap: 0;
+    }
+
+    .tc-col.collapsed .tc-col-toggle {
+      writing-mode: horizontal-tb;
+      top: 4px;
+      right: auto;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    .tc-hdr a:hover {
+      text-decoration: underline;
+    }
+
+    .tc {
+      font-size: 12px;
+      padding: 5px 6px;
+      border-radius: 2px;
+      cursor: default;
+      display: flex;
+      flex-direction: column;
+      min-height: 40px;
+      gap: 1px;
+      position: relative;
+    }
+
+    .tc.uncov {
+      background: #1c2128;
+      color: #484f58;
+    }
+
+    .tc.uncov.has-cov {
+      background: rgba(255, 170, 0, .13);
+      color: #545f6e;
+      border-left: 2px solid rgba(255, 170, 0, .55);
+    }
+
     /* Covered cells — "accent rail" style: dark base + a coloured left rail in
        the verdict colour (green/amber/red/grey), instead of a solid fill. */
-    .tc.pass    { background:#21262d; color:var(--text); border-left:3px solid #2ea44f; }
-    .tc.notver  { background:#21262d; color:var(--text); border-left:3px solid #d29922; }
-    .tc.fail    { background:#21262d; color:var(--text); border-left:3px solid #f85149; }
-    .tc.nv      { background:#21262d; color:var(--text); border-left:3px solid #6e7681; }
-    .tc.pass .tn, .tc.notver .tn, .tc.fail .tn, .tc.nv .tn { color:var(--text2); }
+    .tc.pass {
+      background: #21262d;
+      color: var(--text);
+      border-left: 3px solid #2ea44f;
+    }
+
+    .tc.notver {
+      background: #21262d;
+      color: var(--text);
+      border-left: 3px solid #d29922;
+    }
+
+    .tc.fail {
+      background: #21262d;
+      color: var(--text);
+      border-left: 3px solid #f85149;
+    }
+
+    .tc.nv {
+      background: #21262d;
+      color: var(--text);
+      border-left: 3px solid #6e7681;
+    }
+
+    .tc.pass .tn,
+    .tc.notver .tn,
+    .tc.fail .tn,
+    .tc.nv .tn {
+      color: var(--text2);
+    }
+
     /* Directly-covered PARENT techniques get an extra soft verdict tint so they
        stand out from their (rail-only) covered sub-techniques and read as the
        higher level in the hierarchy. */
-    .tc.pass:not(.sub)   { background:rgba(46,164,79,.11); }
-    .tc.notver:not(.sub) { background:rgba(210,153,34,.11); }
-    .tc.fail:not(.sub)   { background:rgba(248,81,73,.11); }
-    .tc.nv:not(.sub)     { background:rgba(110,118,129,.14); }
+    .tc.pass:not(.sub) {
+      background: rgba(46, 164, 79, .11);
+    }
+
+    .tc.notver:not(.sub) {
+      background: rgba(210, 153, 34, .11);
+    }
+
+    .tc.fail:not(.sub) {
+      background: rgba(248, 81, 73, .11);
+    }
+
+    .tc.nv:not(.sub) {
+      background: rgba(110, 118, 129, .14);
+    }
+
     /* Covered SUB techniques carry a small verdict dot at the top-right (parents
        show the expand caret there instead, and are distinguished by their tint). */
-    .tc.sub.pass::after, .tc.sub.notver::after, .tc.sub.fail::after, .tc.sub.nv::after {
-      content:''; position:absolute; top:7px; right:7px; width:7px; height:7px; border-radius:50%;
+    .tc.sub.pass::after,
+    .tc.sub.notver::after,
+    .tc.sub.fail::after,
+    .tc.sub.nv::after {
+      content: '';
+      position: absolute;
+      top: 7px;
+      right: 7px;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
     }
-    .tc.sub.pass::after   { background:#2ea44f; }
-    .tc.sub.notver::after { background:#d29922; }
-    .tc.sub.fail::after   { background:#f85149; }
-    .tc.sub.nv::after     { background:#6e7681; }
+
+    .tc.sub.pass::after {
+      background: #2ea44f;
+    }
+
+    .tc.sub.notver::after {
+      background: #d29922;
+    }
+
+    .tc.sub.fail::after {
+      background: #f85149;
+    }
+
+    .tc.sub.nv::after {
+      background: #6e7681;
+    }
+
     /* Confirmed-failure flag. The cell keeps its best-verdict colour (a PASS
        rule really does cover the technique), but a red corner triangle marks
        that at least one covering rule FAILed — otherwise the roll-up to the
        best verdict would hide the failure completely. Cells whose best verdict
        already IS fail carry the red rail, so they skip the redundant corner. */
     .tc.fail-flag:not(.fail)::before {
-      content:''; position:absolute; top:0; right:0; width:0; height:0;
-      border-style:solid; border-width:0 8px 8px 0;
-      border-color:transparent #f85149 transparent transparent;
-      pointer-events:none; z-index:2;
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 0;
+      height: 0;
+      border-style: solid;
+      border-width: 0 8px 8px 0;
+      border-color: transparent #f85149 transparent transparent;
+      pointer-events: none;
+      z-index: 2;
     }
-    .tc.sub.fail-flag:not(.fail)::before { border-width:0 6px 6px 0; }
-    .tc.highlighted.fail-flag:not(.fail)::before { border-right-color:#b62324; }
+
+    .tc.sub.fail-flag:not(.fail)::before {
+      border-width: 0 6px 6px 0;
+    }
+
+    .tc.highlighted.fail-flag:not(.fail)::before {
+      border-right-color: #b62324;
+    }
+
     /* On hover the detail (hamburger) button occupies the right edge, so fade
        the verdict dot out to avoid the two colliding — the left rail still
        conveys the verdict. */
-    .tc.sub[data-rules]:hover::after { opacity:0; }
-    .tc.sub   { min-height:28px; padding-left:12px; }
-    .tc[data-rules] { cursor:pointer; }
+    .tc.sub[data-rules]:hover::after {
+      opacity: 0;
+    }
+
+    .tc.sub {
+      min-height: 28px;
+      padding-left: 12px;
+    }
+
+    .tc[data-rules] {
+      cursor: pointer;
+    }
+
     /* Hover feedback on any technique/sub-technique mirrors the Rule Library's
        warm row tint + subtle border (covered or not). */
-    .tc[data-id]:hover { box-shadow:inset 0 0 0 1px rgba(233,220,196,0.32), inset 0 0 0 999px rgba(233,220,196,0.10); }
+    .tc[data-id]:hover {
+      box-shadow: inset 0 0 0 1px rgba(233, 220, 196, 0.32), inset 0 0 0 999px rgba(233, 220, 196, 0.10);
+    }
+
     /* Click cross-highlight paints equivalent cells with the tactic-header amber */
-    .tc.highlighted { background:#FFAA00 !important; color:#111 !important; }
-    .tc.highlighted .ti, .tc.highlighted .tn, .tc.highlighted .sub-badge, .tc.highlighted .sub-badge-cov { color:#111 !important; opacity:1; }
-    .tc.highlighted:hover { box-shadow:none; }
+    .tc.highlighted {
+      background: #FFAA00 !important;
+      color: #111 !important;
+    }
+
+    .tc.highlighted .ti,
+    .tc.highlighted .tn,
+    .tc.highlighted .sub-badge,
+    .tc.highlighted .sub-badge-cov {
+      color: #111 !important;
+      opacity: 1;
+    }
+
+    .tc.highlighted:hover {
+      box-shadow: none;
+    }
+
     /* Expanded parent + its sub-group read as one continuous amber frame */
-    .tc.expanded { border:1.5px solid rgba(255,170,0,.65); border-bottom:none; border-radius:3px 3px 0 0; }
+    .tc.expanded {
+      border: 1.5px solid rgba(255, 170, 0, .65);
+      border-bottom: none;
+      border-radius: 3px 3px 0 0;
+    }
+
     /* Cells with a verdict/has-cov left accent have a higher-specificity
        border-left; re-assert the uniform 1.5px frame width when expanded so it
        lines up seamlessly with the sub-group's left border (no notch). */
-    .tc.uncov.has-cov.expanded, .tc.notver.expanded, .tc.nv.expanded { border-left:1.5px solid rgba(255,170,0,.65); }
-    .ti { font-weight:700; font-size:12px; color:inherit; text-decoration:none; }
-    .ti:hover { text-decoration:underline; }
-    .tn { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
-    .tc.sub .tn { white-space:normal; overflow:visible; text-overflow:clip; }
-    .tc-row1 { display:flex; justify-content:space-between; align-items:center; gap:2px; }
-    .tc-foot { display:flex; justify-content:space-between; align-items:center; margin-top:2px; min-height:10px; }
-    .tc-expand { background:none; border:none; color:inherit; cursor:pointer; font-size:14px; padding:2px 3px; opacity:.65; line-height:1; flex-shrink:0; }
-    .tc-expand:hover { opacity:1; }
-    .tc-detail { position:absolute; right:4px; top:50%; transform:translateY(-50%); background:none; border:none; color:inherit; cursor:pointer; font-size:14px; padding:2px 4px; opacity:0; line-height:1; z-index:1; }
-    .tc[data-rules]:hover .tc-detail { opacity:.85; }
-    .tc-detail:hover { opacity:1 !important; color:#FFAA00; }
-    .sub-badge { font-size:9px; opacity:.55; }
-    .sub-badge-cov { font-size:9px; color:#FFAA00; font-weight:700; }
-    .sub-group { border:1.5px solid rgba(255,170,0,.65); border-top:none; border-radius:0 0 3px 3px; display:flex; flex-direction:column; gap:1px; padding:0 1px 1px; margin-top:-1px; }
-    .tc.tc-hidden { display:none !important; }
-    .tc-col.tc-col-hidden { display:none !important; }
+    .tc.uncov.has-cov.expanded,
+    .tc.notver.expanded,
+    .tc.nv.expanded {
+      border-left: 1.5px solid rgba(255, 170, 0, .65);
+    }
+
+    .ti {
+      font-weight: 700;
+      font-size: 12px;
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .ti:hover {
+      text-decoration: underline;
+    }
+
+    .tn {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+
+    .tc.sub .tn {
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
+    }
+
+    .tc-row1 {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .tc-foot {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 2px;
+      min-height: 10px;
+    }
+
+    .tc-expand {
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 2px 3px;
+      opacity: .65;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    .tc-expand:hover {
+      opacity: 1;
+    }
+
+    .tc-detail {
+      position: absolute;
+      right: 4px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 2px 4px;
+      opacity: 0;
+      line-height: 1;
+      z-index: 1;
+    }
+
+    .tc[data-rules]:hover .tc-detail {
+      opacity: .85;
+    }
+
+    .tc-detail:hover {
+      opacity: 1 !important;
+      color: #FFAA00;
+    }
+
+    .sub-badge {
+      font-size: 9px;
+      opacity: .55;
+    }
+
+    .sub-badge-cov {
+      font-size: 9px;
+      color: #FFAA00;
+      font-weight: 700;
+    }
+
+    .sub-group {
+      border: 1.5px solid rgba(255, 170, 0, .65);
+      border-top: none;
+      border-radius: 0 0 3px 3px;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      padding: 0 1px 1px;
+      margin-top: -1px;
+    }
+
+    .tc.tc-hidden {
+      display: none !important;
+    }
+
+    .tc-col.tc-col-hidden {
+      display: none !important;
+    }
+
     /* Empty result set: drop the collapsed matrix and its scroll mirror so the
        empty state stands alone instead of sitting under two stray slivers. */
     .nav-wrap.nav-empty .att-matrix,
-    .nav-wrap.nav-empty .nav-scroll-mirror { display:none; }
-    #expand-all-btn { background:none; border:1px solid var(--border); color:var(--text2); border-radius:5px; padding:3px 10px; font-size:12px; cursor:pointer; white-space:nowrap; }
-    #expand-all-btn:hover { color:var(--text); border-color:#FFAA00; }
+    .nav-wrap.nav-empty .nav-scroll-mirror {
+      display: none;
+    }
+
+    #expand-all-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text2);
+      border-radius: 5px;
+      padding: 3px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    #expand-all-btn:hover {
+      color: var(--text);
+      border-color: #FFAA00;
+    }
+
     /* Detail panel — mirrors the Rule Library drawer's look (tokens, slide-in,
        card-style rule rows) so the two views feel like one component. */
-    #detail-panel { position:fixed; right:0; top:0; bottom:0; width:340px; max-width:92vw; background:var(--bg2); border-left:1px solid var(--border); z-index:202; display:flex; flex-direction:column; box-shadow:-4px 0 24px rgba(0,0,0,.5); transform:translateX(100%); transition:transform 0.2s ease; }
-    #detail-panel.open { transform:translateX(0); }
-    #detail-header { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding:18px 20px 14px; border-bottom:1px solid var(--border); flex-shrink:0; }
-    #detail-title { font-weight:700; font-size:14px; color:var(--text); line-height:1.3; }
-    #detail-tid { font-family:var(--font); color:var(--text2); font-size:11px; margin-top:3px; }
-    #detail-close { background:none; border:1px solid var(--border2); border-radius:var(--radius); width:28px; height:28px; display:flex; align-items:center; justify-content:center; color:var(--text2); font-size:18px; line-height:1; cursor:pointer; flex-shrink:0; transition:all 0.1s; }
-    #detail-close:hover { border-color:#ffaa00; color:#ffaa00; box-shadow:0 0 0 2px rgba(255,170,0,0.14); }
-    #detail-body { padding:14px 16px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:7px; }
-    .detail-rule { display:flex; align-items:center; gap:8px; text-decoration:none; color:var(--text); font-size:12px; line-height:1.4; background:var(--bg3); border:1px solid var(--border); border-left:2px solid #ffaa00; border-radius:var(--radius); padding:8px 10px; cursor:pointer; transition:all 0.1s; }
-    .detail-rule:hover { border-color:var(--border2); border-left-color:#ffaa00; background:var(--bg4); text-decoration:none; }
-    .detail-rule:focus-visible { outline:none; border-color:#ffaa00; box-shadow:0 0 0 2px rgba(255,170,0,0.18); }
-    .detail-rule.sel { border-color:#ffaa00; border-left-color:#ffaa00; background:var(--bg4); box-shadow:inset 0 0 0 1px rgba(255,170,0,0.25); }
-    .detail-noverd { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text2); background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); padding:8px 10px; }
-    .detail-vbadge { display:inline-block; padding:1px 7px; border-radius:8px; font-size:10px; font-weight:600; flex-shrink:0; }
-    .detail-vbadge.PASS { background:#2EA44F; color:#fff; }
-    .detail-vbadge.NOT_VERIFIED { background:#9A6700; color:#fff; }
-    .detail-vbadge.FAIL { background:#CF222E; color:#fff; }
-    .detail-vbadge.NA { background:#6E7681; color:#fff; }
-    #att-tip {
-      display:none; position:fixed; z-index:9999; pointer-events:none;
-      background:#161b22; border:1px solid #30363d; border-radius:8px;
-      padding:10px 14px; max-width:340px; font-size:12px; color:#e6edf3;
-      box-shadow:0 8px 24px rgba(0,0,0,.5);
+    #detail-panel {
+      position: fixed;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 340px;
+      max-width: 92vw;
+      background: var(--bg2);
+      border-left: 1px solid var(--border);
+      z-index: 202;
+      display: flex;
+      flex-direction: column;
+      box-shadow: -4px 0 24px rgba(0, 0, 0, .5);
+      transform: translateX(100%);
+      transition: transform 0.2s ease;
     }
-    .tip-head { font-weight:700; font-size:13px; margin-bottom:6px; }
-    .tip-rule { display:flex; align-items:center; gap:6px; margin:3px 0; text-decoration:none; color:var(--text); font-size:11px; }
-    .tip-rule:hover { text-decoration:underline; }
-    .tip-vbadge { display:inline-block; padding:1px 7px; border-radius:8px; font-size:10px; font-weight:600; flex-shrink:0; }
-    .tip-vbadge.PASS { background:#2EA44F; color:#fff; }
-    .tip-vbadge.NOT_VERIFIED { background:#9A6700; color:#fff; }
-    .tip-vbadge.FAIL { background:#CF222E; color:#fff; }
-    .tip-vbadge.NA   { background:#6E7681; color:#fff; }
+
+    #detail-panel.open {
+      transform: translateX(0);
+    }
+
+    #detail-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    #detail-title {
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--text);
+      line-height: 1.3;
+    }
+
+    #detail-tid {
+      font-family: var(--font);
+      color: var(--text2);
+      font-size: 11px;
+      margin-top: 3px;
+    }
+
+    #detail-close {
+      background: none;
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text2);
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.1s;
+    }
+
+    #detail-close:hover {
+      border-color: #ffaa00;
+      color: #ffaa00;
+      box-shadow: 0 0 0 2px rgba(255, 170, 0, 0.14);
+    }
+
+    #detail-body {
+      padding: 14px 16px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .detail-rule {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+      color: var(--text);
+      font-size: 12px;
+      line-height: 1.4;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-left: 2px solid #ffaa00;
+      border-radius: var(--radius);
+      padding: 8px 10px;
+      cursor: pointer;
+      transition: all 0.1s;
+    }
+
+    .detail-rule:hover {
+      border-color: var(--border2);
+      border-left-color: #ffaa00;
+      background: var(--bg4);
+      text-decoration: none;
+    }
+
+    .detail-rule:focus-visible {
+      outline: none;
+      border-color: #ffaa00;
+      box-shadow: 0 0 0 2px rgba(255, 170, 0, 0.18);
+    }
+
+    .detail-rule.sel {
+      border-color: #ffaa00;
+      border-left-color: #ffaa00;
+      background: var(--bg4);
+      box-shadow: inset 0 0 0 1px rgba(255, 170, 0, 0.25);
+    }
+
+    .detail-noverd {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text2);
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 10px;
+    }
+
+    .detail-vbadge {
+      display: inline-block;
+      padding: 1px 7px;
+      border-radius: 8px;
+      font-size: 10px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .detail-vbadge.PASS {
+      background: #2EA44F;
+      color: #fff;
+    }
+
+    .detail-vbadge.NOT_VERIFIED {
+      background: #9A6700;
+      color: #fff;
+    }
+
+    .detail-vbadge.FAIL {
+      background: #CF222E;
+      color: #fff;
+    }
+
+    .detail-vbadge.NA {
+      background: #6E7681;
+      color: #fff;
+    }
+
+    #att-tip {
+      display: none;
+      position: fixed;
+      z-index: 9999;
+      pointer-events: none;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 10px 14px;
+      max-width: 340px;
+      font-size: 12px;
+      color: #e6edf3;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, .5);
+    }
+
+    .tip-head {
+      font-weight: 700;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+
+    .tip-rule {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 3px 0;
+      text-decoration: none;
+      color: var(--text);
+      font-size: 11px;
+    }
+
+    .tip-rule:hover {
+      text-decoration: underline;
+    }
+
+    .tip-vbadge {
+      display: inline-block;
+      padding: 1px 7px;
+      border-radius: 8px;
+      font-size: 10px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .tip-vbadge.PASS {
+      background: #2EA44F;
+      color: #fff;
+    }
+
+    .tip-vbadge.NOT_VERIFIED {
+      background: #9A6700;
+      color: #fff;
+    }
+
+    .tip-vbadge.FAIL {
+      background: #CF222E;
+      color: #fff;
+    }
+
+    .tip-vbadge.NA {
+      background: #6E7681;
+      color: #fff;
+    }
 
     #chart-tip {
-      display:none; position:fixed; z-index:9999; pointer-events:none;
-      background:rgba(22,27,34,0.88); border:1px solid #30363d; border-radius:8px;
-      padding:8px 16px; text-align:center; box-shadow:0 8px 24px rgba(0,0,0,.5);
-      transform:translate(-50%, -120%);
+      display: none;
+      position: fixed;
+      z-index: 9999;
+      pointer-events: none;
+      background: rgba(22, 27, 34, 0.88);
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 8px 16px;
+      text-align: center;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, .5);
+      transform: translate(-50%, -120%);
     }
+
     #chart-tip::after {
-      content:''; position:absolute; left:50%; bottom:-6px; transform:translateX(-50%);
-      border-width:6px 6px 0 6px; border-style:solid;
-      border-color:rgba(22,27,34,0.88) transparent transparent transparent;
+      content: '';
+      position: absolute;
+      left: 50%;
+      bottom: -6px;
+      transform: translateX(-50%);
+      border-width: 6px 6px 0 6px;
+      border-style: solid;
+      border-color: rgba(22, 27, 34, 0.88) transparent transparent transparent;
     }
-    .sev-tip-title { font-weight:700; font-size:13px; color:#e6edf3; }
-    .sev-tip-count { font-size:11px; font-weight:700; color:#e6edf3; margin-top:2px; }
-    .sev-tip-pct { font-size:9px; color:#8b949e; margin-top:1px; }
+
+    .sev-tip-title {
+      font-weight: 700;
+      font-size: 13px;
+      color: #e6edf3;
+    }
+
+    .sev-tip-count {
+      font-size: 11px;
+      font-weight: 700;
+      color: #e6edf3;
+      margin-top: 2px;
+    }
+
+    .sev-tip-pct {
+      font-size: 9px;
+      color: #8b949e;
+      margin-top: 1px;
+    }
 
     /* Trend chart tooltips (Coverage/Growth) — no date title (the crosshair
        already pins the reader to an x-position; the chosen granularity's
        axis label under the cursor already names the point), just the 2
        value rows, sized up a step from .sev-tip-count/-pct since there's no
        title line to carry visual weight instead. */
-    .trend-tip-primary { font-weight:700; font-size:13px; color:#e6edf3; }
-    .trend-tip-secondary { font-size:10px; color:#8b949e; margin-top:2px; }
+    .trend-tip-primary {
+      font-weight: 700;
+      font-size: 13px;
+      color: #e6edf3;
+    }
+
+    .trend-tip-secondary {
+      font-size: 10px;
+      color: #8b949e;
+      margin-top: 2px;
+    }
 
     /* ── Legend & help ──────────────────────────────────────────────────────
        One shared dialog for all three tabs. The page carries a fair amount of
@@ -1304,60 +3213,228 @@
        .tc — a legend that silently drifts from the thing it explains is worse
        than none, so the two blocks are meant to be edited together. */
     .info-btn {
-      display: inline-flex; align-items: center; gap: 6px;
-      background: none; border: 1px solid var(--border2); color: var(--text2);
-      border-radius: var(--radius); padding: 5px 11px;
-      font-size: 12px; font-weight: 600; font-family: var(--font-ui);
-      cursor: pointer; flex-shrink: 0; white-space: nowrap; transition: all 0.12s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: none;
+      border: 1px solid var(--border2);
+      color: var(--text2);
+      border-radius: var(--radius);
+      padding: 5px 11px;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: var(--font-ui);
+      cursor: pointer;
+      flex-shrink: 0;
+      white-space: nowrap;
+      transition: all 0.12s;
     }
-    .info-btn:hover, .info-btn.active { border-color: #ffaa00; color: var(--text); }
-    .info-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; flex-shrink: 0; }
 
-    .info-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 300; }
-    .info-backdrop.open { display: block; }
+    .info-btn:hover,
+    .info-btn.active {
+      border-color: #ffaa00;
+      color: var(--text);
+    }
+
+    .info-btn svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      fill: none;
+      flex-shrink: 0;
+    }
+
+    .info-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      z-index: 300;
+    }
+
+    .info-backdrop.open {
+      display: block;
+    }
+
     .info-modal {
-      display: none; position: fixed; z-index: 301;
-      left: 50%; top: 50%; transform: translate(-50%, -50%);
-      width: 780px; max-width: 94vw; max-height: 84vh;
-      background: var(--bg2); border: 1px solid var(--border2);
-      border-radius: var(--radius-lg); box-shadow: 0 18px 50px rgba(0,0,0,0.6);
-      flex-direction: column; overflow: hidden;
+      display: none;
+      position: fixed;
+      z-index: 301;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 780px;
+      max-width: 94vw;
+      max-height: 84vh;
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
+      flex-direction: column;
+      overflow: hidden;
     }
-    .info-modal.open { display: flex; }
+
+    .info-modal.open {
+      display: flex;
+    }
+
     .info-head {
-      display: flex; align-items: center; justify-content: space-between; gap: 12px;
-      padding: 15px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 15px 20px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
     }
-    .info-head-title { font-family: var(--font-ui); font-size: 14px; font-weight: 700; color: var(--text); }
-    .info-close { background: none; border: none; color: var(--text3); font-size: 17px; line-height: 1; cursor: pointer; padding: 2px 6px; }
-    .info-close:hover { color: var(--text); }
-    .info-body { padding: 18px 20px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 22px; }
+
+    .info-head-title {
+      font-family: var(--font-ui);
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .info-close {
+      background: none;
+      border: none;
+      color: var(--text3);
+      font-size: 17px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 2px 6px;
+    }
+
+    .info-close:hover {
+      color: var(--text);
+    }
+
+    .info-body {
+      padding: 18px 20px 24px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
     .info-sec-title {
-      font-family: var(--font-ui); font-size: 11px; font-weight: 700;
-      letter-spacing: 0.6px; text-transform: uppercase; color: #ffaa00; margin-bottom: 11px;
+      font-family: var(--font-ui);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: #ffaa00;
+      margin-bottom: 11px;
     }
-    .info-grid { display: grid; grid-template-columns: 128px 1fr; gap: 9px 14px; align-items: start; font-size: 12px; color: var(--text2); line-height: 1.5; }
-    .info-grid .k { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
-    .info-grid .k .badge { margin: 0; }
-    .info-grid .kbd { font-size: 10px; }
-    .info-note { font-size: 12px; color: var(--text2); line-height: 1.6; }
-    .info-note + .info-note { margin-top: 9px; }
-    .info-note code { font-family: var(--font); font-size: 11px; color: var(--text); background: var(--bg3); border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: 128px 1fr;
+      gap: 9px 14px;
+      align-items: start;
+      font-size: 12px;
+      color: var(--text2);
+      line-height: 1.5;
+    }
+
+    .info-grid .k {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex-wrap: wrap;
+    }
+
+    .info-grid .k .badge {
+      margin: 0;
+    }
+
+    .info-grid .kbd {
+      font-size: 10px;
+    }
+
+    .info-note {
+      font-size: 12px;
+      color: var(--text2);
+      line-height: 1.6;
+    }
+
+    .info-note+.info-note {
+      margin-top: 9px;
+    }
+
+    .info-note code {
+      font-family: var(--font);
+      font-size: 11px;
+      color: var(--text);
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 1px 5px;
+    }
 
     /* Matrix swatches — mirror of the .tc rules further up. */
-    .sw { display: inline-block; position: relative; width: 40px; height: 17px; border-radius: 2px; background: #21262d; flex-shrink: 0; }
-    .sw-pass   { background: rgba(46,164,79,.11);   border-left: 3px solid #2ea44f; }
-    .sw-notver { background: rgba(210,153,34,.11);  border-left: 3px solid #d29922; }
-    .sw-fail   { background: rgba(248,81,73,.11);   border-left: 3px solid #f85149; }
-    .sw-nv     { background: rgba(110,118,129,.14); border-left: 3px solid #6e7681; }
-    .sw-uncov  { background: #1c2128; border: 1px solid #30363d; }
-    .sw-hascov { background: rgba(255,170,0,.13); border-left: 2px solid rgba(255,170,0,.55); }
+    .sw {
+      display: inline-block;
+      position: relative;
+      width: 40px;
+      height: 17px;
+      border-radius: 2px;
+      background: #21262d;
+      flex-shrink: 0;
+    }
+
+    .sw-pass {
+      background: rgba(46, 164, 79, .11);
+      border-left: 3px solid #2ea44f;
+    }
+
+    .sw-notver {
+      background: rgba(210, 153, 34, .11);
+      border-left: 3px solid #d29922;
+    }
+
+    .sw-fail {
+      background: rgba(248, 81, 73, .11);
+      border-left: 3px solid #f85149;
+    }
+
+    .sw-nv {
+      background: rgba(110, 118, 129, .14);
+      border-left: 3px solid #6e7681;
+    }
+
+    .sw-uncov {
+      background: #1c2128;
+      border: 1px solid #30363d;
+    }
+
+    .sw-hascov {
+      background: rgba(255, 170, 0, .13);
+      border-left: 2px solid rgba(255, 170, 0, .55);
+    }
+
     .sw-flag::before {
-      content: ''; position: absolute; top: 0; right: 0; width: 0; height: 0;
-      border-style: solid; border-width: 0 8px 8px 0;
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 0;
+      height: 0;
+      border-style: solid;
+      border-width: 0 8px 8px 0;
       border-color: transparent #f85149 transparent transparent;
     }
-    .sw-dot::after { content: ''; position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: #2ea44f; }
+
+    .sw-dot::after {
+      content: '';
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #2ea44f;
+    }
 
     /* ── Small screens ──────────────────────────────────────────────────────
        The desktop layout is a fixed 250px filter rail next to a 10-column
@@ -1382,53 +3459,126 @@
       cursor: pointer;
       white-space: nowrap;
     }
-    .filters-toggle.active { border-color: #ffaa00; color: var(--text); }
+
+    .filters-toggle.active {
+      border-color: #ffaa00;
+      color: var(--text);
+    }
 
     @media (max-width: 900px) {
-      .stats-strip { height:auto; min-height:48px; padding:8px 12px; flex-wrap:wrap; }
-      .strip-brand { flex-wrap:wrap; row-gap:8px; }
-      .strip-sep { display:none; }
-      .tab-bar { flex-wrap:wrap; }
-
-      .main { flex-direction:column; }
-      .filters-panel {
-        display:none;
-        width:100%; min-width:0;
-        flex:0 0 auto;
-        max-height:55vh;
-        border-right:none;
-        border-bottom:1px solid var(--border);
+      .stats-strip {
+        height: auto;
+        min-height: 48px;
+        padding: 8px 12px;
+        flex-wrap: wrap;
       }
-      .filters-panel.mobile-open { display:flex; }
-      .filters-toggle { display:inline-flex; }
 
-      .content { padding:0 12px 16px; }
-      .search-row { flex-wrap:wrap; }
-      .kbd-hint { display:none; }
-      .info-btn-label { display:none; }
-      .info-btn { padding:5px 8px; }
+      .strip-brand {
+        flex-wrap: wrap;
+        row-gap: 8px;
+      }
+
+      .strip-sep {
+        display: none;
+      }
+
+      .tab-bar {
+        flex-wrap: wrap;
+      }
+
+      .main {
+        flex-direction: column;
+      }
+
+      .filters-panel {
+        display: none;
+        width: 100%;
+        min-width: 0;
+        flex: 0 0 auto;
+        max-height: 55vh;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .filters-panel.mobile-open {
+        display: flex;
+      }
+
+      .filters-toggle {
+        display: inline-flex;
+      }
+
+      .content {
+        padding: 0 12px 16px;
+      }
+
+      .search-row {
+        flex-wrap: wrap;
+      }
+
+      .kbd-hint {
+        display: none;
+      }
+
+      .info-btn-label {
+        display: none;
+      }
+
+      .info-btn {
+        padding: 5px 8px;
+      }
 
       /* Category · Product · Service — all three are filter facets too. */
-      thead th:nth-child(3), tbody td:nth-child(3),
-      thead th:nth-child(4), tbody td:nth-child(4),
-      thead th:nth-child(5), tbody td:nth-child(5) { display:none; }
+      thead th:nth-child(3),
+      tbody td:nth-child(3),
+      thead th:nth-child(4),
+      tbody td:nth-child(4),
+      thead th:nth-child(5),
+      tbody td:nth-child(5) {
+        display: none;
+      }
 
-      .drawer { width:100%; max-width:100%; }
+      .drawer {
+        width: 100%;
+        max-width: 100%;
+      }
 
-      .nav-toolbar { gap:8px; }
-      #nav-export-wrap { margin-left:0; }
-      .tc-col { flex:0 0 145px; }
+      .nav-toolbar {
+        gap: 8px;
+      }
+
+      #nav-export-wrap {
+        margin-left: 0;
+      }
+
+      .tc-col {
+        flex: 0 0 145px;
+      }
     }
 
     @media (max-width: 640px) {
-      /* Tactic · Technique · Status — the drawer carries the full ATT&CK map. */
-      thead th:nth-child(6), tbody td:nth-child(6),
-      thead th:nth-child(7), tbody td:nth-child(7),
-      thead th:nth-child(9), tbody td:nth-child(9) { display:none; }
 
-      .dash-section { padding:12px; }
-      .chart-card { padding:14px; }
-      .chart-card-canvas-wrap { height:240px; }
+      /* Tactic · Technique · Status — the drawer carries the full ATT&CK map. */
+      thead th:nth-child(6),
+      tbody td:nth-child(6),
+      thead th:nth-child(7),
+      tbody td:nth-child(7),
+      thead th:nth-child(9),
+      tbody td:nth-child(9) {
+        display: none;
+      }
+
+      .dash-section {
+        padding: 12px;
+      }
+
+      .chart-card {
+        padding: 14px;
+      }
+
+      .chart-card-canvas-wrap {
+        height: 240px;
+      }
     }
 
 
@@ -1441,35 +3591,71 @@
     /* A chart-card now, so it matches the cards it sits beside; only the
        inner spacing differs, because a five-row table needs less room than a
        canvas. */
-    /* CSS Grid items default to align-items:stretch, so plain
-       .dash-section-grid-row2 (used as-is by the Verification section's own
-       row) would make dev/prod match the *tallest* item in the row -- which,
-       once the Rule deployment card grew to ~473px (300px scrolling table +
-       the header-live strip + a 5-item legend), stretched these six-row
-       summary cards to that same height for no reason of their own: mostly
-       empty space below a handful of label/value rows. .dep-deploy-grid
-       scopes align-items:start to this specific row (the Verification row's
-       two cards are close enough in natural height already that stretch
-       there was never visibly wrong, so it is left alone) so dev/prod size
-       to their own content instead of the table's. */
-    .dep-deploy-grid { align-items: start; }
-    /* min-height, not height: matches Rules by Severity's rendered box
-       height (265px, measured with Playwright) for the common case so the
-       row reads as consistent card sizes, but a fixed height would clip the
-       occasional extra "What differs" row a drift day adds -- min-height
-       lets the rare case grow instead of losing information. */
-    .dep-env { justify-content:flex-start; min-height: 265px; }
-    .dep-table { width:100%; border-collapse:collapse; font-size:12.5px; }
-    .dep-table th { text-align:left; font-weight:500; color:var(--text2); padding:4px 12px 4px 0; white-space:nowrap; vertical-align:top; }
-    .dep-table td { text-align:right; color:var(--text); padding:4px 0; font-variant-numeric:tabular-nums; }
-    .dep-table code { font-family:var(--font); font-size:11.5px; }
+    .dep-env {
+      justify-content: flex-start;
+    }
+
+    .dep-env-block+.dep-env-block {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border2);
+    }
+
+    .dep-env-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text2);
+      margin-bottom: 8px;
+    }
+
+    .dep-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+    }
+
+    .dep-table th {
+      text-align: left;
+      font-weight: 500;
+      color: var(--text2);
+      padding: 4px 12px 4px 0;
+      white-space: nowrap;
+      vertical-align: top;
+    }
+
+    .dep-table td {
+      text-align: right;
+      color: var(--text);
+      padding: 4px 0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .dep-table code {
+      font-family: var(--font);
+      font-size: 11.5px;
+    }
+
     /* The age sits under the timestamp rather than beside it: it is the part
        people actually read, and on a narrow screen a single line would push the
        timestamp out of view. */
-    .dep-age { display:block; font-size:11px; color:var(--text3); }
-    .dep-ok { color:var(--green); }
-    .dep-drift { color:var(--amber); }
-    .dep-unknown { color:var(--text3); font-style:italic; }
+    .dep-age {
+      display: block;
+      font-size: 11px;
+      color: var(--text3);
+    }
+
+    .dep-ok {
+      color: var(--green);
+    }
+
+    .dep-drift {
+      color: var(--amber);
+    }
+
+    .dep-unknown {
+      color: var(--text3);
+      font-style: italic;
+    }
 
     /* ---------- Deployment: per-rule table ----------
        Fixed height with its own scroll, so a library that grows to 200 rules
@@ -1481,7 +3667,15 @@
     /* The canvas height of the chart cards, so the table card lines up with the
        Verification Age card next to it. flex:none stops the flex parent from
        stretching it past that. */
-    .dep-table-wrap { flex:none; height:300px; overflow-y:auto; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg3); }
+    .dep-table-wrap {
+      flex: none;
+      height: 300px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg3);
+    }
+
     /* table-layout: auto, against the page-wide `table { table-layout: fixed }`
        rule above (written for the main rule-browser grid): the width:1% /
        max-width:0 shrink trick previously here only works under auto layout.
@@ -1490,43 +3684,99 @@
        id column was swallowing the card and the value columns were flattened
        to a few px each, twice, through two rounds of width tuning that never
        touched this property. */
-    /* width: max-content, not fit-content or 100%: detect_id is a
-       fixed-format string (`DETECT-2026-NNNN`), so the id column never needs
-       to shrink or truncate -- the width:100%/max-width:0 trick this replaced
-       was solving a wrapping problem that can't happen here, and its side
-       effect was telling auto-layout to hand the id column every pixel of
-       slack in the card, leaving a dead gap between the id and the version
-       columns once they were actually visible. A percentage width anywhere in
-       the row forces that same slack-distribution behaviour even with the
-       table itself set to fit-content -- hence no width:1% on the value
-       columns either.
-       fit-content still left a gap, just relocated: the sticky thead
-       (position:sticky below) makes the browser compute the table's
-       fit-content width against the *scroll container's* available width,
-       not the table's own content -- fit-content's available-space term wins
-       even though max-content is smaller, and whichever column carried no
-       width hint (the repo-version column, past the id/trace fix above)
-       absorbed the entire difference. max-content has no available-space
-       term to win: it is always the table's true content width, sticky
-       header or not (confirmed empirically -- switching thead th to
-       position:static made fit-content behave correctly too, isolating the
-       interaction to sticky specifically). max-width:100% is the guard for
-       when content genuinely exceeds the card (narrow viewports): max-content
-       does not clamp to the container on its own, .dep-table-wrap's
-       overflow-x:hidden below is the actual backstop, and this repo's four
-       columns never come close to that width at any breakpoint in practice. */
-    .dep-rules { width:max-content; max-width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; table-layout:auto; }
-    .dep-rules thead th { position:sticky; top:0; z-index:1; background:var(--bg4); color:var(--text3); font-family:var(--font); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; font-weight:500; text-align:right; padding:8px 10px; border-bottom:1px solid var(--border); white-space:nowrap; }
-    .dep-rules thead th:first-child { text-align:left; }
-    .dep-rules tbody th, .dep-rules tbody td { padding:6px 10px; border-bottom:1px solid var(--border2); }
+    /* width: fit-content, not 100%: detect_id is a fixed-format string
+       (`DETECT-2026-NNNN`), so the id column never needs to shrink or
+       truncate -- the width:100%/max-width:0 trick this replaced was solving
+       a wrapping problem that can't happen here, and its side effect was
+       telling auto-layout to hand the id column every pixel of slack in the
+       card, leaving a dead gap between the id and the version columns once
+       they were actually visible. A percentage width anywhere in the row
+       forces that same slack-distribution behaviour even with the table
+       itself set to fit-content (the percentage has to resolve against
+       *something*, so the browser falls back to stretching) -- hence no
+       width:1% on the value columns either. Every column now just takes the
+       width its own content needs, and the table stops exactly where its
+       columns end instead of stretching to the card. */
+    .dep-rules {
+      width: fit-content;
+      max-width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 12.5px;
+      table-layout: auto;
+    }
+
+    .dep-rules thead th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: var(--bg4);
+      color: var(--text3);
+      font-family: var(--font);
+      font-size: 10.5px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      font-weight: 500;
+      text-align: right;
+      padding: 8px 8px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .dep-rules thead th:first-child {
+      text-align: left;
+    }
+
+    .dep-rules tbody th,
+    .dep-rules tbody td {
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--border2);
+    }
+
     /* Belt and braces: whatever happens to the columns, nothing escapes
        sideways. The height is the scrollable axis here, not the width. */
-    .dep-table-wrap { overflow-x:hidden; }
-    .dep-rules tbody tr:last-child th, .dep-rules tbody tr:last-child td { border-bottom:0; }
-    .dep-id { text-align:left; font-weight:400; color:var(--text); font-family:var(--font); white-space:nowrap; }
-    .dep-repo-ver { text-align:right; color:var(--text3); font-variant-numeric:tabular-nums; white-space:nowrap; padding-right:10px; }
-    .dep-cell { text-align:right; white-space:nowrap; }
-    .dep-ver { font-variant-numeric:tabular-nums; margin-left:6px; display:inline-block; min-width:2.6em; text-align:right; }
+    .dep-table-wrap {
+      overflow-x: auto;
+    }
+
+    .dep-rules tbody tr:last-child th,
+    .dep-rules tbody tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .dep-id {
+      text-align: left;
+      font-weight: 400;
+      color: var(--text);
+      font-family: var(--font);
+      white-space: nowrap;
+    }
+
+    .dep-repo-ver {
+      text-align: right;
+      color: var(--text3);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      padding-right: 10px;
+    }
+
+    .dep-table a,
+    .dep-table a code {
+      color: #ffaa00;
+    }
+
+    .dep-cell {
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .dep-ver {
+      font-variant-numeric: tabular-nums;
+      margin-left: 5px;
+      display: inline-block;
+      min-width: 2.2em;
+      text-align: right;
+    }
 
     /* The state line. A short trace rather than a dot, because the four states
        differ in shape as well as colour -- colour alone would leave the panel
@@ -1534,125 +3784,179 @@
        state. Sized at 40x20 (was 26x10): the row has the room now that the id
        column no longer eats it, and the shape needs to read at a glance, not
        just be present. */
-    /* position:relative + overflow:hidden turns this into a viewport onto
-       .dep-trace-fill rather than a paint surface of its own. */
-    .dep-trace { display:inline-block; position:relative; overflow:hidden; width:40px; height:20px; vertical-align:middle; border-radius:2px; }
-    /* An <svg>, not a plain div, since 2026-08-09: see _deployment_trace_svg's
-       own comment in generate_stats.py for why. The element being scrolled by
-       the animation is now the <svg> itself rather than a div with a
-       background-color -- position/size/animation stay the same, only the
-       thing being positioned changed shape. */
-    .dep-trace-fill { position:absolute; top:0; left:0; width:80px; height:20px; overflow:visible; }
-    /* fill:none + stroke-width here once, so every state below only has to
-       set a stroke colour, not repeat the geometry. stroke:none by default:
-       absent/unrecorded intentionally never get a colour rule (see below),
-       and an un-stroked polyline is exactly as invisible as the old
-       colourless div was, not merely close to it. */
-    .dep-trace-fill polyline { fill:none; stroke:none; stroke-width:2.6px; stroke-linecap:round; stroke-linejoin:round; }
-
-    /* Live and behind draw an actual small heartbeat blip -- a real stroked
-       line, scrolled continuously by animating transform -- because a moving
-       trace reads as "this is alive right now" the way a still one never
-       does, and that is exactly the claim these two states make: deployed
-       and reporting, whether or not the version matches the repo. Gone
-       reuses the same mechanism with a flat line instead of a blip -- a
-       monitor's flatline, still scrolling, under the existing alarm blink --
-       because moving *and* flat reads as "this stopped" more clearly than
-       either alone. Absent and unrecorded stay static further down: those
-       are claims about what we know, not about whether something is
-       running, and animating them would imply a liveness signal that was
-       never actually sent. */
-    /* An actual stroked <polyline>, not a clip-path polygon standing in for
-       one, and not a tiled image either: a mask-image/background-image built
-       from a repeating tile left a visible seam between repeats once the
-       animation was actually moving, in this browser, regardless of how the
-       tile was drawn (documented at length in an earlier version of this
-       comment) -- a real DOM element that gets *translated* isn't tiling
-       anything, so that class of bug does not apply here.
-       The clip-path polygon this replaced hand-offset each centerline vertex
-       *vertically* by a constant 1.3px to fake a 2.6px-wide ribbon -- correct
-       on the flat stretches (where vertical offset IS perpendicular to the
-       line) but only ~1.0px of visible thickness on the spike's steep
-       diagonals (2.6 * cos(66.8deg) from vertical), a real, visible width
-       mismatch between the flat and diagonal segments, not a rendering
-       artifact. stroke-width on a real <polyline> is perpendicular-to-the-
-       line by construction, at every vertex, for free -- the geometry in
-       generate_stats.py's _deployment_trace_svg is now just the centerline
-       the old polygon was already built around, with no offset math at all.
-       The shape is still drawn at *double* the visible width (80px = two
-       40px periods, the second an exact copy of the first shifted over) and
-       clipped by .dep-trace's overflow:hidden; sliding it left by exactly
-       one period and looping is then trivially seamless, because the pixels
-       at the end of the loop are the pixels the start already had. */
-    /* .dep-heartbeat variants added alongside .dep-key: the card-header
-       composite trace (register/dataviz follow-up, 2026-08-09) puts the
-       state class on the same element as .dep-trace, exactly like the
-       legend does and unlike the per-row cells (state class on the
-       ancestor .dep-cell) -- so it rides the .dep-key selectors' pattern,
-       not the bare .dep-live/.dep-behind/.dep-gone ones. */
-    .dep-live .dep-trace-fill, .dep-key .dep-live .dep-trace-fill, .dep-heartbeat .dep-live .dep-trace-fill,
-    .dep-behind .dep-trace-fill, .dep-key .dep-behind .dep-trace-fill, .dep-heartbeat .dep-behind .dep-trace-fill {
-      animation: dep-beat 1.4s linear infinite;
+    /* One state, one dot. Colour carries the meaning; shape (filled vs.
+       hollow, dashed vs. dotted outline) keeps the four "we know something"
+       states apart from each other for a colour-blind reader, since they no
+       longer differ in silhouette the way the old ribbon/blip pairs did.
+       .dep-trace-fill is dead markup left over from that ribbon rendering
+       (still emitted server-side) -- hidden, not removed, so the HTML
+       generator does not need a matching edit just to stop drawing it. */
+    .dep-trace {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      box-sizing: border-box;
+      vertical-align: middle;
     }
-    .dep-live .dep-trace-fill polyline, .dep-key .dep-live .dep-trace-fill polyline, .dep-heartbeat .dep-live .dep-trace-fill polyline { stroke:var(--green); }
-    .dep-live .dep-ver { color:var(--green); }
-    .dep-behind .dep-trace-fill, .dep-key .dep-behind .dep-trace-fill, .dep-heartbeat .dep-behind .dep-trace-fill { animation-duration:1s; }
-    .dep-behind .dep-trace-fill polyline, .dep-key .dep-behind .dep-trace-fill polyline, .dep-heartbeat .dep-behind .dep-trace-fill polyline { stroke:var(--amber); }
-    .dep-behind .dep-ver { color:var(--amber); }
-    /* Absent stays a static dashed mark directly on the 40px outer element,
-       not the 80px fill: it never animates, so none of the sliding-ribbon
-       machinery above applies to it. */
-    .dep-absent .dep-trace, .dep-key .dep-absent, .dep-heartbeat .dep-absent { background-image:repeating-linear-gradient(90deg, var(--text3) 0 3px, transparent 3px 9px); background-repeat:no-repeat; background-position:center; background-size:40px 1px; opacity:.55; }
-    .dep-absent .dep-ver { color:var(--text3); }
-    .dep-gone .dep-trace-fill, .dep-key .dep-gone .dep-trace-fill, .dep-heartbeat .dep-gone .dep-trace-fill {
-      animation: dep-beat 1.4s linear infinite, dep-alarm 1.6s ease-in-out infinite;
+
+    .dep-trace-fill {
+      display: none;
     }
-    .dep-gone .dep-trace-fill polyline, .dep-key .dep-gone .dep-trace-fill polyline, .dep-heartbeat .dep-gone .dep-trace-fill polyline { stroke:var(--red); }
-    .dep-gone .dep-ver { color:var(--red); }
 
-    @keyframes dep-beat { from { transform:translateX(0); } to { transform:translateX(-40px); } }
-    /* Motion here too, stacked on top of the scroll above: an object that
-       should be running and is not gets the alarm on top of the flatline. */
-    @keyframes dep-alarm { 0%, 100% { opacity:1; } 50% { opacity:.35; } }
-    @media (prefers-reduced-motion: reduce) { .dep-live .dep-trace-fill, .dep-behind .dep-trace-fill, .dep-gone .dep-trace-fill { animation:none; } }
+    /* Live pulses continuously -- "deployed and reporting right now" is a
+       live claim, so the dot never sits still. Behind gets the same pulse in
+       amber: it is also live and reporting, just not on the current version.
+       Gone flashes instead of pulsing outward -- a solid dot fading in and
+       out reads as an alarm, not a heartbeat, which is the right register
+       for "was deployed, Splunk lost it". Absent and unrecorded stay fully
+       static hollow rings: pure information-state, no liveness claim. */
+    .dep-live .dep-trace,
+    .dep-trace.dep-live {
+      background: var(--green);
+      animation: dep-pulse-ring 1.6s ease-out infinite;
+    }
 
-    .dep-legend { display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:12px; font-size:11.5px; color:var(--text2); }
-    .dep-key { display:inline-flex; align-items:center; gap:7px; }
-    .dep-key .dep-trace { width:40px; }
-    .visually-hidden { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+    .dep-live .dep-ver {
+      color: var(--green);
+    }
 
-    @media (max-width: 640px) { .dep-table-wrap { max-height:280px; } .dep-trace { width:30px; } }
+    .dep-behind .dep-trace,
+    .dep-trace.dep-behind {
+      background: var(--amber);
+      animation: dep-pulse-ring-amber 1.6s ease-out infinite;
+    }
+
+    .dep-behind .dep-ver {
+      color: var(--amber);
+    }
+
+    /* Solid, not a hollow ring, and no animation: "not deployed" is a fact
+       about the repo's state, not a liveness claim -- it should read as
+       inert next to the pulsing live/behind dots, not like a paused signal. */
+    .dep-absent .dep-trace,
+    .dep-trace.dep-absent {
+      background: var(--text3);
+    }
+
+    .dep-absent .dep-ver {
+      color: var(--text3);
+    }
+
+    /* Gone shares the ring-pulse shape (not the opacity-fade alarm) so all
+       three animated states read as one rhythm in the legend -- distinct by
+       colour alone now, not by motion shape. */
+    .dep-gone .dep-trace,
+    .dep-trace.dep-gone {
+      background: var(--red);
+    }
+
+    .dep-gone .dep-ver {
+      color: var(--red);
+    }
+
+    .dep-unrecorded .dep-trace,
+    .dep-trace.dep-unrecorded {
+      background: transparent;
+      border: 1.5px dotted var(--text3);
+    }
+
+    .dep-unrecorded .dep-ver {
+      color: var(--text3);
+    }
+
+    @keyframes dep-pulse-ring {
+      0% {
+        box-shadow: 0 0 0 0 rgba(46, 164, 79, .55);
+      }
+
+      70% {
+        box-shadow: 0 0 0 7px rgba(46, 164, 79, 0);
+      }
+
+      100% {
+        box-shadow: 0 0 0 0 rgba(46, 164, 79, 0);
+      }
+    }
+
+    @keyframes dep-pulse-ring-amber {
+      0% {
+        box-shadow: 0 0 0 0 rgba(210, 153, 34, .5);
+      }
+
+      70% {
+        box-shadow: 0 0 0 6px rgba(210, 153, 34, 0);
+      }
+
+      100% {
+        box-shadow: 0 0 0 0 rgba(210, 153, 34, 0);
+      }
+    }
+
+    @keyframes dep-pulse-ring-red {
+      0% {
+        box-shadow: 0 0 0 0 rgba(248, 81, 73, .55);
+      }
+
+      70% {
+        box-shadow: 0 0 0 7px rgba(248, 81, 73, 0);
+      }
+
+      100% {
+        box-shadow: 0 0 0 0 rgba(248, 81, 73, 0);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .dep-trace {
+        animation: none !important;
+      }
+    }
+
+    .dep-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 18px;
+      margin-top: 12px;
+      font-size: 11.5px;
+      color: var(--text2);
+    }
+
+    .dep-key {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      padding: 0;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-width: 640px) {
+      .dep-table-wrap {
+        max-height: 280px;
+      }
+    }
+
     /* Not "absent": a question mark rather than a flat line, because the claim
        is about our knowledge, not about the environment. */
-    .dep-unrecorded .dep-trace, .dep-key .dep-unrecorded { background-image:repeating-linear-gradient(90deg, var(--text3) 0 1px, transparent 1px 5px); background-repeat:no-repeat; background-position:center; background-size:40px 1px; opacity:.35; }
-    .dep-unrecorded .dep-ver { color:var(--text3); }
+    .dep-unrecorded .dep-trace,
+    .dep-key .dep-unrecorded {
+      background-image: repeating-linear-gradient(90deg, var(--text3) 0 1px, transparent 1px 5px);
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: 40px 1px;
+      opacity: .35;
+    }
 
-    /* ---------- Deployment: card-header live elements (2026-08-09) ----------
-       Two additions to the "Rule deployment" card and the environment
-       summary cards, both live rather than merely animated -- picked over
-       the third option shown alongside them (a plain pulsing header dot). */
-    .dep-table-head { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:2px; }
-    .dep-table-head-live { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-
-    /* The per-rule EKG trace rolled up one level: same .dep-trace/.dep-trace-fill
-       mechanism as every row, just four of them abutting inside a recessed
-       track so the header reads as one small composite instrument rather
-       than four separate row-cells that escaped the table. Sized identically
-       to a row's trace (40x20) -- a bigger or re-proportioned copy would read
-       as a different element instead of "the same thing, one level up". */
-    .dep-heartbeat { display:inline-flex; align-items:center; height:20px; border-radius:3px; overflow:hidden; background:var(--bg4); }
-    /* The real, accessible half of the claim the (aria-hidden) heartbeat
-       shape makes -- see _deployment_sync_counter's own comment. */
-    .dep-sync-counter { font-family:var(--font-ui); font-size:12px; color:var(--text2); white-space:nowrap; }
-    .dep-sync-n { font-family:var(--font); font-variant-numeric:tabular-nums; font-weight:700; color:var(--green); font-size:14px; }
-
-    /* Live freshness ring beside "Splunk checked": genuinely re-derived every
-       second by page.js from data-checked-at, not a CSS keyframe loop -- see
-       _deployment_freshness_ring's comment for why that distinction matters
-       here specifically. transition (not the animation shorthand) is what
-       makes each JS-driven update glide instead of jump. */
-    .dep-checked-cell { display:inline-flex; align-items:center; gap:6px; }
-    .dep-fresh-ring-svg { transform:rotate(-90deg); flex-shrink:0; }
-    .dep-fresh-ring-track { fill:none; stroke:var(--border2); stroke-width:2.5; }
-    .dep-fresh-ring-fill { fill:none; stroke-width:2.5; stroke-linecap:round; transition:stroke-dashoffset 1s linear, stroke 1s linear; }
-    @media (prefers-reduced-motion: reduce) { .dep-fresh-ring-fill { transition:none; } }
+    .dep-unrecorded .dep-ver {
+      color: var(--text3);
+    }
