@@ -1,30 +1,30 @@
-const RULES = @@RULES_JSON @@;
+const RULES = @@RULES_JSON@@;
 // Lookup so the Navigator can open the same in-page drawer the Rule Library
 // uses (openDrawer takes a RULES index), instead of linking out to GitHub.
 const RULE_IDX_BY_ID = {};
 RULES.forEach(function (r, i) { RULE_IDX_BY_ID[r.id] = i; });
-const TACTIC_IDS = @@TACTIC_IDS_JSON @@;
+const TACTIC_IDS = @@TACTIC_IDS_JSON@@;
 const GENERATED_TS = "@@TS@@";
-const TOTAL_RULES = @@TOTAL @@;
-const PASS_COUNT = @@PASSED @@;   // every PASS on record, stale ones included
-const FAIL_COUNT = @@FAILED @@;
+const TOTAL_RULES = @@TOTAL@@;
+const PASS_COUNT = @@PASSED@@;   // every PASS on record, stale ones included
+const FAIL_COUNT = @@FAILED@@;
 // Real "NOT_VERIFIED" rules (deployed + attempted, Atomic test timed out)
 // vs. true N/A (never tested -- no result.json at all). Kept as two
 // separate chart segments so NOT_VERIFIED isn't silently folded into "no
 // coverage" nor misrepresented as a pass or a confirmed fail.
-const NOTVER_COUNT = @@NOT_VER @@;
-const NA_COUNT = @@NEVER_TESTED @@;
+const NOTVER_COUNT = @@NOT_VER@@;
+const NA_COUNT = @@NEVER_TESTED@@;
 // PASS_RATE is measured over the rules whose verdict is still current
 // evidence, not over the whole library (see generate_stats.py) -- the
 // Evidence card beside the Verification ring is what names that population.
 // The four counters above stay whole-library totals; both charts classify
 // from RULES themselves, so neither can disagree with the table.
-const PASS_RATE = @@PASS_RATE @@;
-const MITRE_COVERED = @@MITRE_COVERED @@;
-const MITRE_TOTAL = @@MITRE_TOTAL @@;
-const MITRE_PCT = @@MITRE_PCT @@;
-const COVERAGE_HISTORY = @@COVERAGE_HISTORY_JSON @@;
-const RULE_GROWTH_HISTORY = @@RULE_GROWTH_HISTORY_JSON @@;
+const PASS_RATE = @@PASS_RATE@@;
+const MITRE_COVERED = @@MITRE_COVERED@@;
+const MITRE_TOTAL = @@MITRE_TOTAL@@;
+const MITRE_PCT = @@MITRE_PCT@@;
+const COVERAGE_HISTORY = @@COVERAGE_HISTORY_JSON@@;
+const RULE_GROWTH_HISTORY = @@RULE_GROWTH_HISTORY_JSON@@;
 
 const SEV_HEX = { critical: '#a4133c', high: '#f85149', medium: '#fb923c', low: '#3fb950', informational: '#8b949e' };
 const STATUS_HEX = { stable: '#3fb950', test: '#d29922', experimental: '#388bfd', deprecated: '#8b949e' };
@@ -1044,7 +1044,7 @@ function vLabel(v) { return String(v ?? '').replace(/_/g, ' '); }
 // A rule is due for re-validation this many days after its last verified run.
 // Everything derived from it is computed in the browser against the visitor's
 // clock, so the page keeps ageing correctly between pipeline runs.
-const REVIEW_INTERVAL_DAYS = @@REVIEW_DAYS @@;
+const REVIEW_INTERVAL_DAYS = @@REVIEW_DAYS@@;
 
 // Calendar days, not elapsed 24h blocks. verdictAt is a full timestamp, but
 // every place that shows an age also shows the UTC date beside it, so the two
