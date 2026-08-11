@@ -29,6 +29,7 @@ from pathlib import Path
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from lib.rule_version import compute_rule_version
 from lib.rules import RuleLoadError, discover, load_rule
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -703,28 +704,6 @@ COVERAGE_HISTORY_PATH = REPO_ROOT / "outputs" / "reports" / "coverage_history.js
 RULE_GROWTH_HISTORY_PATH = REPO_ROOT / "outputs" / "reports" / "rule_growth_history.json"
 
 
-def compute_rule_version(file_path: str) -> str:
-    """
-    Same versioning scheme as scripts/convert/sigma_to_spl.py's
-    _compute_rule_version(): 1.0 on the first commit, 1.1 on the second, etc.,
-    derived from how many commits have touched the rule's Sigma YAML source.
-    Uses `git log --follow` (not `git rev-list --count`) so renaming or
-    restructuring a rule file never resets its version count.
-
-    rule_version only ever lived in the CI-generated .meta.json sidecar
-    (gitignored, never committed) once rules/splunk/*.spl became pure query
-    text -- surfacing it here in the rule browser is the only place a repo
-    visitor can still see it without digging into a CI run's artifacts.
-    """
-    if not file_path:
-        return ""
-    raw = _git(["log", "--follow", "--format=%H", "--", file_path])
-    count = len([line for line in raw.splitlines() if line.strip()])
-    if count <= 0:
-        return ""
-    return f"1.{max(0, count - 1)}"
-
-
 def _git(args: list[str], input_text: str | None = None) -> str:
     """Runs git in REPO_ROOT, returns stdout ('' on any failure).
 
@@ -938,7 +917,7 @@ def generate_stats() -> dict:
         run_id = v_data.get("run_id", "")
         verdict_at = v_data.get("run_timestamp", "")
         verdict_rule_version = v_data.get("rule_version", "")
-        rule_version = compute_rule_version(rule.get("_file_path", ""))
+        rule_version = compute_rule_version(rule.get("_file_path", ""), repo_root=REPO_ROOT, default="")
 
         # A verdict is only as current as the rule it was measured on. Staleness
         # is derived HERE, at render time, and deliberately not in
