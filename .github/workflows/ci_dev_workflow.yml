@@ -497,6 +497,28 @@ jobs:
           python scripts/validate/check_test_routing.py \
             --workflow .github/workflows/ci_dev_workflow.yml
 
+      # Register item 4.5 (collision-protection half). validate_sigma.py
+      # checks each rule file in isolation against the schema and has no way
+      # to see a sibling file, so nothing else here catches two rules
+      # sharing a detect_id -- which collide on the same Splunk saved search
+      # (rule_naming.saved_search_name is detect_id + slug(title)).
+      # scripts/new_rule.py picks the next free id from the author's local
+      # checkout, which narrows the window but cannot close it: two branches
+      # started from the same base commit can compute the same "next free"
+      # id independently. This runs on the merged tree instead, and unlike
+      # the MITRE tag check below, it is not advisory -- a duplicate id is
+      # unambiguous, so it fails outright.
+      #
+      # Every rule, not just the changed ones, for the same reason as the
+      # routing and MITRE tag checks: a rule that did not change can still
+      # end up colliding with one that did.
+      - name: Check detect_id uniqueness
+        if: steps.changes.outputs.has_rules == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/validate/check_detect_id_uniqueness.py
+
       # Register item 4.3. The schema does not catch this: the tag pattern in
       # sigma_schema.json sits in an `anyOf` whose third branch is free text, so
       # `attack.t123` validates -- and extract_techniques() in generate_stats.py
