@@ -22,14 +22,14 @@
 # The generated file is schema-valid on its own -- every TODO placeholder
 # satisfies sigma_schema.json's length/pattern constraints -- so
 # validate_sigma.py passes on it unedited. It is not meant to stay unedited:
-# check_mitre_tags.py (item 4.3) will flag the placeholder attack.t0000 tag
-# as an unknown technique, on purpose, as the visible nudge to replace it.
+# check_mitre_tags.py (item 4.3) will flag the placeholder attack.TODO tactic
+# tag and the attack.t0000 technique tag as unknown, on purpose, as the
+# visible nudge to replace both.
 
 from __future__ import annotations
 
 import argparse
 import datetime
-import subprocess
 import sys
 from pathlib import Path
 
@@ -45,6 +45,18 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # wherever the author's shell is sitting.
 DEFAULT_RULES_DIR = REPO_ROOT / "rules" / "sigma"
 
+# Hardcoded rather than read from `git config user.name`: the git identity
+# this repo pushes with (the account name, e.g. martonbnc9) is not the same
+# string every existing rule's `author:` field carries -- git_author() used
+# to read the former and get it wrong. There is one rule author today, so
+# this is a fact about the project, not a guess.
+DEFAULT_AUTHOR = "Bence Marton"
+
+# Every enum-constrained field below (level, mode, severity, runner) gets a
+# real, schema-valid value plus a `# TODO: review` comment rather than the
+# literal string "TODO" -- unlike the free-form tags/logsource/description
+# fields, the schema enums for these have no free-text branch, so a literal
+# "TODO" would make validate_sigma.py reject the file it just scaffolded.
 SKELETON = """\
 title: {title}
 detect_id: {detect_id}
@@ -57,7 +69,8 @@ author: {author}
 date: {today}
 modified: {today}
 tags:
-  - attack.t0000  # TODO: replace with the real ATT&CK technique(s) this rule covers
+  - attack.TODO   # TODO: tactic, e.g. attack.credential_access
+  - attack.t0000  # TODO: technique/sub-technique, e.g. attack.t1003.001
 
 logsource:
   product_category: TODO  # os | cloud | firewall | web | edr | ips | iam | exchange | proxy
@@ -77,19 +90,20 @@ fields:
 falsepositives:
   - "TODO: describe expected benign triggers"
 
-level: medium
+level: medium  # TODO: review -- low | medium | high | critical
 
 custom:
   splunk:
     index: TODO
-    mode: report
+    mode: alert
     cron: "*/5 * * * *"
     earliest: "-5m"
     latest: "now"
-    severity: medium
+    severity: medium  # TODO: review -- low | medium | high | critical
 
   testing:
     enabled: false
+    runner: windows-victim  # TODO: review -- windows-victim | windows-dc | linux-victim
     type: atomic
 """
 
@@ -117,22 +131,6 @@ def next_detect_id(rules_dir: Path, year: int | None = None) -> str:
             except ValueError:
                 continue
     return f"{prefix}{highest + 1:04d}"
-
-
-def git_author() -> str:
-    """`git config user.name`, or a schema-valid TODO if git has none configured."""
-    try:
-        result = subprocess.run(
-            ["git", "config", "user.name"],
-            cwd=REPO_ROOT,
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-    except Exception:
-        return "TODO"
-    name = result.stdout.strip()
-    return name if result.returncode == 0 and len(name) >= 3 else "TODO"
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -167,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
     content = SKELETON.format(
         title=title,
         detect_id=new_id,
-        author=git_author(),
+        author=DEFAULT_AUTHOR,
         today=datetime.date.today().isoformat(),
     )
     out_path.write_text(content, encoding="utf-8")
