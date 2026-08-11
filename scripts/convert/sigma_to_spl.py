@@ -12,6 +12,9 @@ from zoneinfo import ZoneInfo
 import yaml
 from backend_config import BackendConfig, BackendConfigError, load_backend
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from lib.rule_version import compute_rule_version
+
 
 def _normalize_service(rule: dict) -> str:
     ls = rule.get("logsource") or {}
@@ -268,40 +271,6 @@ def enforce_index_prefix(out_path: Path, index_value: str) -> None:
     out_path.write_text(updated + "\n", encoding="utf-8")
 
 
-def _git_commit_count_for_path(rule_path: Path) -> int:
-    """
-    Returns how many commits touched the given file in the current git repo,
-    following renames (git log --follow) so renaming/restructuring a rule
-    file never resets its version count. If git is unavailable (e.g., running
-    outside a repo), returns 0.
-    """
-    try:
-        rel = str(rule_path)
-        res = subprocess.run(
-            ["git", "log", "--follow", "--format=%H", "--", rel],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        lines = [line for line in res.stdout.splitlines() if line.strip()]
-        return len(lines)
-    except Exception:
-        return 0
-
-
-def _compute_rule_version(rule_path: Path) -> str:
-    """
-    Rule versioning scheme:
-      - First commit of the file -> 1.0
-      - Second commit -> 1.1
-      - Third commit -> 1.2
-    Derived from commit count for the file. If unavailable, defaults to 1.0.
-    """
-    cnt = _git_commit_count_for_path(rule_path)
-    minor = max(0, cnt - 1)
-    return f"1.{minor}"
-
-
 def build_meta_dict(rule_path: Path, rule: dict, deploy_mode: str, pipeline: str, is_raw_query: bool) -> dict:
     """
     Build the CI metadata dict for a rule. This is written out as a sidecar
@@ -310,8 +279,10 @@ def build_meta_dict(rule_path: Path, rule: dict, deploy_mode: str, pipeline: str
     something that belongs in the query file itself.
     """
 
-    # Rule version derived from git commit count (1.0, 1.1, 1.2, ...)
-    rule_version = _compute_rule_version(rule_path)
+    # Rule version derived from git commit count (1.0, 1.1, 1.2, ...). Shared
+    # with generate_stats.py via lib.rule_version (register item 3.5) -- see
+    # that module for why the "git failed" default is "1.0" here specifically.
+    rule_version = compute_rule_version(rule_path)
 
     # Convert time in Hungary (Europe/Budapest) with offset (CET/CEST)
     convert_time = datetime.datetime.now(ZoneInfo("Europe/Budapest")).replace(microsecond=0).isoformat()

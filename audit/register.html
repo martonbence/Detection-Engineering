@@ -1330,7 +1330,8 @@
           <code>fetch-depth: 0</code> kommentet); és szemantikailag nem mond semmit.
         </p>
         <p class="row-fix"><span class="fix-label">javítás</span>Explicit <code>version:</code> mező a Sigma YAML-ben, sémában kényszerítve, plusz CI-check, ami elbukik, ha a <code>detection:</code> blokk változott, de a verzió nem. Ez az 1.2-es staleness-ellenőrzés alapja is — és a <code>git log --follow</code> teljesen kikerül a pipeline-ból.</p>
-        <div class="refs"><span class="ref">sigma_to_spl.py:219</span><span class="ref">generate_stats.py:590</span><span class="ref">ci_dev_workflow.yml:578-586</span></div>
+        <p class="row-note"><span class="note-label">2026-08-11</span><b>A duplikáció fele kész, a séma-kérdés nyitva.</b> A két azonos <code>compute_rule_version()</code> implementáció (<code>sigma_to_spl.py</code>, <code>generate_stats.py</code>) egy közös <code>scripts/lib/rule_version.py</code>-ba került — de nem naiv copy-paste-tel: a két oldal eddig is <b>eltért</b> abban, mit ad vissza, ha a git-hívás nem sikerül (a konverter <code>"1.0"</code>-t, a generátor <code>""</code>-t), ez most egy explicit <code>default</code> paraméter lett, mindkét hívó a saját korábbi viselkedését kapja tovább — ugyanaz a lecke, amit a <b>3.6</b> az <code>env_required</code>-nál már dokumentált. Ellenőrizve valós szabályon (<code>DETECT-2026-0003</code> → <code>"1.4"</code>, változatlan) és teljes generátor-futtatással (<code>stats.json</code> diffje nulla sor). <b>A séma maga — hogy a "verzió" git commit-számból, nem tudatos döntésből származik — szándékosan változatlan maradt</b>, ezért nincs pipa: ez a tétel saját szava szerinti nagyobb, önálló döntés (explicit mező + CI-gate).</p>
+        <div class="refs"><span class="ref">scripts/lib/rule_version.py</span><span class="ref">sigma_to_spl.py</span><span class="ref">generate_stats.py</span></div>
       </div>
     </div>
 
