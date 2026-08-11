@@ -1403,10 +1403,11 @@
     </div>
 
     <div class="row sev-enh" data-sev="enh" data-weight="1.5">
-      <input class="row-check" type="checkbox" id="i-4-2" aria-labelledby="t-4-2">
+      <input class="row-check" type="checkbox" id="i-4-2" aria-labelledby="t-4-2" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">4.2</span><span class="row-title" id="t-4-2">SPL szintaxis-validáció deploy előtt</span></div>
-        <p class="row-body">A Splunk REST-nek van parser endpointja (<code>search/parser</code>), ami validál futtatás nélkül. Egy hívás szabályonként a deploy előtt, és hibás query soha nem kerül be saved searchként — ez különösen a <code>raw_query</code> szabályokat védi, ahol ma semmilyen ellenőrzés nincs a query szövegén.</p>
+        <div class="row-head"><span class="id">4.2</span><span class="row-title" id="t-4-2">SPL szintaxis-validáció deploy előtt</span><span class="tag done">kész</span></div>
+        <p class="row-body">A Splunk REST-nek van parser endpointja, ami validál futtatás nélkül. Egy hívás szabályonként a deploy előtt, és hibás query soha nem kerül be saved searchként — ez különösen a <code>raw_query</code> szabályokat védi, ahol ma semmilyen ellenőrzés nincs a query szövegén.</p>
+        <p class="row-note"><span class="note-label">2026-08-11</span><b>Kész.</b> A tétel eredeti szövege a <code>search/parser</code> endpointot nevezte meg — a Context7 MCP-n át lekért friss dokumentáció szerint ez <b>elavult Splunk 9.0.1 óta</b>, a <code>search/v2/parser</code> (POST) az aktuális. Új <code>scripts/deploy/check_spl_syntax.py</code>, bekötve a <code>ci_dev_workflow.yml</code> <code>splunk_deploy</code> jobjába közvetlenül a deploy elé, ugyanazokkal a Splunk-credentialokkal, csak az adott futásban deployolandó fájlokra (élő API-hívás szabályonként, nem helyi ellenőrzés). <code>parse_only=true</code>-val — tisztán szintaxis, subsearch/lookup/eventtype/macro-kiterjesztés nélkül, hogy egy hiányzó lookup ne okozzon hamis pozitívot. Menet közben javított, elkerült regresszió: a <code>paths:</code> szűrő mindkét blokkjában a <code>deploy_spl_to_splunk.py</code> egyetlen fájlként volt megnevezve — pontosan a <code>scripts/lib/**</code>/<code>scripts/convert/**</code> mellett már dokumentált csapda —, most <code>scripts/deploy/**</code>-re szélesítve. A job <code>timeout-minutes</code>-e 60→75, a negyedik Splunk-hívás miatt szabályonként. Prodba szándékosan nem került be — a <b>3.2</b> build-provenance attesztációja már ugyanazokat a byte-okat engedi be, amiket a dev syntax-ellenőrzött. Mockolt Splunk-válaszokkal ellenőrizve (siker, elutasított query, auth-hiba, hálózati hiba) és a teljes <code>main()</code> folyamattal (jó/hibás/hiányzó fájl, üres lista, hiányzó env var).</p>
       </div>
     </div>
 

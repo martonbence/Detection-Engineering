@@ -18,7 +18,12 @@ on:
       # reason -- there a false positive re-attacks all 27 rules on the lab.
       - "scripts/convert/**"
       - "config/**"
-      - "scripts/deploy/deploy_spl_to_splunk.py"
+      # A glob, not the single file it used to name. Register item 4.2 put
+      # check_spl_syntax.py beside deploy_spl_to_splunk.py -- the exact trap
+      # scripts/convert/** and scripts/lib/** above already document: a
+      # hand-named list goes stale the moment a second file appears in the
+      # directory it names one file from.
+      - "scripts/deploy/**"
       # A glob, for the same reason and by the same argument as
       # scripts/convert/** above. This used to name rule_naming.py alone, and
       # register item 3.6 then put scripts/lib/env.py beside it -- a module the
@@ -52,7 +57,12 @@ on:
       # reason -- there a false positive re-attacks all 27 rules on the lab.
       - "scripts/convert/**"
       - "config/**"
-      - "scripts/deploy/deploy_spl_to_splunk.py"
+      # A glob, not the single file it used to name. Register item 4.2 put
+      # check_spl_syntax.py beside deploy_spl_to_splunk.py -- the exact trap
+      # scripts/convert/** and scripts/lib/** above already document: a
+      # hand-named list goes stale the moment a second file appears in the
+      # directory it names one file from.
+      - "scripts/deploy/**"
       # A glob, for the same reason and by the same argument as
       # scripts/convert/** above. This used to name rule_naming.py alone, and
       # register item 3.6 then put scripts/lib/env.py beside it -- a module the
@@ -642,6 +652,7 @@ jobs:
 
           cp scripts/atomic/run_atomic.ps1 pipeline_bundle/scripts/atomic/run_atomic.ps1
           cp scripts/deploy/deploy_spl_to_splunk.py pipeline_bundle/scripts/deploy/deploy_spl_to_splunk.py
+          cp scripts/deploy/check_spl_syntax.py pipeline_bundle/scripts/deploy/check_spl_syntax.py
 
           # Register item 3.6, and the bug it caused. This was a single `cp` of
           # rule_naming.py. That refactor moved the env helpers into
@@ -1002,9 +1013,11 @@ jobs:
       vars.LAB_ONLINE != 'false'
     runs-on: [ self-hosted, linux, de-lab ]
     # deploy_spl_to_splunk.py allows 30s per HTTP call and makes up to three per
-    # rule (create, update-on-conflict, ACL), so 27 rules bound at roughly 40
-    # minutes of legitimate network wait before anything is genuinely stuck.
-    timeout-minutes: 60
+    # rule (create, update-on-conflict, ACL); check_spl_syntax.py (item 4.2)
+    # adds one more call per rule ahead of it. Four calls at 30s, 27 rules,
+    # bounds roughly 54 minutes of legitimate network wait before anything is
+    # genuinely stuck -- 60 would leave next to no margin, so this moved to 75.
+    timeout-minutes: 75
     environment: dev
 
     steps:
@@ -1026,6 +1039,50 @@ jobs:
           echo "Installing Python dependencies: requests"
           python -m pip install --upgrade pip
           python -m pip install requests
+
+      # Register item 4.2. deploy_spl_to_splunk.py's target endpoint
+      # (saved/searches) never parses the query string it is handed -- a
+      # syntax error becomes a live saved search that has never actually
+      # been checked, and only surfaces later when it runs (its cron, or an
+      # attack+verify dispatch), for a rule whose testing is enabled and
+      # gets exercised that run. custom.splunk.raw_query rules are the
+      # sharpest case: they bypass the Sigma-to-SPL converter entirely, so
+      # nothing has looked at their query text before now.
+      #
+      # services/search/v2/parser (not the unversioned services/search/parser
+      # this item was originally written against -- that one is deprecated
+      # as of Splunk Enterprise 9.0.1) parses without dispatching a search
+      # job: no data scanned, nothing created, safe to call before deploy
+      # even exists as a step. Same file scope as the deploy step right
+      # after it -- the rules being deployed this run, not the whole repo --
+      # because unlike the local validators above, this one costs a real
+      # Splunk API call per rule.
+      - name: Validate SPL syntax against Splunk before deploying
+        shell: bash
+        env:
+          SPLUNK_BASE_URL: ${{ secrets.SPLUNK_BASE_URL }}
+          SPLUNK_USERNAME: ${{ secrets.SPLUNK_USERNAME }}
+          SPLUNK_PASSWORD: ${{ secrets.SPLUNK_PASSWORD }}
+          SPLUNK_VERIFY_TLS: ${{ vars.SPLUNK_VERIFY_TLS }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t spl_files <<'EOF'
+          ${{ needs.prepare_validate_convert.outputs.spl_files }}
+          EOF
+
+          bundle_files=()
+          for spl_file in "${spl_files[@]}"; do
+            [[ -z "$spl_file" ]] && continue
+            bundle_files+=("pipeline_bundle/$spl_file")
+          done
+
+          if [[ "${#bundle_files[@]}" -eq 0 ]]; then
+            echo "No SPL files to check."
+            exit 0
+          fi
+
+          python pipeline_bundle/scripts/deploy/check_spl_syntax.py "${bundle_files[@]}"
 
       - name: Deploy selected SPL files to Splunk
         shell: bash
