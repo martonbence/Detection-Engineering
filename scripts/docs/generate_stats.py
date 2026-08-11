@@ -256,11 +256,23 @@ def extract_tactics(tags: list) -> list[str]:
     return tactics
 
 
+# Register item 2.22: this used to be `attack\.(t\d+(?:\.\d+)?)`, looser than
+# the schema's own `^attack\.[Tt]\d{4}(\.\d{3})?$` (docs/schemas/sigma_schema.json)
+# -- so a malformed tag like `attack.t123` that the schema only lets through on
+# its free-form third `anyOf` branch was rendered here as a real technique
+# badge and Navigator cell, exactly the false-coverage failure check_mitre_tags.py
+# (4.3) flags advisory-only. Anchored and digit-counted to match the schema
+# exactly: a tag either looks like a real technique on both sides or on
+# neither. Verified against every tag in rules/sigma/*.yml before this change:
+# zero rules had a technique-shaped tag this would newly reject.
+TECHNIQUE_TAG_RE = re.compile(r"^attack\.(t\d{4}(?:\.\d{3})?)$")
+
+
 def extract_techniques(tags: list) -> list[str]:
     """Returns technique IDs like ['T1053.005', 'T1059'] from sigma tags."""
     techniques = []
     for tag in tags or []:
-        m = re.match(r"attack\.(t\d+(?:\.\d+)?)", str(tag).lower())
+        m = TECHNIQUE_TAG_RE.match(str(tag).lower())
         if m:
             techniques.append(m.group(1).upper())
     return techniques
