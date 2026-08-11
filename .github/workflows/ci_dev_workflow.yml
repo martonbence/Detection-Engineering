@@ -2000,6 +2000,7 @@ jobs:
           # must never block opening the actual PR, so it falls back to 0
           # rather than aborting under set -e.
           stale_count=0
+          stats_json=""
           if stats_json=$(gh api "repos/${{ github.repository }}/contents/outputs/reports/stats.json?ref=dev" -H "Accept: application/vnd.github.raw" 2>/dev/null); then
             stale_count=$(jq -r '((.verified_expired // 0) + (.verified_superseded // 0))' <<<"$stats_json" 2>/dev/null || echo 0)
           fi
@@ -2011,6 +2012,44 @@ jobs:
           if [[ "$stale_count" -gt 0 ]]; then
             stale_note="> [!WARNING]"$'\n'"> 🟡 ${stale_count} rule(s) already deployed to prod have an expired or superseded verification verdict -- no evidence they still work, through no fault of this run. See the Evidence card on the Console for which ones. This does not block promotion; schedule a manual re-run for them when convenient."
             echo "::warning::${stale_count} rule(s) in prod have an expired or superseded verdict -- see the Console's Evidence card"
+          fi
+
+          # Register item 4.9: the body used to be one fixed sentence, telling a
+          # reviewer nothing about WHAT this PR actually promotes. This looks at
+          # the dev->main diff (not the whole rule set -- that would only get
+          # noisier as the rule count grows) for rule files touched, and lists
+          # each one's current verdict/level from the stats_json already fetched
+          # above. Best-effort like stale_count above: a failure here must never
+          # block opening the PR, so a missing/malformed compare response just
+          # yields an empty table rather than aborting under set -e. A rule
+          # removed in this diff will silently drop out of the table (it is no
+          # longer in stats.json's rules list) rather than being flagged as a
+          # removal -- an acceptable gap for how this repo uses promotion PRs
+          # today (adding/changing rules), not a claim that deletions never
+          # happen.
+          rule_table=""
+          if [[ -n "$stats_json" ]]; then
+            changed_ids=$(gh api "repos/${{ github.repository }}/compare/main...dev" --jq '.files[].filename' 2>/dev/null \
+              | grep -oE 'DETECT-[0-9]{4}-[0-9]{4}' | sort -u || true)
+            rows=""
+            while IFS= read -r did; do
+              [[ -z "$did" ]] && continue
+              row=$(jq -r --arg did "$did" '
+                (.rules[]? | select(.detect_id == $did)) as $r
+                | if $r then
+                    "| `" + $r.detect_id + "` | " + ($r.title // "") + " | " + ($r.level // "") + " | " +
+                    (if $r.verdict == "PASS" then "🟢 PASS"
+                     elif $r.verdict == "FAIL" then "🔴 FAIL"
+                     elif $r.verdict == "NOT_VERIFIED" then "🟡 NOT VERIFIED"
+                     else "⚪ " + ($r.verdict // "never tested")
+                     end) + " |"
+                  else empty end
+              ' <<<"$stats_json" 2>/dev/null || true)
+              [[ -n "$row" ]] && rows="${rows}${row}"$'\n'
+            done <<<"$changed_ids"
+            if [[ -n "$rows" ]]; then
+              rule_table="### Rules in this promotion"$'\n\n'"| Detect ID | Title | Level | Verdict |"$'\n'"|---|---|---|---|"$'\n'"${rows%$'\n'}"
+            fi
           fi
 
           if [[ -n "$existing_url" ]]; then
@@ -2025,6 +2064,10 @@ jobs:
                 echo ""
                 echo "$stale_note"
               fi
+              if [[ -n "$rule_table" ]]; then
+                echo ""
+                echo "$rule_table"
+              fi
             } >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
@@ -2032,6 +2075,9 @@ jobs:
           body="Automatically opened because the dev pipeline run ${{ github.run_id }} reported PASS. This promotes the already-verified, already-compiled SPL to the prod Splunk App. Review and merge manually to deploy to production -- this PR does not auto-merge. If you edit any \`.spl\` content in this review, re-run the dev workflow before merging (push to \`dev\` again, or a manual \`workflow_dispatch\`): prod verifies the build-provenance signature recorded for the exact bytes that run produced, so a hand-edited file with no matching signature will stop the deploy."
           if [[ -n "$stale_note" ]]; then
             body="${body}"$'\n\n'"${stale_note}"
+          fi
+          if [[ -n "$rule_table" ]]; then
+            body="${body}"$'\n\n'"${rule_table}"
           fi
 
           pr_url=$(gh pr create --repo "${{ github.repository }}" \
@@ -2048,6 +2094,10 @@ jobs:
             if [[ -n "$stale_note" ]]; then
               echo ""
               echo "$stale_note"
+            fi
+            if [[ -n "$rule_table" ]]; then
+              echo ""
+              echo "$rule_table"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
