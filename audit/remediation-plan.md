@@ -21,8 +21,9 @@ Nincs menetrend — a tempó ad-hoc, tételenként.
 
 ## Pontszám
 
-Jelenlegi: **6,5 / 10** (kiindulás). Mai állás: **8,69 → 8,7 / 10**, kész súly **81,0 / 92,5**
-(47 tétel az 54-ből) — 2026-08-11-én négy tétel zárult: **4.5** (scaffolder + ütközésvédelem, a
+Jelenlegi: **6,5 / 10** (kiindulás). Mai állás: **8,73 → 8,7 / 10**, kész súly **82,5 / 92,5**
+(48 tétel az 54-ből) — 2026-08-11-én öt tétel zárult: **4.2** (SPL szintaxis-validáció deploy
+előtt, `search/v2/parser`), **4.5** (scaffolder + ütközésvédelem, a
 Makefile és az atomic-lookup a felhasználó döntése alapján nem kell a repóba), **3.8**
 (alkönyvtár-bontás elutasítva, az ID-kiosztás fele a 4.5 alatt megoldva), **2.22** (generátor-regex
 a séma technika-mintájához igazítva) és **4.9** (érdemi promotion PR body, per-szabály tábla).
@@ -158,7 +159,7 @@ ellenőrzés váltotta. A mai nyitott halmaz ezzel 13 tételre csökkent: **2.22
 ## 4 · Profibb hatás, egyszerűbb folyamat (11) — hatás/ráfordítás szerint
 
 - [ ] **4.1** False-positive / noise budget mérése (csendes 24h ablak → `events/day`, noise score, trend, `noise_budget` mint CI-gate) — a legnagyobb szakmai különbség demo és éles program között
-- [ ] **4.2** SPL szintaxis-validáció deploy előtt a Splunk `search/parser` endpointon
+- [x] **4.2** SPL szintaxis-validáció deploy előtt a Splunk `search/v2/parser` endpointon · **kész 2026-08-11.** Új `scripts/deploy/check_spl_syntax.py`, bekötve a `ci_dev_workflow.yml` `splunk_deploy` jobjába, közvetlenül a deploy lépés elé (ugyanazok a Splunk-credentialok, ugyanaz a fájllista — csak az adott futásban ténylegesen deployolandó szabályok, nem az egész repo, mert ez élő Splunk-hívást jelent, nem helyi ellenőrzést). A tétel eredeti szövege a `search/parser` endpointot nevezte meg, ami a Splunk 9.0.1 óta **elavult** — a Context7-en át lekért aktuális dokumentáció szerint a `search/v2/parser`-t kell hívni helyette; ez derült ki, mielőtt bármit írtam volna, nem utólag. `parse_only=true`-val hívva (csak szintaxis, subsearch/lookup/eventtype/macro-kiterjesztés nélkül — azok környezettől függenek, egy hiányzó lookup miatti bukás hamis pozitív lenne egy tisztán szintaxis-kérdésre). Prodba szándékosan nem került be: a promotion PR csak azután nyílik, hogy a dev már sikeresen deployolt (tehát már átment ezen az ellenőrzésen), a prod pedig a **3.2** build-provenance attesztációjával pontosan ugyanazokat a byte-okat engedi be — egy prod-oldali duplikált ellenőrzés szembe menne a 3.2 "ne validáljunk kétszer" elvével. Lásd a Napló-bejegyzést
 - [x] **4.3** MITRE tag-validáció a már cache-elt technique map ellen (nem létező/revoked technika, tactic-mismatch) · **kész 2026-08-06:** új `scripts/validate/check_mitre_tags.py`, bekötve a dev workflow validate jobjába a `check_test_routing.py` mellé. **Miért kellett egyáltalán:** a `docs/schemas/sigma_schema.json` tag-validációja **dekoratív** — a minta egy `anyOf` harmadik ágában ül, ami szabad szöveg, tehát az `attack.t123` átmegy —, a `generate_stats.py` `extract_techniques()` regexe pedig még **lazább a sémáénál** (`attack\.t\d+`), vagyis egy elgépelt technika ma badge-et és Navigator-cellát kap, mintha lefedett lenne. Ez önálló tételként a **2.22**. **Amit kiszűr:** `unknown_technique`, `revoked_technique`, `unknown_subtechnique`, `malformed_technique_tag`, `unknown_tactic`, `tactic_mismatch`; figyelmeztetésként `undeclared_tactic` és `redundant_parent`. Két kaszkád-elnyomással, mert **egy hiba egy találat**: feloldhatatlan technika mellett a taktika-egyeztetés hallgat (a lefedett halmaz hiányos), taktika-hiba mellett pedig a gyengébb állítás (`undeclared_tactic`) nem szólal meg — az első körben tényleg megtörtént, hogy egy elgépelés két találatot adott. **A visszavont/elgépelt szétválasztás őszinte a saját korlátaival:** a `generate_stats.py:328` a cache építésekor **eldobja** a `revoked`/`deprecated` objektumokat, tehát egy visszavont technika ugyanúgy *hiányzik*, mint egy elgépelés. Al-technikánál a sűrű számozás még elválasztja őket (a szülő kiosztott sávján belül = kiosztott és visszavont, fölötte = kitalált), **fő technikánál viszont a script nem állít semmit** — ott a 222 élő ID ritkasága mellett a tipp lenne találatnak öltöztetve. **Nulla hálózati hívás:** a committolt `outputs/reports/mitre_technique_map.json`-t olvassa (222 technika + 475 al-technika, 15 taktika), és egy teszt **a forráson** őrzi, hogy ne kerüljön bele `urllib`/`requests`/`socket` — a nap, amikor valaki fallback fetch-et tesz bele, az a nap, amikor a check rossz okból kezd zöldülni. Hiányzó vagy romlott cache esetén `exit 2`: **elutasítja a jelentést** ahelyett, hogy mind a 27 szabályt hibásnak mondaná. **Az `attack.stealth` nem kivételként érvényes:** a taktika-szótár **magából a cache-ből** épül (30 technika mondja magát Stealth-nek), nem egy beégetett upstream listából — az a szabályok harmadát hibásnak jelentené az első futáson; e fölé került egy explicit kivétel is, hogy egy csonka cache se tudja találattá tenni. **A CI-ban tanácsadó, `--strict` nélkül:** egy rossz tag rossz helyre teszi a detekciót a mátrixon, de nem rontja el, és a szabály deployolandó, miközben a tagjéről vitatkozunk; piros annotáció egy 0-val kilépő lépésen leszoktatna az annotációk olvasásáról. **Minden szabályt néz, nem csak a változottakat**, a routing-checkkel azonos okból: amit egy taget érvénytelenít, az rendszerint upstream történik, nem ebben a pushban. **A 27 valós szabály mind tiszta**, 0 hiba, 0 figyelmeztetés — és mivel a „megvan a script" nem eredmény, negatív kontrollal igazolva: kitalált `T9999`, elgépelt `T1003.099`, `Impact` mismatch és `attack.t123` mind pontosan egy találatot ad a saját osztályában, `--strict`-tel exit 1, az érintetlen szabály exit 0. 38 új teszt. **Nem való a 2.19-es újraépítés-listára**, mert egyetlen `.spl`-t sem befolyásol
 - [ ] **4.4** Splunk ES / RBA a deploy payloadban: `alert.suppress` throttling, drilldown, severity → risk score · `deploy_spl_to_splunk.py:115-129`
 - [x] **4.5** `new_rule.py` scaffolder + ütközésvédelem · **kész 2026-08-11.** A tétel eredeti szövege még egy `Makefile`-t (`make validate`/`convert`/`stats`/`check`) és egy ATT&CK-technikához tartozó atomic-teszt-szám kikeresést is felsorolt — a felhasználó ezt a két darabot kifejezetten nem kéri a repóba, tehát a tétel a ténylegesen kért hatókörrel (scaffolder + ütközésvédelem) zárva. Új `scripts/new_rule.py`: a következő szabad `DETECT-<év>-NNNN`-t a `lib.rules.discover()`/`load_rule()`/`detect_id()`-re építve számolja (soha nem tölt ki lyukat — egy visszavont ID újrahasznosítása régi verdikt-history-t/coverage-pontokat keverne össze), a szerzőt `git config user.name`-ből olvassa, és egy séma-konform TODO-skeletont ír ki. Új `scripts/validate/check_detect_id_uniqueness.py`, bekötve a `ci_dev_workflow.yml`-be (`check_test_routing.py` és `check_mitre_tags.py` közé) — ez a tényleges védőháló, mert a scaffolder csak a helyi checkoutot látja, két párhuzamos branch ugyanarról a base commitról ugyanazt a "következő szabad" ID-t számolhatja ki. Lásd a Napló-bejegyzést
@@ -1183,3 +1184,59 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   fessen, mintha még várna valamire.
   Kész súly: 81,0/92,5 (45→47 tétel, +2 a 3.8-ért [architektúra], +1,5 a 4.5-ért [feature]),
   pontszám **8,69 → 8,7/10.**
+
+- **2026-08-11 — 4.2 lezárva: SPL szintaxis-validáció deploy előtt, a `search/v2/parser`
+  endpointtal.** A felhasználó a maradék tételek közül a 4.2-t választotta — előbb megkérdezte,
+  mit adna hozzá a repóhoz, mielőtt belevágtunk volna. Kiderült: a `deploy_spl_to_splunk.py` a
+  query szöveget minden szintaxis-ellenőrzés nélkül POST-olja a `saved/searches` endpointra —
+  Splunk ott nem parse-ol mentéskor —, tehát egy hibás SPL élő saved search-ként jön létre, és
+  csak akkor derül ki, amikor ténylegesen lefut (cron vagy attack+verify dispatch), és csak akkor,
+  ha a szabály `testing.enabled` és ki lett választva egy adott futásra. A mai 27 szabályból
+  mindegyiknek `enabled: true`, de egy — `DETECT-2026-0003_Test3`, `custom.splunk.raw_query`-vel —
+  teljesen megkerüli a Sigma→SPL konvertert, tehát a query szövegét ma tényleg semmi nem nézi meg
+  előre.
+  **Első lépés, mielőtt bármit írtam volna: a Context7 MCP-n át friss Splunk-dokumentációt kértem
+  a `search/parser` endpointról** (a felhasználói globális szabály erre kifejezetten előírja a
+  Context7 használatát API-kérdéseknél, ahelyett hogy a tréning-adatra hagyatkoznék). Kiderült:
+  a tétel saját szövege által megnevezett, verzió nélküli `search/parser` **elavult Splunk
+  9.0.1 óta** — a jelenlegi REST API-referencia a `search/v2/parser`-t (POST, nem GET) ajánlja
+  helyette. Ez egy konkrét, a session elején fel nem merült pontatlanság volt magában az
+  audit-tételben, amit a friss dokumentáció-lekérés fogott meg, nem a saját tudásom.
+  **Új `scripts/deploy/check_spl_syntax.py`**, a `scripts/deploy/deploy_spl_to_splunk.py`
+  kapcsolódási mintáját követve (`lib.env`, `lib.summary`, `requests.Session`, form-encoded POST).
+  `parse_only=true`-val hívva — ez kikapcsolja a subsearch/lookup/eventtype/macro-kiterjesztést,
+  tehát a check *tisztán szintaxist* ellenőriz, nem szemantikát: egy hiányzó lookup-tábla miatti
+  bukás hamis pozitív lenne egy olyan kérdésre, amit ez a check nem tesz fel. 401/403 auth-hiba
+  `die()`-val azonnal megszakítja a futást (2-es kilépőkóddal, nem "ez a szabály bukott"-ként
+  számolva) — ugyanaz a credential fog percek múlva a tényleges deployhoz is kelleni, tehát egy
+  hitelesítési hiba minden hátralévő szabálynál ugyanúgy elbukna, nincs értelme végigmenni rajtuk.
+  **Bekötve a `ci_dev_workflow.yml` `splunk_deploy` jobjába**, közvetlenül a deploy lépés elé,
+  ugyanazzal a fájllistával (az adott futásban ténylegesen deployolandó szabályok, nem az egész
+  repo — ez élő Splunk-hívást jelent szabályonként, nem helyi, ingyenes ellenőrzést, mint a
+  `check_mitre_tags.py`/`check_detect_id_uniqueness.py`). A job `timeout-minutes`-ét 60-ról
+  75-re emeltem, mert a meglévő kommentben dokumentált 40 perces legitim-várakozás becslés a
+  deploy 3 hívása mellett most egy negyediket kap szabályonként (27 × 30s ≈ 13,5 perc), és a
+  60 perc túl kevés margót hagyott volna.
+  **Két hiba, amit a saját korábbi session-eim tanulsága mentett meg attól, hogy csendben
+  visszatérjenek:** (1) a `paths:` szűrő mindkét blokkjában (`push`, `pull_request`) a
+  `scripts/deploy/deploy_spl_to_splunk.py` **egyetlen fájlként** volt megnevezve, nem glob-bal —
+  pontosan az a csapda, amit a `scripts/lib/**` és `scripts/convert/**` melletti kommentek már
+  kétszer dokumentáltak ebben a fájlban ("egy kézzel írt lista elavul, amint egy második fájl
+  megjelenik"). Az új `check_spl_syntax.py` enélkül nem indított volna futást, ha önmagában
+  módosulna. Widen-elve `scripts/deploy/**`-re, ugyanazzal az indoklással, mint a testvér-globok.
+  (2) A `rebuild_all_files` explicit lista (item 2.19) **szándékosan** nem kapta meg — ugyanúgy,
+  ahogy maga a `deploy_spl_to_splunk.py` sincs rajta: egyik sem változtatja meg, mivé konvertálódik
+  vagy minek hívják a szabályt, tehát egy teljes labor-újratámadást nem indokolnak.
+  **Prodba szándékosan nem került be.** A promotion PR csak azután nyílik, hogy a dev már
+  sikeresen deployolt — tehát a promotálható `.spl` már átment ezen az ellenőrzésen —, a prod
+  pedig a **3.2** build-provenance attesztációjával pontosan ugyanazokat a byte-okat engedi be
+  újraellenőrzés nélkül. Egy prod-oldali duplikált syntax-check szembe menne a 3.2 saját "ne
+  validáljunk kétszer, bízzunk az attesztációban" elvével.
+  **Ellenőrizve, nem feltételezve — mockolt Splunk-válaszokkal, mert nincs éles Splunk ehhez a
+  helyi környezethez:** sikeres parse (200), elutasított query `messages` tömbbel (a hibaszöveg
+  helyesen kinyerve), elutasított query nem-JSON törzzsel (nyers szöveg fallback), 401/403 →
+  `die()` 2-es kóddal, hálózati hiba → `RequestException` felfelé propagálva. Végponttól-végpontig
+  `main()`-en keresztül: csak jó fájl → exit 0; jó+hibás fájl → exit 1, a hibás helyesen jelezve;
+  hiányzó fájl → exit 1 (szabály-szintű hiba, nem setup); üres fájllista → exit 0; hiányzó env var
+  → exit 2. `pytest` itt sem elérhető, a CI-suite futtatása a push-ra marad.
+  Kész súly: 82,5/92,5, pontszám **8,73 → 8,7/10.**
