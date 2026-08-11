@@ -1463,11 +1463,12 @@
     </div>
 
     <div class="row sev-enh" data-sev="enh" data-weight="1.5">
-      <input class="row-check" type="checkbox" id="i-4-9" aria-labelledby="t-4-9">
+      <input class="row-check" type="checkbox" id="i-4-9" aria-labelledby="t-4-9" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">4.9</span><span class="row-title" id="t-4-9">A promotion PR body-ja legyen érdemi</span></div>
+        <div class="row-head"><span class="id">4.9</span><span class="row-title" id="t-4-9">A promotion PR body-ja legyen érdemi</span><span class="tag done">kész</span></div>
         <p class="row-body">Ma fix szöveg. Egy per-szabály táblázat (mi promotálódik, milyen verdikttel, milyen verzióról milyenre, mely technikát fedi) a review-t valódi review-vá teszi — a threat model maga is felhozza, hogy a human review <em>az</em> egyetlen trust boundary a prod előtt.</p>
         <div class="refs"><span class="ref">ci_dev_workflow.yml:814</span></div>
+        <p class="row-note"><span class="note-label">2026-08-11</span><b>Kész.</b> Az <code>open_promotion_pr</code> job az egyszerű <code>gh api compare/main...dev</code> hívással megnézi, mely szabály-fájlok változtak ebben a promócióban, a <code>detect_id</code>-ket kiszedi a fájlnevekből, és a már úgyis lekért <code>stats.json</code>-ból (lásd <b>4.11</b>) kikeresi mindegyik aktuális cím/szint/verdiktjét — így egy tábla kerül a PR body-ba <em>és</em> a step summary-ba, csak a ténylegesen promotált szabályokra, nem a teljes 27-es (majdan 150-400-as) állományra. Szándékosan nem verzió-diffet mutat (dev/prod régi-vs-új verziószám) — az a <b>3.5</b>/<b>3.6</b> alatt még git-commit-számból számolt, konszolidálásra váró logika, ezt a tételt nem akartam arra ráépíteni. Best-effort, a <code>stale_count</code>-tal azonos mintán: a <code>compare</code> hívás vagy a <code>stats.json</code> hiánya csendben üres táblát ad, nem buktatja a PR nyitást. Egy törölt szabály a diffben szó nélkül kimarad a táblából (nincs a <code>stats.json</code>-ban se) — ismert, el nem hallgatott rés, mert a repo promotion PR-jai ma bővítésről/módosításról szólnak, nem törlésről. Helyi bash-teszttel ellenőrizve mockolt <code>stats.json</code>-nal: sigma+spl páros egy szabályra egy sorra dedupelve, nem-szabály fájl (pl. <code>docs/index.html</code>) kimarad, nem létező <code>detect_id</code> csendben kimarad, üres diff/üres <code>stats_json</code> mindkét esetben üres táblát ad hibakód nélkül.</p>
       </div>
     </div>
 

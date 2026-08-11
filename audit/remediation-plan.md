@@ -21,13 +21,14 @@ Nincs menetrend — a tempó ad-hoc, tételenként.
 
 ## Pontszám
 
-Jelenlegi: **6,5 / 10** (kiindulás). Mai állás: **8,5 / 10**, kész súly **75,0 / 92,5**
-(43 tétel az 54-ből) — 2026-08-10-én a **4.11** (elévülés-riportálás, nem kapu) zárult le. A
-számláló ismét el volt csúszva: a `register.html` DOM-ja csak 40/70,0-t mutatott, mert a **3.9** és
-a **4.7** `[x]`-e a `remediation-plan.md`-ben (az egyetlen igazság-forrás) sosem került át a
-publikált oldal checkbox-jaira — ez most, a 4.11 `checked`-jével együtt javítva, a két fájl
-egyezik. 2026-08-09-én a **3.2** (artifact-promóció, digest-alapú build-provenance) zárult le,
-élesben bizonyítva. Minden tétel elvégzése után: **9,0 / 10**.
+Jelenlegi: **6,5 / 10** (kiindulás). Mai állás: **8,55 → 8,6 / 10**, kész súly **76,0 / 92,5**
+(44 tétel az 54-ből) — 2026-08-11-én a **4.9** (érdemi promotion PR body, per-szabály tábla)
+zárult le. 2026-08-10-én a **4.11** (elévülés-riportálás, nem kapu) zárult le. A számláló akkor
+el volt csúszva: a `register.html` DOM-ja csak 40/70,0-t mutatott, mert a **3.9** és a **4.7**
+`[x]`-e a `remediation-plan.md`-ben (az egyetlen igazság-forrás) sosem került át a publikált oldal
+checkbox-jaira — ez a 4.11 `checked`-jével együtt javítva, a két fájl azóta egyezik. 2026-08-09-én
+a **3.2** (artifact-promóció, digest-alapú build-provenance) zárult le, élesben bizonyítva. Minden
+tétel elvégzése után: **9,0 / 10**.
 A register meterének súlyozása: kritikus ×3, architektúra ×2, feature ×1,5, kisebb ×1.
 A teljes súly ma **92,5** = 12×3 + 22×1 + 9×2 + 11×1,5; a korábban itt szereplő **88** a 2.22
 felvétele előtti állapot volt, és a szöveg nem követte.
@@ -160,7 +161,7 @@ ellenőrzés váltotta. A mai nyitott halmaz ezzel 13 tételre csökkent: **2.22
 - [ ] **4.6** Per-rule verdict history (append-only `history.jsonl`) a „flaky / mikor romlott el" kérdésekhez
 - [x] **4.7** Deployment inventory a dashboardon (dev/prod hol él, milyen verzióval) — a 3.3 kimenetéből · **kész 2026-08-08:** az adat mindig megvolt, csak eldobtuk — a deploy riportja (2.4) és a reconcile kimenete (3.3) is `.gitignore`-olt könyvtárba írt és artifactként utazott, a dashboard viszont repo-fájlokból generálódik. **1. fázis:** új `scripts/state/deployment_inventory.py`, desztillált leltár (változatlan futáson bájtra azonos, tehát nem keletkezik commit), környezetenként **merge-el**, nem felülír; a dev deploy végre kap `--report`-ot, és a leltár a commit-lépésben, a `git reset --hard` **után** épül fel, mert a bemenetei `.gitignore`-oltak. **2. fázis:** új `ci_prod_audit.yml` — naponta 05:40 és kézre, reconcile a prod appra **csak olvasva** (se `--apply`, se `--apply-removals`: ütemezetten futó dolog nem szüntethet meg éles detekciót), sodródásra `::warning`, nem bukó futás. A workflow **két jobra vált**, és ez jogosultsági határ: a `dev` ág védett és az `enforce_admins` ki van kapcsolva, tehát a `GITHUB_TOKEN` nem tud rá írni, a PAT viszont a `dev` environmenthez kötött, amit egy `environment: prod` job nem lát — így a prod-oldali job olvas és sehova nem ír, a dev-oldali írja a repót és a Splunkhoz nem nyúl. **Dashboard:** szerver-oldalon renderelt panel (a `page.js`-hez nem nyúl), ami leltár nélkül meg sem jelenik, és külön sorban mondja meg, mit küldtünk és mi van ott. **Élesben igazolva, két futásban** — és az első kihozta, hogy a tétel fele nem működik: a prod „melyik commitból települt" adata csendben elveszett, mert a `last_deploy` csak deploy-riportból épült, a prodnál viszont az Actions API a forrás. Javítva; a második futás után a leltárban ott a prod commitja, időpontja és a CI-futás linkje, a prod pedig 27/27 in sync
 - [ ] **4.8** A `rule_documentations/` generálása a `stats.json`-ból (runbook-oldal szabályonként)
-- [ ] **4.9** A promotion PR body-ja legyen érdemi: per-szabály breakdown · `ci_dev_workflow.yml:814`
+- [x] **4.9** A promotion PR body-ja legyen érdemi: per-szabály breakdown · `ci_dev_workflow.yml:814` · **kész 2026-08-11:** az `open_promotion_pr` job `gh api compare/main...dev`-vel megnézi, mely szabály-fájlok változtak, a `detect_id`-ket a fájlnevekből szedi ki, és a már úgyis lekért `stats.json`-ból (4.11) kikeresi mindegyik cím/szint/verdiktjét — tábla a PR body-ban és a step summary-ban, csak a ténylegesen promotált szabályokra. Best-effort a `stale_count`-tal azonos mintán, helyi bash-teszttel ellenőrizve élesítés előtt (dedup, nem-szabály fájl kiszűrése, hiányzó `detect_id`, üres diff, üres `stats_json` — mind hibakód nélkül üres táblát ad)
 - [x] **4.10** Saját CI a pipeline-ra: ruff, pytest, actionlint, PSScriptAnalyzer, shellcheck, pip-audit · **kész 2026-08-04, mind a hat eszközzel.** 2026-08-03: `ci_code_checks.yml` ruff + pytest-tel (pinelve a `.github/requirements-dev.txt`-ben), az 1.6-ot lezárva; majd PSScriptAnalyzer külön `powershell_analysis` jobban (parse check + analyzer, pin 1.25.0). 2026-08-04: új `workflow_analysis` job **actionlint 1.7.12**-vel, checksum-ellenőrzött letöltéssel — és vele a **shellcheck** is, mert az actionlint maga futtatja minden `run:` blokkon (külön shellcheck-step nem tudná kinyerni a scripteket a YAML-ből); plusz `dependency_audit` job **pip-audit 2.10.1**-gyel, **`continue-on-error`-ral**, mert egy éjjel publikált CVE különben minden független PR-t pirosra váltana. A hatból négy eszköz **kapu**, a pip-audit riport
 - [x] **4.11** Az elévülés riportálási korrekció, nem kapu — a `splunk_verify` exit kódja és a promotion PR gate csak az adott futás szabályait látja, azok verdiktje pedig definíció szerint friss, így egy lejárt vagy felülírt verdiktű szabály **soha nem blokkolja a promóciót**, és mérés nélkül ülhet prodban akármeddig · **kész 2026-08-10:** riportálás, nem tömeges újramérés és nem gate — mindkettőt felvetettem, a felhasználó mindkettőt elutasította, mert 500+ szabálynál nem skálázna, és pont ezért létezik a dashboard Evidence-jelölése: a szelektív, kézi újrafuttatás legyen a mechanizmus, ne egy automatikus tömeges. A tényleges hiány nem a mérés hiánya volt — a `stats.json` `verified_expired`+`verified_superseded` számlálója már megvolt, csak a dashboardon élt, senki nem látta promóció pillanatában. Az `open_promotion_pr` job (`ci_dev_workflow.yml`) mostantól a Contents API-n (nem checkout-tal, hogy a job „egy maréknyi `gh` CLI hívás" jellege megmaradjon) kiolvassa a `splunk_verify` által ugyanabban a futásban frissen legenerált `stats.json`-t a `dev` HEAD-ről, összeadja a két számlálót, és ha `>0`, egy GFM `[!WARNING]` blockquote-ot told a PR body végére és a step summary-ba (a `scripts/lib/summary.py` `MARK_WARN`/`ALERT_WARN` konvencióját követve kézzel, mert bash nem importálja), plusz egy `::warning::` annotációt az Actions futás oldalára. Sem blokkol, sem újratesztel semmit. Best-effort: a Contents API hívás hibája (jogosultság, hálózat) csendben 0-ra esik vissza `set -e` alatt is, nem buktatja a PR nyitást — mockolt `gh`/`jq`-val három ágat (van elévült / nincs / API-hiba) ellenőrizve helyi bash-teszttel, a PR body/step-summary formázását (blockquote, sorvégek) is beleértve, mielőtt élesben futna
 
@@ -1014,3 +1015,30 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   73,5/92,5 helyett. A register.html az egyetlen igazság-forrás (`remediation-plan.md`) szerint most
   szinkronban van, mindkét fájlból ugyanaz a szám jön ki: **43/54 tétel, kész súly 75,0/92,5,
   pontszám 8,53 → 8,5/10.**
+
+- **2026-08-11 — 4.9 lezárva: a promotion PR body-ja most a tényleges diffet mutatja, nem egy
+  fix mondatot.** A felhasználó a három "kisebb" súlyú nyitott tételt (2.22, 3.5, 4.9) kérte
+  körbenézni, és a legalacsonyabb kockázatút választotta elsőnek. Az `open_promotion_pr` job
+  (`ci_dev_workflow.yml`) eddig egy statikus sablon-mondatot írt a PR body-ba plusz a 4.11
+  elévülés-figyelmeztetést; semmi nem mondta meg a reviewernek, *mely* szabályok promotálódnak és
+  milyen verdikttel. A job szándékosan checkout nélküli marad (lásd a 4.11 bejegyzését ugyanerről
+  az elvről) — a fix ezért egy további `gh api repos/.../compare/main...dev` hívással kéri le a
+  változott fájlneveket, a `detect_id`-ket reguláris kifejezéssel szedi ki belőlük, és a
+  `stale_count`-hoz már úgyis lekért `stats_json`-ból (Contents API, `dev` HEAD) `jq`-val
+  kikeresi mindegyik cím/szint/verdiktjét. A tábla a PR body-ba *és* a step summary-ba is
+  bekerül, a már meglévő "már nyitva van" ághoz is. **Tudatos hatókör-döntés:** a tábla csak a
+  ténylegesen változott szabályokat listázza, nem mind a 27-et (majdan 150-400-at) — ellentétben
+  a séma-szintű `by_level`/`by_status` aggregátumokkal, amik már léteznek a `stats.json`-ban, de
+  semmit nem mondanak arról, *mi* van ebben a konkrét PR-ben. Verzió-diffet (dev-vs-prod
+  régi/új szám) szándékosan nem mutat — az a **3.5**/**3.6** alatt még git-commit-számból
+  számolt, konszolidálásra váró logika, erre a tételre nem akartam ráépíteni egy még
+  duplikált forrást. Best-effort, a `stale_count` mintáját követve: a `compare` hívás vagy a
+  `stats.json` hiánya csendben üres táblát ad `set -e` alatt is, sosem buktatja a PR nyitást; egy
+  törölt szabály a diffben szó nélkül kimarad (nincs többé a `stats.json`-ban sem) — ismert,
+  vállalt rés, mert a repo promotion PR-jai ma bővítésről/módosításról szólnak. Helyi
+  bash-teszttel ellenőrizve mockolt `stats.json`-nal és `compare` diffel élesítés előtt: sigma+spl
+  páros egy szabályra egy sorra dedupelve, nem-szabály fájl (pl. `docs/index.html`) kimarad, nem
+  létező `detect_id` csendben kimarad, üres diff és üres `stats_json` egyaránt üres táblát ad
+  hibakód nélkül. `register.html` ezzel egyszerre frissítve (checked + kész-jelölés), nem
+  utólagos drift-javításként.
+  Kész súly: 76,0/92,5, pontszám **8,55 → 8,6/10.**
