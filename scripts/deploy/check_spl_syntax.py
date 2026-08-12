@@ -47,6 +47,7 @@ import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lib.env import announce_tls_mode, env_bool, env_reader
+from lib.splunk_client import build_session
 from lib.summary import MARK_FAIL, MARK_PASS, escape_cell
 
 
@@ -144,10 +145,7 @@ def main(argv: list[str] | None = None) -> int:
     verify_tls = env_bool("SPLUNK_VERIFY_TLS", default=True)
     announce_tls_mode(verify_tls)
 
-    session = requests.Session()
-    session.verify = verify_tls
-    session.auth = (username, password)
-    session.headers.update({"Accept": "application/json"})
+    session = build_session(username, password, verify_tls)
 
     results: list[dict] = []
     failed = 0

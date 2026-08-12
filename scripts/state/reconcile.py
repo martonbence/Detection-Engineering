@@ -58,6 +58,7 @@ from lib.rule_naming import saved_search_name
 from lib.rules import RuleLoadError, discover, is_deprecated, load_rule
 from lib.rules import detect_id as rule_detect_id
 from lib.rules import title as rule_title
+from lib.splunk_client import build_session
 from lib.splunk_ns import ALL_OWNERS, saved_search_url, saved_searches_url
 
 # The deploy script stamps this into every description it writes
@@ -590,10 +591,7 @@ def main(argv: list[str] | None = None) -> int:
         verify_tls = env_bool("SPLUNK_VERIFY_TLS", default=True)
         announce_tls_mode(verify_tls)
 
-        session = requests.Session()
-        session.verify = verify_tls
-        session.auth = (username, password)
-        session.headers.update({"Accept": "application/json"})
+        session = build_session(username, password, verify_tls)
 
         desired = load_desired(Path(args.rules_dir))
         actual = fetch_actual(session, base_url, app)

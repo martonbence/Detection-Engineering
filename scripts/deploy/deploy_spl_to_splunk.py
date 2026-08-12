@@ -9,7 +9,9 @@ import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lib.env import announce_tls_mode, env_bool, env_reader
+from lib.meta_sidecar import meta_sidecar_path, read_meta_sidecar
 from lib.rule_naming import saved_search_name
+from lib.splunk_client import build_session
 from lib.splunk_ns import saved_search_url, saved_searches_url
 from lib.summary import MARK_FAIL, MARK_INFO, MARK_PASS, escape_cell
 
@@ -40,15 +42,16 @@ def read_spl_query(path: Path) -> str:
 def extract_meta(path: Path) -> dict:
     """
     Read the sidecar <name>.meta.json generated alongside <name>.spl by sigma_to_spl.py.
-    """
-    meta_path = path.parent / (path.stem + ".meta.json")
-    if not meta_path.exists():
-        die(f"Meta sidecar not found: {meta_path}")
 
+    A missing or malformed sidecar is a setup failure here, not a measurement
+    gap -- see lib/meta_sidecar.py for why this differs from the verify side.
+    """
     try:
-        return json.loads(meta_path.read_text(encoding="utf-8"))
+        return read_meta_sidecar(path)
+    except FileNotFoundError as e:
+        die(f"Meta sidecar not found: {e.filename}")
     except json.JSONDecodeError as e:
-        die(f"Invalid meta JSON in {meta_path}: {e}")
+        die(f"Invalid meta JSON in {meta_sidecar_path(path)}: {e}")
 
 
 def _norm_mode(v: str) -> str:
@@ -409,10 +412,7 @@ def main(argv: list[str]) -> int:
             write_report(Path(args.report), records)
         return 0
 
-    s = requests.Session()
-    s.verify = verify_tls
-    s.auth = (username, password)
-    s.headers.update({"Accept": "application/json"})
+    s = build_session(username, password, verify_tls)
 
     create_url = f"{saved_searches_url(base_url, app)}?output_mode=json"
 

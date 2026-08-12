@@ -29,8 +29,10 @@ import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lib.env import announce_tls_mode, env_bool, env_reader
+from lib.meta_sidecar import read_meta_sidecar
 from lib.rule_naming import saved_search_name
-from lib.splunk_ns import saved_search_url
+from lib.splunk_client import build_session
+from lib.splunk_ns import namespace_url, saved_search_url
 
 
 def die(msg: str, code: int = 1) -> None:
@@ -47,13 +49,15 @@ env_required = env_reader(die)
 
 
 def extract_meta(path: Path) -> dict:
-    """Read the sidecar <name>.meta.json generated alongside <name>.spl by sigma_to_spl.py."""
-    meta_path = path.parent / (path.stem + ".meta.json")
-    if not meta_path.exists():
-        return {}
+    """Read the sidecar <name>.meta.json generated alongside <name>.spl by sigma_to_spl.py.
+
+    A missing or unparseable sidecar means this rule cannot be measured, not
+    that setup failed -- unlike the deploy side, so this stays a soft `{}`
+    rather than dying. See lib/meta_sidecar.py.
+    """
     try:
-        return json.loads(meta_path.read_text(encoding="utf-8"))
-    except ValueError:
+        return read_meta_sidecar(path)
+    except (OSError, ValueError):
         return {}
 
 
@@ -130,7 +134,7 @@ def dispatch_saved_search(
 
     # Poll until done
     status_url = (
-        f"{base_url}/servicesNS/{quote(owner, safe='')}/{quote(app, safe='')}"
+        f"{namespace_url(base_url, owner, app)}"
         f"/search/jobs/{quote(str(sid), safe='')}?output_mode=json"
     )
 
@@ -184,7 +188,7 @@ def dispatch_saved_search(
 
     # Fetch results
     results_url = (
-        f"{base_url}/servicesNS/{quote(owner, safe='')}/{quote(app, safe='')}"
+        f"{namespace_url(base_url, owner, app)}"
         f"/search/jobs/{quote(str(sid), safe='')}/results"
         f"?output_mode=json&count={max_events}"
     )
@@ -235,10 +239,7 @@ def main(argv: list[str]) -> int:
 
     output_dir = Path(args.output_dir)
 
-    session = requests.Session()
-    session.verify = verify_tls
-    session.auth = (username, password)
-    session.headers.update({"Accept": "application/json"})
+    session = build_session(username, password, verify_tls)
 
     run_ts = datetime.now(UTC).isoformat()
 

@@ -32,6 +32,7 @@ import check_saved_search_hits
 import deploy_spl_to_splunk as deploy
 import pytest
 import wait_for_indexing
+from lib.splunk_ns import namespace_url
 from test_deploy_report import FakeResponse, FakeSession, write_rule
 
 
@@ -205,3 +206,19 @@ def test_the_indexing_wait_keeps_the_account_namespace(monkeypatch):
     wait_for_indexing.main(["--since", "1700000000", "--timeout", "1", "--interval", "1"])
 
     assert "/servicesNS/svc/detection_app/search/jobs" in captured["url"]
+
+
+# --- the URL joining itself ---------------------------------------------------
+
+
+def test_the_search_jobs_urls_are_built_through_namespace_url():
+    """Register item 3.6: three `search/jobs` URLs used to hand-join the same
+    `servicesNS/{owner}/{app}` prefix this module already builds for
+    `saved/searches`. Pinning the shared function by identity, not just the
+    string it happens to produce today, so a reformat elsewhere in this file
+    cannot quietly reintroduce a fourth hand-rolled copy.
+    """
+    for module in (check_saved_search_hits, wait_for_indexing):
+        assert module.namespace_url is namespace_url, (
+            f"{module.__name__} no longer shares lib.splunk_ns.namespace_url"
+        )
