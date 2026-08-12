@@ -1785,8 +1785,15 @@
       }
     }
 
+    /* The table card (dep-id + repo + N environment columns + the 10-point
+       sparkline) needs more room than the environments card beside it, which
+       is just two small key/value panels stacked -- so the table gets the
+       flexible 1fr track and a floor wide enough to fit that row without
+       .dep-table-wrap's horizontal scroll kicking in, and the environments
+       card gets a small capped track instead of grabbing the leftover width
+       it does not need. */
     .dash-section-grid-deploy {
-      grid-template-columns: minmax(300px, 400px) minmax(280px, 1fr);
+      grid-template-columns: minmax(480px, 1fr) minmax(220px, 320px);
     }
 
     @media (max-width: 900px) {
@@ -3768,6 +3775,58 @@
     .dep-cell {
       text-align: right;
       white-space: nowrap;
+    }
+
+    /* ---------- Deployment: per-rule verdict history sparkline ----------
+       Register item 4.6. A rule's last 10 verify runs (oldest at left,
+       newest at right), server-rendered as an inline <svg> -- no canvas, no
+       JS, same "generated markup, styled with CSS" contract as the rest of
+       this table. Colours are pulled from the same three verdict colours the
+       drawer's Verification CTA already uses (.drawer-cta.verify-pass/-fail/
+       -notver), NOT from the .dep-trace live/behind/absent/gone/unrecorded
+       palette a few rules up -- that palette answers "is this deployed and
+       current", this column answers "has this rule been passing", and they
+       are different questions about different things that happen to sit in
+       the same row. */
+    .dep-spark {
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .dep-spark-svg {
+      display: inline-block;
+      vertical-align: middle;
+    }
+
+    .dep-spark-line {
+      fill: none;
+      stroke: var(--border2);
+      stroke-width: 1;
+    }
+
+    .dep-spark-dot {
+      stroke: var(--bg3);
+      stroke-width: 1;
+    }
+
+    .dep-spark-dot.dep-spark-pass {
+      fill: var(--green);
+    }
+
+    .dep-spark-dot.dep-spark-fail {
+      fill: var(--red);
+    }
+
+    .dep-spark-dot.dep-spark-notver {
+      fill: var(--amber);
+    }
+
+    /* No history at all (never verified) -- an em dash, same muted register
+       as the other "nothing to report" placeholders in this table
+       (.dep-unknown), not an error state. */
+    .dep-spark-empty {
+      color: var(--text3);
+      font-family: var(--font);
     }
 
     .dep-ver {

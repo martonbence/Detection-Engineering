@@ -26,8 +26,9 @@ Not verified  : two independent routes, both meaning "we did not measure this",
                 (b) reaches emulation-tested rules too, unlike (a).
 
 Outputs:
-  <results-dir>/<detect_id>/result.json   — per-rule verdict
-  $GITHUB_STEP_SUMMARY                    — Markdown table (GitHub Actions), aggregated across this run's rules
+  <results-dir>/<detect_id>/result.json    — per-rule verdict, overwritten every run
+  <results-dir>/<detect_id>/history.jsonl  — the same verdict, appended every run (register item 4.6)
+  $GITHUB_STEP_SUMMARY                     — Markdown table (GitHub Actions), aggregated across this run's rules
 
 Exit code:
   0  All rules PASS
@@ -53,6 +54,7 @@ from lib.summary import (
     alert,
     escape_cell,
 )
+from lib.verdict_history import append_entry
 
 PASS = "PASS"
 FAIL = "FAIL"
@@ -369,6 +371,20 @@ def main(argv: list[str]) -> int:
         rule_results_dir.mkdir(parents=True, exist_ok=True)
         (rule_results_dir / "result.json").write_text(
             json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        # Register item 4.6. result.json above is this run's answer; this is
+        # every run's answer, so "is this rule flaky" has something to look at.
+        append_entry(
+            results_dir,
+            detect_id,
+            {
+                "run_timestamp": run_ts,
+                "verdict": verdict,
+                "event_count": event_count,
+                "rule_version": summary.get("rule_version", ""),
+                "git_sha": summary.get("git_sha", ""),
+                "run_id": args.run_id,
+            },
         )
 
         report_rows.append(result)
