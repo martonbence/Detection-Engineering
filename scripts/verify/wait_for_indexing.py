@@ -36,6 +36,9 @@ DEFAULT_INTERVAL = 10
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lib.env import announce_tls_mode, env_bool, env_reader
+from lib.meta_sidecar import read_meta_sidecar
+from lib.splunk_client import build_session
+from lib.splunk_ns import namespace_url
 
 
 def eprint(msg: str) -> None:
@@ -74,9 +77,8 @@ def indexes_from_meta(spl_files: list[str]) -> list[str]:
     """
     found: list[str] = []
     for spl in spl_files:
-        meta_path = Path(spl).parent / (Path(spl).stem + ".meta.json")
         try:
-            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            meta = read_meta_sidecar(Path(spl))
         except (OSError, json.JSONDecodeError):
             continue
         index = str((meta or {}).get("index") or "").strip()
@@ -151,14 +153,13 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Indexes under test: {', '.join(indexes) if indexes else '(none resolved -- probing all)'}")
     print(f"Giving it up to {args.timeout}s, checking every {args.interval}s.")
 
-    session = requests.Session()
-    session.verify = verify_tls
-    session.auth = (username, password)
-    session.headers.update({"Accept": "application/json"})
+    session = build_session(username, password, verify_tls)
 
-    from urllib.parse import quote
-
-    url = f"{base_url}/servicesNS/{quote(username, safe='')}/{quote(app, safe='')}/search/jobs"
+    # search/jobs identifies a running job, owned by whoever dispatched it --
+    # not a configuration object, so this stays on the account namespace and
+    # never routes through lib/splunk_ns.py's `nobody` (see that module's
+    # docstring, register item 3.9).
+    url = f"{namespace_url(base_url, username, app)}/search/jobs"
 
     started = time.monotonic()
     attempts = 0
