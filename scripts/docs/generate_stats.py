@@ -31,8 +31,10 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lib.rule_version import compute_rule_version
 from lib.rules import RuleLoadError, discover, load_rule
+from lib.verdict_history import read_history
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+RESULTS_DIR = REPO_ROOT / "outputs" / "results"
 
 TACTIC_MAP = {
     "reconnaissance": "Reconnaissance",
@@ -194,7 +196,7 @@ def load_verdicts() -> dict[str, dict]:
     statement about a rule that no longer exists.
     """
     verdicts: dict[str, dict] = {}
-    results_dir = REPO_ROOT / "outputs" / "results"
+    results_dir = RESULTS_DIR
     if not results_dir.exists():
         return verdicts
     for result_file in results_dir.glob("*/result.json"):
@@ -1441,6 +1443,89 @@ def _deployment_state(env_section: dict, detect_id: str, repo_version: str) -> t
     return "current", version
 
 
+# Verdict -> the sparkline dot class it gets, reusing the same three colours
+# as the per-rule drawer's Verification CTA (.drawer-cta.verify-pass/-fail/
+# -notver in page.css) so a color once learned there means the same thing
+# here. Anything not one of these three (a future verdict value, or a
+# malformed history line) falls back to "notver" rather than silently
+# vanishing from the row.
+_SPARK_VERDICT_CLASS = {
+    "PASS": "dep-spark-pass",
+    "FAIL": "dep-spark-fail",
+    "NOT_VERIFIED": "dep-spark-notver",
+}
+
+
+def _deployment_sparkline(detect_id: str) -> str:
+    """One rule's last 10 verify runs, oldest to newest, as a small inline
+    SVG -- server-rendered, no canvas, no JS. A rule with fewer than 10 runs
+    just draws fewer points; padding the gap with fake data would claim runs
+    that never happened. A rule with no history at all (never verified)
+    draws an empty placeholder, not an error.
+
+    This is a history of past measurements, not a live status -- a PASS
+    dot from three weeks ago is not a claim that the rule passes today (see
+    the "verdicts have a standing" note on the Verification card elsewhere
+    on this page). The per-rule drawer's Verification CTA is what answers
+    "right now"; this answers "how has it been going".
+    """
+    history = read_history(RESULTS_DIR, detect_id)[-10:]
+    if not history:
+        return (
+            '<td class="dep-spark dep-spark-empty" '
+            f'title="{_html.escape(detect_id)}: no verify runs recorded">'
+            '<span aria-hidden="true">&mdash;</span>'
+            f'<span class="visually-hidden">{_html.escape(detect_id)}: '
+            "no verify runs recorded</span></td>"
+        )
+
+    step = 8
+    radius = 3
+    pad = 6
+    width = pad * 2 + step * (len(history) - 1)
+    height = pad * 2
+
+    dots = []
+    points = []
+    for i, entry in enumerate(history):
+        cx = pad + i * step
+        cy = pad
+        points.append(f"{cx},{cy}")
+        verdict = str(entry.get("verdict") or "")
+        css = _SPARK_VERDICT_CLASS.get(verdict, "dep-spark-notver")
+        when = str(entry.get("run_timestamp") or "")[:19].replace("T", " ") or "unknown time"
+        ver = str(entry.get("rule_version") or "")
+        label = f"{when} · {verdict or 'UNKNOWN'}" + (f" · {ver}" if ver else "")
+        dots.append(
+            f'<circle class="dep-spark-dot {css}" cx="{cx}" cy="{cy}" r="{radius}">'
+            f"<title>{_html.escape(label)}</title></circle>"
+        )
+
+    line = (
+        f'<polyline class="dep-spark-line" points="{" ".join(points)}"></polyline>'
+        if len(points) > 1
+        else ""
+    )
+
+    latest = history[-1]
+    summary = (
+        f"{len(history)} verify run{'s' if len(history) != 1 else ''} shown, "
+        f"latest {latest.get('verdict') or 'unknown'}"
+    )
+    hidden_list = "; ".join(
+        f"{str(e.get('run_timestamp') or '')[:19].replace('T', ' ') or 'unknown time'} "
+        f"{e.get('verdict') or 'UNKNOWN'}"
+        for e in history
+    )
+    return (
+        f'<td class="dep-spark" title="{_html.escape(detect_id)}: {_html.escape(summary)}">'
+        f'<svg class="dep-spark-svg" viewBox="0 0 {width} {height}" width="{width}" '
+        f'height="{height}" aria-hidden="true" focusable="false">{line}{"".join(dots)}</svg>'
+        f'<span class="visually-hidden">{_html.escape(detect_id)} verify history '
+        f"(oldest to newest): {_html.escape(hidden_list)}</span></td>"
+    )
+
+
 def _deployment_table(environments: dict, rules: list[dict], order: list[str]) -> str:
     """Every rule in the library, against every environment we know about.
 
@@ -1467,12 +1552,14 @@ def _deployment_table(environments: dict, rules: list[dict], order: list[str]) -
             f'<tr><th scope="row" class="dep-id" title="{_html.escape(title)}">'
             f"{_html.escape(detect_id)}</th>"
             f'<td class="dep-repo-ver">{_html.escape(repo_version)}</td>'
-            f"{''.join(cells)}</tr>"
+            f"{''.join(cells)}"
+            f"{_deployment_sparkline(detect_id)}</tr>"
         )
 
     return (
         '<div class="dep-table-wrap"><table class="dep-rules">'
-        f'<thead><tr><th scope="col">Rule</th><th scope="col">repo</th>{head}</tr></thead>'
+        f'<thead><tr><th scope="col">Rule</th><th scope="col">repo</th>{head}'
+        '<th scope="col">Last 10 runs</th></tr></thead>'
         f"<tbody>{''.join(body)}</tbody></table></div>"
     )
 

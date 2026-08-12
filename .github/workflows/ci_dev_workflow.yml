@@ -1960,14 +1960,78 @@ jobs:
           mkdir -p "$tmp/results"
           cp -r outputs/results/. "$tmp/results/"
 
+          # Register item 4.6. Which history.jsonl files did *this run's*
+          # pass_fail_eval.py actually append a line to? Not "every
+          # history.jsonl under outputs/results" -- the checkout above has
+          # fetch-depth 0, so outputs/results/ holds one directory per rule
+          # ever verified in the repo's history, and pass_fail_eval.py only
+          # iterates the rules in this run's matched_events_dir /
+          # progress markers, a strict subset. HEAD is still the commit this
+          # job checked out (no reset has happened yet), so `git status`
+          # here reports exactly the paths pass_fail_eval.py touched this
+          # run -- --untracked-files=all so a brand-new rule's files are
+          # listed individually rather than collapsed into one "??" line
+          # for its directory.
+          touched_histories=$(git status --porcelain --untracked-files=all -- outputs/results \
+            | awk '{print $2}' | grep -F '/history.jsonl' || true)
+
           for i in 1 2 3; do
             # Reset to latest dev — eliminates all merge/rebase conflicts
             echo "Resetting local checkout to origin/dev's tip and overlaying this run's fresh results (safe -- this is how concurrent pipeline runs avoid clobbering each other, not a discard of anything unpushed)..."
             git fetch origin dev
             git reset --hard origin/dev
 
-            # Overlay our result files (overwrite whatever dev already has)
-            cp -r "$tmp/results/." outputs/results/
+            # Overlay our result files (overwrite whatever dev already has).
+            # history.jsonl is excluded here and handled separately below --
+            # it is append-only, and a concurrent run may have pushed a line
+            # to it (for a rule this run never touched) after our snapshot
+            # was taken but before this reset, which a blind overwrite from
+            # our older snapshot would silently erase.
+            find "$tmp/results" -mindepth 1 -type f ! -name 'history.jsonl' -print0 |
+              while IFS= read -r -d '' src; do
+                rel="${src#"$tmp"/results/}"
+                dest="outputs/results/$rel"
+                mkdir -p "$(dirname "$dest")"
+                cp "$src" "$dest"
+              done
+
+            # history.jsonl: append-only, and only for the rules this run
+            # actually verified (touched_histories, computed once above --
+            # it does not change across retry attempts). pass_fail_eval.py
+            # calls append_entry() exactly once per rule it verifies, so
+            # "the line this run added" is the last line of that rule's
+            # history.jsonl in our snapshot. Append it to whatever's
+            # already on disk post-reset (which may already carry a line
+            # from a concurrent run) rather than overwriting the file.
+            #
+            # Guarded by a last-line comparison, not appended
+            # unconditionally: `git reset --hard` only touches *tracked*
+            # paths, so a rule that is brand new this run (never committed,
+            # still untracked at snapshot time) keeps its this-run line on
+            # disk straight through the reset untouched. Appending it again
+            # unconditionally would duplicate it. The same comparison is
+            # also what keeps a second loop iteration (retry after a
+            # rejected push) from re-appending a line it already added on a
+            # prior iteration.
+            if [ -n "$touched_histories" ]; then
+              printf '%s\n' "$touched_histories" | while IFS= read -r rel; do
+                [ -z "$rel" ] && continue
+                src="$tmp/results/${rel#outputs/results/}"
+                dest="$rel"
+                [ -f "$src" ] || continue
+                new_line="$(tail -n 1 "$src")"
+                [ -z "$new_line" ] && continue
+                mkdir -p "$(dirname "$dest")"
+                if [ -f "$dest" ]; then
+                  last_line="$(tail -n 1 "$dest")"
+                else
+                  last_line=""
+                fi
+                if [ "$last_line" != "$new_line" ]; then
+                  printf '%s\n' "$new_line" >> "$dest"
+                fi
+              done
+            fi
 
             # Register item 4.7. Deliberately *after* the reset, not before it:
             # this step resets the checkout to origin/dev's tip, and only
