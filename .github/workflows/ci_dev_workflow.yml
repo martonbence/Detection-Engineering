@@ -984,7 +984,9 @@ jobs:
             echo ""
             echo "- are **not deployed** to Splunk,"
             echo "- have **not been attacked**, so nothing was measured,"
-            echo "- were **not promoted**, and the dashboard was not republished."
+            echo "- were **not promoted** (no promotion PR is opened off an unmeasured run)."
+            echo ""
+            echo "The dashboard IS still republished (the \`update_dashboard\` job runs regardless of \`LAB_ONLINE\`) -- any new or changed rule shows up there honestly marked **Not Verified** / **Not deployed** rather than not appearing at all."
             echo ""
             echo "Set \`LAB_ONLINE\` back to \`true\` (or delete the variable) once the lab is up, then start this workflow manually from the Actions tab -- a manual run rebuilds, redeploys and re-measures every rule, which is what brings the skipped ones back."
           } >> "$GITHUB_STEP_SUMMARY"
@@ -1000,9 +1002,15 @@ jobs:
     # The cascade is explicit, not incidental: the three attack jobs need this
     # job and carry no always(), so a skipped deploy skips them; splunk_verify
     # does carry always() but requires `deploy_to_splunk.result == 'success'`;
-    # and both open_promotion_pr and deploy_pages require a splunk_verify result
-    # they will not get. Nothing is promoted or published off a run that
-    # measured nothing.
+    # and open_promotion_pr requires a splunk_verify result it will not get.
+    # Nothing is promoted off a run that measured nothing.
+    #
+    # deploy_pages is deliberately NOT part of that cascade (register item
+    # [dashboard-decoupling]): it depends on update_dashboard, which regenerates
+    # and publishes the dashboard from whatever is on disk regardless of
+    # LAB_ONLINE -- a new/changed rule still needs to show up on the Pages
+    # site, honestly marked "Not Verified" / "Not deployed", even on a run
+    # where this job (and everything below it) was skipped.
     #
     # Polarity is deliberate: only the literal string 'false' disables. An unset
     # variable means the lab is up, so the normal state needs no configuration
@@ -1460,22 +1468,27 @@ jobs:
     # check_saved_search_hits.py allows 30s to dispatch, 120s of polling and 30s
     # to read results *per rule*, so 27 rules bound at ~81 minutes of legitimate
     # waiting -- before the 60s indexing wait, and before the commit step, whose
-    # 3 retry attempts each re-run generate_stats.py. A 60-minute cap would kill
-    # a slow-but-honest run and report it as a pipeline failure, which is the
-    # exact class of false verdict registers 1.4 and 1.5 were about.
+    # up to 3 retry attempts each reset and re-run deployment_inventory.py. A
+    # 60-minute cap would kill a slow-but-honest run and report it as a
+    # pipeline failure, which is the exact class of false verdict registers
+    # 1.4 and 1.5 were about.
     timeout-minutes: 120
     environment: dev
 
     steps:
-      # NOT shallow, on purpose (reverted after breaking rule versioning):
-      # "Generate stats and update README" below calls generate_stats.py's
-      # compute_rule_version(), which runs `git log --follow` per rule file
-      # to derive its 1.x version from commit count. On a depth=1 checkout
-      # that always sees exactly one commit per file, so every rule silently
-      # came out "1.0" regardless of its real history -- no error, just
-      # wrong data. The "Commit verification results and stats" step's own
-      # git reset --hard genuinely doesn't need history, but this step,
-      # earlier in the same job on the same checkout, does.
+      # fetch-depth: 0 is vestigial here as of register item [dashboard-decoupling]:
+      # it used to be load-bearing because this job's own "Generate stats and
+      # update README" step called generate_stats.py's compute_rule_version(),
+      # which runs `git log --follow` per rule file and needs full history to
+      # get a rule's 1.x version right (a depth=1 checkout silently reported
+      # "1.0" for everything, no error, just wrong data). That step has since
+      # moved to the update_dashboard job below, which now carries its own
+      # fetch-depth: 0 for the same reason. Nothing that still runs in this
+      # job -- the git status/reset/commit sequence in "Commit verification
+      # results", pass_fail_eval.py, deployment_inventory.py, reconcile.py --
+      # touches history beyond the current tip, so this could be narrowed, but
+      # it is left as-is (cheap for this repo's size) rather than bundled into
+      # an unrelated change.
       # id: the two always() steps at the end of this job need to know whether
       # the working tree is actually here before they try to use it.
       - name: Checkout
@@ -1937,15 +1950,33 @@ jobs:
           retention-days: 30
           if-no-files-found: ignore
 
-      - name: Generate stats and update README
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Regenerating aggregate stats, MITRE coverage map, and rule browser content..."
-          python scripts/docs/generate_stats.py
-          echo "Updated: outputs/reports/{stats,mitre_technique_map,navigator_layer}.json, README.md, docs/index.html"
-
-      - name: Commit verification results and stats
+      # Register item [dashboard-decoupling]. This step used to also call
+      # scripts/docs/generate_stats.py and commit README.md/docs/index.html
+      # alongside outputs/results/ and outputs/reports/deployment_inventory.json
+      # -- which meant the dashboard only ever got regenerated on the branch
+      # where this whole job actually ran. With LAB_ONLINE=false (or any
+      # upstream failure that skips deploy_to_splunk), this job is skipped
+      # entirely, `needs.deploy_to_splunk.result == 'success'` above is false,
+      # and a new/changed rule's SPL got committed by prepare_validate_convert
+      # but never showed up on the Pages dashboard -- not even as
+      # "Not Verified" -- until someone manually re-ran the pipeline once the
+      # lab was back.
+      #
+      # generate_stats.py and the README/docs/index.html commit now live in
+      # the update_dashboard job below, which `needs: [prepare_validate_convert,
+      # splunk_verify]` with `always()` -- so it runs whether this job ran,
+      # was skipped, or failed, and always regenerates the dashboard from
+      # whatever is actually on disk (this job's fresh verification evidence
+      # if it landed, otherwise just the previously-committed state, which is
+      # exactly what makes a new rule with no result.json render as
+      # "Not Verified" / "Not deployed" instead of not appearing at all).
+      #
+      # This step keeps committing outputs/results/ and
+      # outputs/reports/deployment_inventory.json -- the raw evidence this job
+      # itself produced -- so that update_dashboard, which needs() this job
+      # and therefore starts only after it (and its push, if any) completes,
+      # always finds this run's fresh results already on origin/dev.
+      - name: Commit verification results
         shell: bash
         env:
           GIT_EDITOR: ":"
@@ -2058,17 +2089,19 @@ jobs:
               --run-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
               || echo "::warning title=Inventory not updated::deployment_inventory.py failed; the dashboard will show the previous deployment state."
 
-            # Re-generate aggregated stats (picks up results from all concurrent runs)
-            python scripts/docs/generate_stats.py
-
-            git add outputs/results/ outputs/reports/ README.md docs/index.html
+            # Deliberately not outputs/reports/ wholesale: stats.json, README.md
+            # and docs/index.html are no longer generated in this job (see the
+            # comment on this step's name above) -- only deployment_inventory.json
+            # changes here, so this stays scoped to exactly the two things this
+            # job actually writes.
+            git add outputs/results/ outputs/reports/deployment_inventory.json
 
             if git diff --cached --quiet; then
               echo "No changes to commit."
               exit 0
             fi
 
-            git commit -m "chore(verify): update verification results and stats [skip ci]"
+            git commit -m "chore(verify): update verification results [skip ci]"
 
             if git push origin HEAD:dev; then
               echo "Push succeeded."
@@ -2093,9 +2126,116 @@ jobs:
           fi
           exit "$code"
 
+  update_dashboard:
+    name: Update Dashboard & Docs
+    needs: [ prepare_validate_convert, splunk_verify ]
+    # Register item [dashboard-decoupling]. Deliberately decoupled from
+    # LAB_ONLINE and from splunk_verify's own result: this job's only real
+    # dependency is that SPL got produced this run. `needs: splunk_verify`
+    # (rather than `needs: deploy_to_splunk` or nothing at all) still buys
+    # real ordering though -- GitHub Actions waits for a named job to
+    # *complete* before starting one that needs() it, regardless of whether
+    # that job ran, was skipped, or failed, and completion is what matters
+    # here: it is what guarantees this run's fresh outputs/results/ and
+    # outputs/reports/deployment_inventory.json (committed by splunk_verify's
+    # own "Commit verification results" step, if that job actually ran) are
+    # already on origin/dev by the time this job's checkout happens below.
+    #
+    # always() plus an explicit prepare_validate_convert check, for the same
+    # reason open_promotion_pr and deploy_pages both need it: a bare needs:
+    # applies GitHub's implicit success() to every job it names, which would
+    # leave this job skipped whenever splunk_verify itself was (correctly)
+    # skipped by LAB_ONLINE=false -- exactly the gap this job exists to close.
+    # Not conditioned on splunk_verify's result at all: whether that job
+    # succeeded, failed (e.g. a FAIL verdict, which still commits its results
+    # before the job's last step re-exits non-zero) or was skipped, the
+    # dashboard should still be regenerated from whatever is actually on disk.
+    if: |
+      always() &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev' &&
+      needs.prepare_validate_convert.result == 'success' &&
+      needs.prepare_validate_convert.outputs.has_spl == 'true'
+    runs-on: ubuntu-latest
+    # Checkout, one generate_stats.py run (its slowest part is the MITRE STIX
+    # fetch, capped at 30s) and up to 3 push attempts. No Splunk call and no
+    # self-hosted runner, so this job runs the same whether or not the lab is
+    # up -- that independence is the whole point of splitting it out.
+    timeout-minutes: 15
+    environment: dev
+
+    steps:
+      # NOT shallow, on purpose -- same reason splunk_verify's own checkout
+      # used to need fetch-depth 0 before this step moved here:
+      # generate_stats.py's compute_rule_version() runs `git log --follow` per
+      # rule file to derive its 1.x version from commit count, which a
+      # depth=1 checkout cannot see.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          token: ${{ secrets.GH_PAT_DEV_PUSH }}
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Installing Python dependencies: pyyaml"
+          python -m pip install --upgrade pip
+          python -m pip install pyyaml
+
+      # Retries by resetting to origin/dev's tip and re-running
+      # generate_stats.py against whatever is there, rather than the
+      # snapshot-and-overlay dance splunk_verify's own commit step uses --
+      # that dance exists to merge THIS run's in-memory results with a
+      # concurrent push; generate_stats.py has no such in-memory state, it
+      # only ever reads the working tree, so a fresh regenerate after each
+      # reset is both simpler and correct on every attempt.
+      - name: Generate stats and commit dashboard
+        shell: bash
+        env:
+          GIT_EDITOR: ":"
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          for i in 1 2 3; do
+            git fetch origin dev
+            git reset --hard origin/dev
+
+            echo "Regenerating aggregate stats, MITRE coverage map, and rule browser content..."
+            python scripts/docs/generate_stats.py
+
+            git add outputs/reports/ README.md docs/index.html
+
+            if git diff --cached --quiet; then
+              echo "No changes to commit."
+              exit 0
+            fi
+
+            git commit -m "chore(docs): regenerate dashboard and stats [skip ci]"
+
+            if git push origin HEAD:dev; then
+              echo "Push succeeded."
+              exit 0
+            fi
+
+            echo "Push failed (attempt $i), retrying..."
+            sleep $((i * 2))
+          done
+
+          echo "Push failed after 3 attempts."
+          exit 1
+
   open_promotion_pr:
     name: Open Promotion PR
-    needs: splunk_verify
+    needs: [ splunk_verify, update_dashboard ]
     # splunk_verify's last step ("Report verification verdict") re-exits with
     # the real PASS/FAIL code, so the job's own result IS the verdict --
     # deliberately not reading needs.splunk_verify.outputs here: cross-job
@@ -2111,6 +2251,17 @@ jobs:
     # deploy_pages below uses the same always()-plus-explicit-result pattern
     # and has run reliably every time, including runs where an upstream
     # atomic job (e.g. atomic_verify_dc) was skipped -- mirroring it here.
+    #
+    # update_dashboard is in `needs:` for ordering only, not gating: this job
+    # reads outputs/reports/stats.json off dev via the contents API a few
+    # steps below (stale_count, rule_table), and stats.json is committed by
+    # update_dashboard, not by splunk_verify. Without update_dashboard here,
+    # this job was free to start the moment splunk_verify finished and could
+    # read stats.json before update_dashboard's commit had landed -- showing
+    # a promotion PR the previous run's numbers instead of this run's. The
+    # verdict gate below stays keyed to splunk_verify's result alone: whether
+    # to promote is about whether the rules passed, not about whether the
+    # dashboard commit happened to succeed.
     if: |
       always() &&
       needs.splunk_verify.result == 'success'
@@ -2260,11 +2411,27 @@ jobs:
 
   deploy_pages:
     name: Deploy GitHub Pages
-    needs: [splunk_verify, atomic_verify, atomic_verify_dc, emulation_verify]
+    needs: [update_dashboard]
+    # Register item [dashboard-decoupling]. Was `needs.splunk_verify.result ==
+    # 'success' || 'failure'` -- which reproduced exactly the gap this whole
+    # change closes: on LAB_ONLINE=false, splunk_verify is skipped, its result
+    # is neither 'success' nor 'failure', and this job never ran, so a
+    # new/changed rule's SPL got committed but docs/index.html never
+    # republished to show it -- not even as "Not Verified". update_dashboard
+    # is the job that actually regenerates and commits docs/index.html now,
+    # and it runs (via its own always()) whether or not LAB_ONLINE was true
+    # and whether splunk_verify ran, was skipped, or failed -- see
+    # update_dashboard's `if:` above.
+    #
+    # success-or-failure (not always() alone) still matters here: a *skipped*
+    # update_dashboard means has_spl was false (a push that touched no rules)
+    # or prepare_validate_convert itself failed, so nothing was regenerated --
+    # publishing the unchanged tree again would just repeat the last real
+    # deploy for no reason.
     if: |
       always() &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev' &&
-      (needs.splunk_verify.result == 'success' || needs.splunk_verify.result == 'failure')
+      (needs.update_dashboard.result == 'success' || needs.update_dashboard.result == 'failure')
     runs-on: ubuntu-latest
     # Checkout plus two Pages actions. The cap also bounds how long this can
     # hold the repo-wide `pages` concurrency group, which ci_code_checks.yml's
