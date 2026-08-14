@@ -86,8 +86,16 @@ def test_the_guard_actually_finds_the_assignments():
     If the workflows stop setting SPLUNK_VERIFY_TLS in a step `env:` block --
     renamed job, restructured step, moved to job-level env -- that is a change
     this file must be taught about, not one it should sleep through.
+
+    Six, not five, since register item 4.2 (commit 45922de) added a sixth
+    assignment: ci_dev_workflow.yml's `deploy_to_splunk` job gained a
+    "Validate SPL syntax against Splunk before deploying" step ahead of the
+    existing deploy step, wired to the same `vars.SPLUNK_VERIFY_TLS` with no
+    fallback. That count was left at 5 when this file should have been
+    updated alongside it, which is exactly the drift this test exists to
+    catch -- it caught itself.
     """
-    assert len(tls_env_values()) == 5
+    assert len(tls_env_values()) == 6
 
 
 @pytest.mark.parametrize("where,value", tls_env_values(), ids=lambda v: v if isinstance(v, str) else "")
