@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-08-14T12:19:01 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
+  "description": "Auto-generated detection coverage. 2026-08-15T15:35:02 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
   "filters": {
     "platforms": [
       "Windows",
@@ -202,6 +202,14 @@
       "comment": "DETECT-2026-0024: NTDS.dit Credential Dump Attempt (PASS)\nDETECT-2026-0030: Symlink Creation to Volume Shadow Copy Device Path (PASS)\nDETECT-2026-0031: Credential Hive Access via Low-Level NTFS Acquisition (PASS)",
       "enabled": true,
       "score": 100,
+      "showSubtechniques": true
+    },
+    {
+      "techniqueID": "T1057",
+      "color": "#6E7681",
+      "comment": "DETECT-2026-0032: Pipeline Test Rule - Tasklist Process Discovery (N/A)",
+      "enabled": true,
+      "score": 25,
       "showSubtechniques": true
     }
   ],
