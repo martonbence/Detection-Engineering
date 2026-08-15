@@ -1,15 +1,15 @@
 {
-  "detect_id": "DETECT-2026-0026",
-  "title": "SAM and LSA Credential Hive Copy via esentutl",
+  "detect_id": "DETECT-2026-0032",
+  "title": "Pipeline Test Rule - Tasklist Process Discovery",
   "verdict": "PASS",
-  "reason": "Event count 1 within expected range [1–10]",
-  "event_count": 1,
+  "reason": "Event count 8 within expected range [1–10]",
+  "event_count": 8,
   "min_pass": 1,
   "max_pass": 10,
   "earliest": "1786812891",
   "latest": "now",
   "run_timestamp": "2026-08-15T17:03:45.673367+00:00",
-  "rule_version": "1.4",
+  "rule_version": "1.2",
   "git_sha": "7d82cf1258b76c81b8302729fdb7a9e516ab5aea",
   "run_id": "31896815997"
 }
