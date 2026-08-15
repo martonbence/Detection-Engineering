@@ -1,0 +1,1 @@
+index=sysmon Image="*\\tasklist.exe" | table _time,ComputerName,User,Image,CommandLine,ParentImage,ProcessId
