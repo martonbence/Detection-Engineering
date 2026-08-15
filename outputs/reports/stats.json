@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-15T15:35:02.369537+00:00",
+  "generated_at": "2026-08-15T16:00:49.374963+00:00",
   "total_rules": 28,
   "total_sigma_rules": 28,
   "total_compiled_sigma_rules": 27,
@@ -1559,9 +1559,9 @@
           }
         ]
       },
-      "rule_body": "detection:\n  selection:\n    Image|endswith: \\tasklist.exe\n  condition: selection",
+      "rule_body": "detection:\n  selection:\n    Image|endswith:\n    - \\tasklist.exe\n    - \\qwinsta.exe\n  condition: selection",
       "rule_body_lang": "yaml",
-      "rule_version": "1.0"
+      "rule_version": "1.2"
     }
   ]
 }
