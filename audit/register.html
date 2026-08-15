@@ -1391,9 +1391,9 @@
   <div class="register" data-sev="enh">
 
     <div class="row sev-enh" data-sev="enh" data-weight="1.5">
-      <input class="row-check" type="checkbox" id="i-4-1" aria-labelledby="t-4-1">
+      <input class="row-check" type="checkbox" id="i-4-1" aria-labelledby="t-4-1" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">4.1</span><span class="row-title" id="t-4-1">False-positive / noise budget mérése</span></div>
+        <div class="row-head"><span class="id">4.1</span><span class="row-title" id="t-4-1">False-positive / noise budget mérése — megvizsgálva, elutasítva</span><span class="tag done">kész</span></div>
         <p class="row-body">
           Ez az egyetlen legnagyobb szakmai különbség egy demo és egy éles detection engineering
           program között. A pipeline ma azt méri, hogy <em>elsül-e</em> a szabály. Azt nem, hogy
@@ -1403,6 +1403,7 @@
           és valódi tuning-visszacsatolást. Séma-oldali párja egy <code>noise_budget</code> mező,
           ami CI-gate-ként is használható.
         </p>
+        <p class="row-note"><span class="note-label">2026-08-15</span><b>Lezárva — elutasításként, nem megvalósításként.</b> A mechanika technikailag megépíthető lenne a meglévő <code>check_saved_search_hits.py</code> dispatch+hit-count logikájára építve, de a tétel a valódi előfeltételen bukik: a felhasználó megerősítette, hogy a de-lab Splunk kizárólag attack-teszt futások idején kap adatot, nincs folyamatos háttérforgalom. Egy "csendes 24h" ablak mérése tehát minden szabálynál gyakorlatilag nullát adna — nem noise-mérés, hanem hamis biztonságérzet. Ugyanaz a minta, mint a <b>3.8</b> és a <b>4.4</b> elutasítása: egy folyamatos-forgalmú éles SOC-ra tervezett sablon-tétel, ami erre a lab-ra nem érvényes.</p>
       </div>
     </div>
 
