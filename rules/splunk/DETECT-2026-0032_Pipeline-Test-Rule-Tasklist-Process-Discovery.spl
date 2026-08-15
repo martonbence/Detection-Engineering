@@ -1,1 +1,1 @@
-index=sysmon Image="*\\tasklist.exe" | table _time,ComputerName,User,Image,CommandLine,ParentImage,ProcessId
+index=sysmon Image IN ("*\\tasklist.exe", "*\\qwinsta.exe") | table _time,ComputerName,User,Image,CommandLine,ParentImage,ProcessId
