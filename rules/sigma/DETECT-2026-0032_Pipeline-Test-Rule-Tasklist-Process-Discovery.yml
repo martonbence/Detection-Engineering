@@ -28,7 +28,9 @@ logsource:
 
 detection:
   selection:
-    Image|endswith: "\\tasklist.exe"
+    Image|endswith:
+      - "\\tasklist.exe"
+      - "\\qwinsta.exe"
   condition: selection
 
 fields:
