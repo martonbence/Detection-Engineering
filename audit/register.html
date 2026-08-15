@@ -1466,10 +1466,11 @@
     </div>
 
     <div class="row sev-enh" data-sev="enh" data-weight="1.5">
-      <input class="row-check" type="checkbox" id="i-4-8" aria-labelledby="t-4-8">
+      <input class="row-check" type="checkbox" id="i-4-8" aria-labelledby="t-4-8" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">4.8</span><span class="row-title" id="t-4-8">A <code>rule_documentations/</code> feltöltése generálással</span></div>
+        <div class="row-head"><span class="id">4.8</span><span class="row-title" id="t-4-8">A <code>rule_documentations/</code> feltöltése generálással — megvizsgálva, elutasítva</span><span class="tag done">kész</span></div>
         <p class="row-body">A <code>stats.json</code> <code>rules</code> tömbje már minden adatot tartalmaz egy szabályonkénti runbook-oldalhoz: leírás, logsource, FP-lista, ATT&amp;CK, teszt-config, verdikt-history. Generáld belőle, ne kézzel — így soha nem lesz elavult.</p>
+        <p class="row-note"><span class="note-label">2026-08-15</span><b>Lezárva — elutasításként, nem megvalósításként.</b> A rule browsernek már ma is van egy per-szabály drawerje (<code>page.js:1789-1889</code>), ami a tétel céljának nagy részét lefedi: leírás, metaadat, MITRE ATT&amp;CK, referenciák, verifikáció-státusz, teljes szabálydefiníció. Ami tényleg hiányzik (<code>falsepositives</code>, <code>testing</code> config, teljes <code>logsource</code>) egy kis drawer-bővítés lenne, nem egy új <code>rule_documentations/</code> generátor — a korábbi, azonos nevű könyvtárnak (törölve 2026 áprilisában) sosem volt valódi tartalma. A felhasználó egyik irányt sem tartja jelenleg indokoltnak. Ugyanaz a minta, mint a <b>3.8</b>, <b>4.1</b> és <b>4.4</b> elutasítása.</p>
       </div>
     </div>
 
