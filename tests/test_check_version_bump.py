@@ -15,8 +15,6 @@ filesystem); only the "old" side is faked.
 
 from __future__ import annotations
 
-import json
-
 import pytest
 import yaml
 from check_version_bump import logic_diff, main, raw_query, version_of
@@ -109,7 +107,7 @@ def fake_old(monkeypatch):
     """Stand in for git show <base-ref>:<path> -- the tests never touch git."""
     table: dict[str, dict | None] = {}
 
-    def _load(path, base_ref, repo_root, yaml_module):  # noqa: ARG001 - matches real signature
+    def _load(path, base_ref, repo_root, yaml_module):
         return table.get(str(path))
 
     import check_version_bump

@@ -246,9 +246,26 @@ jobs:
 
           mode="changed"
 
+          # has_base_diff is a narrower question than mode: "does a real prior
+          # commit exist to diff against at all", not "what does this run do
+          # with that diff". It is false in exactly the two cases where
+          # BASE_SHA cannot be trusted -- workflow_dispatch (github.event.before
+          # is unset for that event) and the very first push to a ref (before
+          # is the all-zero sha) -- and true for every ordinary push or PR,
+          # including ones that go on to set mode=all below because a
+          # rebuild_all_files trigger was in the diff. check_version_bump.py
+          # (item 3.5) reads this rather than mode: a schema/converter change
+          # widening the run to every rule does not erase the base commit, so
+          # a rule file touched in that same push should still be checked --
+          # see the "Check version bump discipline" step for how.
+          has_base_diff="true"
+
           if [[ -z "${BASE_SHA}" || "${BASE_SHA}" =~ ^0+$ ]]; then
             mode="all"
+            has_base_diff="false"
           fi
+
+          echo "has_base_diff=$has_base_diff" >> "$GITHUB_OUTPUT"
 
           # Register item 2.21. A manual run says what it wants explicitly,
           # rather than falling into `all` as a side effect of workflow_dispatch
@@ -271,6 +288,28 @@ jobs:
             echo "Changed files:"
             printf ' - %s\n' "${files[@]}"
           fi
+
+          # The rules/sigma/*.yml|yaml subset of `files`, computed once here and
+          # exposed unconditionally -- same reasoning as base_sha/has_base_diff
+          # above. This is a fixed fact about the diff itself ("which rule
+          # files did this push touch") and does not change with mode, unlike
+          # rule_files below, which mode redefines on purpose (a real subset in
+          # `changed` mode, every rule in `all`, a named list in `selected`...).
+          # check_version_bump.py (item 3.5) needs the fixed fact, not whatever
+          # rule_files ends up meaning for this particular run, so it gets its
+          # own output rather than reusing rule_files.
+          changed_rule_files=()
+          for f in "${files[@]}"; do
+            if [[ "$f" =~ ^rules/sigma/.*\.(yml|yaml)$ ]]; then
+              changed_rule_files+=("$f")
+            fi
+          done
+
+          {
+            echo "changed_rule_files<<EOF"
+            printf '%s\n' "${changed_rule_files[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
           # Register item 2.19. Touching one of these invalidates every .spl
           # already converted, so the run widens from "the rules in this push"
@@ -353,11 +392,10 @@ jobs:
               [[ -n "$rf" ]] && rule_files+=("$rf")
             done < <(git ls-files "rules/sigma/*.yml" "rules/sigma/**/*.yml" "rules/sigma/*.yaml" "rules/sigma/**/*.yaml" || true)
           else
-            for f in "${files[@]}"; do
-              if [[ "$f" =~ ^rules/sigma/.*\.(yml|yaml)$ ]]; then
-                rule_files+=("$f")
-              fi
-            done
+            # Same filter as changed_rule_files above -- mode=="changed" means
+            # "process exactly what this push touched", which is that value by
+            # definition, so reuse it instead of re-deriving it a second time.
+            rule_files=("${changed_rule_files[@]}")
           fi
 
           if [[ "${#rule_files[@]}" -eq 0 ]]; then
@@ -578,22 +616,39 @@ jobs:
       # a runner exist later?); whether two git blobs' version: fields differ
       # is not a judgment call, and the fix is always one line.
       #
-      # Only steps.changes.outputs.rule_files -- the changed rules -- and
-      # only when mode == 'changed': this question is inherently a diff
-      # ("did version move between two points"), so it is only askable where
-      # a real before/after exists. The bulk modes (all/unverified/selected,
-      # and workflow_dispatch generally) do not carry one -- base_sha comes
-      # from github.event.before, which workflow_dispatch never sets -- so
-      # there is nothing meaningful to diff against and the step is skipped
-      # rather than comparing against a base that does not describe this run.
+      # Gated on has_base_diff, not mode == 'changed'. This question is
+      # inherently a diff ("did version move between two points"), so it is
+      # only askable where a real before/after exists -- but "a real
+      # before/after exists" and "mode == 'changed'" turned out not to be the
+      # same thing. A push that trips a rebuild_all_files trigger above (e.g.
+      # editing sigma_schema.json itself, which is how this gap was found --
+      # register item 3.5's own introducing commit touched that file and so
+      # silently skipped its own new gate) still has a perfectly good
+      # BASE_SHA; it just also reconverts every rule for an unrelated reason.
+      # Skipping the check there would not just miss it for one run -- the
+      # next push's base becomes *this* commit, so an unbumped version sitting
+      # inside a rebuild_all-triggering push would never be checked against
+      # its true prior state at all, on any future run either.
+      #
+      # So this reads changed_rule_files (the fixed, mode-independent "which
+      # rule files did this push touch" computed above), not rule_files
+      # (which in `all` mode is every rule in the repo, not this push's diff)
+      # and runs whenever has_base_diff == 'true' -- which covers ordinary
+      # pushes/PRs regardless of what mode they end up resolving to, and
+      # excludes exactly the two cases with no real prior commit to compare
+      # against: workflow_dispatch (github.event.before is unset for that
+      # event, so mode there is always selected/unverified/all by an operator
+      # choice, never by a rebuild_all_files trigger) and the very first push
+      # to a ref (BASE_SHA is the all-zero sha). Both of those still route
+      # through has_base_diff rather than needing their own special case here.
       - name: Check version bump discipline
-        if: steps.changes.outputs.has_rules == 'true' && steps.changes.outputs.mode == 'changed'
+        if: steps.changes.outputs.has_rules == 'true' && steps.changes.outputs.has_base_diff == 'true'
         shell: bash
         run: |
           set -euo pipefail
 
           mapfile -t rules <<'EOF'
-          ${{ steps.changes.outputs.rule_files }}
+          ${{ steps.changes.outputs.changed_rule_files }}
           EOF
 
           selected=()

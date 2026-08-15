@@ -189,7 +189,6 @@ def main(argv: list[str] | None = None) -> int:
     # the clean setup-failure exit 2 this function returns below.
     try:
         import yaml  # type: ignore
-
         from lib.rules import RuleLoadError, detect_id, load_rule
     except Exception as ex:
         eprint(f"[FATAL] Missing dependency: pyyaml. ({ex})")

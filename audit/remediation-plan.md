@@ -1384,3 +1384,77 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
 
   Kész súly: 86,5/92,5 (49→50 tétel, +2 a 3.5-ért [architektúra, mint a 3.6]), pontszám
   **8,84 → 8,8/10.**
+
+- **2026-08-15 — 3.5 utókövetés: két valós probléma a da3b4fa élő futásából (workflow run
+  31893084025/31893084071), a pipa és a pontszám érintetlen.** A 2026-08-15-i lezáró bejegyzés
+  helyi környezetében sem `pip`, sem `ruff`, sem `pytest` nem volt elérhető — az akkor leírt
+  "24/24 zöld" a tesztfájl állításainak kézi, `pytest` nélküli reprodukciója volt, nem valódi CI.
+  Az élő push volt az első alkalom, hogy ez a kód tényleges `ruff`/`pytest` elé került, és két
+  önálló hibát talált.
+
+  **1) `ruff` piros volt a "CI - Code Checks" futáson ("Static analysis and tests" job), 3
+  fixelhető hibával, mind az új fájlokban.** `check_version_bump.py:191` — `I001`, az `import
+  yaml` / `from lib.rules import ...` blokk nem volt rendezve (a valódi ok egy fölösleges üres
+  sor a két import között — a `ruff` egy összefüggő blokknak várta őket, nem kettőnek).
+  `test_check_version_bump.py:18` — `F401`, a `json` import sosem lett használva. Ugyanott
+  `:112` — `RUF100`, egy `# noqa: ARG001` egy nem engedélyezett szabályra hivatkozott ebben a
+  repóban, tehát önmagában hatástalan megjegyzés volt. Mivel a `ruff` lépés elbukott, a rá épülő
+  `pytest` lépés a futáson `skipped`-ként jelent meg — a 24 új teszt és a teljes meglévő suite
+  emiatt még nem volt valódi CI-vel megerősítve. Ebben a follow-up környezetben `pip` már sincs,
+  de a `pipx run ruff==0.16.1 check .` (ugyanaz a pin, mint a `.github/requirements-dev.txt`-ben)
+  elérhető volt és pontosan ezt a 3 hibát találta, semmi mást a teljes repóban. Mindhármat
+  `--fix`-szel javítottam (a `check_version_bump.py`-nál ez ténylegesen csak az üres sor
+  törlését jelentette, nem sorrendcserét), utána `ruff check .` tisztán fut. `python3 -m venv` +
+  a pinnelt `.github/requirements.txt` + `requirements-dev.txt` telepítésével teljes `pytest`
+  futás is lehetségessé vált most: **535 passed**, a 24 új `test_check_version_bump.py` teszttel
+  együtt — ez az első valódi (nem kézzel reprodukált) megerősítés, bár még helyi, nem CI-beli.
+
+  **2) A `Check version bump discipline` lépés le se futott ezen a pusholáson, és ez valódi rés
+  volt, nem csak látszat.** A da3b4fa maga módosította a `docs/schemas/sigma_schema.json`-t (az
+  új `version` séma-mező felvételéhez), ami a `rebuild_all_files` triggerlistán szerepel — a
+  push emiatt `mode=all`-ban futott, a lépés feltétele pedig `mode == 'changed'` volt, tehát a
+  saját maga bevezette kapu a saját bevezető commitján kimaradt. Az eredeti indoklás ("a bulk
+  módoknak nincs valódi diff-alapjuk") *részben* volt igaz: a `workflow_dispatch`-eredetű bulk
+  módoknál (`all`/`unverified`/`selected` operátor-választásból) tényleg nincs `base_sha`
+  (`github.event.before` nem létezik arra az eseményre) — de egy normál push/PR-eredetű
+  `mode=all`-nál (mert egy `rebuild_all_files`-trigger volt a diffben) igenis van valódi
+  `base_sha`, csak a régi feltétel ezt nem különböztette meg a módtól. Ez nem csak egy futásra
+  szóló mulasztás: a következő push alapja már ez a commit lesz, tehát egy ilyen pusholásban
+  rejtőző, bump nélküli logika-változás *soha* nem kerülne szembesítésre a valódi előző
+  állapotával, semelyik későbbi futáson sem — nem egyszeri vakfolt, hanem tartósan eltűnő eset.
+  **Ezért ez valódi rés volt, nem szándékos és dokumentálandó viselkedés** — a kérdés (mozdult-e
+  a `version:` egy adott szabályfájlban a diff alapjához képest) ugyanúgy megválaszolható marad
+  akkor is, ha a futás emellett minden szabályt újrakonvertál egy nem kapcsolódó okból.
+
+  Javítás: a `Determine changed Sigma files` lépés kapott egy `has_base_diff` outputot,
+  amely a `mode`-tól függetlenül azt méri, hogy van-e egyáltalán valódi előző commit
+  diffelésre — `false` pontosan a két olyan esetben, ahol a `base_sha` nem megbízható
+  (`workflow_dispatch`, ahol `github.event.before` nincs beállítva, illetve az adott ref első
+  pusholása, ahol a `base_sha` a csupa-nulla sha), és `true` minden rendes push/PR-nél, azt is
+  beleértve, amelyik utóbb `mode=all`-ra vált egy `rebuild_all_files`-trigger miatt. Emellett egy
+  új, mód-független `changed_rule_files` output is bekerült — az adott diff `rules/sigma/*.yml|
+  yaml` részhalmaza, egyszer kiszámolva, feltétel nélkül írva (ugyanúgy, ahogy a `base_sha` is) —,
+  amit a `mode == 'changed'` ág is újrahasznál a korábbi, a diffet külön újraszámoló saját
+  ciklusa helyett. A `Check version bump discipline` lépés feltétele `mode == 'changed'`-ről
+  `has_base_diff == 'true'`-ra változott, bemenete pedig `rule_files`-ről (ami `all` módban a
+  repó *összes* szabálya, nem a push diffje) `changed_rule_files`-re.
+
+  **Ellenőrizve, nem feltételezve.** `actionlint` (`pipx run --spec actionlint-py actionlint`)
+  tisztán fut a módosított `ci_dev_workflow.yml`-en; `yaml.safe_load` szintaktikailag épnek
+  találja. A tényleges hibát egy eldobható lokális git repóban reprodukáltam: egy base commit
+  (séma + egy teszt-szabály `version: "1.0"`-val), majd egy második commit, ami *egyszerre*
+  módosítja a sémafájlt és a szabály `detection:`-jét bump nélkül — pontosan a da3b4fa mintája.
+  A workflow bash-logikáját lefuttatva erre a repóra: `mode=all`, de `has_base_diff=true` és a
+  `changed_rule_files` helyesen tartalmazza a szabályfájlt — a régi feltétel (`mode == 'changed'`)
+  itt kihagyta volna, az új (`has_base_diff`) helyesen belépteti. A valódi `check_version_bump.py`-t
+  lefuttatva a szimulált `base_ref` ellen: `exit 1`, `[MISSING-BUMP]`, a helyes okkal
+  (`detection`) — a javítás ténylegesen elkapja azt az esetet, ami a da3b4fa-n átcsúszott.
+
+  **Amit ez a bejegyzés nem tud igazolni, mert nem tudja: a következő valódi push CI-futása.**
+  A helyi `ruff`/`pytest`/`actionlint` és a szimulált git repó erős jelzés, de nem helyettesíti a
+  tényleges GitHub Actions futást. A megbízónak kell pusholnia egy normál, `changed`-módú
+  commitot (lehetőleg olyat, ami *nem* nyúl a `docs/schemas/sigma_schema.json`-hoz, hogy a mostani
+  javítás pontosan a célzott, `mode == 'changed'` úton is lefusson, ne csak az `all`-ág
+  reprodukciójában) ahhoz, hogy (a) a `ruff`/`pytest` lépés valódi CI-n is zöld legyen, és
+  (b) a `Check version bump discipline` lépés ténylegesen lefusson és helyesen viselkedjen egy
+  élő futáson — ez a kettő még nincs valódi CI-vel megerősítve.
