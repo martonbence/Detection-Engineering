@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -69,6 +70,69 @@ def read_spl_query(path: Path) -> str:
     return query
 
 
+# 2026-08-15 live-bug follow-up to item 4.2 (closed 2026-08-11 on mocks only --
+# LAB_ONLINE had been false for weeks, so this was the first time this script
+# ever ran against a real Splunk). Workflow run 31896204938 ("Deploy to
+# Splunk") failed every single rule with the identical
+# "Unknown search command 'index'." before a single one deployed.
+#
+# The .spl files this repo commits are bare, e.g.
+#   index=sysmon Image="*\\tasklist.exe" | table ...
+# with no leading `search`. That is valid input to Splunk's search bar and to
+# the `saved/searches` create/update endpoint that deploy_spl_to_splunk.py
+# actually uses (both auto-prepend `search` for a query that does not already
+# open with `|` or an explicit generating command) -- but `search/v2/parser`
+# does not do that auto-prepending. It parses the literal string as a
+# complete pipeline and expects the first token to be a command name, so a
+# bare `index=...` query makes it treat `index` itself as an unrecognized
+# command. deploy_spl_to_splunk.py was never broken; this checker was sending
+# it something Splunk would never actually be asked to run as-is.
+#
+# `sigma_to_spl.py::_inject_index_prefix()` is the reason every committed
+# .spl looks like this: it deliberately writes the SIGMA-defined index as a
+# BARE `index=<idx> ...` prefix (or leaves a `search ...` opener alone,
+# rewriting only the index inside it), never adding `search` itself -- that
+# was never its job, since the two consumers that read these files after
+# conversion (`saved/searches`, and a human pasting into the search bar) both
+# already add it implicitly. `search/v2/parser` is a third consumer with a
+# different contract, so the prepending has to happen here instead.
+_LEADING_PIPE_RE = re.compile(r"^\|")
+_LEADING_SEARCH_RE = re.compile(r"(?i)^search\s")
+
+
+def ensure_search_prefix(query: str) -> str:
+    """Make `query` what `search/v2/parser` actually needs to see.
+
+    Conservative, not the fully general "every Splunk generating command"
+    rule: this repo's converter only ever emits two openers (confirmed by
+    inspecting all 28 current .spl files under rules/splunk/) --
+
+      - `search ...`      (DETECT-2026-0007, the one `|re:`-backed rule,
+                            whose query needs an initial `search` term before
+                            its own `| rex | ... | search ...` chain)
+      - `index=... ...`   (every other rule; the bare form
+                            `_inject_index_prefix()` writes by default)
+
+    A leading `|` is also left alone rather than getting `search` prepended:
+    Splunk's true generating commands (`| tstats`, `| inputlookup`, ...) are
+    complete pipelines on their own and `search | tstats ...` is not valid
+    SPL. `_inject_index_prefix()` already guarantees that any leading `|`
+    left in a committed .spl belongs to one of those -- a non-generating
+    `| rex ...`-style opener gets `search index=<idx>` written in front of it
+    at conversion time, so it no longer starts with `|` by the time it
+    reaches this checker. If a future query shape breaks that invariant,
+    Splunk's parser response is exactly what surfaced this bug in the first
+    place: a loud, specific "Unknown search command" error, not a silent
+    false negative.
+    """
+    q = (query or "").strip()
+    if not q:
+        return q
+    if _LEADING_PIPE_RE.match(q) or _LEADING_SEARCH_RE.match(q):
+        return q
+    return f"search {q}"
+
+
 def parse_error_detail(response: requests.Response) -> str:
     """A human-readable reason the parser rejected the query."""
     try:
@@ -92,7 +156,7 @@ def check_query(session: requests.Session, base_url: str, query: str) -> tuple[b
     r = session.post(
         url,
         data={
-            "q": query,
+            "q": ensure_search_prefix(query),
             "output_mode": "json",
             "parse_only": "true",
             "reload_macros": "false",

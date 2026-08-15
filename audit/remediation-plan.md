@@ -1538,3 +1538,59 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   pipeline-futtatásra vár).** A 53 kész között négy egész tétel zárult tudatos elutasítással,
   nem megvalósítással (**3.8**, **4.1**, **4.4**, **4.8**) — az egyes bejegyzések adják a
   pontos indoklást mindegyikhez.
+
+- **2026-08-15 — 4.2 utókövetés: valódi hiba az első élő futáson, javítva; a pipa és a pontszám
+  érintetlen.** A 4.2 (`check_spl_syntax.py`) 2026-08-11-i lezárása kizárólag mockolt Splunk-
+  válaszokkal volt igazolva — a `LAB_ONLINE` hetek óta `false` volt, tehát ez a script a mai napig
+  sosem futott valódi Splunk ellen. A felhasználó a **4.6**-hoz (verdict history) szükséges teljes
+  élő pipeline-futtatás előkészítéseként egy `workflow_dispatch`-et indított (run 31896204938,
+  "Deploy to Splunk" job), és a "Deploy to Splunk" job **minden egyes szabálynál** ugyanazzal a
+  hibával bukott el, mielőtt egyetlen szabály is ténylegesen deployolódott volna:
+  `Unknown search command 'index'.`
+
+  **Ugyanaz a minta, mint a 3.5-nél: mockon zöld, élesben azonnal piros.** A gyökérok: a
+  `check_query()` a szabály nyers SPL-jét változtatás nélkül POST-olja a
+  `services/search/v2/parser` végpont `q` mezőjébe. A repo által commitolt `.spl` fájlok viszont
+  csupaszok, pl. `index=sysmon Image="*\\tasklist.exe" | table ...` — nincs elöl `search`. Ez
+  pontosan az, amit a Splunk keresősávja és a `saved/searches` create/update végpont — amit a
+  *ténylegesen deployoló* `deploy_spl_to_splunk.py` használ, és ami **nem** hibás — mindkettő elvár
+  és el is fogad: mindkettő automatikusan elé teszi a `search` parancsot, ha a lekérdezés nem
+  `|`-vel vagy egy explicit generáló paranccsal kezdődik. A `search/v2/parser` viszont **nem**
+  csinálja meg ezt az automatikus kiegészítést — a nyers stringet egy teljes pipeline-ként
+  parse-olja, és az első tokent parancsnévként várja, tehát a `index=...` esetén magát az
+  `index`-et próbálja parancsként értelmezni, és arra bukik. A gyökérokot a Context7-en át lekért,
+  aktuális Splunk Enterprise dokumentáció is megerősítette a javítás megírása előtt, nem utólag.
+
+  **Javítás:** új `ensure_search_prefix()` a `check_spl_syntax.py`-ban, amit `check_query()` a
+  POST-test összeállítása előtt hív meg. A logika szándékosan nem az összes Splunk generáló
+  parancsot listázó általános szabály, hanem a repo mind a 28 jelenlegi `.spl` fájljának tényleges
+  vizsgálatával megállapított, ténylegesen előforduló alakokra szabott, konzervatív döntés: ha a
+  lekérdezés már `search`-szel kezdődik (27-ből 1 eset, a `|re:`-alapú DETECT-2026-0007), vagy
+  `|`-vel kezdődik (egy igazi generáló parancs — ezt a `sigma_to_spl.py::_inject_index_prefix()`
+  garantálja, hogy csak ilyenkor maradhat elöl `|`, egy nem-generáló `| rex ...`-nyitás ugyanis már
+  konverziókor megkapja a `search index=<idx>` előtagot), változatlanul megy tovább; minden más
+  esetben (a maradék 27 szabály csupasz `index=...` alakja) elé kerül a `search ` szó.
+
+  **Ellenőrizve, nem feltételezve — de valódi Splunk nélkül.** Ebben a sandboxban nincs elérhető
+  Splunk-instance: a `SPLUNK_BASE_URL`/`SPLUNK_USERNAME`/`SPLUNK_PASSWORD` GitHub Actions
+  secretek, amiket csak az önhosztolt `de-lab` runner lát, ez a sandbox nem — sem DNS-feloldás,
+  sem hálózati útvonal nincs a laborhoz innen (általános internet-elérés van, `de-lab`-hoz nincs).
+  Ezért a bizonyíték kétrétegű: (1) az `ensure_search_prefix()` közvetlenül lefuttatva mind a 28
+  jelenlegi `.spl` fájl tényleges tartalmán (nem kitalált példákon) — a csupasz `index=...` alakok
+  helyesen kapják meg a `search ` előtagot, a `search index=...` alak és egy szimulált
+  `| tstats ...` alak változatlan marad; (2) 12 új teszt (`tests/test_check_spl_syntax.py`), köztük
+  egy, ami `check_query()`-t egy rögzítő fake session-nel hívja és a ténylegesen elküldött POST-test
+  `q` mezőjét vizsgálja — nem csak a helper függvényt önmagában —, plusz egy, ami egy valódi
+  parser-elutasítást (`Unknown search command 'bogus'.`) reprodukál, hogy a javítás ne fedjen el
+  egy tényleg hibás lekérdezést. Teljes `pytest` (pinnelt `.github/requirements.txt` +
+  `requirements-dev.txt` szerinti helyi venv-ben, `requests==2.34.2` stb.) a változtatás előtt és
+  után is fut, semmi nem tört el; `ruff check .` tisztán fut az érintett és az új fájlokon.
+  A `search/v2/parser` élő válaszát magát ez a bejegyzés **nem tudja igazolni** — ehhez a `de-lab`
+  Splunkja kell, amihez csak a self-hosted runner fér hozzá. A felhasználó tervezett élő
+  `workflow_dispatch`-e (`ci_dev_workflow.yml`, `dev`, 26 kijelölt `detect_id` a **4.6**-hoz) lesz
+  az első valódi megerősítés — ha ott is elakadna, az újabb, e bejegyzés által le nem fedett hiba,
+  nem ugyanennek a megismétlődése.
+
+  Kód: `scripts/deploy/check_spl_syntax.py` (`ensure_search_prefix()`, bekötve `check_query()`-be),
+  `tests/test_check_spl_syntax.py` (új, 12 teszt). Pipa és pontszám érintetlen — a 4.2 már kész
+  volt, ez egy utókövető javítás, nem egy új tétel.
