@@ -1425,10 +1425,11 @@
     </div>
 
     <div class="row sev-enh" data-sev="enh" data-weight="1.5">
-      <input class="row-check" type="checkbox" id="i-4-4" aria-labelledby="t-4-4">
+      <input class="row-check" type="checkbox" id="i-4-4" aria-labelledby="t-4-4" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">4.4</span><span class="row-title" id="t-4-4">Splunk ES / risk-based alerting a deploy payloadban</span></div>
+        <div class="row-head"><span class="id">4.4</span><span class="row-title" id="t-4-4">Splunk ES / risk-based alerting a deploy payloadban — megvizsgálva, elutasítva</span><span class="tag done">kész</span></div>
         <p class="row-body">A deploy ma a minimumot állítja be. Ami hiányzik és nagyon látszik: <code>alert.suppress</code> + <code>alert.suppress.period</code> (throttling — enélkül egy zajos alert eltemeti a SOC-ot), drilldown-link, és severity → risk score mapping vagy notable event action. A <code>severity</code> mező már megvan a sémában, csak nincs kihasználva.</p>
+        <p class="row-note"><span class="note-label">2026-08-15</span><b>Lezárva — elutasításként, nem megvalósításként.</b> Az ES/RBA fele hamis feltevésen alapult: a repóban sehol nincs nyoma, hogy Splunk Enterprise Security telepítve lenne ebben a lab-környezetben (nincs <code>notable</code>/<code>risk_object</code>/<code>risk_score</code> hivatkozás sem a sémában, sem a deploy-scriptben) — ES nélkül ezek a mezők hatástalanok lennének. A throttling/drilldown fele technikailag valós, ES-független Splunk funkció lenne (a Context7-en át lekért REST-dokumentáció szerint megvalósítható), de a felhasználó rákérdezésére kiderült: egy egyszemélyes lab-ban, SOC nélkül, egyik sem old meg valós problémát — nincs, akit egy duplikált riasztás megterhelne, nincs csapat, akinek a drilldown-linkre szüksége lenne. Ugyanaz a minta, mint a <b>3.8</b> elutasítása: méret-arányos döntés, nem elmaradt implementáció.</p>
         <div class="refs"><span class="ref">deploy_spl_to_splunk.py:115-129</span></div>
       </div>
     </div>
