@@ -191,6 +191,7 @@ jobs:
       attestations: write
     outputs:
       mode: ${{ steps.changes.outputs.mode }}
+      base_sha: ${{ steps.changes.outputs.base_sha }}
       has_rules: ${{ steps.changes.outputs.has_rules }}
       has_spl: ${{ steps.bundle.outputs.has_spl }}
       rule_files: ${{ steps.changes.outputs.rule_files }}
@@ -233,6 +234,13 @@ jobs:
           fi
 
           echo "Diffing against previous commit: ${BASE_SHA:-<none>} -> ${HEAD_SHA:-<none>}"
+
+          # Exposed unconditionally, before mode/rule_files are decided below,
+          # so it is available on every path this step can take (including
+          # the early "nothing to do" exit). check_version_bump.py (item 3.5)
+          # is the consumer: it needs the same before/after this step already
+          # diffs against rather than re-deriving a second notion of "base".
+          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
 
           git fetch --no-tags --prune --depth=0 origin || true
 
@@ -553,6 +561,54 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/validate/check_mitre_tags.py
+
+      # Register item 3.5 (schema/discipline half; the duplication half --
+      # scripts/lib/rule_version.py -- closed 2026-08-11). A rule's version:
+      # is a person's signal that detection-relevant content moved, and
+      # nothing enforced that signal actually got sent: a typo fix and a
+      # rewritten condition: block both validated identically. This checks
+      # that a push changing detection:/logsource:/custom.splunk.raw_query
+      # also changes version: from what the same file carried at the diff's
+      # base commit.
+      #
+      # A hard gate, no --strict -- like check_detect_id_uniqueness.py above,
+      # unlike the two advisory checks this sits beside. Those two are
+      # advisory because judging them takes domain knowledge the checker
+      # cannot fully verify offline (is this the right ATT&CK technique? will
+      # a runner exist later?); whether two git blobs' version: fields differ
+      # is not a judgment call, and the fix is always one line.
+      #
+      # Only steps.changes.outputs.rule_files -- the changed rules -- and
+      # only when mode == 'changed': this question is inherently a diff
+      # ("did version move between two points"), so it is only askable where
+      # a real before/after exists. The bulk modes (all/unverified/selected,
+      # and workflow_dispatch generally) do not carry one -- base_sha comes
+      # from github.event.before, which workflow_dispatch never sets -- so
+      # there is nothing meaningful to diff against and the step is skipped
+      # rather than comparing against a base that does not describe this run.
+      - name: Check version bump discipline
+        if: steps.changes.outputs.has_rules == 'true' && steps.changes.outputs.mode == 'changed'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t rules <<'EOF'
+          ${{ steps.changes.outputs.rule_files }}
+          EOF
+
+          selected=()
+          for rule in "${rules[@]}"; do
+            [[ -n "$rule" ]] && selected+=("$rule")
+          done
+
+          if [[ "${#selected[@]}" -eq 0 ]]; then
+            echo "No rule files to check."
+            exit 0
+          fi
+
+          python scripts/validate/check_version_bump.py \
+            --base-ref "${{ steps.changes.outputs.base_sha }}" \
+            "${selected[@]}"
 
       - name: Convert Sigma rules to Splunk SPL
         if: steps.changes.outputs.has_rules == 'true'

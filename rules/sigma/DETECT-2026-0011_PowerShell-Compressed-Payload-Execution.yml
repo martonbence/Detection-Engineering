@@ -13,6 +13,7 @@ references:
 author: Bence Marton
 date: 2026-05-05
 modified: 2026-05-11
+version: "1.6"
 tags:
   - attack.execution
   - attack.t1059.001

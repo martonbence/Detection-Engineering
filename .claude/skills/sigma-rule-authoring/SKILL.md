@@ -1,6 +1,6 @@
 ---
 name: sigma-rule-authoring
-description: Use when drafting a new Sigma detection rule for this repo — scaffolding via scripts/new_rule.py and filling it in per the repo-specific conventions that validate_sigma.py and check_mitre_tags.py enforce (detect_id allocation, author field, custom.splunk.raw_query fallback, schema-valid placeholders).
+description: Use when drafting a new Sigma detection rule for this repo — scaffolding via scripts/new_rule.py and filling it in per the repo-specific conventions that validate_sigma.py, check_mitre_tags.py and check_version_bump.py enforce (detect_id allocation, author field, custom.splunk.raw_query fallback, schema-valid placeholders, version bump discipline).
 ---
 
 Repo-specific conventions for authoring a new rule under `rules/sigma/`,
@@ -51,12 +51,46 @@ sophisticated for Sigma's block syntax to express. Even then, keep the
 `detection:` block populated with its required placeholder — the schema
 demands it, but it is never actually evaluated for a `raw_query` rule.
 
+## `version:` — bump it when the detection changes, not when the words do
+
+Every rule carries an explicit `version:` field (`"MAJOR.MINOR"`, e.g.
+`"1.0"` on a freshly scaffolded rule — see `new_rule.py`'s skeleton). This is
+**not** the same number as the `rule_version` written into a deployed rule's
+`.meta.json` sidecar: that one is derived from git commit count
+(`scripts/lib/rule_version.py`) purely as a measurement, moves on every
+commit including a typo fix, and is not something you set. `version:` is the
+opposite — a deliberate signal from the author that says "the detection
+itself moved," and CI enforces that you actually send it.
+
+`scripts/validate/check_version_bump.py` (register item 3.5) fails the run
+(hard gate, no `--strict` — same contract as `check_detect_id_uniqueness.py`)
+if a push changes any of the following without also changing `version:` from
+what the same file carried at the base commit:
+
+- `detection:` — the matching logic itself.
+- `logsource:` — which events the logic even runs against; repointing this
+  can silently detect nothing, which is as much a behaviour change as the
+  condition.
+- `custom.splunk.raw_query` — for a raw-SPL rule this *is* the detection
+  logic (see the section above); `detection:` on that rule is an unused
+  placeholder the checker deliberately ignores.
+
+Editing `description`, `references`, `falsepositives`, `tags`, `status`,
+`level`, `fields`, or anything under `custom.testing` / `custom.splunk`
+other than `raw_query` does **not** require a bump — that was the original
+complaint this register item opened with (a wording fix and a rewritten
+condition: block used to look identical to the version number). When in
+doubt, bump anyway; the checker never penalizes an unnecessary bump, only a
+missing one.
+
 ## Tagging and handoff
 
 Tag `attack.<tactic>` / `attack.tXXXX(.YYY)` using the
 [[mitre-attack-mapping]] skill — don't tag from memory of upstream ATT&CK,
 this repo's tactic vocabulary and cache diverge from it. Before calling a
-rule done, run `scripts/validate/validate_sigma.py` and
-`scripts/validate/check_mitre_tags.py` locally if feasible, then hand the
-rule to the Detection Quality Engineer for review. A newly authored rule is
-never self-approved or merged straight through.
+rule done, run `scripts/validate/validate_sigma.py`,
+`scripts/validate/check_mitre_tags.py`, and — if you touched an existing
+rule rather than scaffolding a new one — `scripts/validate/check_version_bump.py`
+locally if feasible, then hand the rule to the Detection Quality Engineer for
+review. A newly authored rule is never self-approved or merged straight
+through.

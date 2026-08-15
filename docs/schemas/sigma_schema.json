@@ -11,6 +11,7 @@
         "author",
         "date",
         "modified",
+        "version",
         "references",
         "tags",
         "logsource",
@@ -56,6 +57,11 @@
             "type": "string",
             "description": "Rule last modified date (YYYY-MM-DD)",
             "pattern": "^(19|20)\\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$"
+        },
+        "version": {
+            "type": "string",
+            "description": "Human-set detection-logic version (MAJOR.MINOR), bumped by the rule's author whenever detection, logsource, or custom.splunk.raw_query materially changes. Distinct from the git-commit-count-derived rule_version written to the .meta.json sidecar by scripts/lib/rule_version.py -- that one is measured from history and moves on every commit including cosmetic ones; this one is a deliberate signal and is enforced by scripts/validate/check_version_bump.py (register item 3.5).",
+            "pattern": "^\\d+\\.\\d+$"
         },
         "references": {
             "type": "array",

@@ -68,6 +68,7 @@ references:
 author: {author}
 date: {today}
 modified: {today}
+version: "1.0"
 tags:
   - attack.TODO   # TODO: tactic, e.g. attack.credential_access
   - attack.t0000  # TODO: technique/sub-technique, e.g. attack.t1003.001
