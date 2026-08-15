@@ -1445,10 +1445,11 @@
     </div>
 
     <div class="row sev-enh" data-sev="enh" data-weight="1.5">
-      <input class="row-check" type="checkbox" id="i-4-6" aria-labelledby="t-4-6">
+      <input class="row-check" type="checkbox" id="i-4-6" aria-labelledby="t-4-6" checked>
       <div class="row-main">
-        <div class="row-head"><span class="id">4.6</span><span class="row-title" id="t-4-6">Per-rule verdict history</span></div>
+        <div class="row-head"><span class="id">4.6</span><span class="row-title" id="t-4-6">Per-rule verdict history</span><span class="tag done">kész</span></div>
         <p class="row-body">Ma minden futás felülírja a <code>result.json</code>-t, így csak az utolsó állapot létezik. Egy append-only <code>history.jsonl</code> szabályonként (verdikt, verzió, event count, run id, timestamp) megválaszolhatóvá teszi a „ez a szabály flaky" és a „mikor romlott el" kérdést — és ad egy sparkline-t a rule-drawerbe.</p>
+        <p class="row-note"><span class="note-label">2026-08-15</span><b>Kész, élesben bizonyítva.</b> Az infrastruktúra 2026-08-12 óta megvolt, de sosem futott éles CI-n. Egy valódi <code>LAB_ONLINE=true</code> futás (<code>31896815997</code>) közben egy addig ismeretlen hiba is előkerült és lett javítva (lásd <b>4.2</b>) — utána 26 szabály sikeresen deployolt, támadva és verifikálva lett (25 PASS, 1 ismert-flaky FAIL), és mindegyikhez valódi <code>history.jsonl</code> keletkezett. A dashboard sparkline a <code>docs/index.html</code>-ben ellenőrizhetően, a valódi historyból renderelődött. A register ezzel teljes: 54/54.</p>
       </div>
     </div>
 
