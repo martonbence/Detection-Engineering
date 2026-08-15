@@ -11,6 +11,7 @@
         "author",
         "date",
         "modified",
+        "version",
         "references",
         "tags",
         "logsource",
@@ -56,6 +57,11 @@
             "type": "string",
             "description": "Rule last modified date (YYYY-MM-DD)",
             "pattern": "^(19|20)\\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$"
+        },
+        "version": {
+            "type": "string",
+            "description": "Human-set detection-logic version (MAJOR.MINOR), bumped by the rule's author whenever detection, logsource, or custom.splunk.raw_query materially changes. Distinct from the git-commit-count-derived rule_version written to the .meta.json sidecar by scripts/lib/rule_version.py -- that one is measured from history and moves on every commit including cosmetic ones; this one is a deliberate signal and is enforced by scripts/validate/check_version_bump.py (register item 3.5).",
+            "pattern": "^\\d+\\.\\d+$"
         },
         "references": {
             "type": "array",
@@ -305,6 +311,11 @@
                                 "high",
                                 "critical"
                             ]
+                        },
+                        "raw_query": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Raw SPL query for rules with no real Sigma detection logic. When set, sigma_to_spl.py emits this text verbatim instead of running the Sigma-to-SPL conversion; the rule's detection: block is a required placeholder only."
                         }
                     }
                 },
@@ -314,6 +325,51 @@
                     "required": [
                         "enabled",
                         "type"
+                    ],
+                    "$comment": "The allOf below pairs `type` with the array that type actually needs. Without it a rule can declare `type: atomic` and carry no `atomics`, pass validation, and only blow up later on the Windows runner inside run_atomic.ps1 -- where it used to abort collection for the whole batch. Enforcing it here means the failure lands in CI validation, on the one rule responsible, with the file name attached. Gated on `enabled: true` so a rule can be parked with testing switched off without having to keep a test list around.",
+                    "allOf": [
+                        {
+                            "if": {
+                                "properties": {
+                                    "enabled": {
+                                        "const": true
+                                    },
+                                    "type": {
+                                        "const": "atomic"
+                                    }
+                                },
+                                "required": [
+                                    "enabled",
+                                    "type"
+                                ]
+                            },
+                            "then": {
+                                "required": [
+                                    "atomics"
+                                ]
+                            }
+                        },
+                        {
+                            "if": {
+                                "properties": {
+                                    "enabled": {
+                                        "const": true
+                                    },
+                                    "type": {
+                                        "const": "emulation"
+                                    }
+                                },
+                                "required": [
+                                    "enabled",
+                                    "type"
+                                ]
+                            },
+                            "then": {
+                                "required": [
+                                    "custom"
+                                ]
+                            }
+                        }
                     ],
                     "properties": {
                         "enabled": {

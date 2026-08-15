@@ -1,0 +1,1 @@
+index=sysmon CommandLine="*mklink*" OR (Image IN ("*\\powershell.exe", "*\\pwsh.exe") CommandLine IN ("*SymbolicLink*", "*Junction*")) CommandLine="*HarddiskVolumeShadowCopy*" | table _time,ComputerName,User,Image,OriginalFileName,CommandLine,CurrentDirectory,IntegrityLevel,ParentImage,ParentCommandLine,ProcessId,ParentProcessId

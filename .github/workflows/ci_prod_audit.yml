@@ -1,0 +1,360 @@
+name: CI - Prod Audit
+
+# Register item 4.7, phase 2. Nothing watches production between deploys.
+#
+# On 2026-08-07 a rule was deleted from the prod app by hand and the pipeline
+# never noticed: the repo did not change, the reconcile only ever looked at the
+# dev app, and the dashboard reads neither. The deployment chain is one-way, so
+# the only feedback prod gives is the absence of a complaint.
+#
+# This is the complaint. It deploys nothing and changes nothing in Splunk -- it
+# runs the reconcile in read-only mode against the prod app, says what it found,
+# and records it where the dashboard can read it.
+#
+# Why a separate workflow rather than a step in the prod deploy: the question
+# "is prod still what we think it is" has to be asked when *nothing* is
+# happening. Folding it into the deploy would only ever answer it right after a
+# deploy -- the one moment we already know the answer.
+
+on:
+  schedule:
+    # 05:40 UTC daily. Deliberately not on the hour: GitHub's scheduler queues
+    # the top of every hour heavily, and a drift report that arrives late is
+    # worth less than one that arrives.
+    #
+    # Note for whoever wonders why this never fired from a branch: GitHub only
+    # runs `schedule` from the default branch. Until this file is on main there
+    # is no daily audit, only the manual trigger below.
+    - cron: "40 5 * * *"
+  workflow_dispatch:
+
+concurrency:
+  # Shares the prod lane with the deploy, so an audit can never read the app
+  # while a deploy is half-applied to it -- the report would describe a state
+  # that never really existed.
+  group: detection-pipeline-prod-${{ github.ref }}
+  cancel-in-progress: false
+
+# Nothing at workflow level. The two jobs below need genuinely different rights,
+# and granting the union here would hand the prod-facing job a write token it
+# has no use for.
+permissions: {}
+
+jobs:
+  audit_prod:
+    name: Audit Prod Splunk
+    # Register item 2.20's polarity, copied deliberately: only the literal
+    # string 'false' disables. An unset variable means the lab is up, so a typo
+    # in the variable name fails towards running the audit rather than towards
+    # silently never auditing -- which is the failure this whole workflow is
+    # about.
+    if: vars.LAB_ONLINE != 'false'
+    runs-on: [ self-hosted, linux, de-lab ]
+    # One reconcile: a single listing call plus local comparison. Generous
+    # enough for a slow Splunk, short enough that a hung run does not hold the
+    # prod concurrency lane against an actual deploy.
+    timeout-minutes: 20
+    environment: prod
+    permissions:
+      # Reads production and writes nothing anywhere -- same stance as the prod
+      # deploy job. `actions: read` is for the run history of the deploy
+      # workflow, below.
+      contents: read
+      actions: read
+    outputs:
+      last_sha: ${{ steps.lastdeploy.outputs.sha }}
+      last_run_id: ${{ steps.lastdeploy.outputs.id }}
+      last_run_url: ${{ steps.lastdeploy.outputs.url }}
+      last_at: ${{ steps.lastdeploy.outputs.at }}
+
+    steps:
+      # main, not dev: prod is deployed from main, so main's rule set is what
+      # prod is *supposed* to contain. Reconciling against dev would report
+      # every unmerged work-in-progress rule as missing from production.
+      - name: Checkout main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -r .github/requirements.txt
+
+      - name: Reconcile prod Splunk against main
+        shell: bash
+        env:
+          SPLUNK_BASE_URL: ${{ secrets.SPLUNK_BASE_URL }}
+          SPLUNK_USERNAME: ${{ secrets.SPLUNK_USERNAME }}
+          SPLUNK_PASSWORD: ${{ secrets.SPLUNK_PASSWORD }}
+          SPLUNK_APP: ${{ vars.SPLUNK_APP }}
+          SPLUNK_VERIFY_TLS: ${{ vars.SPLUNK_VERIFY_TLS }}
+        run: |
+          set -euo pipefail
+
+          # No --apply, and no --apply-removals. This workflow runs unattended
+          # on a schedule against production; the one thing it must never do is
+          # decide on its own that a live detection should go away. Reporting is
+          # the whole job.
+          #
+          # The exit code is deliberately swallowed: reconcile.py exits non-zero
+          # on drift, and this workflow reports drift rather than failing on it.
+          # The verdict is read back out of the JSON by the annotation step,
+          # which is the same source the inventory uses -- so the run page and
+          # the dashboard cannot disagree.
+          if ! python scripts/state/reconcile.py \
+            --rules-dir rules/sigma \
+            --json outputs/state/prod_reconcile.json \
+            | tee prod_reconcile.txt; then
+            echo "reconcile.py exited non-zero -- see the comparison above and the annotation below."
+          fi
+
+          {
+            echo "### Prod Splunk reconciliation"
+            echo ""
+            echo '```'
+            cat prod_reconcile.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record what prod was last deployed from
+        id: lastdeploy
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # The commit prod actually runs, straight from the run history of the
+          # deploy workflow. Not derivable from the repo: a merge to main does
+          # not imply a prod deploy, because the prod workflow's paths: filter
+          # only fires on rule changes -- which is exactly how the item 3.9 fix
+          # sat on main without prod ever seeing it.
+          #
+          # Failure here is not fatal: a missing "last deployed from" line is a
+          # smaller loss than no audit at all.
+          run_json="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/ci_prod_workflow.yml/runs?status=success&per_page=1" \
+            --jq '.workflow_runs[0] | {sha: .head_sha, at: .run_started_at, id: (.id|tostring), url: .html_url}' \
+            2>/dev/null || echo '')"
+
+          if [[ -z "$run_json" || "$run_json" == "null" ]]; then
+            echo "::warning title=No prod deploy found::Could not read the prod deploy workflow's run history; the inventory keeps whatever it already had."
+            exit 0
+          fi
+
+          {
+            echo "sha=$(jq -r .sha <<<"$run_json")"
+            echo "id=$(jq -r .id <<<"$run_json")"
+            echo "url=$(jq -r .url <<<"$run_json")"
+            echo "at=$(jq -r .at <<<"$run_json")"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Say so if prod drifted
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f outputs/state/prod_reconcile.json ]]; then
+            echo "No reconcile output to read."
+            exit 0
+          fi
+
+          # `// 0` on every read, and `if` rather than `[[ ... ]] && ...`, for
+          # two separate reasons that both end in a step dying silently. A jq
+          # miss returns the string "null", which `-gt` rejects as "integer
+          # expression expected"; and a trailing `[[ ... ]] && x` whose test is
+          # false returns 1, which under `shell: bash` (-e) kills the step --
+          # precisely when there is no drift, i.e. on every healthy day.
+          missing="$(jq '.counts.missing // 0' outputs/state/prod_reconcile.json)"
+          renamed="$(jq '.counts.orphan_renamed // 0' outputs/state/prod_reconcile.json)"
+          dupes="$(jq '.counts.duplicate_names // 0' outputs/state/prod_reconcile.json)"
+          unretired="$(jq '[(.orphan_removed // [])[] | select(.retired | not)] | length' outputs/state/prod_reconcile.json)"
+
+          parts=()
+          if [[ "$missing" -gt 0 ]]; then
+            parts+=("$missing rule(s) on main are NOT in the prod app")
+          fi
+          if [[ "$renamed" -gt 0 ]]; then
+            parts+=("$renamed renamed leftover(s) still in prod")
+          fi
+          if [[ "$unretired" -gt 0 ]]; then
+            parts+=("$unretired object(s) in prod whose rule left the repo")
+          fi
+          if [[ "$dupes" -gt 0 ]]; then
+            parts+=("$dupes duplicated name(s)")
+          fi
+
+          if [[ "${#parts[@]}" -eq 0 ]]; then
+            echo "Prod matches main."
+            exit 0
+          fi
+
+          # An annotation rather than a failed run, for the same reason the dev
+          # workflow made this choice: a red X that nobody caused and nobody can
+          # fix by re-running is one people learn to click past. Drift in
+          # production needs a person to look, not a broken build.
+          joined="$(printf '%s; ' "${parts[@]}")"
+          echo "::warning title=Prod drift::${joined%; }. Nothing was changed -- this audit only reports. See the step summary for the full comparison."
+
+      - name: Upload the prod reconcile report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: prod-audit-${{ github.run_id }}
+          path: outputs/state/prod_reconcile.json
+          if-no-files-found: warn
+          retention-days: 90
+
+  # Split from the job above rather than folded into it, and the reason is a
+  # permission boundary rather than tidiness.
+  #
+  # The `dev` branch is protected and `enforce_admins` is off, so the pushes
+  # that keep it up to date come from an admin's PAT -- which is why the dev
+  # pipeline checks out with GH_PAT_DEV_PUSH. The default GITHUB_TOKEN is not an
+  # admin and cannot push to dev at all; a commit step in the job above would
+  # have failed every night at 05:40 with nobody watching.
+  #
+  # That PAT is scoped to the `dev` environment, which a `environment: prod` job
+  # cannot read. So the environments split the work the way the rights do: prod
+  # reads production and writes nothing, dev writes the repo and never touches
+  # Splunk.
+  record_inventory:
+    name: Record Prod State on dev
+    needs: audit_prod
+    # always(): a drifted or partially failed audit is exactly when the record
+    # is worth having. Skipped only when there is genuinely no artifact.
+    if: always() && needs.audit_prod.result != 'skipped'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: dev
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev
+          # The admin PAT, for the same reason the dev pipeline uses it: dev is
+          # a protected branch and the default token cannot write to it.
+          token: ${{ secrets.GH_PAT_DEV_PUSH }}
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Download the prod reconcile report
+        id: fetch
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: prod-audit-${{ github.run_id }}
+          path: outputs/state
+
+      # The per-rule half of prod's entry, and the only place it can come from.
+      # The prod deploy writes a --report naming every rule and its version, and
+      # keeps it as an artifact for 90 days -- but the job that writes it cannot
+      # commit, so the report has never reached the repo. Pulling the newest one
+      # here is what lets the dashboard say "prod runs 1.3 while the repo is at
+      # 1.4" per rule, instead of only "prod was deployed on the 8th".
+      #
+      # Every failure route is non-fatal on purpose: no successful prod run yet,
+      # an expired artifact, a run that predates --report. In each case the
+      # inventory keeps prod's deploy metadata and simply carries no rule map,
+      # which the panel renders as "not recorded" rather than as "not deployed".
+      - name: Download the last prod deploy report
+        id: prodreport
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT_DEV_PUSH }}
+        run: |
+          set -euo pipefail
+
+          run_id="${{ needs.audit_prod.outputs.last_run_id }}"
+          if [[ -z "$run_id" ]]; then
+            echo "No successful prod deploy run recorded; nothing to download."
+            exit 0
+          fi
+
+          if gh run download "$run_id" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "prod-deploy-report-${run_id}" \
+            --dir outputs/deploy; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "Fetched the deploy report from run ${run_id}."
+          else
+            echo "::warning title=No prod deploy report::Could not download prod-deploy-report-${run_id} (expired, or the run predates --report). Prod's per-rule versions will not be updated."
+          fi
+
+      - name: Update the deployment inventory
+        if: steps.fetch.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Retried against origin/dev for the same reason the dev pipeline's
+          # commit step is: the verification job pushes to this branch too, and
+          # whichever lands second has to rebuild on top of the other rather
+          # than clobber it. outputs/state/ is .gitignore'd, so the downloaded
+          # report survives the reset untouched.
+          for i in 1 2 3; do
+            git fetch origin dev
+            git reset --hard origin/dev
+
+            # --deploy-report only when it actually arrived: naming a missing
+            # file would make the script warn and, if the reconcile were also
+            # unreadable, refuse to write at all.
+            report_args=()
+            if [[ -f outputs/deploy/prod_deploy_report.json ]]; then
+              report_args+=(--deploy-report outputs/deploy/prod_deploy_report.json)
+            fi
+
+            python scripts/state/deployment_inventory.py \
+              --env prod \
+              "${report_args[@]+"${report_args[@]}"}" \
+              --reconcile outputs/state/prod_reconcile.json \
+              --commit "${{ needs.audit_prod.outputs.last_sha }}" \
+              --run-id "${{ needs.audit_prod.outputs.last_run_id }}" \
+              --run-url "${{ needs.audit_prod.outputs.last_run_url }}" \
+              --deployed-at "${{ needs.audit_prod.outputs.last_at }}"
+
+            git add outputs/reports/deployment_inventory.json
+
+            if git diff --cached --quiet; then
+              echo "Prod state unchanged since the last audit -- nothing to commit."
+              exit 0
+            fi
+
+            # [skip ci]: this commit carries one JSON file that no build step
+            # reads at build time. The dashboard picks it up on the next run
+            # that regenerates the page, and triggering the whole dev pipeline
+            # nightly to publish a timestamp would be a poor trade.
+            git commit -m "chore(inventory): prod state as audited [skip ci]"
+
+            if git push origin HEAD:dev; then
+              echo "Push succeeded."
+              exit 0
+            fi
+
+            echo "Push failed (attempt $i), retrying..."
+            sleep $((i * 3))
+          done
+
+          echo "Push failed after 3 attempts."
+          exit 1

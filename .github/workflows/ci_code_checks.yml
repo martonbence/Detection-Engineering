@@ -1,0 +1,571 @@
+name: CI - Code Checks
+
+# The pipeline's own CI, as opposed to the pipeline itself.
+#
+# ci_dev_workflow.yml only does real work when a *rule* changes: its `changes`
+# step derives a list of Sigma files, and if that list is empty every
+# downstream job skips. That is correct for rule verification, but it leaves
+# the code that runs the pipeline unexercised -- edit generate_stats.py or
+# check_saved_search_hits.py and nothing checks it. A defect then merges
+# unnoticed and surfaces later, mid-pipeline, in a run that was about
+# something else entirely. (Register items 1.6 and 4.10.)
+#
+# Note this is why simply adding scripts/docs/** to the dev workflow's paths:
+# list would not have worked: the run would start and then skip everything,
+# because no rule changed. The gate has to be a separate, rule-independent
+# workflow, which is also what lets it stay fast -- ubuntu-latest, no Splunk,
+# no self-hosted runner, no live attacks.
+
+on:
+  push:
+    branches-ignore: [ "main" ]
+    paths:
+      - "scripts/**"
+      - "tests/**"
+      # Register item 3.7 moved a decision out of code and into data, and the
+      # tests followed it: test_backend_config.py asserts that config/
+      # backends.yml still reproduces the constants it replaced. Without this
+      # line a lone backends.yml edit runs the dev pipeline -- whose filter does
+      # cover config/** -- while the suite that would catch the mistake never
+      # runs. The gate has to watch the file the answer now lives in.
+      - "config/**"
+      - "pyproject.toml"
+      - ".github/requirements.txt"
+      - ".github/requirements-dev.txt"
+      - ".github/workflows/**"
+      - ".github/PSScriptAnalyzerSettings.psd1"
+      - ".github/actionlint.yaml"
+  pull_request:
+    paths:
+      - "scripts/**"
+      - "tests/**"
+      # Register item 3.7 moved a decision out of code and into data, and the
+      # tests followed it: test_backend_config.py asserts that config/
+      # backends.yml still reproduces the constants it replaced. Without this
+      # line a lone backends.yml edit runs the dev pipeline -- whose filter does
+      # cover config/** -- while the suite that would catch the mistake never
+      # runs. The gate has to watch the file the answer now lives in.
+      - "config/**"
+      - "pyproject.toml"
+      - ".github/requirements.txt"
+      - ".github/requirements-dev.txt"
+      - ".github/workflows/**"
+      - ".github/PSScriptAnalyzerSettings.psd1"
+      - ".github/actionlint.yaml"
+  # Lets Publish Console be forced from the Actions tab when docs/index.html
+  # on dev is already correct but never made it to Pages -- e.g. a fix
+  # committed directly rather than through the auto-regenerate step, so
+  # Regenerate Console finds nothing new to commit and Publish Console has
+  # nothing to trigger on. ci_dev_workflow.yml's deploy_pages job could also
+  # republish, but only as a side effect of the full Splunk/Atomic run; this
+  # is the light path that does only the regenerate-and-publish work.
+  workflow_dispatch:
+
+concurrency:
+  group: code-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  static_analysis:
+    name: Static analysis and tests
+    runs-on: ubuntu-latest
+    # Register item 2.2. These four run on GitHub-hosted runners, where a hung
+    # job costs minutes rather than blocking the lab -- but an unbounded job is
+    # still a job nobody notices is stuck, so they get caps too.
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            .github/requirements.txt
+            .github/requirements-dev.txt
+
+      - name: Install deps
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          # The pinned pipeline toolchain, so tests import the same library
+          # versions the pipeline runs against, plus the pinned test tools.
+          python -m pip install -r .github/requirements.txt
+          python -m pip install -r .github/requirements-dev.txt
+
+      - name: Ruff
+        run: ruff check .
+
+      - name: Pytest
+        run: pytest
+
+  # Separate job rather than two more steps in static_analysis, for two reasons:
+  # steps run in sequence, so a ruff failure would hide a PowerShell failure
+  # until the next push; and a parse error in a .ps1 has no business being
+  # reported under a job named for Python tests. Runs in parallel, so it costs
+  # no wall-clock time.
+  #
+  # Until this existed, nothing checked the PowerShell at all: ruff and pytest
+  # are Python-only, and run_atomic.ps1 is otherwise first parsed by the Windows
+  # runner during a live atomic run -- the slowest feedback loop in the repo.
+  # (Register item 4.10.)
+  powershell_analysis:
+    name: PowerShell analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # Pinned, like .github/requirements.txt pins the Python toolchain
+          # (register item 1.3): an analyzer that changes under us turns a green
+          # build red on someone else's release schedule.
+          Install-Module -Name PSScriptAnalyzer -RequiredVersion 1.25.0 `
+            -Scope CurrentUser -Force -AcceptLicense -ErrorAction Stop
+          Import-Module PSScriptAnalyzer -ErrorAction Stop
+          Write-Host "PSScriptAnalyzer $((Get-Module PSScriptAnalyzer).Version)"
+
+      # Deliberately separate from, and ahead of, the analyzer: this uses the
+      # PowerShell parser itself, so it answers "does this file even parse?"
+      # without depending on any analyzer rule being enabled. It is the check
+      # that would have caught a typo in a script edited on a machine with no
+      # pwsh installed.
+      - name: Parse check
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $failed = $false
+
+          foreach ($file in Get-ChildItem -Path scripts -Filter *.ps1 -Recurse -File) {
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              $file.FullName, [ref]$null, [ref]$errors)
+
+            $relative = (Resolve-Path -LiteralPath $file.FullName -Relative) -replace '^\.[\\/]', ''
+
+            if ($errors -and $errors.Count -gt 0) {
+              $failed = $true
+              foreach ($e in $errors) {
+                Write-Host "::error file=$relative,line=$($e.Extent.StartLineNumber)::$($e.Message)"
+              }
+            }
+            else {
+              Write-Host "OK  $relative"
+            }
+          }
+
+          if ($failed) {
+            Write-Host "::error title=PowerShell parse error::One or more .ps1 files failed to parse."
+            exit 1
+          }
+
+      - name: PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $results = @(Invoke-ScriptAnalyzer -Path scripts -Recurse `
+            -Settings .github/PSScriptAnalyzerSettings.psd1)
+
+          # Severity is an enum, so it is stringified before comparing rather
+          # than relying on coercion inside -in.
+          $isFatal = { param($r) [string]$r.Severity -in @('Error', 'ParseError') }
+
+          foreach ($r in $results) {
+            $relative = (Resolve-Path -LiteralPath $r.ScriptPath -Relative) -replace '^\.[\\/]', ''
+            # Warnings are annotations, not gates -- see the Severity note in
+            # the settings file for why the bar starts here.
+            $level = if (& $isFatal $r) { 'error' } else { 'warning' }
+            Write-Host "::$level file=$relative,line=$($r.Line)::[$($r.RuleName)] $($r.Message)"
+          }
+
+          $fatal = @($results | Where-Object { & $isFatal $_ })
+          $warned = @($results | Where-Object { [string]$_.Severity -eq 'Warning' })
+
+          Write-Host "PSScriptAnalyzer: $($fatal.Count) error(s), $($warned.Count) warning(s)."
+
+          if ($fatal.Count -gt 0) {
+            exit 1
+          }
+
+  # Register item 4.10. Until this existed, the workflow YAML was the only
+  # substantial code in the repo nothing checked: ruff and pytest are
+  # Python-only, PSScriptAnalyzer covers the .ps1 files, and the workflows --
+  # which is where most of this pipeline's logic actually lives -- were read by
+  # nothing but GitHub Actions itself, at run time, on the slowest feedback
+  # loop there is.
+  #
+  # Its own job for the same reason powershell_analysis is: steps run in
+  # sequence, so folding this into static_analysis would let a ruff failure
+  # hide a broken workflow until the next push.
+  workflow_analysis:
+    name: Workflow analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Pinned and checksum-verified, following the same reasoning as the
+      # Python pins and PSScriptAnalyzer 1.25.0: a linter that updates itself
+      # turns an unrelated pull request red on somebody else's release
+      # schedule. The checksum is the published one from the release's own
+      # actionlint_1.7.12_checksums.txt.
+      - name: Install actionlint
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="1.7.12"
+          sha256="8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+          tarball="actionlint_${version}_linux_amd64.tar.gz"
+
+          curl -fsSL -o "$tarball" \
+            "https://github.com/rhysd/actionlint/releases/download/v${version}/${tarball}"
+
+          echo "${sha256}  ${tarball}" | sha256sum --check --strict
+          tar -xzf "$tarball" actionlint
+          sudo mv actionlint /usr/local/bin/actionlint
+          actionlint --version
+
+      # actionlint runs shellcheck itself on every `run:` block that uses a
+      # POSIX shell, which is how shellcheck coverage arrives here -- there is
+      # no separate shellcheck step, because a standalone one would have to
+      # re-extract the scripts out of the YAML to see them at all. That makes
+      # shellcheck's presence load-bearing: if it silently disappeared from the
+      # runner image, actionlint would keep passing while checking strictly
+      # less, so this asserts it rather than assuming it.
+      - name: Verify shellcheck is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            echo "::error::shellcheck is not on PATH, so actionlint would silently skip every run: block."
+            exit 1
+          fi
+          shellcheck --version | sed -n '2p'
+
+      # Self-hosted runner labels come from .github/actionlint.yaml -- without
+      # it every `runs-on:` in the dev and prod workflows reports as an unknown
+      # label (10 findings, all false).
+      #
+      # Every shellcheck severity gates, style included. That is stricter than
+      # the ruff (F + E9) and PSScriptAnalyzer (Error + ParseError) precedents,
+      # and deliberately so: those two were narrowed because they were pointed
+      # at thousands of lines that had never been linted, where the real defects
+      # would have drowned. The workflow bash is a fraction of that size and is
+      # clean at every severity as of the first run, so there is nothing to
+      # drown. If style findings ever start blocking unrelated work, the knob is
+      # `-shellcheck "shellcheck --severity=warning"` here (verified to work),
+      # or `-ignore <regex>` for one specific rule.
+      - name: Run actionlint
+        shell: bash
+        run: |
+          set -euo pipefail
+          actionlint -color
+
+  # Advisory, not a gate. A vulnerability disclosed against a pinned dependency
+  # is real information, but it arrives on the world's schedule rather than this
+  # repo's: a CVE published overnight would otherwise turn every unrelated pull
+  # request red the next morning, for a problem nobody in that pull request
+  # introduced or can fix. It is surfaced loudly instead -- an annotation and
+  # the full report in the step summary.
+  #
+  # Implemented by translating pip-audit's "found vulnerabilities" exit code
+  # into a warning, NOT by continue-on-error on the job. The first version used
+  # continue-on-error, and it was wrong in practice: the step still ended with
+  # "Error: Process completed with exit code 1" and the job still rendered as
+  # failed, so an advisory check looked exactly like a broken one. Reading a red
+  # X as "informational" is not something anyone should have to remember.
+  #
+  # The distinction that matters is preserved below: findings are a warning,
+  # but pip-audit failing to *run* at all still fails the job -- an audit that
+  # never happened must not look like an audit that found nothing.
+  dependency_audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Install pip-audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install pip-audit==2.10.1
+
+      # Both files, because both get installed somewhere: requirements.txt is
+      # what dev and prod run the pipeline with, requirements-dev.txt is what
+      # this workflow runs its own checks with. A vulnerability in the second
+      # is lower stakes but not zero -- it still executes in CI with a checkout
+      # of the repo present.
+      - name: Audit pinned dependencies
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          findings=0
+          broken=0
+
+          # Reports go to a temp directory, not the workspace: nothing here is
+          # meant to be committed, and writing them next to the checkout means
+          # running this step locally litters the repo with untracked files.
+          reports=$(mktemp -d)
+
+          for req in .github/requirements.txt .github/requirements-dev.txt; do
+            echo "=== $req ==="
+            out="${reports}/$(basename "$req").txt"
+
+            # Captured through `if` rather than by reading $? on the next line.
+            # GitHub runs `shell: bash` as `bash --noprofile --norc -e -o
+            # pipefail`, so -e is on no matter what this script's own `set` line
+            # says: a bare `pip-audit ...` followed by `status=$?` kills the step
+            # the moment pip-audit reports findings, before the exit code can be
+            # classified at all. A command inside an `if` condition is exempt
+            # from -e, so this form is correct with or without it.
+            if pip-audit --strict --progress-spinner off -r "$req" >"$out" 2>&1; then
+              status=0
+            else
+              status=$?
+            fi
+            cat "$out"
+
+            # pip-audit exits 1 when it found vulnerabilities and it ran fine.
+            # Any other non-zero status means the audit itself did not happen
+            # (network, resolver, bad file) -- that is a real failure, because
+            # an audit that never ran must not be mistaken for a clean one.
+            case "$status" in
+              0) ;;
+              1) findings=1 ;;
+              *) broken=1; echo "::error::pip-audit could not complete for ${req} (exit ${status})." ;;
+            esac
+          done
+
+          {
+            echo "### Dependency audit"
+            echo
+            for f in "${reports}"/*.txt; do
+              echo "<details><summary>$(basename "$f")</summary>"
+              echo
+              echo '```'
+              cat "$f"
+              echo '```'
+              echo
+              echo "</details>"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$broken" -ne 0 ]; then
+            exit 1
+          fi
+
+          if [ "$findings" -ne 0 ]; then
+            echo "::warning::pip-audit reported known vulnerabilities in a pinned dependency. See the step summary. Advisory only -- it does not block the build."
+          fi
+
+          exit 0
+
+  regenerate_console:
+    name: Regenerate Console
+    needs: [static_analysis, powershell_analysis, workflow_analysis]
+    # Only on dev, and only for real pushes or a manual dispatch: a PR must
+    # not rewrite generated files on someone's branch, and main gets its copy
+    # through the promotion PR like everything else.
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    # Regenerates the whole console (generate_stats.py, including a git
+    # log --follow per rule) and commits, so it gets more room than the two
+    # analysis jobs.
+    timeout-minutes: 30
+    # Required for secrets.GH_PAT_DEV_PUSH to resolve: it is an environment
+    # secret on `dev`, not a repository secret, so a job that does not declare
+    # the environment receives an empty string and actions/checkout fails with
+    # "Input required and not supplied: token". Every job in ci_dev_workflow.yml
+    # that pushes back to dev declares this for the same reason.
+    environment: dev
+
+    outputs:
+      published: ${{ steps.regen.outputs.published }}
+
+    steps:
+      # Full history, not shallow: generate_stats.py derives each rule's
+      # version from `git log --follow` over its file. On a depth=1 checkout
+      # every rule silently comes out "1.0" -- no error, just wrong data. The
+      # dev workflow's splunk_verify job carries the same note for the same
+      # reason.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          token: ${{ secrets.GH_PAT_DEV_PUSH }}
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: .github/requirements.txt
+
+      - name: Install deps
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -r .github/requirements.txt
+
+      - name: Regenerate and commit if changed
+        id: regen
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # generate_stats.py stamps the current time (and HEAD's sha) into
+          # everything it writes, so two runs over identical sources are never
+          # byte-identical. Without accounting for that, "did anything change?"
+          # is always yes, this job commits on every push, and "published"
+          # stops meaning anything.
+          #
+          # Comparing content with those two normalised away is what makes the
+          # question answerable. Deliberately NOT done by filtering diff lines
+          # that look like timestamps: index.html carries COVERAGE_HISTORY and
+          # RULE_GROWTH_HISTORY as one enormous line each, holding the real
+          # data *and* a timestamp, so a line-level filter would silently
+          # discard genuine coverage changes.
+          normalize() {
+            sed -E \
+              -e 's/\r$//' \
+              -e 's/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})?/<TIMESTAMP>/g' \
+              -e 's/[0-9a-f]{40}/<SHA>/g'
+          }
+
+          # True when at least one staged file differs by more than its
+          # timestamps. A file that is new (no HEAD version) counts, since an
+          # empty left side always differs.
+          has_substantive_change() {
+            local f
+            for f in $(git diff --cached --name-only); do
+              if ! diff -q \
+                  <(git show "HEAD:$f" 2>/dev/null | normalize) \
+                  <(normalize < "$f") >/dev/null 2>&1; then
+                echo "  content changed: $f"
+                return 0
+              fi
+            done
+            return 1
+          }
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Mirrors the dev workflow's commit-back loop: reset to dev's tip,
+          # regenerate from there, push, retry on conflict. Resetting rather
+          # than merging is safe precisely because everything written here is
+          # derived -- regenerating on top of the newest dev reproduces it.
+          for i in 1 2 3; do
+            git fetch origin dev
+            git reset --hard origin/dev
+
+            python scripts/docs/generate_stats.py
+
+            # outputs/results/ is deliberately NOT staged: those are verdicts,
+            # owned by the verification pipeline. This job only publishes what
+            # the generator derives from them.
+            git add outputs/reports/ README.md docs/index.html
+
+            if git diff --cached --quiet; then
+              echo "Generated output is byte-identical. Nothing to publish."
+              echo "published=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            if ! has_substantive_change; then
+              echo "Only generation timestamps moved -- no content change. Nothing to publish."
+              git reset >/dev/null
+              echo "published=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            echo "Console output changed; publishing."
+            git diff --cached --stat
+
+            # [skip ci] matters: this job's own push touches paths in its
+            # trigger list, so without it the workflow would re-trigger itself
+            # on every run.
+            git commit -m "chore(docs): regenerate Console and stats [skip ci]"
+
+            if git push origin HEAD:dev; then
+              echo "Push succeeded."
+              echo "published=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            echo "Push failed (attempt $i), retrying..."
+            sleep $((i * 2))
+          done
+
+          echo "Push failed after 3 attempts."
+          exit 1
+
+  publish_console:
+    name: Publish Console
+    needs: regenerate_console
+    # Runs when something actually changed, OR when manually dispatched --
+    # GitHub Pages publishes from an uploaded artifact, not from the branch,
+    # so committing docs/index.html above updates the repo but NOT the live
+    # site. Without the first arm the published page would wait for the next
+    # rule change to go out (half of what register item 1.6 is about);
+    # without the second, dev's docs/index.html has no way to reach Pages
+    # once it is already correct in the repo but was never actually
+    # published (e.g. a fix committed by hand rather than by the
+    # auto-regenerate step above, which then finds nothing new to commit).
+    if: needs.regenerate_console.outputs.published == 'true' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev')
+    runs-on: ubuntu-latest
+    # Also bounds how long this can hold the repo-wide `pages` concurrency
+    # group that the dev pipeline's own publish job queues behind.
+    timeout-minutes: 15
+    permissions:
+      pages: write
+      id-token: write
+    # Same group name as ci_dev_workflow.yml's Pages job on purpose:
+    # concurrency groups are shared repo-wide, so the two deployments queue
+    # instead of racing each other to publish different snapshots.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # dev's tip, which now includes the commit the previous job pushed.
+          ref: dev
+
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: docs/
+
+      - id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0

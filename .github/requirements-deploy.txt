@@ -1,0 +1,13 @@
+# Pinned runtime for the prod deploy step only (register item 3.2, stage C).
+#
+# Split out of .github/requirements.txt on purpose: prod no longer converts
+# Sigma to SPL -- it verifies the build-provenance attestation on the .spl
+# dev already produced and committed, then deploys those bytes as-is. The
+# only third-party import scripts/deploy/deploy_spl_to_splunk.py has is
+# `requests`; installing pyyaml/jsonschema/sigma-cli/pySigma/
+# pysigma-backend-splunk here would be paying for a toolchain prod never
+# runs. .github/requirements.txt stays as it is -- dev still needs the full
+# pin for its own conversion reproducibility -- this file just stops prod
+# from installing it too.
+
+requests==2.34.2

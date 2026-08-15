@@ -1,0 +1,21 @@
+{
+  "attribution": {
+    "commit": ""
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "bash .claude/hooks/docs-drift-check.sh",
+            "timeout": 20,
+            "statusMessage": "Checking whether docs need updating after this commit..."
+          }
+        ]
+      }
+    ]
+  }
+}

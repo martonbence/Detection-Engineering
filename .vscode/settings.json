@@ -2,16 +2,12 @@
     "files.associations": {
         "**/*.spl": "plaintext",
         "rules/**/*.yml": "yaml",
-        "rules/**/*.yaml": "yaml",
-        "**/*.sigma.yml": "yaml",
-        "**/*.sigma.yaml": "yaml"
+        "rules/**/*.yaml": "yaml"
     },
     "yaml.schemas": {
         "docs/schemas/sigma_schema.json": [
             "rules/**/*.yml",
-            "rules/**/*.yaml",
-            "**/*.sigma.yml",
-            "**/*.sigma.yaml"
+            "rules/**/*.yaml"
         ]
     },
     "[yaml]": {
@@ -25,6 +21,12 @@
             "strings": "on"
         }
     },
+    // Elrejti a fastruktúrából, amit a .gitignore kizár: __pycache__,
+    // .pytest_cache, .ruff_cache, pipeline_bundle, outputs/state,
+    // outputs/deploy és a rules/splunk/*.meta.json melléklapok.
+    // Nem érti a tagadó mintákat (!valami) -- ha a .gitignore-ba kerül ilyen,
+    // az a fájl itt rejtve marad.
+    "explorer.excludeGitIgnore": true,
     "editor.formatOnSave": true,
     "files.trimTrailingWhitespace": true,
     "editor.rulers": [

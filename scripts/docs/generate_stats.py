@@ -2,9 +2,14 @@
 generate_stats.py — Collect detection rule stats and update README.md + docs/index.html.
 
 Reads:
-  - rules/sigma/*.yml          — sigma rules (level, status, tags, detect_id)
-  - rules/splunk/*.spl         — counts native (non-sigma) SPL rules
+  - rules/sigma/*.yml          — every rule (level, status, tags, detect_id);
+    rules with custom.splunk.raw_query set are hand-crafted SPL classified as
+    "native_spl" for the rule browser's source badge, everyone else is "sigma"
+  - rules/splunk/*.spl         — generated query output, counted for total_splunk_rules only
   - outputs/results/*/result.json — pass/fail verdicts
+  - scripts/docs/assets/page.{template.html,css,js} — the rule browser page,
+    assembled by load_page_template(); the placeholders in it are filled in by
+    render_html_summary()
 
 Writes:
   - outputs/reports/stats.json — consumed by shields.io dynamic badges
@@ -14,17 +19,22 @@ Writes:
 
 import html as _html
 import json
-import math
 import re
+import subprocess
 import sys
-import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import yaml
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from lib.rule_version import compute_rule_version
+from lib.rules import RuleLoadError, discover, load_rule
+from lib.verdict_history import read_history
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
+RESULTS_DIR = REPO_ROOT / "outputs" / "results"
 
 TACTIC_MAP = {
     "reconnaissance": "Reconnaissance",
@@ -110,67 +120,83 @@ VERDICT_BADGE = {
     "PASS": "![](https://img.shields.io/badge/PASS-2EA44F?style=flat-square)",
     "FAIL": "![](https://img.shields.io/badge/FAIL-CF222E?style=flat-square)",
     "N/A":  "![](https://img.shields.io/badge/N%2FA-6E7681?style=flat-square)",
-}
-
-VERDICT_EMOJI = {
-    "PASS": "✅ PASS",
-    "FAIL": "❌ FAIL",
-    "N/A": "⬜ N/A",
+    # Deployed + attempted this run, but the Atomic Red Team test itself did not
+    # complete (e.g. cut off by run_atomic.ps1's step timeout) -- distinct from
+    # both FAIL (test ran, no matching Splunk events) and N/A (never tested at
+    # all). Uses GitHub Primer's "attention" amber (#9A6700, the same emphasis
+    # shade Primer reserves for warning/caution) so it reads as "caution/unknown"
+    # rather than pass (green) or fail (red) -- see docs/index.html's
+    # .verdict-notverified / .tc.notver / Navigator legend for the matching
+    # rule-browser treatment.
+    "NOT_VERIFIED": "![](https://img.shields.io/badge/NOT%20VERIFIED-9A6700?style=flat-square)",
 }
 
 
 def load_sigma_rules() -> list[dict]:
     rules = []
-    sigma_dir = REPO_ROOT / "rules" / "sigma"
-    if not sigma_dir.exists():
-        return rules
-    for p in sorted(sigma_dir.glob("*.yml")):
+    for path in discover(REPO_ROOT / "rules" / "sigma"):
         try:
-            data = yaml.safe_load(p.read_text(encoding="utf-8"))
-            if isinstance(data, dict):
-                data["_file_path"] = f"rules/sigma/{p.name}"
-                rules.append(data)
-        except Exception:
-            pass
-    return rules
-
-
-def count_spl_rules() -> tuple[int, int]:
-    """Returns (total_spl, native_spl). Total includes sigma-converted .spl files."""
-    splunk_dir = REPO_ROOT / "rules" / "splunk"
-    if not splunk_dir.exists():
-        return 0, 0
-    all_spl = list(splunk_dir.glob("*.spl"))
-    native = sum(1 for p in all_spl if ".sigma." not in p.name)
-    return len(all_spl), native
-
-
-def load_native_spl_rules() -> list[dict]:
-    """Read META block from native (non-sigma-converted) .spl files."""
-    rules = []
-    splunk_dir = REPO_ROOT / "rules" / "splunk"
-    if not splunk_dir.exists():
-        return rules
-    for p in sorted(splunk_dir.glob("*.spl")):
-        if ".sigma." in p.name:
+            data = load_rule(path)
+        except RuleLoadError:
+            # Unchanged policy: drop it and carry on. A dashboard is not a gate
+            # -- validate_sigma.py already fails the run for a malformed rule,
+            # and refusing to render the page as well helps nobody.
             continue
-        try:
-            content = p.read_text(encoding="utf-8")
-            m = re.search(r"META_START\s*(\{.*?\})\s*META_END", content, re.DOTALL)
-            if m:
-                meta = json.loads(m.group(1))
-                if isinstance(meta, dict):
-                    meta["_file_path"] = f"rules/splunk/{p.name}"
-                    rules.append(meta)
-        except Exception:
-            pass
+        # Derived from the path rather than assembled from the filename, so a
+        # rule in a subdirectory gets a link that resolves (register 3.8).
+        data["_file_path"] = path.relative_to(REPO_ROOT).as_posix()
+        rules.append(data)
     return rules
+
+
+def count_spl_rules() -> int:
+    """Returns the total number of generated .spl files under rules/splunk."""
+    splunk_dir = REPO_ROOT / "rules" / "splunk"
+    if not splunk_dir.exists():
+        return 0
+    return len(list(splunk_dir.glob("*.spl")))
+
+
+def get_raw_query(rule: dict) -> str:
+    """Rules with no real Sigma detection logic set custom.splunk.raw_query
+    instead -- sigma_to_spl.py emits that text verbatim. Used to classify a
+    rule as 'native_spl' (hand-crafted SPL) vs 'sigma' (converted) for the
+    rule browser's source badge, even though both live in rules/sigma/*.yml."""
+    custom = rule.get("custom") or {}
+    splunk_custom = custom.get("splunk") if isinstance(custom, dict) else None
+    if not isinstance(splunk_custom, dict):
+        return ""
+    return str(splunk_custom.get("raw_query") or "").strip()
+
+
+def extract_sigma_body(rule: dict) -> str:
+    """Re-serializes the detection portion of a sigma rule (the actual search
+    logic) for the drawer's syntax-highlighted code view — keeps it separate
+    from the metadata already shown elsewhere in the drawer."""
+    detection = rule.get("detection")
+    if not detection:
+        return ""
+    try:
+        return yaml.safe_dump(
+            {"detection": detection}, sort_keys=False, allow_unicode=True,
+            default_flow_style=False, width=100,
+        ).strip()
+    except Exception:
+        return ""
 
 
 def load_verdicts() -> dict[str, dict]:
-    """Returns {detect_id: {verdict, run_id}} from outputs/results/*/result.json."""
+    """Returns {detect_id: {verdict, run_id, run_timestamp, rule_version}}
+    from outputs/results/*/result.json.
+
+    The timestamp and the tested rule_version are carried through so the browser
+    can say WHEN a verdict was measured and WHICH version of the rule it was
+    measured against. A PASS is only evidence about the rule text that was
+    actually fired at -- if the rule changed afterwards, the verdict is a
+    statement about a rule that no longer exists.
+    """
     verdicts: dict[str, dict] = {}
-    results_dir = REPO_ROOT / "outputs" / "results"
+    results_dir = RESULTS_DIR
     if not results_dir.exists():
         return verdicts
     for result_file in results_dir.glob("*/result.json"):
@@ -182,10 +208,45 @@ def load_verdicts() -> dict[str, dict]:
                 verdicts[detect_id] = {
                     "verdict": verdict,
                     "run_id": data.get("run_id", ""),
+                    "run_timestamp": str(data.get("run_timestamp") or ""),
+                    "rule_version": str(data.get("rule_version") or ""),
                 }
         except Exception:
             pass
     return verdicts
+
+
+def extract_logsource(rule: dict) -> dict:
+    ls = rule.get("logsource")
+    if not isinstance(ls, dict):
+        return {"product_category": "", "product": "", "service": "", "event_type": ""}
+    return {
+        "product_category": str(ls.get("product_category") or ""),
+        "product": str(ls.get("product") or ""),
+        "service": str(ls.get("service") or ""),
+        "event_type": str(ls.get("event_type") or ""),
+    }
+
+
+def extract_testing(rule: dict) -> dict:
+    """Normalizes the two testing-metadata shapes used by sigma rules
+    (custom.testing) and native SPL META blocks (flat 'testing enabled'/'tester' keys)."""
+    custom_testing = (rule.get("custom") or {}).get("testing")
+    if isinstance(custom_testing, dict):
+        return {
+            "enabled": bool(custom_testing.get("enabled")),
+            "runner": str(custom_testing.get("runner") or ""),
+            "type": str(custom_testing.get("type") or ""),
+            "atomics": custom_testing.get("atomics") or [],
+        }
+    if "testing enabled" in rule or "atomic tests" in rule:
+        return {
+            "enabled": bool(rule.get("testing enabled")),
+            "runner": str(rule.get("runner") or ""),
+            "type": str(rule.get("tester") or ""),
+            "atomics": rule.get("atomic tests") or [],
+        }
+    return {"enabled": False, "runner": "", "type": "", "atomics": []}
 
 
 def extract_tactics(tags: list) -> list[str]:
@@ -198,11 +259,23 @@ def extract_tactics(tags: list) -> list[str]:
     return tactics
 
 
+# Register item 2.22: this used to be `attack\.(t\d+(?:\.\d+)?)`, looser than
+# the schema's own `^attack\.[Tt]\d{4}(\.\d{3})?$` (docs/schemas/sigma_schema.json)
+# -- so a malformed tag like `attack.t123` that the schema only lets through on
+# its free-form third `anyOf` branch was rendered here as a real technique
+# badge and Navigator cell, exactly the false-coverage failure check_mitre_tags.py
+# (4.3) flags advisory-only. Anchored and digit-counted to match the schema
+# exactly: a tag either looks like a real technique on both sides or on
+# neither. Verified against every tag in rules/sigma/*.yml before this change:
+# zero rules had a technique-shaped tag this would newly reject.
+TECHNIQUE_TAG_RE = re.compile(r"^attack\.(t\d{4}(?:\.\d{3})?)$")
+
+
 def extract_techniques(tags: list) -> list[str]:
     """Returns technique IDs like ['T1053.005', 'T1059'] from sigma tags."""
     techniques = []
     for tag in tags or []:
-        m = re.match(r"attack\.(t\d+(?:\.\d+)?)", str(tag).lower())
+        m = TECHNIQUE_TAG_RE.match(str(tag).lower())
         if m:
             techniques.append(m.group(1).upper())
     return techniques
@@ -252,7 +325,7 @@ def fetch_mitre_techniques(
     ref_at = disk_at  # only trust disk cache timestamp, not the count-only stats.json timestamp
     if cached_count and cached_map and ref_at:
         try:
-            age = datetime.now(timezone.utc) - datetime.fromisoformat(ref_at)
+            age = datetime.now(UTC) - datetime.fromisoformat(ref_at)
             if age < timedelta(days=MITRE_CACHE_DAYS):
                 return cached_count, cached_map, False
         except Exception:
@@ -301,7 +374,7 @@ def fetch_mitre_techniques(
 
         technique_map = sorted(main_techs.values(), key=lambda x: x["id"])
         count = len(main_techs)
-        now_iso = datetime.now(timezone.utc).isoformat()
+        now_iso = datetime.now(UTC).isoformat()
 
         try:
             MITRE_MAP_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -317,126 +390,66 @@ def fetch_mitre_techniques(
         return cached_count or 201, cached_map, False
 
 
-def mitre_coverage_color(pct: float) -> str:
-    if pct <= 25:
-        return "#7B0000"
-    if pct <= 50:
-        return "#DC2626"
-    if pct <= 75:
-        return "#FFAA00"
-    return "#2EA44F"
+# Precedence used to pick a technique's "best_verdict" when it's covered by
+# several rules with different verdicts. PASS obviously wins (a working,
+# verified detection exists). Below that, NOT_VERIFIED ranks above FAIL: FAIL
+# means we found out and the answer was bad -- the test ran to completion and
+# no Splunk alert fired, or the rule is not deployed / its search errored --
+# whereas NOT_VERIFIED means either the attack or the measurement stopped
+# before we found out either way, so it's still "unknown", not "confirmed
+# broken".
+# Surfacing the unknown state ahead of a confirmed failure avoids implying a
+# technique is worse off than it's actually known to be. N/A (never tested)
+# is last since no attempt was even made.
+VERDICT_RANK = {"PASS": 3, "NOT_VERIFIED": 2, "FAIL": 1, "N/A": 0}
+
+# How a verdict was produced, as the rule's `testing.type` calls it. Spelled out
+# for the page because "atomic" is an in-house shorthand while "Atomic Red Team"
+# names a tool the reader can go and check -- and the distinction matters: an
+# emulation-backed PASS and an ART-backed PASS are not equal evidence, even
+# though the badge is the same green.
+VERIFY_METHOD_LABELS = {"atomic": "Atomic Red Team", "emulation": "Emulation"}
+
+# How long a verdict stays current before the rule is due for re-validation.
+# Injected into the page as @@REVIEW_DAYS@@ and evaluated in the browser, so a
+# rule crosses the line on its own without the pipeline having to re-run.
+REVIEW_INTERVAL_DAYS = 180
 
 
-def tactic_chart_url(by_tactic: dict) -> str:
-    """Horizontal bar chart: rules per MITRE ATT&CK tactic, sorted by count desc."""
-    if not by_tactic:
-        return ""
-    tactics = sorted(by_tactic.items(), key=lambda x: -x[1])
-    labels = [t for t, _ in tactics]
-    values = [c for _, c in tactics]
-    height = max(160, len(tactics) * 36 + 70)
-    cfg = {
-        "type": "horizontalBar",
-        "data": {
-            "labels": labels,
-            "datasets": [{
-                "label": "Rules",
-                "data": values,
-                "backgroundColor": "#FFAA00",
-                "borderColor": "black",
-                "borderWidth": 0.5,
-            }],
-        },
-        "options": {
-            "scales": {
-                "xAxes": [{
-                    "display": False,
-                    "gridLines": {
-                        "display": False,
-                        "drawOnChartArea": False,
-                        "drawBorder": False,
-                    },
-                    "ticks": {
-                        "display": False,
-                        "beginAtZero": True,
-                    },
-                }],
-                "yAxes": [{
-                    "display": True,
-                    "position": "left",
-                    "gridLines": {
-                        "display": False,
-                        "drawOnChartArea": False,
-                        "drawBorder": False,
-                    },
-                    "ticks": {"fontColor": "#FFAA00"},
-                }],
-            },
-            "legend": {"display": False},
-            "plugins": {
-                "datalabels": {
-                    "anchor": "end",
-                    "align": "start",
-                    "color": "black",
-                    "font": {"size": 12, "weight": "bold"},
-                },
-            },
-        },
-    }
-    chart_json = json.dumps(cfg, separators=(",", ":"))
-    return (
-        "https://quickchart.io/chart?c=" + urllib.parse.quote(chart_json)
-        + f"&width=500&height={height}&f=svg"
-    )
+def _verdict_age_days(iso: str) -> int | None:
+    """Whole days between a verdict's timestamp and now, or None if unusable.
 
-
-def mitre_coverage_chart_url(covered: int, total: int, pct: float) -> str:
-    """Build a QuickChart URL for a half-doughnut MITRE coverage gauge.
-
-    QuickChart's server-side SVG renderer does not expose the Canvas 2D API
-    (beginPath, save, measureText, etc.) to custom afterDraw hooks, so
-    per-label pill backgrounds are not achievable. The doughnutlabel plugin
-    renders text with white color directly on the chart background.
+    Calendar days in UTC, matching the page's verdictAgeDays() so the build-time
+    figure and the browser's live one can only differ by the time between the
+    two, never by how the arithmetic is done.
     """
-    cfg = {
-        "type": "doughnut",
-        "data": {
-            "datasets": [{
-                "data": [covered, total - covered],
-                "backgroundColor": ["#FFAA00", "rgba(128,128,128,0.15)"],
-                "borderColor": "black",
-                "borderWidth": 0.5,
-            }],
-        },
-        "options": {
-            "rotation": math.pi,
-            "circumference": math.pi,
-            "cutoutPercentage": 80,
-            "plugins": {
-                "legend": {"display": False},
-                "tooltip": {"enabled": False},
-                "datalabels": {"display": False},
-                "doughnutlabel": {
-                    "labels": [
-                        {"text": "MITRE ATT&CK Coverage", "color": "#FFAA00", "font": {"size": 18, "weight": "bold"}},
-                        {"text": f"{pct:.1f}%", "color": "#FFAA00", "font": {"size": 34, "weight": "bold"}},
-                        {"text": f"{covered} / {total}", "color": "#FFAA00", "font": {"size": 13}},
-                    ],
-                },
-            },
-        },
-    }
-    chart_json = json.dumps(cfg, separators=(",", ":"))
-    return "https://quickchart.io/chart?c=" + urllib.parse.quote(chart_json) + "&width=500&height=300&f=svg"
+    if not iso:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(iso))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    then = parsed.astimezone(UTC).date()
+    return (datetime.now(UTC).date() - then).days
 
 
 def build_technique_coverage(rules_detail: list, repo: str) -> dict:
-    """Build {tech_id: {best_verdict, rules:[{id,title,verdict,url}]}} from rules."""
+    """Build {tech_id: {best_verdict, has_fail, rules:[...]}} from rules.
+
+    ``best_verdict`` is the *highest*-ranked verdict of the covering rules, so a
+    technique covered by both a PASS and a FAIL rule reads as PASS — the cell
+    colour answers "is this technique detected", not "is every rule healthy".
+    ``has_fail`` carries the second question separately: it is True when ANY
+    covering rule FAILed, so the matrix can flag a confirmed failure that the
+    roll-up would otherwise hide.
+    """
     cov: dict = {}
     for rule in rules_detail:
         for tech in rule.get("techniques") or []:
             if tech not in cov:
-                cov[tech] = {"best_verdict": "N/A", "rules": []}
+                cov[tech] = {"best_verdict": "N/A", "has_fail": False, "rules": []}
             file_path = rule.get("file_path", "")
             url = f"https://github.com/{repo}/blob/main/{file_path}" if file_path else ""
             cov[tech]["rules"].append({
@@ -446,11 +459,11 @@ def build_technique_coverage(rules_detail: list, repo: str) -> dict:
                 "url": url,
             })
             v = rule["verdict"]
+            if v == "FAIL":
+                cov[tech]["has_fail"] = True
             cur = cov[tech]["best_verdict"]
-            if v == "PASS":
-                cov[tech]["best_verdict"] = "PASS"
-            elif v == "FAIL" and cur not in ("PASS",):
-                cov[tech]["best_verdict"] = "FAIL"
+            if VERDICT_RANK.get(v, 0) > VERDICT_RANK.get(cur, 0):
+                cov[tech]["best_verdict"] = v
     return cov
 
 
@@ -458,24 +471,45 @@ def render_navigator_layer(technique_coverage: dict, stats: dict) -> str:
     techniques_out = []
     for tech_id, cov in technique_coverage.items():
         verdict = cov["best_verdict"]
-        color = {"PASS": "#2EA44F", "FAIL": "#CF222E"}.get(verdict, "#6E7681")
-        score = {"PASS": 100, "FAIL": 50}.get(verdict, 25)
-        comment = "\n".join(
-            f"{r['id']}: {r['title']} ({r['verdict']})" for r in cov["rules"]
-        )
-        techniques_out.append({
+        color = {
+            "PASS": "#2EA44F", "NOT_VERIFIED": "#d29922", "FAIL": "#CF222E",
+        }.get(verdict, "#6E7681")
+        score = {"PASS": 100, "NOT_VERIFIED": 75, "FAIL": 50}.get(verdict, 25)
+        lines = [f"{r['id']}: {r['title']} ({r['verdict']})" for r in cov["rules"]]
+        # The colour/score stay keyed to best_verdict, so this file agrees with
+        # the in-page matrix — but that roll-up hides a failing rule behind a
+        # passing one. The official Navigator has no per-technique flag, so the
+        # warning goes where it will actually be read: first line of the comment
+        # (shown on hover) plus a metadata row in the technique sidebar.
+        failing = [r["id"] for r in cov["rules"] if r["verdict"] == "FAIL"]
+        if failing:
+            lines.insert(0, (
+                f"⚠ {len(failing)} of {len(cov['rules'])} covering rule(s) "
+                f"FAILED verification"
+            ))
+        entry = {
             "techniqueID": tech_id,
             "color": color,
-            "comment": comment,
+            "comment": "\n".join(lines),
             "enabled": True,
             "score": score,
             "showSubtechniques": True,
-        })
+        }
+        if failing:
+            entry["metadata"] = [
+                {"name": "Failing rules", "value": ", ".join(failing)},
+            ]
+        techniques_out.append(entry)
     layer = {
         "name": "Detection Engineering Coverage",
         "versions": {"attack": "19", "navigator": "4.9.1", "layer": "4.5"},
         "domain": "enterprise-attack",
-        "description": f"Auto-generated detection coverage. {stats['generated_at'][:19]} UTC.",
+        "description": (
+            f"Auto-generated detection coverage. {stats['generated_at'][:19]} UTC. "
+            "Colour is the best verdict among the rules covering a technique; "
+            "a ⚠ in the comment marks techniques where a covering rule failed "
+            "verification despite that."
+        ),
         "filters": {"platforms": [
             "Windows", "Linux", "macOS", "Network", "PRE", "Containers",
             "Office 365", "SaaS", "Google Workspace", "IaaS", "Azure AD",
@@ -495,8 +529,9 @@ def render_navigator_layer(technique_coverage: dict, stats: dict) -> str:
         "gradient": {"colors": ["#ffffff00", "#2EA44F"], "minValue": 0, "maxValue": 100},
         "legendItems": [
             {"label": "PASS", "color": "#2EA44F"},
+            {"label": "NOT VERIFIED", "color": "#d29922"},
             {"label": "FAIL", "color": "#CF222E"},
-            {"label": "Not Verified", "color": "#6E7681"},
+            {"label": "N/A", "color": "#6E7681"},
         ],
         "metadata": [],
         "links": [],
@@ -528,7 +563,13 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
         c = technique_coverage.get(tid)
         if not c:
             return "uncov"
-        return {"PASS": "pass", "FAIL": "fail"}.get(c["best_verdict"], "nv")
+        return {"PASS": "pass", "NOT_VERIFIED": "notver", "FAIL": "fail"}.get(
+            c["best_verdict"], "nv"
+        )
+
+    def fcls(tid: str) -> str:
+        c = technique_coverage.get(tid)
+        return " fail-flag" if c and c.get("has_fail") else ""
 
     def rattr(tid: str) -> str:
         c = technique_coverage.get(tid)
@@ -577,8 +618,24 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
             badge_div = ("<div class=\"tc-foot\">" + badge + "</div>") if badge else ""
             cls = vcls(tid)
             has_cov = " has-cov" if (cls == "uncov" and sub_covered > 0) else ""
+            # A failing rule usually maps to a SUB-technique, and sub-techniques
+            # are collapsed by default — so the flag has to climb to the parent
+            # or the failure stays invisible on the matrix. Same reasoning as
+            # has-cov above, which surfaces sub-level coverage on the parent.
+            sub_fail = any(
+                technique_coverage.get(s["id"], {}).get("has_fail") for s in subs
+            )
+            fail_cls = " fail-flag" if (fcls(tid) or sub_fail) else ""
+            # Parents that only inherited the flag have no rules of their own,
+            # so the hover tooltip (bound to [data-rules]) never fires for them;
+            # a native title keeps the marker from being unexplained.
+            inherit_tip = (
+                " title=\"A sub-technique rule failed verification\""
+                if sub_fail and tid not in technique_coverage else ""
+            )
             cells.append(
-                "<div class=\"tc " + cls + has_cov + "\" data-id=\"" + tid + "\"" + rattr(tid) + ">"
+                "<div class=\"tc " + cls + has_cov + fail_cls + "\" data-id=\"" + tid + "\""
+                + inherit_tip + rattr(tid) + ">"
                 "<div class=\"tc-row1\">"
                 "<a class=\"ti\" href=\"" + tech_url + "\" target=\"_blank\">" + tid + "</a>"
                 + expand +
@@ -594,7 +651,7 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
                 sname = _html.escape(sub["name"])
                 surl = "https://attack.mitre.org/techniques/" + tid + "/" + suffix + "/"
                 cells.append(
-                    "<div class=\"tc sub " + vcls(sid) + " subs-" + tid + "\""
+                    "<div class=\"tc sub " + vcls(sid) + fcls(sid) + " subs-" + tid + "\""
                     " style=\"display:none\" data-id=\"" + sid + "\"" + rattr(sid) + ">"
                     "<div class=\"tc-row1\">"
                     "<a class=\"ti\" href=\"" + surl + "\" target=\"_blank\">." + suffix + "</a>"
@@ -603,23 +660,210 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
                     + detail_btn_html(sid, sname)
                     + "</div>"
                 )
+        # A technique counts as "covered" for the tactic ratio if it — or any
+        # of its sub-techniques — has at least one mapped rule.
+        covered = sum(
+            1 for t in techs
+            if t["id"] in technique_coverage
+            or any(s["id"] in technique_coverage for s in t.get("subs", []))
+        )
+        total = len(techs)
+        pct = round(covered / total * 100) if total else 0
         cols.append(
-            "<div class=\"tc-col\">"
-            "<div class=\"tc-hdr\"><a href=\"" + tac_url + "\" target=\"_blank\">"
-            + _html.escape(tactic) + "</a>"
-            + "<span class=\"tc-count\">" + str(len(techs)) + " techniques</span>"
-            + "</div>"
+            "<div class=\"tc-col\" data-tactic=\"" + _html.escape(tactic) + "\">"
+            "<div class=\"tc-hdr\">"
+            "<button class=\"tc-col-toggle\" title=\"Collapse column\">&#9662;</button>"
+            "<a href=\"" + tac_url + "\" target=\"_blank\">" + _html.escape(tactic) + "</a>"
+            "<span class=\"tc-count\">" + str(covered) + "/" + str(total) + " covered</span>"
+            "<span class=\"tc-cov-bar\"><span class=\"tc-cov-fill\" style=\"width:"
+            + str(pct) + "%\"></span></span>"
+            "</div>"
             + "".join(cells)
             + "</div>"
         )
     return "<div class=\"att-matrix\">" + "".join(cols) + "</div>"
 
 
+# ── Historical trend mining (Dashboards "Trends Over Time" section) ────────
+#
+# Two JSON cache files under outputs/reports/ back the trend charts:
+#   - coverage_history.json      → MITRE coverage % over time
+#   - rule_growth_history.json   → total/Sigma/Native SPL rule counts over time
+#
+# Each is updated INCREMENTALLY: one data point is appended (or the existing
+# same-day point replaced, so re-runs on the same day don't spam the file)
+# every time this script runs — cheap, and avoids re-mining full git history
+# on every CI invocation. The first time a cache file doesn't exist yet, a
+# bounded backfill mines existing git history (one commit per calendar day,
+# capped at HISTORY_BACKFILL_MAX_DAYS days) so the chart isn't a single dot
+# the first time this feature ships; after that, backfill never runs again
+# for that file.
+
+HISTORY_MAX_POINTS = 365
+HISTORY_BACKFILL_MAX_DAYS = 90
+
+COVERAGE_HISTORY_PATH = REPO_ROOT / "outputs" / "reports" / "coverage_history.json"
+RULE_GROWTH_HISTORY_PATH = REPO_ROOT / "outputs" / "reports" / "rule_growth_history.json"
+
+
+def _git(args: list[str], input_text: str | None = None) -> str:
+    """Runs git in REPO_ROOT, returns stdout ('' on any failure).
+
+    Best-effort by design: history mining is a nice-to-have dashboard feature,
+    never worth failing the whole stats build over (e.g. shallow clones,
+    missing git binary, non-repo checkouts in some CI contexts)."""
+    try:
+        result = subprocess.run(
+            ["git", *args], cwd=REPO_ROOT, capture_output=True, text=True,
+            input=input_text, timeout=60,
+        )
+        return result.stdout if result.returncode == 0 else ""
+    except Exception:
+        return ""
+
+
+def _commits_touching(path: str, max_commits: int = 500) -> list[tuple[str, str]]:
+    """Returns [(sha, author_iso_date)] newest-first for commits touching `path`."""
+    out = _git(["log", "--format=%H,%aI", "-n", str(max_commits), "--", path])
+    commits: list[tuple[str, str]] = []
+    for line in out.splitlines():
+        sha, _, iso = line.partition(",")
+        sha, iso = sha.strip(), iso.strip()
+        if sha and iso:
+            commits.append((sha, iso))
+    return commits
+
+
+def _one_commit_per_day(
+    commits: list[tuple[str, str]], max_days: int
+) -> list[tuple[str, str, str]]:
+    """De-dupes newest-first commits to the single most-recent commit per
+    calendar day, bounded to `max_days` days, returned oldest-first (the
+    order charts want to plot in)."""
+    seen: set[str] = set()
+    picked: list[tuple[str, str, str]] = []
+    for sha, iso in commits:
+        day = iso[:10]
+        if day in seen:
+            continue
+        seen.add(day)
+        picked.append((sha, iso, day))
+        if len(picked) >= max_days:
+            break
+    picked.reverse()
+    return picked
+
+
+def _load_history(path: Path, key: str) -> list[dict]:
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        points = data.get(key, [])
+        return points if isinstance(points, list) else []
+    except Exception:
+        return []
+
+
+def _save_history(path: Path, key: str, points: list[dict]) -> None:
+    if len(points) > HISTORY_MAX_POINTS:
+        points = points[-HISTORY_MAX_POINTS:]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({key: points}, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+
+
+def _append_or_replace_today(points: list[dict], new_point: dict) -> list[dict]:
+    """Appends a new point, unless the last stored point is already today's
+    (a re-run on the same day updates in place instead of duplicating)."""
+    if points and points[-1].get("date") == new_point["date"]:
+        points[-1] = new_point
+    else:
+        points.append(new_point)
+    return points
+
+
+def _backfill_stats_history() -> tuple[list[dict], list[dict]]:
+    """One-time backfill (only runs while both cache files are still absent)
+    for coverage + rule-growth history, mined from historical
+    outputs/reports/stats.json commits — a single small JSON file, so one
+    `git show` per sampled day is cheap even across ~100+ commits."""
+    coverage_points: list[dict] = []
+    growth_points: list[dict] = []
+    commits = _commits_touching("outputs/reports/stats.json", max_commits=500)
+    sampled = _one_commit_per_day(commits, HISTORY_BACKFILL_MAX_DAYS)
+    for sha, iso, day in sampled:
+        raw = _git(["show", f"{sha}:outputs/reports/stats.json"])
+        if not raw:
+            continue
+        try:
+            data = json.loads(raw)
+        except Exception:
+            continue
+        coverage_points.append({
+            "date": day,
+            "timestamp": iso,
+            "git_sha": sha,
+            "mitre_covered_techniques": data.get("mitre_covered_techniques", 0),
+            "mitre_total_techniques": data.get("mitre_total_techniques", 0),
+            "mitre_coverage_pct": data.get("mitre_coverage_pct", 0),
+        })
+        # total_native_spl_rules counts rules/sigma/*.yml entries with
+        # custom.splunk.raw_query set (hand-crafted SPL, no real Sigma
+        # detection logic) -- a subset of total_sigma_rules, not disjoint.
+        # Older stats.json commits predating this field will fall back to 0.
+        growth_points.append({
+            "date": day,
+            "timestamp": iso,
+            "git_sha": sha,
+            "total_rules": data.get("total_rules", 0),
+            "total_sigma_rules": data.get("total_sigma_rules", 0),
+            "total_native_spl_rules": data.get("total_native_spl_rules", 0),
+        })
+    return coverage_points, growth_points
+
+
+def update_trend_history(stats: dict) -> tuple[list[dict], list[dict]]:
+    """Appends today's data point to each of the 2 history caches (backfilling
+    from git history first if a cache file doesn't exist yet), writes the
+    caches back to disk, and returns (coverage_points, growth_points) for
+    rendering into the Dashboards charts."""
+    now_iso = datetime.now(UTC).isoformat()
+    today = now_iso[:10]
+    current_sha = _git(["rev-parse", "HEAD"]).strip()
+
+    coverage_points = _load_history(COVERAGE_HISTORY_PATH, "points")
+    growth_points = _load_history(RULE_GROWTH_HISTORY_PATH, "points")
+    if not coverage_points and not growth_points:
+        coverage_points, growth_points = _backfill_stats_history()
+
+    coverage_points = _append_or_replace_today(coverage_points, {
+        "date": today,
+        "timestamp": now_iso,
+        "git_sha": current_sha,
+        "mitre_covered_techniques": stats.get("mitre_covered_techniques", 0),
+        "mitre_total_techniques": stats.get("mitre_total_techniques", 0),
+        "mitre_coverage_pct": stats.get("mitre_coverage_pct", 0),
+    })
+    growth_points = _append_or_replace_today(growth_points, {
+        "date": today,
+        "timestamp": now_iso,
+        "git_sha": current_sha,
+        "total_rules": stats.get("total_rules", 0),
+        "total_sigma_rules": stats.get("total_sigma_rules", 0),
+        "total_native_spl_rules": stats.get("total_native_spl_rules", 0),
+    })
+    _save_history(COVERAGE_HISTORY_PATH, "points", coverage_points)
+    _save_history(RULE_GROWTH_HISTORY_PATH, "points", growth_points)
+
+    return coverage_points, growth_points
+
 
 def generate_stats() -> dict:
     sigma_rules = load_sigma_rules()
-    native_spl_rules = load_native_spl_rules()
-    total_spl_count, native_spl_count = count_spl_rules()
+    total_spl_count = count_spl_rules()
+    native_spl_count = sum(1 for r in sigma_rules if get_raw_query(r))
     verdicts = load_verdicts()
 
     by_level: dict[str, int] = {}
@@ -628,10 +872,34 @@ def generate_stats() -> dict:
 
     verified_pass = 0
     verified_fail = 0
-    not_verified = 0
+    # "NOT_VERIFIED" (deployed + attempted, Atomic test didn't complete in
+    # time) is tracked separately from true N/A (never tested at all -- no
+    # result.json) so the rule browser can render them as distinct states
+    # instead of silently folding NOT_VERIFIED into the old N/A bucket.
+    verified_not_verified = 0
+    never_tested = 0
+    # Verdicts measured against a rule version that no longer exists, and the
+    # subset of PASSes that still describe the rule as it stands today. These
+    # two drive the pass rate; the four counters above keep their original
+    # meaning so the README badges that already query them don't shift under
+    # anyone's feet.
+    verified_stale = 0
+    verified_pass_current = 0
+    # Its FAIL counterpart, so the two badges are drawn from the same
+    # population. A stale FAIL is no more current evidence than a stale PASS,
+    # and a Pass badge on fresh counts beside a Fail badge on all-time counts
+    # would quietly imply a worse ratio than the data supports.
+    verified_fail_current = 0
+    # The two ways verified_stale is reached, reported separately because they
+    # call for different reading: superseded is certain (the tested logic is
+    # provably not the deployed logic), expired is probabilistic (same logic,
+    # older than the review interval).
+    verified_superseded = 0
+    verified_expired = 0
     rules_detail: list[dict] = []
 
     for rule in sigma_rules:
+        source = "native_spl" if get_raw_query(rule) else "sigma"
         detect_id = str(rule.get("detect_id") or "")
         title = str(rule.get("title") or "")
         level = str(rule.get("level") or "").lower()
@@ -649,68 +917,139 @@ def generate_stats() -> dict:
         v_data = verdicts.get(detect_id, {})
         verdict = v_data.get("verdict", "N/A")
         run_id = v_data.get("run_id", "")
+        verdict_at = v_data.get("run_timestamp", "")
+        verdict_rule_version = v_data.get("rule_version", "")
+        rule_version = compute_rule_version(rule.get("_file_path", ""), repo_root=REPO_ROOT, default="")
+
+        # A verdict is only as current as the rule it was measured on. Staleness
+        # is derived HERE, at render time, and deliberately not in
+        # pass_fail_eval.py: at the moment of measurement every verdict is fresh
+        # by definition -- a verdict goes stale later, when someone edits the
+        # rule out from under it. Same comparison the browser makes in
+        # isVerdictSuperseded() / isVerdictLapsed(), kept in sync so the chart
+        # and the table agree.
+        # Known limitation: compute_rule_version() derives the version from git
+        # history, so a typo fix bumps it exactly like a logic change does. That
+        # is why staleness costs a rule its segment in the chart but is NOT
+        # counted as a failure -- see the pass-rate denominator below.
+        verdict_is_superseded = bool(
+            verdict not in ("N/A", "")
+            and rule_version
+            and verdict_rule_version
+            and str(rule_version) != str(verdict_rule_version)
+        )
+        # The second way a verdict stops being evidence: it simply got old. Same
+        # standing as superseded, same remedy, so the same bucket -- what differs
+        # is only the diagnosis, and the page labels those separately.
+        #
+        # Measured against generation time, which is the only clock this script
+        # has. The page recomputes it against the reader's clock (see
+        # isVerdictLapsed there), so a page left open for months keeps telling
+        # the truth while this build-time figure stays a snapshot -- which is
+        # exactly what a badge in a README is.
+        #
+        # This is also what stops the pass rate from freezing: with only the
+        # version check, a pipeline that stopped running and a library nobody
+        # edited would report the same green number forever.
+        # An undateable verdict counts as expired, not as current -- same call
+        # the page's isVerdictExpired() makes, and the two have to agree or the
+        # chart and the badge would tell different stories. Treating "we cannot
+        # tell when this was measured" as current would be an unfalsifiable
+        # green, which is the shape of claim this whole mechanism removes.
+        _age = _verdict_age_days(verdict_at)
+        verdict_is_expired = bool(
+            verdict not in ("N/A", "")
+            and not verdict_is_superseded
+            and (_age is None or _age >= REVIEW_INTERVAL_DAYS)
+        )
+        verdict_is_stale = verdict_is_superseded or verdict_is_expired
+
         if verdict == "PASS":
             verified_pass += 1
         elif verdict == "FAIL":
             verified_fail += 1
+        elif verdict == "NOT_VERIFIED":
+            verified_not_verified += 1
         else:
-            not_verified += 1
+            never_tested += 1
 
-        rules_detail.append({
-            "detect_id": detect_id,
-            "title": title,
-            "level": level,
-            "status": status,
-            "source": "sigma",
-            "verdict": verdict,
-            "run_id": run_id,
-            "tactics": tactics,
-            "techniques": techniques,
-            "file_path": rule.get("_file_path", ""),
-        })
-
-    for rule in native_spl_rules:
-        detect_id = str(rule.get("detect_id") or "")
-        title = str(rule.get("title") or "")
-        level = str(rule.get("level") or "").lower()
-        status = str(rule.get("status") or "").lower()
-        tags = rule.get("tags") or []
-        tactics = extract_tactics(tags)
-        techniques = extract_techniques(tags)
-
-        by_level[level] = by_level.get(level, 0) + 1
-        by_status[status] = by_status.get(status, 0) + 1
-
-        for tactic in tactics:
-            by_tactic[tactic] = by_tactic.get(tactic, 0) + 1
-
-        v_data = verdicts.get(detect_id, {})
-        verdict = v_data.get("verdict", "N/A")
-        run_id = v_data.get("run_id", "")
-        if verdict == "PASS":
-            verified_pass += 1
+        if verdict_is_stale:
+            verified_stale += 1
+            if verdict_is_superseded:
+                verified_superseded += 1
+            else:
+                verified_expired += 1
+        elif verdict == "PASS":
+            verified_pass_current += 1
         elif verdict == "FAIL":
-            verified_fail += 1
+            verified_fail_current += 1
+
+        if source == "native_spl":
+            rule_body = get_raw_query(rule)
+            rule_body_lang = "spl"
         else:
-            not_verified += 1
+            rule_body = extract_sigma_body(rule)
+            rule_body_lang = "yaml"
 
         rules_detail.append({
             "detect_id": detect_id,
             "title": title,
+            "description": str(rule.get("description") or ""),
             "level": level,
             "status": status,
-            "source": "native_spl",
+            "source": source,
             "verdict": verdict,
             "run_id": run_id,
+            "verdict_at": verdict_at,
+            "verdict_rule_version": verdict_rule_version,
             "tactics": tactics,
             "techniques": techniques,
             "file_path": rule.get("_file_path", ""),
+            "logsource": extract_logsource(rule),
+            "author": str(rule.get("author") or ""),
+            "date": str(rule.get("date") or ""),
+            "modified": str(rule.get("modified") or ""),
+            "references": [str(r) for r in (rule.get("references") or [])],
+            "falsepositives": [str(f) for f in (rule.get("falsepositives") or [])],
+            "testing": extract_testing(rule),
+            "rule_body": rule_body,
+            "rule_body_lang": rule_body_lang if rule_body else "",
+            "rule_version": rule_version,
         })
 
+    # native_spl_count is a subset of sigma_rules (raw_query rules), not a
+    # disjoint set -- total/verifiable counts must not add it a second time.
     total_sigma = len(sigma_rules)
-    total_rules = total_sigma + native_spl_count
-    total_verifiable = total_sigma + native_spl_count
-    pass_rate = round(verified_pass / total_verifiable * 100) if total_verifiable > 0 else 0
+    total_rules = total_sigma
+    total_verifiable = total_sigma
+    # For the "Sigma Rules" badge specifically: rules with real, compiled
+    # Sigma detection: logic, excluding the raw_query subset -- so that
+    # badge and the "Native SPL" badge next to it are disjoint and sum to
+    # total_rules, instead of visually double-counting the same rules.
+    total_compiled_sigma_rules = total_sigma - native_spl_count
+
+    # Rules whose verdict still describes the rule as it is today. This is the
+    # pass rate's denominator, and the choice matters: counting stale verdicts
+    # as failures would be the mirror image of the bug being fixed here (they
+    # aren't broken, they're unmeasured), and it would make the headline number
+    # get *worse* every time someone tidies a rule -- a metric that punishes
+    # maintenance is a metric people learn to ignore. So the pass rate answers
+    # "of what we actually measured against the current rule, how much works",
+    # and verification_current_pct carries the other half of the truth: how
+    # much of the library that measurement covers. The two are published, and
+    # rendered, as a pair -- neither is honest read alone.
+    verified_current = total_verifiable - verified_stale - never_tested
+    pass_rate = round(verified_pass_current / verified_current * 100) if verified_current > 0 else 0
+    verification_current_pct = (
+        round(verified_current / total_verifiable * 100) if total_verifiable > 0 else 0
+    )
+    # The product of the two above: rules confirmed working against their
+    # present-day logic, as a share of the whole library. Deliberately not the
+    # headline -- it's derived, and a single number that fuses "does it work"
+    # with "did we check recently" is exactly the conflation this fixes.
+    confirmed_working_pct = (
+        round(verified_pass_current / total_verifiable * 100) if total_verifiable > 0 else 0
+    )
 
     # Unique parent techniques covered (T1053.005 → T1053)
     covered_techniques = {
@@ -733,19 +1072,46 @@ def generate_stats() -> dict:
 
     mitre_total, technique_map, was_fetched = fetch_mitre_techniques(cached_total, cached_at)
     mitre_pct = round(covered_count / mitre_total * 100, 1) if mitre_total > 0 else 0.0
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now_iso = datetime.now(UTC).isoformat()
 
-    return {
+    result = {
         "generated_at": now_iso,
         "total_rules": total_rules,
         "total_sigma_rules": total_sigma,
+        "total_compiled_sigma_rules": total_compiled_sigma_rules,
         "total_splunk_rules": total_spl_count,
         "total_native_spl_rules": native_spl_count,
         "verified_pass": verified_pass,
         "verified_fail": verified_fail,
-        "not_verified": not_verified,
+        "verified_not_verified": verified_not_verified,
+        "never_tested": never_tested,
+        # Kept as the union of never_tested + verified_not_verified for
+        # backward compatibility -- the README's shields.io badge already
+        # queries stats.json's "not_verified" key by URL, so its scope
+        # (anything not confirmed PASS/FAIL) stays the same; the rule
+        # browser uses the two split counts above for its own chart segment.
+        "not_verified": verified_not_verified + never_tested,
+        # Verdicts measured on a rule version that has since changed, and the
+        # PASS/current-coverage figures derived from excluding them. Added
+        # alongside the counters above rather than replacing them: the shields
+        # badges query stats.json by key over a raw URL, so a removed key is a
+        # broken badge on every README revision that ever pointed at it.
+        "verified_stale": verified_stale,
+        "verified_superseded": verified_superseded,
+        "verified_expired": verified_expired,
+        "verified_pass_current": verified_pass_current,
+        "verified_fail_current": verified_fail_current,
+        "verified_current": verified_current,
+        # NOTE: pass_rate_pct changed meaning in the 1.2 remediation. It was
+        # verified_pass / total_rules (every PASS ever recorded, however old);
+        # it is now verified_pass_current / verified_current -- of the rules we
+        # measured against their present-day logic, how many work. Read it
+        # together with verification_current_pct, never on its own.
         "pass_rate_pct": pass_rate,
         "pass_rate_color": pass_rate_color(pass_rate),
+        "verification_current_pct": verification_current_pct,
+        "verification_current_color": pass_rate_color(verification_current_pct),
+        "confirmed_working_pct": confirmed_working_pct,
         "mitre_covered_techniques": covered_count,
         "mitre_total_techniques": mitre_total,
         "mitre_total_fetched_at": now_iso if was_fetched else (cached_at or now_iso),
@@ -758,6 +1124,17 @@ def generate_stats() -> dict:
         "_technique_map": technique_map,
         "_rules_detail": rules_detail,
     }
+
+    # Dashboards "Trends Over Time" section — see update_trend_history()
+    # docstring for the git-history-backed caching approach. Kept private
+    # (not written to stats.json): these are raw per-day arrays meant only
+    # for the Chart.js dashboard, not the shields.io badge consumers of
+    # stats.json.
+    coverage_history, growth_history = update_trend_history(result)
+    result["_coverage_history"] = coverage_history
+    result["_rule_growth_history"] = growth_history
+
+    return result
 
 
 def render_readme_section(stats: dict, repo: str) -> str:
@@ -772,89 +1149,31 @@ def render_readme_section(stats: dict, repo: str) -> str:
 
     row1 = f"[![Total Rules]({b}&query=%24.total_rules&label=Total%20Rules&color=informational)](https://github.com/martonbence/Detection-Engineering/tree/main/rules)"
     row2 = " ".join([
-        f"[![Sigma Rules]({b}&query=%24.total_sigma_rules&label=Sigma%20Rules&color=00ACD7)](https://github.com/martonbence/Detection-Engineering/tree/main/rules/sigma)",
+        f"[![Sigma Rules]({b}&query=%24.total_compiled_sigma_rules&label=Sigma%20Rules&color=00ACD7)](https://github.com/martonbence/Detection-Engineering/tree/main/rules/sigma)",
         f"[![Native SPL]({b}&query=%24.total_native_spl_rules&label=Native%20SPL&color=FF6600)](https://github.com/martonbence/Detection-Engineering/tree/main/rules/splunk)",
     ])
+    # Pass Rate and Verified Current ship as a pair, in that order and adjacent.
+    # Pass Rate is now measured only against rules whose verdict still matches
+    # their current version, so on its own it says nothing about how much of the
+    # library that covers -- and a lone badge is exactly what gets quoted. The
+    # second badge makes the coverage impossible to drop.
     row3 = " ".join([
-        f"![Pass]({b}&query=%24.verified_pass&label=Pass&color=brightgreen)",
-        f"![Fail]({b}&query=%24.verified_fail&label=Fail&color=red)",
+        f"![Pass]({b}&query=%24.verified_pass_current&label=Pass&color=brightgreen)",
+        f"![Fail]({b}&query=%24.verified_fail_current&label=Fail&color=red)",
         f"![Pass Rate]({b}&query=%24.pass_rate_pct&label=Pass%20Rate%20%25&color={stats['pass_rate_color']})",
+        f"![Verified Current]({b}&query=%24.verification_current_pct&label=Verified%20Current%20%25&color={stats['verification_current_color']})",
+        # verified_stale is the union of superseded and expired, and the page
+        # deliberately never coined an umbrella word for that pair -- it names
+        # both plainly instead. A badge has room for one word, so it takes the
+        # one thing the two cases share that a reader can act on: they need
+        # measuring again. Naming the remedy also beats naming the state here,
+        # where there is no space to explain which state it was.
+        f"![Needs Re-run]({b}&query=%24.verified_stale&label=Needs%20Re-run&color=BC8CFF)",
         f"![Not Verified]({b}&query=%24.not_verified&label=Not%20Verified&color=lightgrey)",
     ])
     for row in [row1, "", row2, "", row3]:
         lines.append(row)
     lines.append("")
-
-    # --- MITRE ATT&CK Coverage doughnut gauge ---
-    covered = stats.get("mitre_covered_techniques", 0)
-    total_mitre = stats.get("mitre_total_techniques", 201)
-    mitre_pct = stats.get("mitre_coverage_pct", 0.0)
-    coverage_url = mitre_coverage_chart_url(covered, total_mitre, mitre_pct)
-    lines += ["**MITRE ATT&CK Coverage**", f"![MITRE ATT&CK Coverage]({coverage_url})", ""]
-
-    # --- Severity outlabeledPie chart via quickchart.io ---
-    level_order = ["critical", "high", "medium", "low", "informational"]
-    level_colors_map = {
-        "critical":      "#7B0000",
-        "high":          "#DC2626",
-        "medium":        "#FFAA00",
-        "low":           "#2EA44F",
-        "informational": "#6E7681",
-    }
-    level_display = {
-        "critical": "Critical", "high": "High", "medium": "Medium",
-        "low": "Low", "informational": "Info",
-    }
-    active = [
-        (lvl, stats["by_level"].get(lvl, 0))
-        for lvl in level_order
-        if stats["by_level"].get(lvl, 0) > 0
-    ]
-    chart_cfg = {
-        "type": "outlabeledPie",
-        "backgroundColor": "transparent",
-        "data": {
-            "labels": [level_display[lvl] for lvl, _ in active],
-            "datasets": [{
-                "backgroundColor": [level_colors_map[lvl] for lvl, _ in active],
-                "borderColor": "black",
-                "borderWidth": 0.5,
-                "hoverOffset": 8,
-                "data": [cnt for _, cnt in active],
-            }],
-        },
-        "options": {
-            "cutoutPercentage": 45,
-            "layout": {"padding": {"top": 5, "right": 30, "bottom": 0, "left": 30}},
-            "plugins": {
-                "legend": False,
-                "outlabels": {
-                    "text": "%l: %v (%p)",
-                    "color": "white",
-                    "backgroundColor": "rgba(85, 85, 85,1)",
-                    "lineColor": "rgba(85, 85, 85,1)",
-                    "borderRadius": 13,
-                    "padding": 6,
-                    "stretch": 20,
-                    "font": {
-                        "weight": "bold",
-                        "resizable": True,
-                        "minSize": 12,
-                        "maxSize": 22,
-                    },
-                    "formatter": "(value) => value > 0 ? value : null",
-                },
-            },
-        },
-    }
-    chart_json = json.dumps(chart_cfg, separators=(",", ":"))
-    chart_url = "https://quickchart.io/chart?c=" + urllib.parse.quote(chart_json) + "&width=500&height=300&f=svg"
-    lines += ["**Rules by Severity**", f"![Rules by Severity]({chart_url})", ""]
-
-    # --- MITRE ATT&CK tactic bar chart ---
-    if stats["by_tactic"]:
-        tactic_url = tactic_chart_url(stats["by_tactic"])
-        lines += ["**Rules per MITRE ATT&CK Tactic**", f"![Rules per MITRE ATT&CK Tactic]({tactic_url})", ""]
 
     gh_pages = f"https://{repo.split('/')[0]}.github.io/{repo.split('/')[1]}/"
     lines += [
@@ -891,562 +1210,562 @@ def update_readme(section_content: str) -> None:
     readme.write_text(text, encoding="utf-8")
 
 
+# The page is three asset files next to this script rather than one
+# multi-thousand-line string literal: assets/page.template.html carries the
+# markup, assets/page.css and assets/page.js the styling and the behaviour it
+# inlines. The split costs one assembly step and buys CSS and JS that an editor,
+# a linter and a diff can all read as what they are.
+#
+# The assets are not servable on their own. They still carry the @@MARKER@@
+# placeholders render_html_summary() substitutes, and the stylesheet and script
+# are inlined rather than linked, so the published page stays a single
+# self-contained file.
+#
+# They are read verbatim: no escaping, no interpolation, exactly what the
+# r"""...""" literal used to hold, so a backslash in a JS regex is still a
+# backslash. Paths resolve against __file__ because the workflow invokes this
+# script by path and the working directory is not guaranteed.
+_ASSETS_DIR = Path(__file__).resolve().parent / "assets"
+
+# The two markers that inline the stylesheet and the script into the markup.
+# Each sits alone on its own line, and the line break is part of the match: the
+# asset files end with a newline of their own, so replacing the marker without
+# its newline would insert a blank line and shift the output.
+_INLINE_ASSETS = (("@@INLINE_CSS@@\n", "page.css"), ("@@INLINE_JS@@\n", "page.js"))
+
+_page_template_cache: str | None = None
+
+
+def _read_asset(name: str) -> str:
+    """Read one page asset, or fail loudly naming the file that is missing.
+
+    Line endings are normalised on read (the default universal-newline mode), so
+    a checkout that materialises the assets with CRLF still renders byte-for-byte
+    the same page as one that keeps LF.
+    """
+    path = _ASSETS_DIR / name
+    try:
+        return path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        raise SystemExit(
+            f"generate_stats.py: page asset not found: {path}\n"
+            f"docs/index.html is assembled from page.template.html, page.css and "
+            f"page.js in {_ASSETS_DIR}; without all three the page would render "
+            f"half-built, so nothing is written."
+        ) from None
+
+
+DEPLOYMENT_INVENTORY_PATH = Path("outputs/reports/deployment_inventory.json")
+
+
+def load_deployment_inventory(path: Path = DEPLOYMENT_INVENTORY_PATH) -> dict:
+    """The deployment inventory, or an empty dict (register item 4.7).
+
+    Absent is a normal state, not an error: the file appears the first time a
+    run deploys anything, and until then the page simply has no deployment
+    panel. Every other input to this generator describes the repo, which is
+    always here; this one describes two Splunk instances that the generator
+    cannot reach and must not pretend to know about.
+    """
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print(f"WARNING: could not read {path}: {exc}", file=sys.stderr)
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _relative_age(iso: str) -> str:
+    """"3 days ago", or "" when the timestamp is missing or unparseable.
+
+    Deliberately coarse. The point of the age is whether anyone has looked
+    recently, and a precise duration invites reading it as a measurement when
+    it is really a staleness signal.
+    """
+    if not iso:
+        return ""
+    try:
+        when = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=UTC)
+
+    days = (datetime.now(UTC).date() - when.astimezone(UTC).date()).days
+    if days <= 0:
+        return "today"
+    if days == 1:
+        return "yesterday"
+    return f"{days} days ago"
+
+
+def _deployment_env_html(env: str, section: dict, repo: str) -> str:
+    """One environment's column: what we sent, and what is actually there."""
+    deploy = section.get("last_deploy") or {}
+    state = section.get("splunk_state") or {}
+
+    rules = deploy.get("rules") or {}
+    commit = str(deploy.get("commit") or "")
+    run_url = str(deploy.get("run_url") or "")
+    deployed_at = str(deploy.get("at") or "")
+
+    rows = []
+
+    if deploy:
+        age = _relative_age(deployed_at)
+        when = _html.escape(deployed_at[:16].replace("T", " ")) if deployed_at else "unknown"
+        when_cell = f"{when}<span class=\"dep-age\">{_html.escape(age)}</span>" if age else when
+        rows.append(("Last deployed", when_cell))
+        # Only when we actually counted them. Prod's entry is assembled from the
+        # Actions API rather than from a deploy report, so there is no per-rule
+        # map to size -- and rendering "0" for "not recorded here" would be the
+        # page stating something false in the one panel that exists to stop it.
+        if rules:
+            rows.append(("Rules deployed", str(len(rules))))
+        if commit:
+            short = _html.escape(commit[:7])
+            link = f"https://github.com/{repo}/commit/{_html.escape(commit)}"
+            rows.append(("From commit", f'<a href="{link}" target="_blank" rel="noopener"><code>{short}</code></a>'))
+        if run_url:
+            rows.append(("CI run", f'<a href="{_html.escape(run_url)}" target="_blank" rel="noopener">workflow run</a>'))
+    else:
+        rows.append(("Last deployed", '<span class="dep-unknown">no deploy recorded</span>'))
+
+    if state:
+        checked = _relative_age(str(state.get("checked_at") or "")) or "unknown"
+        drift = bool(state.get("has_drift"))
+        # The two halves are stated separately on purpose. "We sent 27" staying
+        # true while "27 are there" stops being true is exactly the 2026-08-07
+        # case this panel exists for, and merging them would hide it again.
+        verdict = (
+            '<span class="dep-drift">drift — see the audit run</span>'
+            if drift
+            else '<span class="dep-ok">matches the repo</span>'
+        )
+        rows.append(("Splunk checked", _html.escape(checked)))
+        rows.append(("Comparison", verdict))
+        if drift:
+            detail = ", ".join(
+                f"{state.get(key) or 0} {key.replace('_', ' ')}"
+                for key in ("missing", "orphan_renamed", "duplicate_names")
+                if state.get(key)
+            )
+            unretired = state.get("orphan_removed_unretired") or 0
+            if unretired:
+                detail = ", ".join(filter(None, [detail, f"{unretired} awaiting retirement"]))
+            if detail:
+                rows.append(("What differs", _html.escape(detail)))
+    else:
+        rows.append(("Splunk checked", '<span class="dep-unknown">never</span>'))
+
+    body = "".join(
+        f'<tr><th scope="row">{_html.escape(label)}</th><td>{value}</td></tr>' for label, value in rows
+    )
+    return (
+        f'<div class="dep-env-block"><div class="dep-env-title">{_html.escape(env)}</div>'
+        f'<table class="dep-table"><tbody>{body}</tbody></table></div>'
+    )
+
+
+# How a rule's state in one environment is drawn. Colour and shape carry the
+# meaning; motion is reserved for the one state that needs a person, because a
+# dashboard where everything moves is a dashboard nobody reads.
+#
+# The states are deliberately four, not three. "Not deployed" and "deployed but
+# gone from Splunk" look identical in a naive rendering and mean opposite
+# things: the first is usually a rule that has simply not been promoted yet
+# (register item 1.1 closed exactly that case as normal), the second is an
+# object that should be running and is not. Colouring the first red would teach
+# people to ignore red.
+# Third element is the short label shown in the legend itself -- the long
+# form stays on the per-cell tooltip/aria text, where there is room for it.
+_DEP_STATES = {
+    "current": ("dep-live", "Live", "deployed, same version as the repo"),
+    "behind": ("dep-behind", "Behind", "deployed, but an older version than the repo"),
+    "absent": ("dep-absent", "Not deployed", "not deployed here"),
+    "gone": ("dep-gone", "Missing", "deployed, but Splunk no longer has it"),
+    # Five states, because the fifth is the difference between "we looked and
+    # this rule is not there" and "we have not looked per rule at all". An
+    # environment whose deploy report has not been ingested yet has no rule map,
+    # and rendering that as 27 absences would announce an empty production app
+    # that is in fact fully deployed -- the panel's first and worst possible
+    # lie, in the section built to stop the page claiming things it cannot know.
+    "unrecorded": ("dep-unrecorded", "Unknown", "per-rule versions not recorded for this environment"),
+}
+
+
+def _deployment_cell(state: str, version: str, repo_version: str, env: str, detect_id: str) -> str:
+    """One rule in one environment: a state line plus the version it runs."""
+    css, _short, meaning = _DEP_STATES[state]
+
+    if state == "behind":
+        label = f"{env}: {meaning} ({version} vs {repo_version})"
+    elif state == "current":
+        label = f"{env}: {meaning} ({version})"
+    else:
+        label = f"{env}: {meaning}"
+
+    shown = _html.escape(version) if version else "&mdash;"
+    return (
+        f'<td class="dep-cell {css}" title="{_html.escape(detect_id)} &mdash; {_html.escape(label)}">'
+        f'<span class="dep-trace" aria-hidden="true"><span class="dep-trace-fill"></span></span>'
+        f'<span class="dep-ver">{shown}</span>'
+        f'<span class="visually-hidden">{_html.escape(label)}</span>'
+        "</td>"
+    )
+
+
+def _deployment_state(env_section: dict, detect_id: str, repo_version: str) -> tuple[str, str]:
+    """(state, deployed_version) for one rule in one environment."""
+    deploy = env_section.get("last_deploy") or {}
+    rules = deploy.get("rules") or {}
+    state_info = env_section.get("splunk_state") or {}
+
+    entry = rules.get(detect_id) or {}
+    version = str(entry.get("rule_version") or "")
+
+    # Splunk's own answer wins over the deploy log. The deploy says what was
+    # sent; the reconcile says what is there now, and when they disagree the
+    # second one is the fact -- that disagreement is the whole reason this
+    # panel exists.
+    if detect_id in set(state_info.get("missing_ids") or []):
+        return "gone", version
+    if not rules:
+        # Nothing per-rule known about this environment at all -- not the same
+        # claim as "this rule is missing from it".
+        return "unrecorded", ""
+    if not entry:
+        return "absent", ""
+    if repo_version and version and version != repo_version:
+        return "behind", version
+    return "current", version
+
+
+# Verdict -> the sparkline dot class it gets, reusing the same three colours
+# as the per-rule drawer's Verification CTA (.drawer-cta.verify-pass/-fail/
+# -notver in page.css) so a color once learned there means the same thing
+# here. Anything not one of these three (a future verdict value, or a
+# malformed history line) falls back to "notver" rather than silently
+# vanishing from the row.
+_SPARK_VERDICT_CLASS = {
+    "PASS": "dep-spark-pass",
+    "FAIL": "dep-spark-fail",
+    "NOT_VERIFIED": "dep-spark-notver",
+}
+
+
+def _deployment_sparkline(detect_id: str) -> str:
+    """One rule's last 10 verify runs, oldest to newest, as a small inline
+    SVG -- server-rendered, no canvas, no JS. A rule with fewer than 10 runs
+    just draws fewer points; padding the gap with fake data would claim runs
+    that never happened. A rule with no history at all (never verified)
+    draws an empty placeholder, not an error.
+
+    This is a history of past measurements, not a live status -- a PASS
+    dot from three weeks ago is not a claim that the rule passes today (see
+    the "verdicts have a standing" note on the Verification card elsewhere
+    on this page). The per-rule drawer's Verification CTA is what answers
+    "right now"; this answers "how has it been going".
+    """
+    history = read_history(RESULTS_DIR, detect_id)[-10:]
+    if not history:
+        return (
+            '<td class="dep-spark dep-spark-empty" '
+            f'title="{_html.escape(detect_id)}: no verify runs recorded">'
+            '<span aria-hidden="true">&mdash;</span>'
+            f'<span class="visually-hidden">{_html.escape(detect_id)}: '
+            "no verify runs recorded</span></td>"
+        )
+
+    step = 8
+    radius = 3
+    pad = 6
+    width = pad * 2 + step * (len(history) - 1)
+    height = pad * 2
+
+    dots = []
+    points = []
+    for i, entry in enumerate(history):
+        cx = pad + i * step
+        cy = pad
+        points.append(f"{cx},{cy}")
+        verdict = str(entry.get("verdict") or "")
+        css = _SPARK_VERDICT_CLASS.get(verdict, "dep-spark-notver")
+        when = str(entry.get("run_timestamp") or "")[:19].replace("T", " ") or "unknown time"
+        ver = str(entry.get("rule_version") or "")
+        label = f"{when} · {verdict or 'UNKNOWN'}" + (f" · {ver}" if ver else "")
+        dots.append(
+            f'<circle class="dep-spark-dot {css}" cx="{cx}" cy="{cy}" r="{radius}">'
+            f"<title>{_html.escape(label)}</title></circle>"
+        )
+
+    line = (
+        f'<polyline class="dep-spark-line" points="{" ".join(points)}"></polyline>'
+        if len(points) > 1
+        else ""
+    )
+
+    latest = history[-1]
+    summary = (
+        f"{len(history)} verify run{'s' if len(history) != 1 else ''} shown, "
+        f"latest {latest.get('verdict') or 'unknown'}"
+    )
+    hidden_list = "; ".join(
+        f"{str(e.get('run_timestamp') or '')[:19].replace('T', ' ') or 'unknown time'} "
+        f"{e.get('verdict') or 'UNKNOWN'}"
+        for e in history
+    )
+    return (
+        f'<td class="dep-spark" title="{_html.escape(detect_id)}: {_html.escape(summary)}">'
+        f'<svg class="dep-spark-svg" viewBox="0 0 {width} {height}" width="{width}" '
+        f'height="{height}" aria-hidden="true" focusable="false">{line}{"".join(dots)}</svg>'
+        f'<span class="visually-hidden">{_html.escape(detect_id)} verify history '
+        f"(oldest to newest): {_html.escape(hidden_list)}</span></td>"
+    )
+
+
+def _deployment_table(environments: dict, rules: list[dict], order: list[str]) -> str:
+    """Every rule in the library, against every environment we know about.
+
+    Driven by the repo's rule list rather than by the inventory's keys, so a
+    rule that has never been deployed anywhere still gets a row. An inventory-
+    driven table would quietly omit exactly the rules worth noticing.
+    """
+    head = "".join(f'<th scope="col">{_html.escape(env)}</th>' for env in order)
+
+    body = []
+    for rule in rules:
+        detect_id = str(rule.get("detect_id") or "")
+        if not detect_id:
+            continue
+        repo_version = str(rule.get("rule_version") or "")
+        title = str(rule.get("title") or "")
+
+        cells = []
+        for env in order:
+            state, version = _deployment_state(environments.get(env) or {}, detect_id, repo_version)
+            cells.append(_deployment_cell(state, version, repo_version, env, detect_id))
+
+        body.append(
+            f'<tr><th scope="row" class="dep-id" title="{_html.escape(title)}">'
+            f"{_html.escape(detect_id)}</th>"
+            f'<td class="dep-repo-ver">{_html.escape(repo_version)}</td>'
+            f"{''.join(cells)}"
+            f"{_deployment_sparkline(detect_id)}</tr>"
+        )
+
+    return (
+        '<div class="dep-table-wrap"><table class="dep-rules">'
+        f'<thead><tr><th scope="col">Rule</th><th scope="col">repo</th>{head}'
+        '<th scope="col">Last 10 runs</th></tr></thead>'
+        f"<tbody>{''.join(body)}</tbody></table></div>"
+    )
+
+
+def render_deployment_html(inventory: dict, repo: str, rules: list[dict] | None = None) -> str:
+    """The whole panel, or an empty string when there is nothing to say."""
+    environments = inventory.get("environments") if isinstance(inventory, dict) else None
+    if not isinstance(environments, dict) or not environments:
+        return ""
+
+    # dev before prod when both exist, because that is the direction the
+    # pipeline runs; anything else in alphabetical order rather than dict order,
+    # so the panel does not reshuffle itself between builds.
+    order = sorted(environments, key=lambda name: (name != "dev", name != "prod", name))
+    env_blocks = "".join(_deployment_env_html(env, environments[env] or {}, repo) for env in order)
+    # One card, environments stacked, rather than one card per environment --
+    # dev and prod are two facts about the same rule set, not two separate
+    # things, and a reader comparing them wants both under one title, not two
+    # cards apart in the grid.
+    columns = f'<div class="chart-card">{env_blocks}</div>' if env_blocks else ""
+    table = _deployment_table(environments, rules or [], order) if rules else ""
+
+    # Dot and label in the SAME span, not the dot's span closed before the
+    # label -- the earlier version closed </span> once too early, which
+    # kicked every label out of .dep-key's flex box (no gap, no vertical
+    # centering against its dot) and left a stray closing tag that ate into
+    # the next .dep-key, so alignment kept drifting entry to entry.
+    legend = "".join(
+        f'<span class="dep-key"><span class="dep-trace {css}" aria-hidden="true"></span>'
+        f"{_html.escape(label)}</span>"
+        for css, label in (
+            (_DEP_STATES[key][0], _DEP_STATES[key][1])
+            for key in ("current", "behind", "absent", "gone", "unrecorded")
+        )
+    )
+
+    # Laid out as chart cards in the same four-track grid the charts above use.
+    # The per-rule table takes one track, same width as Rules by Severity; the
+    # environments card takes the track beside it, dev and prod stacked inside
+    # it -- putting "what we sent" next to "what is actually there", which is
+    # the comparison the panel is for.
+    table_card = (
+        '<div class="chart-card">'        '<div class="chart-card-title">Rule deployment</div>'
+        '<div class="chart-card-sub">Which version each environment was last given, per rule</div>'
+        f"{table}"
+        f'<div class="dep-legend">{legend}</div>'
+        "</div>"
+        if table
+        else ""
+    )
+
+    return f"""<div class="dash-section">
+      <div class="dash-section-title">Deployment</div>
+      <div class="info-note">Where each rule actually lives. Everything else on this page describes
+      the repository; this describes the Splunk apps it deploys to, recorded by the pipeline itself.
+      A version cell shows what that environment was last <em>given</em>, so a rule sitting below the
+      repo version has not been redeployed since it changed &mdash; it is not broken, it is behind.
+      <strong>Splunk checked</strong> is when anything last looked at what is really there; that and
+      the deploy log can disagree, and the disagreement is the point.</div>
+      <div class="dash-section-grid dash-section-grid-deploy">
+        {table_card}{columns}
+      </div>
+    </div>"""
+
+
+def load_page_template() -> str:
+    """The full page template, assembled from its assets and cached per run."""
+    global _page_template_cache
+    if _page_template_cache is None:
+        template = _read_asset("page.template.html")
+        for marker, asset in _INLINE_ASSETS:
+            if marker not in template:
+                raise SystemExit(
+                    f"generate_stats.py: marker {marker!r} not found in "
+                    f"page.template.html; docs/index.html would render with a "
+                    f"literal placeholder instead of {asset}, so nothing is written."
+                )
+            template = template.replace(marker, _read_asset(asset))
+        _page_template_cache = template
+    return _page_template_cache
+
+
+def _github_blob_url(repo: str, file_path: str) -> str:
+    return f"https://github.com/{repo}/blob/main/{file_path}" if file_path else ""
 
 
 def render_html_summary(stats: dict, repo: str) -> str:
-    SEV_ORDER = ["critical", "high", "medium", "low", "informational"]
-    SEV_COLORS = {
-        "critical":      ("#7B0000", "#fff"),
-        "high":          ("#DC2626", "#fff"),
-        "medium":        ("#FFAA00", "#111"),
-        "low":           ("#2EA44F", "#fff"),
-        "informational": ("#6E7681", "#fff"),
-    }
-    VERDICT_COLORS = {"PASS": "#2EA44F", "FAIL": "#CF222E", "N/A": "#6E7681"}
-    ALL_TACTICS = [
-        "Reconnaissance", "Resource Development", "Initial Access",
-        "Execution", "Persistence", "Privilege Escalation",
-        "Defense Evasion", "Credential Access", "Discovery",
-        "Lateral Movement", "Collection", "Command & Control",
-        "Exfiltration", "Impact",
-    ]
-    all_techniques = sorted({t for r in stats["rules"] for t in (r.get("techniques") or [])})
-
-    def sev_badge(level: str) -> str:
-        bg, fg = SEV_COLORS.get(level, ("#444", "#fff"))
-        label = level.capitalize() if level else "—"
-        return f'<span class="badge" style="background:{bg};color:{fg}">{label}</span>'
-
-    def verdict_html(verdict: str, run_id: str) -> str:
-        bg = VERDICT_COLORS.get(verdict, "#444")
-        b = f'<span class="badge" style="background:{bg};color:#fff">{_html.escape(verdict)}</span>'
-        if run_id:
-            url = f"https://github.com/{repo}/actions/runs/{run_id}"
-            return f'<a href="{url}" target="_blank" title="View Actions run">{b}</a>'
-        return b
-
-    def sel_html(options: list) -> str:
-        opts = '<option value="">All</option>' + "".join(
-            f'<option>{_html.escape(str(o))}</option>' for o in options
-        )
-        return f'<select class="col-sel">{opts}</select>'
-
-    status_vals = sorted({r.get("status", "") for r in stats["rules"]} - {""})
-    filter_row = (
-        '<tr class="frow">'
-        '<th><input class="col-txt" type="text" placeholder="Filter…"></th>'
-        '<th><input class="col-txt" type="text" placeholder="Filter…"></th>'
-        f'<th>{sel_html(["Sigma", "Native SPL"])}</th>'
-        f'<th>{sel_html(ALL_TACTICS)}</th>'
-        f'<th>{sel_html(all_techniques)}</th>'
-        f'<th>{sel_html([s.capitalize() for s in SEV_ORDER])}</th>'
-        f'<th>{sel_html(status_vals)}</th>'
-        f'<th>{sel_html(["PASS", "FAIL", "N/A"])}</th>'
-        '</tr>'
-    )
-
-    rows = []
-    for r in stats["rules"]:
-        detect_id = r["detect_id"]
-        file_path = r.get("file_path", "")
-        title = _html.escape(r["title"])
-        source = "Sigma" if r.get("source") == "sigma" else "Native SPL"
-        lvl = r.get("level", "")
-        verdict = r["verdict"]
-        run_id = r.get("run_id", "")
-        status = _html.escape(r.get("status", ""))
-
-        if file_path:
-            id_cell = f'<a href="https://github.com/{repo}/blob/main/{file_path}" target="_blank"><code>{_html.escape(detect_id)}</code></a>'
-        else:
-            id_cell = f'<code>{_html.escape(detect_id)}</code>'
-
-        tactics = r.get("tactics") or []
-        tac_parts = []
-        for t in tactics:
-            ta_id = TACTIC_ID_MAP.get(t, "")
-            url = f"https://attack.mitre.org/tactics/{ta_id}/" if ta_id else "#"
-            tac_parts.append(f'<a href="{url}" target="_blank">{_html.escape(t)}</a>')
-        tac_cell = "<br>".join(tac_parts) or "—"
-        tac_search = _html.escape(", ".join(tactics) or "")
-
-        techniques = r.get("techniques") or []
-        tech_parts = [f'<a href="{technique_url(t)}" target="_blank">{_html.escape(t)}</a>' for t in techniques]
-        tech_cell = "<br>".join(tech_parts) or "—"
-        tech_search = _html.escape(", ".join(techniques) or "")
-
-        sev_idx = SEV_ORDER.index(lvl) if lvl in SEV_ORDER else 99
-
-        rows.append(
-            f'<tr>'
-            f'<td>{id_cell}</td>'
-            f'<td>{title}</td>'
-            f'<td>{source}</td>'
-            f'<td data-search="{tac_search}">{tac_cell}</td>'
-            f'<td data-search="{tech_search}">{tech_cell}</td>'
-            f'<td data-search="{_html.escape(lvl.capitalize())}" data-order="{sev_idx}">{sev_badge(lvl)}</td>'
-            f'<td>{status}</td>'
-            f'<td data-search="{_html.escape(verdict)}">{verdict_html(verdict, run_id)}</td>'
-            f'</tr>'
-        )
-
-    rows_html = "\n".join(rows)
     ts = stats["generated_at"][:19]
     total = stats["total_rules"]
     passed = stats["verified_pass"]
     failed = stats["verified_fail"]
-    not_ver = stats["not_verified"]
+    not_ver = stats.get("verified_not_verified", 0)
+    never_tested = stats.get("never_tested", stats.get("not_verified", 0))
     pass_rate = stats["pass_rate_pct"]
+    verified_current = stats.get("verified_current", total)
+    mitre_covered = stats.get("mitre_covered_techniques", 0)
+    mitre_total = stats.get("mitre_total_techniques", 0)
+    mitre_pct = stats.get("mitre_coverage_pct", 0.0)
+
+    rules_js = []
+    for r in stats["rules"]:
+        ls = r.get("logsource") or {}
+        testing = r.get("testing") or {}
+        rules_js.append({
+            "id": r.get("detect_id", ""),
+            "title": r.get("title", ""),
+            "description": r.get("description", ""),
+            "source": "Sigma" if r.get("source") == "sigma" else "Native SPL",
+            "category": ls.get("product_category", ""),
+            "product": ls.get("product", ""),
+            "service": ls.get("service", ""),
+            "eventType": ls.get("event_type", ""),
+            "tactics": r.get("tactics") or [],
+            "techniques": r.get("techniques") or [],
+            "severity": r.get("level", ""),
+            "status": r.get("status", ""),
+            "verdict": r.get("verdict", "N/A"),
+            "fileUrl": _github_blob_url(repo, r.get("file_path", "")),
+            "runUrl": (
+                f"https://github.com/{repo}/actions/runs/{r['run_id']}"
+                if r.get("run_id") else ""
+            ),
+            "author": r.get("author", ""),
+            "date": r.get("date", ""),
+            "modified": r.get("modified", ""),
+            "ruleVersion": r.get("rule_version", ""),
+            "verdictAt": r.get("verdict_at", ""),
+            "verdictRuleVersion": r.get("verdict_rule_version", ""),
+            "verifyMethod": VERIFY_METHOD_LABELS.get(
+                testing.get("type", ""), testing.get("type", "")
+            ),
+            "verifyRunner": testing.get("runner", ""),
+            "references": r.get("references") or [],
+            "ruleBody": r.get("rule_body", ""),
+            "ruleBodyLang": r.get("rule_body_lang", ""),
+        })
+
+    rules_json = json.dumps(rules_js, ensure_ascii=False)
+    tactic_ids_json = json.dumps(TACTIC_ID_MAP, ensure_ascii=False)
+
+    coverage_history_json = json.dumps(stats.get("_coverage_history", []), ensure_ascii=False)
+    rule_growth_history_json = json.dumps(stats.get("_rule_growth_history", []), ensure_ascii=False)
 
     technique_map = stats.get("_technique_map", [])
     rules_detail_inner = stats.get("_rules_detail", stats.get("rules", []))
     technique_coverage = build_technique_coverage(rules_detail_inner, repo)
     matrix_html = _build_matrix_html(technique_map, technique_coverage)
-    layer_url = f"https://github.com/{repo}/blob/main/outputs/reports/navigator_layer.json"
+    # Raw URL, not the blob page: this is what you paste into the official
+    # Navigator's "Open Existing Layer → Load from URL" (raw.githubusercontent
+    # serves it with CORS), and it still saves fine straight from the browser.
+    layer_url = (
+        f"https://raw.githubusercontent.com/{repo}/main/outputs/reports/navigator_layer.json"
+    )
 
-    return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Detection Engineering — Rule Summary</title>
-  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
-  <style>
-    *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
-    :root {{ --bg:#0d1117; --surface:#161b22; --border:#30363d; --text:#e6edf3; --muted:#8b949e; --link:#58a6ff; }}
-    body {{ background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; font-size:14px; line-height:1.5; padding:32px 24px; }}
-    h1 {{ font-size:20px; font-weight:700; margin-bottom:24px; }}
-    h1 a {{ color:var(--link); text-decoration:none; }}
-    h1 a:hover {{ text-decoration:underline; }}
-    .stats-row {{ display:flex; gap:12px; margin-bottom:24px; flex-wrap:wrap; }}
-    .stat-card {{ background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:14px 22px; min-width:110px; text-align:center; }}
-    .stat-value {{ font-size:26px; font-weight:700; }}
-    .stat-label {{ font-size:11px; color:var(--muted); margin-top:3px; text-transform:uppercase; letter-spacing:.5px; }}
-    .table-wrap {{ background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:20px; overflow-x:auto; }}
-    table.dataTable {{ color:var(--text) !important; border-collapse:collapse !important; width:100% !important; }}
-    table.dataTable thead th {{
-      background:var(--bg) !important; color:var(--text) !important;
-      border-bottom:1px solid var(--border) !important;
-      text-align:center !important; padding:10px 14px 8px !important; white-space:nowrap; vertical-align:bottom;
-    }}
-    table.dataTable thead tr.frow th {{
-      background:#0a0e14 !important; padding:5px 6px 7px !important;
-      border-bottom:2px solid var(--border) !important;
-    }}
-    table.dataTable tbody td {{
-      border-bottom:1px solid var(--border) !important; padding:10px 12px !important;
-      vertical-align:middle; text-align:center; background:transparent !important;
-    }}
-    table.dataTable tbody tr:last-child td {{ border-bottom:none !important; }}
-    table.dataTable tbody tr:hover td {{ background:rgba(255,255,255,.04) !important; }}
-    a {{ color:var(--link); text-decoration:none; }} a:hover {{ text-decoration:underline; }}
-    code {{ background:rgba(110,118,129,.15); border-radius:4px; padding:2px 6px; font-size:12px; white-space:nowrap; }}
-    .badge {{ display:inline-block; padding:2px 10px; border-radius:12px; font-size:12px; font-weight:600; white-space:nowrap; }}
-    .col-sel, .col-txt {{
-      width:100%; background:#0a0e14 !important; color:var(--text) !important;
-      border:1px solid var(--border); border-radius:4px; padding:3px 5px; font-size:11px;
-    }}
-    .col-sel option {{ background:#0a0e14; color:var(--text); }}
-    .dataTables_wrapper .dataTables_length select,
-    .dataTables_wrapper .dataTables_filter input {{
-      background:#0a0e14 !important; color:var(--text) !important;
-      border:1px solid var(--border) !important; border-radius:4px; padding:4px 8px; margin-left:6px;
-    }}
-    .dataTables_wrapper .dataTables_length select option {{ background:#0a0e14; color:var(--text); }}
-    .dataTables_wrapper .dataTables_filter label,
-    .dataTables_wrapper .dataTables_length label,
-    .dataTables_wrapper .dataTables_info {{ color:var(--muted); }}
-    .dataTables_wrapper .dataTables_paginate .paginate_button {{
-      color:var(--text) !important; border-radius:4px !important; border:none !important; padding:4px 10px !important;
-    }}
-    .dataTables_wrapper .dataTables_paginate .paginate_button:hover {{
-      background:var(--border) !important; color:var(--text) !important; border:none !important;
-    }}
-    .dataTables_wrapper .dataTables_paginate .paginate_button.current,
-    .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {{
-      background:var(--link) !important; color:#fff !important; border:none !important;
-    }}
-    .dataTables_wrapper .dataTables_paginate .paginate_button.disabled,
-    .dataTables_wrapper .dataTables_paginate .paginate_button.disabled:hover {{ color:var(--muted) !important; }}
-    footer {{ margin-top:20px; color:var(--muted); font-size:12px; text-align:center; }}
-    /* Tabs */
-    .tab-bar {{ display:flex; gap:4px; margin-bottom:0; border-bottom:1px solid var(--border); }}
-    .tab-btn {{ background:none; border:1px solid transparent; border-bottom:none; color:var(--muted); padding:8px 20px; border-radius:6px 6px 0 0; cursor:pointer; font-size:13px; font-weight:600; transition:color .15s,background .15s; margin-bottom:-1px; }}
-    .tab-btn:hover {{ color:var(--text); background:var(--surface); }}
-    .tab-btn.active {{ background:var(--surface); border-color:var(--border); color:var(--text); }}
-    .tab-pane {{ display:none; padding-top:16px; }}
-    .tab-pane.active {{ display:block; }}
-    /* MITRE Navigator */
-    .nav-wrap {{ background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:16px; }}
-    .nav-legend {{ display:flex; gap:16px; margin-bottom:12px; font-size:12px; align-items:center; flex-wrap:wrap; }}
-    .nav-legend-item {{ display:flex; align-items:center; gap:5px; }}
-    .nav-legend-dot {{ width:12px; height:12px; border-radius:2px; flex-shrink:0; }}
-    .nav-import {{ margin-left:auto; font-size:12px; }}
-    .att-matrix {{ display:flex; gap:2px; overflow-x:auto; padding-bottom:4px; scrollbar-width:none; }}
-    .att-matrix::-webkit-scrollbar {{ display:none; }}
-    .tc-col {{ flex:0 0 175px; display:flex; flex-direction:column; gap:1px; }}
-    .tc-hdr {{ background:#FFAA00; color:#111; font-size:12px; font-weight:700; padding:6px 5px; text-align:center; border-radius:3px 3px 0 0; min-height:44px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; }}
-    .tc-count {{ font-size:10px; font-weight:400; opacity:.75; }}
-    .tc-hdr a {{ color:#111; text-decoration:none; }}
-    .tc-hdr a:hover {{ text-decoration:underline; }}
-    .tc {{ font-size:12px; padding:5px 6px; border-radius:2px; cursor:default; display:flex; flex-direction:column; min-height:40px; gap:1px; position:relative; }}
-    .tc.uncov {{ background:#1c2128; color:#484f58; }}
-    .tc.uncov.has-cov {{ background:rgba(255,170,0,.13); color:#545f6e; }}
-    .tc.pass  {{ background:#1a4731; color:#aff3c5; }}
-    .tc.fail  {{ background:#67060c; color:#ffc1c1; }}
-    .tc.nv    {{ background:#2d333b; color:#adbac7; border-left:2px solid rgba(255,170,0,.35); }}
-    .tc.sub   {{ min-height:28px; padding-left:12px; }}
-    .tc[data-rules] {{ cursor:pointer; }}
-    .tc[data-rules]:hover {{ filter:brightness(1.3); }}
-    .tc.highlighted {{ box-shadow:inset 0 0 0 2px #FFAA00; filter:brightness(1.15); }}
-    .tc.expanded {{ box-shadow:inset 0 0 0 1.5px rgba(255,170,0,.55); }}
-    .tc.expanded.highlighted {{ box-shadow:inset 0 0 0 2px #FFAA00; }}
-    .ti {{ font-weight:700; font-size:12px; color:inherit; text-decoration:none; }}
-    .ti:hover {{ text-decoration:underline; }}
-    .tn {{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }}
-    .tc.sub .tn {{ white-space:normal; overflow:visible; text-overflow:clip; }}
-    .tc-row1 {{ display:flex; justify-content:space-between; align-items:center; gap:2px; }}
-    .tc-foot {{ display:flex; justify-content:space-between; align-items:center; margin-top:2px; min-height:10px; }}
-    .tc-expand {{ background:none; border:none; color:inherit; cursor:pointer; font-size:14px; padding:2px 3px; opacity:.65; line-height:1; flex-shrink:0; }}
-    .tc-expand:hover {{ opacity:1; }}
-    .tc-detail {{ position:absolute; right:4px; top:50%; transform:translateY(-50%); background:none; border:none; color:inherit; cursor:pointer; font-size:14px; padding:2px 4px; opacity:0; line-height:1; z-index:1; }}
-    .tc[data-rules]:hover .tc-detail {{ opacity:.85; }}
-    .tc-detail:hover {{ opacity:1 !important; color:#FFAA00; }}
-    .sub-badge {{ font-size:9px; opacity:.55; }}
-    .sub-badge-cov {{ font-size:9px; color:#FFAA00; font-weight:700; }}
-    .sub-group {{ border:1.5px solid rgba(255,170,0,.5); border-radius:3px; display:flex; flex-direction:column; gap:1px; padding:1px; margin-top:1px; }}
-    .tc.tc-hidden {{ display:none !important; }}
-    .nav-legend-item[data-filter] {{ cursor:pointer; border-radius:4px; padding:2px 6px; transition:background .15s; }}
-    .nav-legend-item[data-filter]:hover {{ background:rgba(255,170,0,.08); }}
-    .nav-legend-item.filter-active {{ background:rgba(255,170,0,.18); outline:1px solid rgba(255,170,0,.55); }}
-    .nav-legend-item[data-filter] .nav-legend-dot {{ position:relative; }}
-    .nav-legend-item.filter-active .nav-legend-dot::after {{ content:'✓'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; font-size:9px; font-weight:900; }}
-    #expand-all-btn {{ background:none; border:1px solid var(--border); color:var(--muted); border-radius:5px; padding:3px 10px; font-size:12px; cursor:pointer; white-space:nowrap; }}
-    #expand-all-btn:hover {{ color:var(--text); border-color:#FFAA00; }}
-    /* Detail panel */
-    #detail-panel {{ position:fixed; right:0; top:0; bottom:0; width:300px; background:#161b22; border-left:1px solid #30363d; z-index:10000; display:none; flex-direction:column; box-shadow:-4px 0 24px rgba(0,0,0,.6); }}
-    #detail-panel.open {{ display:flex; }}
-    #detail-header {{ display:flex; justify-content:space-between; align-items:flex-start; padding:14px 16px 10px; border-bottom:1px solid #30363d; flex-shrink:0; }}
-    #detail-title {{ font-weight:700; font-size:13px; color:#e6edf3; }}
-    #detail-tid {{ color:#8b949e; font-size:10px; margin-top:2px; }}
-    #detail-close {{ background:none; border:none; color:#8b949e; font-size:20px; cursor:pointer; padding:0; line-height:1; }}
-    #detail-close:hover {{ color:#e6edf3; }}
-    #detail-body {{ padding:12px 16px; overflow-y:auto; flex:1; }}
-    .detail-rule {{ display:flex; align-items:center; gap:6px; margin:6px 0; text-decoration:none; color:#58a6ff; font-size:12px; line-height:1.4; }}
-    .detail-rule:hover {{ text-decoration:underline; }}
-    .detail-noverd {{ display:flex; align-items:center; gap:6px; margin:6px 0; font-size:12px; color:#8b949e; }}
-    .detail-vbadge {{ display:inline-block; padding:1px 7px; border-radius:8px; font-size:10px; font-weight:600; flex-shrink:0; }}
-    .detail-vbadge.PASS {{ background:#2EA44F; color:#fff; }}
-    .detail-vbadge.FAIL {{ background:#CF222E; color:#fff; }}
-    .detail-vbadge.NA {{ background:#6E7681; color:#fff; }}
-    #att-tip {{
-      display:none; position:fixed; z-index:9999; pointer-events:none;
-      background:#161b22; border:1px solid #30363d; border-radius:8px;
-      padding:10px 14px; max-width:340px; font-size:12px; color:#e6edf3;
-      box-shadow:0 8px 24px rgba(0,0,0,.5);
-    }}
-    .tip-head {{ font-weight:700; font-size:13px; margin-bottom:6px; }}
-    .tip-rule {{ display:flex; align-items:center; gap:6px; margin:3px 0; text-decoration:none; color:#58a6ff; font-size:11px; }}
-    .tip-rule:hover {{ text-decoration:underline; }}
-    .tip-vbadge {{ display:inline-block; padding:1px 7px; border-radius:8px; font-size:10px; font-weight:600; flex-shrink:0; }}
-    .tip-vbadge.PASS {{ background:#2EA44F; color:#fff; }}
-    .tip-vbadge.FAIL {{ background:#CF222E; color:#fff; }}
-    .tip-vbadge.NA   {{ background:#6E7681; color:#fff; }}
-  </style>
-</head>
-<body>
-  <h1><a href="https://github.com/{repo}" target="_blank">Detection Engineering</a> — Rule Summary</h1>
-  <div class="stats-row">
-    <div class="stat-card"><div class="stat-value">{total}</div><div class="stat-label">Total Rules</div></div>
-    <div class="stat-card"><div class="stat-value" style="color:#2EA44F">{passed}</div><div class="stat-label">Pass</div></div>
-    <div class="stat-card"><div class="stat-value" style="color:#CF222E">{failed}</div><div class="stat-label">Fail</div></div>
-    <div class="stat-card"><div class="stat-value">{not_ver}</div><div class="stat-label">Not Verified</div></div>
-    <div class="stat-card"><div class="stat-value" style="color:#2EA44F">{pass_rate}%</div><div class="stat-label">Pass Rate</div></div>
-  </div>
-  <div class="tab-bar">
-    <button class="tab-btn active" data-tab="rules">Rules Table</button>
-    <button class="tab-btn" data-tab="navigator">MITRE Navigator</button>
-  </div>
-  <div id="tab-rules" class="tab-pane active">
-    <div class="table-wrap">
-      <table id="rules-table" class="display" style="width:100%">
-        <thead>
-          <tr>
-            <th>ID</th><th>Title</th><th>Source</th>
-            <th>Tactic</th><th>Technique</th>
-            <th>Severity</th><th>Status</th><th>Verdict</th>
-          </tr>
-          {filter_row}
-        </thead>
-        <tbody>
-{rows_html}
-        </tbody>
-      </table>
-    </div>
-  </div>
-  <div id="tab-navigator" class="tab-pane">
-    <div class="nav-wrap">
-      <div class="nav-legend">
-        <div class="nav-legend-item" data-filter="pass"><div class="nav-legend-dot" style="background:#1a4731;border:1px solid #2EA44F"></div> PASS</div>
-        <div class="nav-legend-item" data-filter="nv"><div class="nav-legend-dot" style="background:#9f9f9f"></div> Not Verified</div>
-        <div class="nav-legend-item" data-filter="fail"><div class="nav-legend-dot" style="background:#67060c;border:1px solid #CF222E"></div> FAIL</div>
-        <div class="nav-legend-item" data-filter="uncov"><div class="nav-legend-dot" style="background:#1c2128;border:1px solid #30363d"></div> Not covered</div>
-        <button id="expand-all-btn">&#9660; Expand All</button>
-        <div class="nav-import"><a href="{layer_url}" target="_blank">&#8659; Download Navigator layer (.json)</a></div>
-      </div>
-      {matrix_html}
-    </div>
-  </div>
-  <div id="detail-panel">
-    <div id="detail-header">
-      <div><div id="detail-title"></div><div id="detail-tid"></div></div>
-      <button id="detail-close">&#215;</button>
-    </div>
-    <div id="detail-body"></div>
-  </div>
-  <div id="att-tip"></div>
-  <footer>
-    Generated at {ts} UTC
-  </footer>
-  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-  <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
-  <script>
-  function switchTab(name) {{
-    document.querySelectorAll('.tab-btn').forEach(function(b) {{ b.classList.remove('active'); }});
-    document.querySelectorAll('.tab-pane').forEach(function(p) {{ p.classList.remove('active'); }});
-    var btn = document.querySelector('.tab-btn[data-tab="' + name + '"]');
-    if (btn) {{ btn.classList.add('active'); }}
-    var pane = document.getElementById('tab-' + name);
-    if (pane) {{ pane.classList.add('active'); }}
-    history.replaceState(null, '', '#' + name);
-  }}
-  document.querySelectorAll('.tab-btn').forEach(function(btn) {{
-    btn.addEventListener('click', function() {{ switchTab(btn.dataset.tab); }});
-  }});
-  (function() {{
-    var hash = window.location.hash.replace('#', '');
-    if (hash) {{ switchTab(hash); }}
-  }})();
-  var tip = document.getElementById('att-tip');
-  document.querySelectorAll('.tc[data-rules]').forEach(function(el) {{
-    el.addEventListener('mouseenter', function() {{
-      var rules = JSON.parse(el.dataset.rules);
-      var html = '<div class="tip-head">' + el.dataset.id + '</div>';
-      rules.forEach(function(r) {{
-        var vc = r.verdict === 'N/A' ? 'NA' : r.verdict;
-        var badge = '<span class="tip-vbadge ' + vc + '">' + r.verdict + '</span>';
-        if (r.url) {{
-          html += '<a class="tip-rule" href="' + r.url + '" target="_blank">' + badge + ' ' + r.id + ': ' + r.title + '</a>';
-        }} else {{
-          html += '<div class="tip-rule">' + badge + ' ' + r.id + ': ' + r.title + '</div>';
-        }}
-      }});
-      tip.innerHTML = html;
-      tip.style.display = 'block';
-    }});
-    el.addEventListener('mousemove', function(e) {{
-      var x = e.clientX + 14, y = e.clientY + 14;
-      if (x + 350 > window.innerWidth) x = e.clientX - 354;
-      tip.style.left = x + 'px';
-      tip.style.top  = y + 'px';
-    }});
-    el.addEventListener('mouseleave', function() {{ tip.style.display = 'none'; }});
-  }});
-  // Shared expand/collapse helper
-  function doExpand(btn, open) {{
-    var target = btn.dataset.target;
-    var col = btn.closest('.tc-col');
-    var subs = Array.from(col.querySelectorAll('.' + target));
-    btn.classList.toggle('open', open);
-    btn.innerHTML = open ? '&#9660;' : '&#9654;';
-    var parentTc = btn.closest('.tc');
-    if (open) {{
-      parentTc.classList.add('expanded');
-      var grp = document.createElement('div');
-      grp.className = 'sub-group';
-      btn._subGrp = grp;
-      parentTc.after(grp);
-      subs.forEach(function(s) {{ s.style.display = 'flex'; grp.appendChild(s); }});
-    }} else {{
-      parentTc.classList.remove('expanded');
-      var grp = btn._subGrp;
-      if (grp) {{
-        subs.forEach(function(s) {{ s.style.display = 'none'; grp.before(s); }});
-        grp.remove();
-        btn._subGrp = null;
-      }}
-    }}
-  }}
-  // Expand/collapse sub-techniques — scoped to column, grp stored on button
-  document.querySelectorAll('.tc-expand').forEach(function(btn) {{
-    btn.addEventListener('click', function(e) {{
-      e.stopPropagation();
-      doExpand(btn, !btn.classList.contains('open'));
-    }});
-  }});
-  // Sticky mirror scrollbar
-  (function() {{
-    var matrix = document.querySelector('.att-matrix');
-    if (!matrix) return;
-    var mirror = document.createElement('div');
-    mirror.style.cssText = 'overflow-x:auto;position:sticky;bottom:0;height:14px;background:#0d1117;z-index:100;';
-    var inner = document.createElement('div');
-    inner.style.height = '1px';
-    mirror.appendChild(inner);
-    matrix.parentNode.insertBefore(mirror, matrix.nextSibling);
-    function syncWidth() {{ inner.style.width = matrix.scrollWidth + 'px'; }}
-    syncWidth();
-    var syncing = false;
-    matrix.addEventListener('scroll', function() {{
-      if (syncing) return; syncing = true; mirror.scrollLeft = matrix.scrollLeft; syncing = false;
-    }});
-    mirror.addEventListener('scroll', function() {{
-      if (syncing) return; syncing = true; matrix.scrollLeft = mirror.scrollLeft; syncing = false;
-    }});
-    if (window.ResizeObserver) {{ new ResizeObserver(syncWidth).observe(matrix); }}
-  }})();
-  // Legend multi-filter with parent+sub logic
-  var activeFilters = new Set();
-  function tcVerdict(tc) {{
-    if (tc.classList.contains('pass')) return 'pass';
-    if (tc.classList.contains('fail')) return 'fail';
-    if (tc.classList.contains('nv'))   return 'nv';
-    return 'uncov';
-  }}
-  function applyFilters() {{
-    document.querySelectorAll('.tc-col').forEach(function(col) {{
-      col.querySelectorAll('.tc:not(.sub)').forEach(function(parentTc) {{
-        var tid = parentTc.dataset.id;
-        if (!tid) return;
-        var subs = Array.from(col.querySelectorAll('.tc.sub[data-id^="' + tid + '."]'));
-        if (activeFilters.size === 0) {{
-          parentTc.classList.remove('tc-hidden');
-          subs.forEach(function(s) {{ s.classList.remove('tc-hidden'); }});
-          return;
-        }}
-        var parentMatch = activeFilters.has(tcVerdict(parentTc));
-        var subMatch = subs.some(function(s) {{ return activeFilters.has(tcVerdict(s)); }});
-        parentTc.classList.toggle('tc-hidden', !parentMatch && !subMatch);
-        subs.forEach(function(s) {{
-          s.classList.toggle('tc-hidden', !activeFilters.has(tcVerdict(s)));
-        }});
-      }});
-    }});
-  }}
-  document.querySelectorAll('.nav-legend-item[data-filter]').forEach(function(item) {{
-    item.addEventListener('click', function() {{
-      var f = item.dataset.filter;
-      if (activeFilters.has(f)) {{
-        activeFilters.delete(f);
-        item.classList.remove('filter-active');
-      }} else {{
-        activeFilters.add(f);
-        item.classList.add('filter-active');
-      }}
-      applyFilters();
-    }});
-  }});
-  // Expand All / Collapse All button
-  (function() {{
-    var btn = document.getElementById('expand-all-btn');
-    if (!btn) return;
-    var expanded = false;
-    btn.addEventListener('click', function() {{
-      expanded = !expanded;
-      btn.innerHTML = expanded ? '&#9650; Collapse All' : '&#9660; Expand All';
-      document.querySelectorAll('.tc-expand').forEach(function(exBtn) {{
-        var parentTc = exBtn.closest('.tc');
-        if (activeFilters.size > 0 && parentTc.classList.contains('tc-hidden')) return;
-        var isOpen = exBtn.classList.contains('open');
-        if (expanded && !isOpen) doExpand(exBtn, true);
-        else if (!expanded && isOpen) doExpand(exBtn, false);
-      }});
-    }});
-  }})();
-  // Cross-highlight: click on cell body highlights all cells with same data-id
-  var highlightedId = null;
-  document.querySelectorAll('.tc').forEach(function(tc) {{
-    tc.addEventListener('click', function(e) {{
-      if (e.target.closest('.ti') || e.target.closest('.tc-expand') || e.target.closest('.tc-detail')) return;
-      var tid = tc.dataset.id;
-      if (!tid) return;
-      if (highlightedId === tid) {{
-        highlightedId = null;
-        document.querySelectorAll('.tc.highlighted').forEach(function(el) {{ el.classList.remove('highlighted'); }});
-      }} else {{
-        highlightedId = tid;
-        document.querySelectorAll('.tc.highlighted').forEach(function(el) {{ el.classList.remove('highlighted'); }});
-        document.querySelectorAll('.tc[data-id="' + tid + '"]').forEach(function(el) {{ el.classList.add('highlighted'); }});
-      }}
-    }});
-  }});
-  // Detail panel — toggle on same button, switch on different
-  var panel = document.getElementById('detail-panel');
-  var panelTitle = document.getElementById('detail-title');
-  var panelTid = document.getElementById('detail-tid');
-  var panelBody = document.getElementById('detail-body');
-  var openDetailId = null;
-  document.getElementById('detail-close').addEventListener('click', function() {{
-    panel.classList.remove('open');
-    openDetailId = null;
-  }});
-  document.querySelectorAll('.tc-detail').forEach(function(btn) {{
-    btn.addEventListener('click', function(e) {{
-      e.stopPropagation();
-      var bid = btn.dataset.id;
-      if (panel.classList.contains('open') && openDetailId === bid) {{
-        panel.classList.remove('open');
-        openDetailId = null;
-        return;
-      }}
-      openDetailId = bid;
-      var rules = JSON.parse(btn.dataset.rules);
-      panelTitle.textContent = btn.dataset.name;
-      panelTid.textContent = bid;
-      var html = '';
-      rules.forEach(function(r) {{
-        var vc = r.verdict === 'N/A' ? 'NA' : r.verdict;
-        var badge = '<span class="detail-vbadge ' + vc + '">' + r.verdict + '</span>';
-        var label = r.id + ': ' + r.title;
-        if (r.url) {{
-          html += '<a class="detail-rule" href="' + r.url + '" target="_blank">' + badge + label + '</a>';
-        }} else {{
-          html += '<div class="detail-noverd">' + badge + label + '</div>';
-        }}
-      }});
-      panelBody.innerHTML = html;
-      panel.classList.add('open');
-    }});
-  }});
-  $(function() {{
-    var table = $('#rules-table').DataTable({{
-      orderCellsTop: true,
-      pageLength: 25,
-      lengthMenu: [[10, 25, 50, 100, 250, -1], [10, 25, 50, 100, 250, 'All']],
-      order: [[0, 'asc']],
-      language: {{
-        search: 'Search:', lengthMenu: 'Show _MENU_ rules',
-        zeroRecords: 'No rules match the current filter.',
-        info: 'Showing _START_–_END_ of _TOTAL_ rules',
-        infoFiltered: '(filtered from _MAX_ total)'
-      }}
-    }});
-    var exactCols = [2, 5, 6, 7];
-    $('#rules-table thead tr.frow').find('input.col-txt, select.col-sel').each(function(i) {{
-      var isExact = exactCols.indexOf(i) !== -1;
-      $(this)
-        .on('click', function(e) {{ e.stopPropagation(); }})
-        .on('input change', function() {{
-          var v = $(this).val();
-          var esc = $.fn.dataTable.util.escapeRegex(v);
-          table.column(i).search(v ? (isExact ? '^' + esc + '$' : esc) : '', true, false).draw();
-        }});
-    }});
-  }});
-  </script>
-</body>
-</html>
-"""
+    html = load_page_template()
+    html = html.replace(
+        "@@DEPLOYMENT_HTML@@",
+        render_deployment_html(load_deployment_inventory(), repo, stats.get("rules") or []),
+    )
+    html = html.replace("@@TS@@", ts)
+    html = html.replace("@@TOTAL@@", str(total))
+    html = html.replace("@@PASSED@@", str(passed))
+    html = html.replace("@@FAILED@@", str(failed))
+    html = html.replace("@@NOT_VER@@", str(not_ver))
+    html = html.replace("@@NEVER_TESTED@@", str(never_tested))
+    # Render as a whole number so the Pass Rate overlay matches the Status
+    # chart's Stable % (also integer) — no stray decimal on one but not the other.
+    html = html.replace("@@PASS_RATE@@", str(round(pass_rate)))
+    html = html.replace("@@VERIFIED_CURRENT@@", str(verified_current))
+    html = html.replace("@@MITRE_COVERED@@", str(mitre_covered))
+    html = html.replace("@@MITRE_TOTAL@@", str(mitre_total))
+    html = html.replace("@@MITRE_PCT@@", str(mitre_pct))
+    html = html.replace("@@RULES_JSON@@", rules_json)
+    html = html.replace("@@TACTIC_IDS_JSON@@", tactic_ids_json)
+    html = html.replace("@@COVERAGE_HISTORY_JSON@@", coverage_history_json)
+    html = html.replace("@@RULE_GROWTH_HISTORY_JSON@@", rule_growth_history_json)
+    html = html.replace("@@MATRIX_HTML@@", matrix_html)
+    html = html.replace("@@LAYER_URL@@", layer_url)
+    html = html.replace("@@REVIEW_DAYS@@", str(REVIEW_INTERVAL_DAYS))
+    owner, name = repo.split("/", 1)
+    html = html.replace("@@PAGE_URL@@", f"https://{owner}.github.io/{name}/")
+    # Plain text, no markup: this lands inside a double-quoted meta attribute,
+    # so a stray quote would end the attribute early. Nothing here is
+    # user-supplied, but the escape keeps that true if the wording ever is.
+    meta_desc = (
+        f"Searchable index of {total} Sigma and native SPL detection rules with "
+        f"MITRE ATT&amp;CK mapping, Atomic Red Team verification verdicts "
+        f"({pass_rate:.0f}% pass rate across the {verified_current} of {total} rules "
+        f"verified against their current version) and {mitre_covered} techniques covered."
+    ).replace('"', "&quot;")
+    html = html.replace("@@META_DESC@@", meta_desc)
+
+    # A marker surviving every substitution above means one of the asset
+    # files drifted from the placeholder name/spacing this function replaces
+    # (e.g. "@@RULES_JSON@@" reformatted to "@@RULES_JSON @@") and the
+    # .replace() silently no-op'd -- exactly what happened to @@INLINE_JS@@
+    # once, leaving the literal marker in place of the page's data and
+    # breaking the dashboard with no error anywhere in the pipeline.
+    leftover = sorted(set(re.findall(r"@@[A-Z_]+ ?@@", html)))
+    if leftover:
+        raise SystemExit(
+            f"generate_stats.py: unreplaced marker(s) in docs/index.html: "
+            f"{', '.join(leftover)}; the asset that defines them no longer "
+            f"matches what this function substitutes, so nothing is written."
+        )
+    return html
 
 
 def update_html_summary(content: str) -> None:
@@ -1469,7 +1788,10 @@ def main() -> int:
     print(
         f"Stats: {stats['total_sigma_rules']} sigma + {stats['total_native_spl_rules']} native SPL rules — "
         f"{stats['verified_pass']} pass / {stats['verified_fail']} fail / "
-        f"{stats['not_verified']} not verified — pass rate: {stats['pass_rate_pct']}%"
+        f"{stats['not_verified']} not verified / {stats['verified_stale']} outdated — "
+        f"pass rate: {stats['pass_rate_pct']}% of the {stats['verified_current']} "
+        f"rule(s) verified against their current version "
+        f"({stats['verification_current_pct']}% of the library)"
     )
 
     section = render_readme_section(stats, repo)

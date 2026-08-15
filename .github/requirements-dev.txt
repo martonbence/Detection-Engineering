@@ -1,0 +1,11 @@
+# Test and lint tooling for ci_code_checks.yml. Separate from
+# requirements.txt because the pipeline itself never needs these -- the
+# convert/deploy/verify jobs would only be paying to install them.
+#
+# Pinned for the same reason the toolchain is: an unpinned linter changes the
+# rules under you. A new ruff release that adds a check to the "F" set turns
+# an unrelated pull request red, which is how a gate loses its credibility.
+# Bumping these is a deliberate act with its own diff.
+
+pytest==9.1.1
+ruff==0.16.1

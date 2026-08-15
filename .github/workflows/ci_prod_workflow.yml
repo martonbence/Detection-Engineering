@@ -1,0 +1,341 @@
+name: CI - Prod Deploy
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "rules/sigma/**/*.yml"
+      - "rules/sigma/**/*.yaml"
+      - ".github/workflows/ci_prod_workflow.yml"
+
+  # Register item 2.5. The path filter above means only a *rule* change reaches
+  # prod. Everything else this workflow depends on -- deploy_spl_to_splunk.py,
+  # sigma_to_spl.py, rule_naming.py, the pinned .github/requirements.txt -- can
+  # be fixed, reviewed and merged to main without prod ever noticing, and the
+  # fix then sits dormant until somebody happens to touch a rule. That delay is
+  # invisible: nothing reports that prod is running an older deploy path.
+  #
+  # This makes the redeploy an explicit, available action instead. It needs no
+  # inputs: the job derives its file list from `git ls-files`, not from a diff,
+  # so a dispatched run deploys the full current library on main -- exactly what
+  # "re-apply everything with the fixed script" should mean.
+  workflow_dispatch:
+
+concurrency:
+  group: detection-pipeline-prod-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # Register item 2.20. `deploy_to_prod` below runs on the same `de-lab` machine
+  # dev uses, so prod inherits dev's problem exactly: when the lab is off, the
+  # job does not fail, it queues -- `timeout-minutes` only starts once a job
+  # starts -- and with cancel-in-progress: false it holds the prod lane until
+  # GitHub drops it about a day later.
+  #
+  # Skipping is strictly better than queueing. Both mean prod is not updated,
+  # but one of them says so within a minute instead of looking busy for a day,
+  # and does not block the run that would have deployed.
+  #
+  # The recovery path is already here and was built for this: `workflow_dispatch`
+  # above deploys from `git ls-files`, not from a diff, so one manual run once
+  # the lab is up applies the full current library on main -- including whatever
+  # was merged while this was switched off.
+  #
+  # This job exists because prod has exactly one real job and it is on the
+  # runner being skipped. Without a hosted job there is nothing left to report,
+  # and an entirely skipped workflow run is indistinguishable from a healthy one
+  # in the runs list.
+  announce_lab_offline:
+    name: Lab Offline Notice
+    if: vars.LAB_ONLINE == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Say that prod was not updated
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "::warning title=Prod deploy skipped::LAB_ONLINE is false, so the prod Splunk deploy did not run. Production is still serving the previously deployed rules."
+
+          {
+            echo "### Prod was not updated"
+            echo ""
+            echo "\`LAB_ONLINE\` is \`false\`, so **Deploy to Prod Splunk** was skipped."
+            echo ""
+            echo "Production Splunk still serves whatever was deployed before this run."
+            echo "Nothing was removed or half-applied -- the deploy simply did not happen."
+            echo ""
+            echo "To apply it: set \`LAB_ONLINE\` to \`true\` (or delete the variable) once the lab is up, then run this workflow manually from the Actions tab. It deploys the full current rule library on \`main\`, so it also catches up anything merged while the lab was down."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy_to_prod:
+    name: Deploy to Prod Splunk
+    # Register item 2.20. Same switch and same polarity as the dev workflow:
+    # only the literal string 'false' disables, so an unset variable means the
+    # lab is up and a typo in the variable name fails towards deploying rather
+    # than towards silently skipping production.
+    if: vars.LAB_ONLINE != 'false'
+    runs-on: [ self-hosted, linux, de-lab ]
+    # Register item 2.2. Re-conversion of all 27 rules, the drift gate, and the
+    # deploy itself -- which allows up to three 30s HTTP calls per rule, so ~40
+    # minutes of legitimate network wait. Set above that, because a cap that
+    # fires mid-deploy would leave prod Splunk half-updated: some rules on the
+    # new version, some on the old, with nothing recording which.
+    timeout-minutes: 60
+    environment: prod
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      # Register item 3.2, stage C. Only requests: deploy_spl_to_splunk.py's
+      # sole third-party import. Prod no longer converts Sigma to SPL (see the
+      # provenance-verification step below), so it has no reason to install
+      # the conversion toolchain (.github/requirements.txt) any more.
+      - name: Install deploy runtime deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -r .github/requirements-deploy.txt
+
+      # `de-lab` is a persistent, shared machine -- the same one dev deploys
+      # run on -- so this installs into a job-scoped directory and prepends it
+      # to GITHUB_PATH rather than touching the runner's own /usr/bin/gh. That
+      # keeps the newer binary visible only to later steps of *this* job;
+      # nothing else on the runner (dev's own gh usage, the prod audit
+      # workflow) is affected, and rolling this back is a plain revert of this
+      # file, not a manual change on the physical box.
+      #
+      # Pinned + checksummed the same way ci_code_checks.yml pins actionlint:
+      # the version below is the one the attestation mechanism was actually
+      # tested against (2026-08-09, run 31307470773) -- confirmed empirically
+      # that `de-lab`'s own installed gh (2.45.0) predates the `attestation`
+      # subcommand entirely, so this step is not defensive, it is required.
+      # Ahead of the two steps below because both use gh -- the sidecar
+      # download only strictly needs the old one, but there is no reason to
+      # run two different gh binaries in the same job when one already has to
+      # be here.
+      - name: Install a modern gh CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="2.97.0"
+          sha256="a2c9b8497e1f85b1ad0dfcb78b5a622e098801b8e461e459e88e1ee12f018112"
+          tarball="gh_${version}_linux_amd64.tar.gz"
+          install_dir="${RUNNER_TEMP}/gh-cli"
+
+          curl -fsSL -o "$tarball" \
+            "https://github.com/cli/cli/releases/download/v${version}/${tarball}"
+
+          echo "${sha256}  ${tarball}" | sha256sum --check --strict
+
+          mkdir -p "$install_dir"
+          tar -xzf "$tarball" --strip-components=1 -C "$install_dir"
+          echo "${install_dir}/bin" >> "$GITHUB_PATH"
+
+      # Register item 3.2, stage C. Replaces the old "regenerate from Sigma
+      # source, then diff" pair: that reconversion existed for two reasons --
+      # proving the committed .spl hadn't drifted (the step below does this
+      # now, and more strongly), and producing the gitignored .meta.json
+      # sidecars deploy_spl_to_splunk.py requires (extract_meta() at
+      # deploy_spl_to_splunk.py:40-46 die()s per file without one). The
+      # sidecars still have to come from *somewhere* on this runner; they come
+      # from the same spl-pipeline-bundle artifact dev already built and
+      # uploaded, named by the pointer file dev committed alongside the .spl
+      # it describes.
+      - name: Download meta sidecars from the attested dev bundle
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          pointer="rules/splunk/.bundle-provenance.json"
+          if [[ ! -f "$pointer" ]]; then
+            echo "::error::$pointer not found on main -- cannot locate the dev run that produced the committed .spl. Re-run the dev workflow so it is written and committed."
+            exit 1
+          fi
+
+          run_id="$(jq -r '.workflow_run_id' "$pointer")"
+          artifact_name="$(jq -r '.artifact_name' "$pointer")"
+
+          echo "Downloading '$artifact_name' from dev run $run_id..."
+          gh run download "$run_id" \
+            --repo "${{ github.repository }}" \
+            --name "$artifact_name" \
+            --dir _bundle_download
+
+          # Only the sidecars -- the .spl content that gets deployed stays the
+          # git-checked-out copy, so what a promotion-PR reviewer saw diffed is
+          # exactly what reaches Splunk. The bundle's own .spl is used for
+          # nothing here; the provenance step below is what vouches for it.
+          shopt -s globstar nullglob
+          meta_files=(_bundle_download/rules/splunk/**/*.meta.json)
+          if [[ "${#meta_files[@]}" -eq 0 ]]; then
+            echo "::error::No .meta.json sidecars found in the downloaded bundle. Deploy cannot proceed without them."
+            exit 1
+          fi
+          for f in "${meta_files[@]}"; do
+            cp "$f" "rules/splunk/$(basename "$f")"
+          done
+          echo "Copied ${#meta_files[@]} meta sidecar(s) from the dev bundle."
+
+      # Register item 3.2, stage C. Was non-blocking (stage B, run alongside
+      # the old reconversion+diff gate) for one real deploy cycle
+      # (2026-08-09, run 31311925932: all 27 committed .spl verified clean, no
+      # false positives or negatives) before this promotion. Now the sole
+      # integrity/provenance gate -- a failure here stops the deploy exactly
+      # as hard as the old drift-gate did, because nothing else checks that
+      # what is about to reach Splunk is what dev actually built and tested.
+      #
+      # --signer-workflow alone, not paired with --signer-repo: gh rejects the
+      # combination outright ("if any flags in the group [...] are set none of
+      # the others can be", confirmed empirically) -- one signer-identity flag
+      # is required, and --signer-workflow already pins the repo as part of
+      # its owner/repo/workflow-path value. Confirmed empirically too: a
+      # mismatched --signer-workflow, a mismatched --signer-repo, and a
+      # tampered file are all correctly rejected -- the actual security
+      # property this whole mechanism rests on, not merely assumed.
+      # Each `gh attestation verify` call is a network round-trip plus a real
+      # Sigstore signature check, observed at ~5s/file (run 31311925932: 27
+      # files, ~140s wall-clock, sequential). That is linear in rule count --
+      # fine at 27, a genuine bottleneck approaching hundreds. The calls are
+      # independent (each checks one file's own digest against its own
+      # attestation), so bounding a pool of background jobs turns wall-clock
+      # time from O(rules) into roughly O(rules / max_parallel) instead of
+      # changing anything about what gets checked or how strictly.
+      - name: Verify build provenance of every SPL file about to be deployed
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t spl_files < <(git ls-files "rules/splunk/*.spl" "rules/splunk/**/*.spl")
+
+          results_dir="$(mktemp -d)"
+          max_parallel=8
+          running=0
+
+          verify_one() {
+            local f="$1"
+            local tag
+            tag="$(basename "$f")"
+            if gh attestation verify "$f" --repo "${{ github.repository }}" \
+                 --signer-workflow "${{ github.repository }}/.github/workflows/ci_dev_workflow.yml" \
+                 --format json > "${results_dir}/${tag}.json" 2> "${results_dir}/${tag}.err"; then
+              echo "pass" > "${results_dir}/${tag}.result"
+            else
+              echo "fail" > "${results_dir}/${tag}.result"
+            fi
+          }
+
+          for f in "${spl_files[@]}"; do
+            verify_one "$f" &
+            running=$((running + 1))
+            if [[ "$running" -ge "$max_parallel" ]]; then
+              wait -n
+              running=$((running - 1))
+            fi
+          done
+          wait
+
+          fail=0
+          for f in "${spl_files[@]}"; do
+            tag="$(basename "$f")"
+            if [[ "$(cat "${results_dir}/${tag}.result")" == "pass" ]]; then
+              echo "✅ $f: provenance verified"
+            else
+              echo "::error::$f has no valid, matching build-provenance attestation. This means it was never produced by ci_dev_workflow.yml with a matching digest -- a hand-edited .spl, a converter that ran outside dev, or a rule that was never (re-)attested. Fix: re-run the dev workflow so this file is regenerated, reviewed, and re-attested there."
+              cat "${results_dir}/${tag}.err"
+              fail=1
+            fi
+          done
+
+          rm -rf "$results_dir"
+
+          if [[ "$fail" -eq 0 ]]; then
+            echo "All deployed SPL files have valid, matching build-provenance attestations."
+          else
+            echo "::error title=Provenance verification failed::One or more .spl files have no matching attestation. Prod deploy stopped -- see register item 3.2."
+            exit 1
+          fi
+
+      - name: Deploy all SPL files to prod Splunk
+        id: deploy
+        shell: bash
+        env:
+          SPLUNK_BASE_URL: ${{ secrets.SPLUNK_BASE_URL }}
+          SPLUNK_USERNAME: ${{ secrets.SPLUNK_USERNAME }}
+          SPLUNK_PASSWORD: ${{ secrets.SPLUNK_PASSWORD }}
+          # Register item 2.18. A variable, not a secret: an app namespace is a
+          # routing label, not a credential -- it grants nothing on its own, and
+          # masking it only made the one value that decides dev-vs-prod
+          # unreadable in the logs of the job it aims. Environment-scoped
+          # (`environment: prod` above), which is what makes this resolve to the
+          # prod app while the dev workflow's identical expression resolves to
+          # the dev one. Safe to reference here because it is read in a step
+          # `env:` block, after the environment is resolved -- unlike a
+          # job-level `if:`, which is evaluated before that and would see
+          # nothing (the trap register item 2.20 hit with LAB_ONLINE).
+          SPLUNK_APP: ${{ vars.SPLUNK_APP }}
+          # Register item 2.14. The `|| 'false'` fallback is gone: it turned a
+          # *missing* secret into a positive instruction to skip certificate
+          # verification, overriding -- silently -- the default=True that
+          # env_bool had already chosen in every consumer. Unset now renders
+          # empty, env_bool falls through to verify, and the connection either
+          # checks the certificate or fails visibly. It matters more here than
+          # in dev: this step is the one that writes to the production app, and
+          # it authenticates with the same credentials over the same link.
+          # Skipping verification stays available, but has to be stated by
+          # setting the secret to `false`.
+          SPLUNK_VERIFY_TLS: ${{ vars.SPLUNK_VERIFY_TLS }}
+          SPLUNK_SHARING: app
+          SPLUNK_PERMS_READ: "*"
+          SPLUNK_PERMS_WRITE: admin,ci_deploy_savedsearches
+        run: |
+          set -euo pipefail
+
+          mapfile -t spl_files < <(git ls-files "rules/splunk/*.spl" "rules/splunk/**/*.spl")
+
+          if [[ "${#spl_files[@]}" -eq 0 ]]; then
+            echo "No SPL files to deploy."
+            exit 0
+          fi
+
+          # Register item 2.4. --report writes the per-rule outcome (created /
+          # updated / skipped / failed, with the rule version) to a file that
+          # outlives this log, and the script renders the same table into the
+          # step summary. Both carry repo-side facts only -- no URL, app name or
+          # account -- because the artifact is downloadable from a public repo.
+          python scripts/deploy/deploy_spl_to_splunk.py \
+            --report outputs/deploy/prod_deploy_report.json \
+            "${spl_files[@]}"
+
+      # always(): a failed deploy is exactly when the record matters most -- it
+      # names which rules made it to production before the run stopped, which
+      # the exit code alone cannot say.
+      - name: Upload prod deploy report
+        if: always() && steps.deploy.outcome != 'skipped'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: prod-deploy-report-${{ github.run_id }}
+          path: outputs/deploy/prod_deploy_report.json
+          if-no-files-found: warn
+          # This is the audit trail, so it is kept: unlike the dev pipeline's
+          # matched-events artifacts it holds no raw Splunk data, only facts
+          # already public in the repo.
+          retention-days: 90

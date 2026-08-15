@@ -1,0 +1,330 @@
+{
+  "environments": {
+    "dev": {
+      "last_deploy": {
+        "at": "2026-08-15T17:13:18.962741+00:00",
+        "commit": "fc85ee0d4bbd7c507a1402eaab37b5b2c205ef2f",
+        "rules": {
+          "DETECT-2026-0003": {
+            "at": "2026-08-15T17:13:18.962741+00:00",
+            "outcome": "updated",
+            "rule_version": "1.5"
+          },
+          "DETECT-2026-0005": {
+            "at": "2026-08-15T17:13:18.962741+00:00",
+            "outcome": "updated",
+            "rule_version": "1.8"
+          },
+          "DETECT-2026-0006": {
+            "at": "2026-08-15T17:13:18.962741+00:00",
+            "outcome": "updated",
+            "rule_version": "1.9"
+          },
+          "DETECT-2026-0007": {
+            "at": "2026-08-09T13:15:15.263755+00:00",
+            "outcome": "updated",
+            "rule_version": "1.19"
+          },
+          "DETECT-2026-0008": {
+            "at": "2026-08-15T17:13:18.962741+00:00",
+            "outcome": "updated",
+            "rule_version": "1.8"
+          },
+          "DETECT-2026-0009": {
+            "at": "2026-08-15T17:13:18.962741+00:00",
+            "outcome": "updated",
+            "rule_version": "1.10"
+          },
+          "DETECT-2026-0010": {
+            "at": "2026-08-15T17:13:18.962741+00:00",
+            "outcome": "updated",
+            "rule_version": "1.8"
+          },
+          "DETECT-2026-0011": {
+            "at": "2026-08-15T17:13:18.962741+00:00",
+            "outcome": "updated",
+            "rule_version": "1.7"
+          },
+          "DETECT-2026-0012": {
+            "at": "2026-08-09T13:15:15.263755+00:00",
+            "outcome": "updated",
+            "rule_version": "1.16"
+          },
+          "DETECT-2026-0013": {
+            "at": "2026-08-15T17:13:18.962741+00:00",
+            "outcome": "updated",
+            "rule_version": "1.7"
+          },
+          "DETECT-2026-0014": {
+            "at": "2026-08-15T17:13:18.962741+00:00",
+            "outcome": "updated",
+            "rule_version": "1.9"
+          },
+          "DETECT-2026-0015": {
+            "at": "2026-08-15T17:13:18.962741+00:00",
+            "outcome": "updated",
+            "rule_version": "1.8"
+          },
+          "DETECT-2026-0016": {
+            "at": "2026-08-15T17:13:18.962741+00:00",
+            "outcome": "updated",
+            "rule_version": "1.9"
+          },
+          "DETECT-2026-0018": {
+            "at": "2026-08-15T17:13:18.962741+00:00",
+            "outcome": "updated",
+            "rule_version": "1.12"
+          },
+          "DETECT-2026-0019": {
+            "at": "2026-08-15T16:55:31.190970+00:00",
+            "outcome": "updated",
+            "rule_version": "1.6"
+          },
+          "DETECT-2026-0020": {
+            "at": "2026-08-15T17:13:18.962741+00:00",
+            "outcome": "updated",
+            "rule_version": "1.7"
+          },
+          "DETECT-2026-0021": {
+            "at": "2026-08-15T17:13:18.962741+00:00",
+            "outcome": "updated",
+            "rule_version": "1.7"
+          },
+          "DETECT-2026-0022": {
+            "at": "2026-08-15T17:13:18.962741+00:00",
+            "outcome": "updated",
+            "rule_version": "1.10"
+          },
+          "DETECT-2026-0023": {
+            "at": "2026-08-15T17:13:18.962741+00:00",
+            "outcome": "updated",
+            "rule_version": "1.8"
+          },
+          "DETECT-2026-0024": {
+            "at": "2026-08-15T17:13:18.962741+00:00",
+            "outcome": "updated",
+            "rule_version": "1.6"
+          },
+          "DETECT-2026-0025": {
+            "at": "2026-08-15T17:13:18.962741+00:00",
+            "outcome": "updated",
+            "rule_version": "1.3"
+          },
+          "DETECT-2026-0026": {
+            "at": "2026-08-15T17:13:18.962741+00:00",
+            "outcome": "updated",
+            "rule_version": "1.4"
+          },
+          "DETECT-2026-0027": {
+            "at": "2026-08-15T17:13:18.962741+00:00",
+            "outcome": "updated",
+            "rule_version": "1.6"
+          },
+          "DETECT-2026-0028": {
+            "at": "2026-08-15T17:13:18.962741+00:00",
+            "outcome": "updated",
+            "rule_version": "1.3"
+          },
+          "DETECT-2026-0029": {
+            "at": "2026-08-15T17:13:18.962741+00:00",
+            "outcome": "updated",
+            "rule_version": "1.4"
+          },
+          "DETECT-2026-0030": {
+            "at": "2026-08-15T17:13:18.962741+00:00",
+            "outcome": "updated",
+            "rule_version": "1.3"
+          },
+          "DETECT-2026-0031": {
+            "at": "2026-08-15T17:13:18.962741+00:00",
+            "outcome": "updated",
+            "rule_version": "1.4"
+          },
+          "DETECT-2026-0032": {
+            "at": "2026-08-15T17:13:18.962741+00:00",
+            "outcome": "updated",
+            "rule_version": "1.2"
+          }
+        },
+        "run_id": "31897646972",
+        "run_url": "https://github.com/martonbence/Detection-Engineering/actions/runs/31897646972",
+        "totals": {
+          "updated": 25
+        }
+      },
+      "splunk_state": {
+        "checked_at": "2026-08-15T17:21:21.579199+00:00",
+        "duplicate_names": 0,
+        "has_drift": false,
+        "in_sync": 28,
+        "missing": 0,
+        "missing_ids": [],
+        "orphan_removed": 0,
+        "orphan_removed_unretired": 0,
+        "orphan_renamed": 0,
+        "unmanaged": 0
+      }
+    },
+    "prod": {
+      "last_deploy": {
+        "at": "2026-08-08T17:56:23.951787+00:00",
+        "commit": "a88668b8b389ed71c7b48363799382d00fd7ccdf",
+        "rules": {
+          "DETECT-2026-0003": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.4"
+          },
+          "DETECT-2026-0005": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.7"
+          },
+          "DETECT-2026-0006": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.8"
+          },
+          "DETECT-2026-0007": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.19"
+          },
+          "DETECT-2026-0008": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.7"
+          },
+          "DETECT-2026-0009": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.9"
+          },
+          "DETECT-2026-0010": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.7"
+          },
+          "DETECT-2026-0011": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.6"
+          },
+          "DETECT-2026-0012": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.16"
+          },
+          "DETECT-2026-0013": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.6"
+          },
+          "DETECT-2026-0014": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.8"
+          },
+          "DETECT-2026-0015": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.7"
+          },
+          "DETECT-2026-0016": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.8"
+          },
+          "DETECT-2026-0018": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.11"
+          },
+          "DETECT-2026-0019": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.5"
+          },
+          "DETECT-2026-0020": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.6"
+          },
+          "DETECT-2026-0021": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.6"
+          },
+          "DETECT-2026-0022": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.9"
+          },
+          "DETECT-2026-0023": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.7"
+          },
+          "DETECT-2026-0024": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.5"
+          },
+          "DETECT-2026-0025": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.2"
+          },
+          "DETECT-2026-0026": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.3"
+          },
+          "DETECT-2026-0027": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.5"
+          },
+          "DETECT-2026-0028": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.2"
+          },
+          "DETECT-2026-0029": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.3"
+          },
+          "DETECT-2026-0030": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.2"
+          },
+          "DETECT-2026-0031": {
+            "at": "2026-08-08T17:56:23.951787+00:00",
+            "outcome": "updated",
+            "rule_version": "1.3"
+          }
+        },
+        "run_id": "31270660683",
+        "run_url": "https://github.com/martonbence/Detection-Engineering/actions/runs/31270660683",
+        "totals": {
+          "updated": 27
+        }
+      },
+      "splunk_state": {
+        "checked_at": "2026-08-08T20:05:45.400128+00:00",
+        "duplicate_names": 0,
+        "has_drift": false,
+        "in_sync": 27,
+        "missing": 0,
+        "missing_ids": [],
+        "orphan_removed": 0,
+        "orphan_removed_unretired": 0,
+        "orphan_renamed": 0,
+        "unmanaged": 0
+      }
+    }
+  },
+  "schema": 1
+}

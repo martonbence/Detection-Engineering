@@ -1,0 +1,40 @@
+# Pinned toolchain for both CI workflows.
+#
+# Lives in .github/ rather than the repo root because CI is its only consumer:
+# nothing here is needed to work on the rules locally, and the workflows that
+# install it sit in the same directory.
+#
+# Why this file exists: dev converts every Sigma rule to SPL with this exact
+# toolchain, and the bytes it produces are what gets committed, atomic-tested,
+# and eventually deployed -- so the conversion needs to be reproducible on its
+# own terms, not tied to whatever happened to resolve on a given day. With
+# floating versions that held because PyPI happened to serve the same release
+# twice -- a property of the index, not of this repo.
+#
+# The prod *deploy* workflow (ci_prod_workflow.yml) does not install this file
+# any more (register item 3.2, stage C): it used to re-run sigma_to_spl.py
+# against the same Sigma source dev already converted, purely to prove the
+# committed .spl hadn't drifted, which needed the identical converter pinned
+# on both sides to mean anything. That reconversion is gone, replaced by
+# verifying the build-provenance attestation dev already signed for the
+# committed bytes, so prod has no converter to keep in step with dev's any
+# more -- see .github/requirements-deploy.txt for what it installs instead.
+# This file's pin is now dev's own reproducibility concern, not a two-sided
+# agreement.
+#
+# pySigma is pinned even though nothing installs it directly: it is the engine
+# that actually serializes the query text, so leaving it floating would defeat
+# the pins on the two packages that wrap it.
+#
+# Deliberately NOT a full lock: transitive dependencies below these still
+# float and there are no hashes. pip-compile / --require-hashes and automated
+# version bumps belong to register item 2.11 (repo hygiene, dependabot).
+#
+# Resolved against Python 3.11 (the version both workflows set up).
+
+pyyaml==6.0.3
+jsonschema==4.26.0
+sigma-cli==3.1.0
+pySigma==1.5.0
+pysigma-backend-splunk==2.1.0
+requests==2.34.2
