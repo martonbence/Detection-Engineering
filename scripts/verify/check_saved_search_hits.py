@@ -14,6 +14,14 @@ Usage:
 Output per rule:
     <output-dir>/<detect_id>/hits.json      — { meta, event_count, events[], error, ... }
 
+A rule whose sidecar has `"testing enabled": false` (register: run #125,
+2026-08-17) is not dispatched at all -- there is nothing to attack it, so a
+Splunk query would only ever report on whatever unrelated/background data
+happens to match its filter, and scoring that is worse than not measuring.
+Its hits.json still gets written (so pass_fail_eval.py has a summary to read
+for every rule in the bundle), but with event_count 0 and error_kind
+ERR_TESTING_DISABLED instead of a dispatch ever happening.
+
 Exit code is always 0 — per-rule errors are captured inside the JSON files.
 """
 
@@ -72,6 +80,14 @@ def extract_meta(path: Path) -> dict:
 # respectively; the string stays human-facing, this field is the contract.
 ERR_UNMEASURED = "unmeasured"   # we could not measure -> NOT_VERIFIED
 ERR_RULE = "rule_error"         # the rule/deployment is wrong -> FAIL
+
+# A third kind, distinct from both: nobody attacked this rule on purpose
+# (custom.testing.enabled: false), so there was never anything for a dispatch
+# to measure. pass_fail_eval.py's testing_enabled gate is expected to catch
+# this before evaluate() ever sees error_kind, but the value is still set here
+# rather than left as ERR_UNMEASURED so a hits.json read on its own -- by a
+# person, or by future code -- doesn't have to guess why nothing was queried.
+ERR_TESTING_DISABLED = "testing_disabled"
 
 
 def dispatch_saved_search(
@@ -277,24 +293,38 @@ def main(argv: list[str]) -> int:
         meta = extract_meta(path)
         search_name = saved_search_name(meta)
         detect_id = (meta.get("detect_id") or "").strip() or path.stem
+        testing_enabled = bool(meta.get("testing enabled", False))
 
-        print(f"\n[{detect_id}] Dispatching '{search_name}' ({args.earliest} → {args.latest})")
-
-        events, error, error_kind = dispatch_saved_search(
-            session=session,
-            base_url=base_url,
-            app=app,
-            owner=owner,
-            search_name=search_name,
-            earliest=args.earliest,
-            latest=args.latest,
-            max_events=args.max_events,
-        )
-
-        if error:
-            print(f"  ERROR: {error}", file=sys.stderr)
+        if not testing_enabled:
+            # No dispatch: nobody is attacking this rule this run, so a query
+            # would only ever tell us about unrelated/background data --
+            # scoring that would be worse than not measuring at all (see
+            # module docstring, run #125).
+            print(f"\n[{detect_id}] Testing disabled -- skipping dispatch of '{search_name}'")
+            events, error, error_kind = (
+                [],
+                "Testing is disabled for this rule (custom.testing.enabled: false); "
+                "no search was dispatched.",
+                ERR_TESTING_DISABLED,
+            )
         else:
-            print(f"  Matched events: {len(events)}")
+            print(f"\n[{detect_id}] Dispatching '{search_name}' ({args.earliest} → {args.latest})")
+
+            events, error, error_kind = dispatch_saved_search(
+                session=session,
+                base_url=base_url,
+                app=app,
+                owner=owner,
+                search_name=search_name,
+                earliest=args.earliest,
+                latest=args.latest,
+                max_events=args.max_events,
+            )
+
+            if error:
+                print(f"  ERROR: {error}", file=sys.stderr)
+            else:
+                print(f"  Matched events: {len(events)}")
 
         rule_out_dir = output_dir / detect_id
         rule_out_dir.mkdir(parents=True, exist_ok=True)
@@ -311,15 +341,18 @@ def main(argv: list[str]) -> int:
             # against run_atomic.ps1's progress markers.
             "tester": meta.get("tester", ""),
             "runner": meta.get("runner", ""),
-            "testing_enabled": bool(meta.get("testing enabled", False)),
+            "testing_enabled": testing_enabled,
             "earliest": args.earliest,
             "latest": args.latest,
             "run_timestamp": run_ts,
             "event_count": len(events),
             "error": error,
             # Machine-readable companion to "error": tells pass_fail_eval.py
-            # whether this is a rule defect (FAIL) or a failure to measure
-            # (NOT_VERIFIED). None whenever "error" is None.
+            # whether this is a rule defect (FAIL), a failure to measure
+            # (NOT_VERIFIED), or -- ERR_TESTING_DISABLED -- a rule nobody
+            # attacked this run (also NOT_VERIFIED, but pass_fail_eval.py's
+            # testing_enabled gate is expected to catch this before evaluate()
+            # ever reads error_kind at all). None whenever "error" is None.
             "error_kind": error_kind,
             "events": events,
         }

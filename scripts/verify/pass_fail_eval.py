@@ -12,18 +12,35 @@ Fail criteria : event_count < MIN_PASS  (no alerts fired)
               | error with error_kind "rule_error" -- the saved search is not
                 deployed, or the search job itself errored inside Splunk
 
-Not verified  : two independent routes, both meaning "we did not measure this",
-                never "this rule is broken":
-                (a) attack side -- rule's tester is "atomic" and its Atomic Red
+Not verified  : three independent routes, all meaning "we did not measure
+                this", never "this rule is broken":
+                (a) disabled side -- run #125, 2026-08-17: the rule's sidecar
+                    carries `testing_enabled: False` (custom.testing.enabled:
+                    false in the Sigma rule). Nobody attacked it this run, so
+                    check_saved_search_hits.py never dispatched a query for
+                    it, and whatever hits.json says about event_count is not
+                    a measurement of anything -- checked FIRST, before (b),
+                    because a disabled rule has no attack to have completed;
+                (b) attack side -- rule's tester is "atomic" and its Atomic Red
                     Team test did not reach a "completed" progress marker (see
                     --progress-dir), e.g. run_atomic.ps1 was killed by its
                     10-minute timeout before getting to this rule;
-                (b) measurement side -- the Splunk query carried an error with
+                (c) measurement side -- the Splunk query carried an error with
                     error_kind "unmeasured": the search never finished, the
                     network dropped, or Splunk answered unparseably.
-                Both are distinct from FAIL: nothing was learned either way, so
-                reporting a confirmed negative would be inventing data. Note
-                (b) reaches emulation-tested rules too, unlike (a).
+                All three are distinct from FAIL: nothing was learned either
+                way, so reporting a confirmed negative would be inventing
+                data. Note (c) reaches emulation-tested rules too, unlike (b).
+
+                (a) is also distinct from (b) and (c) in how it is *gated*:
+                a disabled rule is an intentional, ongoing state (today: 27 of
+                28 rules, while a shared-script change forces mode=all), not a
+                transient failure to measure. Counting it against the run's
+                exit code would turn "one rule under test passed cleanly"
+                into a red X for reasons nobody watching this run caused or
+                can fix by re-running it. So (a) is tallied separately (the
+                "disabled" count) and excluded from the exit-code gate that
+                (b) and (c) are still subject to.
 
 Outputs:
   <results-dir>/<detect_id>/result.json    — per-rule verdict, overwritten every run
@@ -31,8 +48,8 @@ Outputs:
   $GITHUB_STEP_SUMMARY                     — Markdown table (GitHub Actions), aggregated across this run's rules
 
 Exit code:
-  0  All rules PASS
-  1  One or more rules FAIL or NOT_VERIFIED
+  0  All rules PASS, or NOT_VERIFIED only because testing is disabled for them
+  1  One or more rules FAIL, or NOT_VERIFIED for a reason other than being disabled
 """
 
 import argparse
@@ -145,6 +162,7 @@ def write_github_summary(path: str, report: dict) -> None:
     passed = report["passed"]
     failed = report["failed"]
     not_verified = report.get("not_verified", 0)
+    disabled = report.get("disabled", 0)
     total = report["total_rules"]
     run_ts = report["run_timestamp"]
     min_pass = report["min_pass"]
@@ -166,6 +184,8 @@ def write_github_summary(path: str, report: dict) -> None:
         tallies.append(f"{failed} failed")
     if not_verified:
         tallies.append(f"{not_verified} not verified")
+    if disabled:
+        tallies.append(f"{disabled} disabled")
 
     lines = ["## Detection verification", ""]
     lines += alert(
@@ -201,6 +221,21 @@ def write_github_summary(path: str, report: dict) -> None:
             f"{MARK_UNKNOWN} **NOT VERIFIED** — the attack did not complete (Atomic Red Team "
             "test cut short) or the measurement did not complete (Splunk search did not "
             "finish). Unknown, not broken; gated the same as FAIL.",
+        ]
+
+    # Distinct from the NOT VERIFIED footnote above on purpose (run #125,
+    # 2026-08-17): a disabled rule was never attacked, so "the attack did not
+    # complete" would be false for it, not just imprecise. These rows still
+    # show verdict NOT VERIFIED in the table -- nothing was measured -- but
+    # are not gated: a disabled rule staying disabled cannot be turned green
+    # by re-running the pipeline, so counting it against the run would be
+    # reporting a failure nobody can act on.
+    if disabled:
+        lines += [
+            "",
+            f"{MARK_UNKNOWN} **NOT VERIFIED (disabled)** — testing is disabled for these rules "
+            "(`custom.testing.enabled: false`); no attack ran and no search was dispatched for "
+            "them this run. Not gated -- excluded from the pass/fail count above.",
         ]
 
     lines += ["", "<sub>Per-rule detail in `outputs/results/`.</sub>", ""]
@@ -319,24 +354,33 @@ def main(argv: list[str]) -> int:
         error_kind = summary.get("error_kind") or None
         tester = str(summary.get("tester") or "").strip().lower()
 
-        # Two independent ways a rule can end up unverified, checked in this
-        # order because they answer different questions. First: did the attack
-        # run? (progress markers, atomic only). Then: did the measurement run?
-        # (error_kind from the Splunk query). A rule whose test completed fine
-        # but whose search timed out reaches the second check with a completed
-        # marker, which is exactly the case that used to fall through to FAIL.
-        # Register item 2.8. This used to read `tester == "atomic"`, which left
-        # the 8 emulation-tested rules outside the gate entirely: an emulation
-        # command that never ran produced no events, and no events scored FAIL
-        # -- a confirmed negative manufactured from an attack that never
-        # happened, which is the exact thing NOT_VERIFIED exists to prevent.
-        #
-        # Also now requires testing to be enabled. A rule with
-        # `type: atomic, enabled: false` gets no marker written for it (nothing
-        # attacks it), so the old condition would have parked it at
-        # NOT_VERIFIED permanently. No rule is in that state today; the
-        # condition should still say what it means.
-        if (
+        # `is False` on purpose, not plain falsiness: a rule with no testing
+        # config at all is a different, pre-existing case (missing/None) and
+        # must not be pulled into this branch -- only a sidecar that
+        # explicitly recorded custom.testing.enabled: false counts as
+        # "deliberately not attacked this run". Checked before the two
+        # NOT_VERIFIED routes below because a disabled rule has no attack to
+        # have completed and no measurement worth trusting either -- run #125,
+        # 2026-08-17: 27 disabled rules were scored PASS/FAIL from stale or
+        # coincidental background Splunk data because nothing skipped them.
+        disabled = summary.get("testing_enabled") is False
+
+        if disabled:
+            verdict = NOT_VERIFIED
+            reason = "Testing is disabled for this rule (custom.testing.enabled: false)"
+        # Two independent ways an *enabled* rule can end up unverified,
+        # checked in this order because they answer different questions.
+        # First: did the attack run? (progress markers, atomic only). Then:
+        # did the measurement run? (error_kind from the Splunk query). A rule
+        # whose test completed fine but whose search timed out reaches the
+        # second check with a completed marker, which is exactly the case
+        # that used to fall through to FAIL. Register item 2.8. This used to
+        # read `tester == "atomic"`, which left the 8 emulation-tested rules
+        # outside the gate entirely: an emulation command that never ran
+        # produced no events, and no events scored FAIL -- a confirmed
+        # negative manufactured from an attack that never happened, which is
+        # the exact thing NOT_VERIFIED exists to prevent.
+        elif (
             summary.get("testing_enabled")
             and tester in ("atomic", "emulation")
             and not atomic_test_completed(progress_dir, detect_id)
@@ -348,7 +392,12 @@ def main(argv: list[str]) -> int:
                 event_count, error, args.min_pass, args.max_pass, error_kind
             )
 
-        if verdict != PASS:
+        # A disabled rule is excluded from the gate entirely: it is an
+        # intentional, ongoing state, not a transient failure to measure, so
+        # it must not turn a run where every *enabled* rule passed into a
+        # reported failure. Both the other NOT_VERIFIED routes above (and
+        # FAIL) still gate the run, unchanged.
+        if verdict != PASS and not disabled:
             all_pass = False
 
         result = {
@@ -356,6 +405,7 @@ def main(argv: list[str]) -> int:
             "title": title,
             "verdict": verdict,
             "reason": reason,
+            "disabled": disabled,
             "event_count": event_count,
             "min_pass": args.min_pass,
             "max_pass": args.max_pass,
@@ -380,6 +430,7 @@ def main(argv: list[str]) -> int:
             {
                 "run_timestamp": run_ts,
                 "verdict": verdict,
+                "disabled": disabled,
                 "event_count": event_count,
                 "rule_version": summary.get("rule_version", ""),
                 "git_sha": summary.get("git_sha", ""),
@@ -399,7 +450,15 @@ def main(argv: list[str]) -> int:
         "total_rules": len(report_rows),
         "passed": sum(1 for r in report_rows if r["verdict"] == PASS),
         "failed": sum(1 for r in report_rows if r["verdict"] == FAIL),
-        "not_verified": sum(1 for r in report_rows if r["verdict"] == NOT_VERIFIED),
+        # "disabled" is carved out of "not_verified" rather than counted
+        # inside it: both are NOT_VERIFIED verdicts, but they mean different
+        # things and only one of them is gated (see all_pass above), so
+        # lumping them together in the tallies would misreport *why* a run
+        # with 27 disabled rules and 0 genuine not-verified rules still says
+        # "0 not verified" -- true, but only distinguishable from "27" if the
+        # two are split here.
+        "not_verified": sum(1 for r in report_rows if r["verdict"] == NOT_VERIFIED and not r["disabled"]),
+        "disabled": sum(1 for r in report_rows if r["disabled"]),
         "rules": report_rows,
     }
 
@@ -411,7 +470,8 @@ def main(argv: list[str]) -> int:
         f"\n{'─' * 60}"
         f"\n{verdict_mark(overall)}  Overall: {verdict_label(overall)}  "
         f"({aggregate_report['passed']}/{aggregate_report['total_rules']} rules passed, "
-        f"{aggregate_report['not_verified']} not verified)"
+        f"{aggregate_report['not_verified']} not verified, "
+        f"{aggregate_report['disabled']} disabled)"
         f"\n{'─' * 60}"
     )
 

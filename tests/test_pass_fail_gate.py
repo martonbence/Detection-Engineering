@@ -124,11 +124,88 @@ def test_the_reason_names_the_tester_that_did_not_run(tmp_path):
 # --- where the gate must not fire --------------------------------------------
 
 
-def test_a_rule_with_testing_disabled_is_evaluated_normally(tmp_path):
-    """Nothing attacks it, so a missing marker says nothing about it."""
+def test_a_rule_with_testing_disabled_is_not_evaluated_from_stray_data(tmp_path):
+    """Run #125, 2026-08-17: a disabled rule's hits.json can carry a nonzero
+    event_count from unrelated/background Splunk data (check_saved_search_hits.py
+    never dispatched anything for it, but the field defaults to 0/None either
+    way). That count must never reach evaluate() -- it is not a measurement of
+    this rule, so scoring it PASS or FAIL invents a result nobody obtained."""
     matched, progress = tmp_path / "m", tmp_path / "p"
     write_hits(matched, "DETECT-A", "atomic", enabled=False, event_count=2)
     progress.mkdir()
+
+    _, results = run(tmp_path, matched, progress)
+
+    assert verdict_of(results, "DETECT-A") == NOT_VERIFIED
+
+
+def test_a_disabled_rules_reason_names_the_flag(tmp_path):
+    matched, progress = tmp_path / "m", tmp_path / "p"
+    write_hits(matched, "DETECT-A", "atomic", enabled=False, event_count=0)
+    progress.mkdir()
+
+    _, results = run(tmp_path, matched, progress)
+
+    result = json.loads((results / "DETECT-A" / "result.json").read_text(encoding="utf-8"))
+    assert "disabled" in result["reason"].lower()
+    assert result["disabled"] is True
+
+
+def test_a_disabled_rule_does_not_flip_the_exit_code(tmp_path):
+    """The bug's visible symptom: a run where the one rule under test passed
+    cleanly still exited non-zero because 27 other, deliberately-disabled
+    rules got scored anyway. A clean run must exit 0 regardless of how many
+    other rules are sitting disabled."""
+    matched, progress = tmp_path / "m", tmp_path / "p"
+    write_hits(matched, "DETECT-A", "atomic", enabled=False, event_count=0)
+    write_hits(matched, "DETECT-B", "atomic", enabled=True, event_count=3)
+    write_marker(progress, "DETECT-B", "completed", "atomic")
+
+    exit_code, results = run(tmp_path, matched, progress)
+
+    assert verdict_of(results, "DETECT-A") == NOT_VERIFIED
+    assert verdict_of(results, "DETECT-B") == PASS
+    assert exit_code == 0
+
+
+def test_a_disabled_rule_does_not_mask_a_genuine_failure(tmp_path):
+    """The exclusion is scoped to the disabled rule itself -- an unrelated
+    enabled rule that genuinely fails still gates the run."""
+    matched, progress = tmp_path / "m", tmp_path / "p"
+    write_hits(matched, "DETECT-A", "atomic", enabled=False, event_count=0)
+    write_hits(matched, "DETECT-B", "atomic", enabled=True, event_count=0)
+    write_marker(progress, "DETECT-B", "completed", "atomic")
+
+    exit_code, results = run(tmp_path, matched, progress)
+
+    assert verdict_of(results, "DETECT-A") == NOT_VERIFIED
+    assert verdict_of(results, "DETECT-B") == FAIL
+    assert exit_code == 1
+
+
+def test_an_enabled_rule_with_no_testing_config_key_is_unaffected(tmp_path):
+    """The disabled gate keys on `is False`, not falsiness -- a rule missing
+    the field entirely (None) is the pre-existing, different case and must
+    keep going through the normal atomic/emulation gate and evaluate()."""
+    matched, progress = tmp_path / "m", tmp_path / "p"
+    d = matched / "DETECT-A"
+    d.mkdir(parents=True)
+    (d / "hits.json").write_text(
+        json.dumps(
+            {
+                "detect_id": "DETECT-A",
+                "title": "T",
+                "tester": "atomic",
+                # testing_enabled deliberately absent
+                "event_count": 3,
+                "error": None,
+                "error_kind": None,
+                "events": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    write_marker(progress, "DETECT-A", "completed", "atomic")
 
     _, results = run(tmp_path, matched, progress)
 
