@@ -1,15 +1,15 @@
 {
   "detect_id": "DETECT-2026-0022",
   "title": "Known Credential Dumping Tool Execution",
-  "verdict": "NOT_VERIFIED",
-  "reason": "Atomic test did not complete before step timeout",
-  "event_count": 3,
+  "verdict": "FAIL",
+  "reason": "Too few events: 0 (min expected: 1)",
+  "event_count": 0,
   "min_pass": 1,
   "max_pass": 10,
-  "earliest": "1786984634",
+  "earliest": "1786994369",
   "latest": "now",
-  "run_timestamp": "2026-08-17T16:43:24.313941+00:00",
-  "rule_version": "1.10",
-  "git_sha": "00a0d3fcf35f0daebd7e8c0d4e7353324c6b2d94",
-  "run_id": "32046430710"
+  "run_timestamp": "2026-08-17T19:22:41.546009+00:00",
+  "rule_version": "1.11",
+  "git_sha": "db033f55c7ceea3d38c9c27253cd9f67af887445",
+  "run_id": "32059698521"
 }
