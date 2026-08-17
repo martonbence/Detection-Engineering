@@ -3713,6 +3713,14 @@
       table-layout: auto;
     }
 
+    /* cursor and user-select reset: the page-wide `th` rule above (line ~924)
+       was written for the main rule table's *sortable* column headers, where
+       "looks clickable, text isn't selectable" is the right affordance. Every
+       <th> in this table inherits that rule too even though none of them
+       sort anything -- the env-name column headers here and, worse, the
+       tbody's `.dep-id` row headers (the DETECT-ID cells) -- so without this
+       reset the id column silently loses text selection along with a
+       misleading pointer cursor. */
     .dep-rules thead th {
       position: sticky;
       top: 0;
@@ -3728,6 +3736,8 @@
       padding: 8px 8px;
       border-bottom: 1px solid var(--border);
       white-space: nowrap;
+      cursor: default;
+      user-select: none;
     }
 
     .dep-rules thead th:first-child {
@@ -3757,6 +3767,12 @@
       color: var(--text);
       font-family: var(--font);
       white-space: nowrap;
+      /* Undo the page-wide `th` rule's cursor:pointer/user-select:none --
+         this is a row label (scope="row"), not a sortable column header, and
+         DETECT-XXXX-xxxx ids are exactly the kind of text a reader wants to
+         copy out of this table. */
+      cursor: text;
+      user-select: text;
     }
 
     .dep-repo-ver {
