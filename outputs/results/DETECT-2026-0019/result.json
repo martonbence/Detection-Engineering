@@ -1,15 +1,15 @@
 {
   "detect_id": "DETECT-2026-0019",
   "title": "LSASS Memory Access by Non-Standard Process",
-  "verdict": "FAIL",
-  "reason": "Too many events: 11 (max expected: 10)",
-  "event_count": 11,
+  "verdict": "NOT_VERIFIED",
+  "reason": "Emulation test did not complete before step timeout",
+  "event_count": 1,
   "min_pass": 1,
   "max_pass": 10,
-  "earliest": "1786812891",
+  "earliest": "1786984634",
   "latest": "now",
-  "run_timestamp": "2026-08-15T17:03:45.673367+00:00",
+  "run_timestamp": "2026-08-17T16:43:24.313941+00:00",
   "rule_version": "1.6",
-  "git_sha": "7d82cf1258b76c81b8302729fdb7a9e516ab5aea",
-  "run_id": "31896815997"
+  "git_sha": "00a0d3fcf35f0daebd7e8c0d4e7353324c6b2d94",
+  "run_id": "32046430710"
 }

@@ -1,15 +1,15 @@
 {
   "detect_id": "DETECT-2026-0023",
   "title": "SAM and LSA Secrets Dump via Registry Hive Export",
-  "verdict": "PASS",
-  "reason": "Event count 8 within expected range [1–10]",
-  "event_count": 8,
+  "verdict": "NOT_VERIFIED",
+  "reason": "Atomic test did not complete before step timeout",
+  "event_count": 0,
   "min_pass": 1,
   "max_pass": 10,
-  "earliest": "1786813957",
+  "earliest": "1786984634",
   "latest": "now",
-  "run_timestamp": "2026-08-15T17:21:15.688687+00:00",
+  "run_timestamp": "2026-08-17T16:43:24.313941+00:00",
   "rule_version": "1.8",
-  "git_sha": "fc85ee0d4bbd7c507a1402eaab37b5b2c205ef2f",
-  "run_id": "31897646972"
+  "git_sha": "00a0d3fcf35f0daebd7e8c0d4e7353324c6b2d94",
+  "run_id": "32046430710"
 }

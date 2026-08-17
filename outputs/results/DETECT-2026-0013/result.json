@@ -1,15 +1,15 @@
 {
   "detect_id": "DETECT-2026-0013",
   "title": "PowerShell Spawned from Suspicious Parent Process",
-  "verdict": "PASS",
-  "reason": "Event count 3 within expected range [1–10]",
-  "event_count": 3,
+  "verdict": "NOT_VERIFIED",
+  "reason": "Emulation test did not complete before step timeout",
+  "event_count": 2,
   "min_pass": 1,
   "max_pass": 10,
-  "earliest": "1786813957",
+  "earliest": "1786984634",
   "latest": "now",
-  "run_timestamp": "2026-08-15T17:21:15.688687+00:00",
+  "run_timestamp": "2026-08-17T16:43:24.313941+00:00",
   "rule_version": "1.7",
-  "git_sha": "fc85ee0d4bbd7c507a1402eaab37b5b2c205ef2f",
-  "run_id": "31897646972"
+  "git_sha": "00a0d3fcf35f0daebd7e8c0d4e7353324c6b2d94",
+  "run_id": "32046430710"
 }
