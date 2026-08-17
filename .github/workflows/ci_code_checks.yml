@@ -334,7 +334,7 @@ jobs:
 
           for req in .github/requirements.txt .github/requirements-dev.txt; do
             echo "=== $req ==="
-            out="${reports}/$(basename "$req").txt"
+            out="${reports}/$(basename "$req")"
 
             # Captured through `if` rather than by reading $? on the next line.
             # GitHub runs `shell: bash` as `bash --noprofile --norc -e -o
