@@ -37,7 +37,7 @@ function Resolve-RepoRoot {
   return (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 }
 
-function Normalize-RepoPath([string]$p) {
+function ConvertTo-RepoPath([string]$p) {
   # normalize to forward slashes (git diff output can vary)
   return ($p -replace '\\','/').Trim()
 }
@@ -77,7 +77,7 @@ $SkippedMissing = New-Object System.Collections.Generic.List[string]
 foreach ($fRaw in $Files) {
   if ([string]::IsNullOrWhiteSpace($fRaw)) { continue }
 
-  $f = Normalize-RepoPath $fRaw
+  $f = ConvertTo-RepoPath $fRaw
 
   # Only validate rules/*.yml|yaml
   if ($f -notmatch '^rules/.*\.(yml|yaml)$') {

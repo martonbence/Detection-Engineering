@@ -11,8 +11,13 @@ from sigma_to_spl import _inject_index_prefix
 # --- the three cases that already worked ------------------------------------
 
 
-def test_search_command_keeps_its_verb():
-    assert _inject_index_prefix("search EventCode=4688", "sysmon") == "search index=sysmon EventCode=4688"
+def test_search_command_loses_its_verb():
+    """A leading "search" is stripped, not kept -- see the module-level comment on
+    `_inject_index_prefix()` for why: Splunk's `/saved/searches/{name}/dispatch`
+    endpoint double-prepends "search " onto stored text that already starts with
+    the word, turning the second one into a literal keyword term and silently
+    zeroing out results."""
+    assert _inject_index_prefix("search EventCode=4688", "sysmon") == "index=sysmon EventCode=4688"
 
 
 def test_existing_leading_index_is_replaced_with_the_sigma_one():
@@ -73,20 +78,29 @@ def test_leading_whitespace_before_the_pipe_is_still_a_generating_command():
 # blanket "any leading `|` is a generating command" check swept this in with
 # `tstats`/`inputlookup`, silently dropping the Sigma index -- every deployed
 # run then searched Splunk's default index, not sysmon, and found nothing.
+#
+# The fix for that first bug briefly wrote an explicit leading "search" in
+# front of this case (unlike every other prefixed form, which stays bare).
+# That produced a second, live bug: Splunk's `/saved/searches/{name}/dispatch`
+# endpoint double-prepends "search " onto stored text that already starts
+# with the word, so the deployed saved search always found zero events even
+# though the identical text worked fine pasted into an ad-hoc search bar.
+# The bare `index=<idx> | ...` form below -- identical in shape to every
+# other rule -- avoids that entirely.
 
 
-def test_rex_opener_gets_a_search_index_prefix_not_left_alone():
+def test_rex_opener_gets_a_bare_index_prefix_not_left_alone():
     query = '| rex field=CommandLine "(?<m>-enc)" | eval hit=if(isnotnull(m), "true", "false")'
 
     result = _inject_index_prefix(query, "sysmon")
 
-    assert result == f"search index=sysmon {query}"
+    assert result == f"index=sysmon {query}"
 
 
-def test_eval_opener_gets_a_search_index_prefix():
+def test_eval_opener_gets_a_bare_index_prefix():
     query = '| eval x=1 | search x=1'
 
-    assert _inject_index_prefix(query, "sysmon") == f"search index=sysmon {query}"
+    assert _inject_index_prefix(query, "sysmon") == f"index=sysmon {query}"
 
 
 def test_rex_opener_with_no_index_does_not_warn(capsys):

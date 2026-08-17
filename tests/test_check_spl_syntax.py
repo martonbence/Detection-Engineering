@@ -11,11 +11,16 @@ query that does not already open with `|` or an explicit generating command
 -- but `search/v2/parser` does not do that auto-prepending, so it tried to
 parse `index` itself as a command name.
 
-These tests are against `ensure_search_prefix()` directly (the real forms
-found by inspecting all 28 current .spl files under rules/splunk/, plus the
-generating-command case `_inject_index_prefix()` guarantees never needs one)
-and against `check_query()` end to end, so a regression that reintroduces the
-bare query in the actual POST body -- not just in the helper -- is caught.
+These tests are against `ensure_search_prefix()` directly (the bare
+`index=...` form every current .spl file under rules/splunk/ takes, the
+generating-command case `_inject_index_prefix()` guarantees never needs a
+prefix, and the literal `search ...` case kept only as a defensive fallback
+for a hand-written `custom.splunk.raw_query` rule -- no rule's pySigma
+output has produced that shape since DETECT-2026-0007's `/dispatch`
+double-prepend bug was fixed by making `_inject_index_prefix()` strip a
+leading "search" instead of writing one) and against `check_query()` end to
+end, so a regression that reintroduces the bare query in the actual POST
+body -- not just in the helper -- is caught.
 """
 
 import check_spl_syntax as c
@@ -51,14 +56,18 @@ class RecordingSession:
 
 
 def test_a_bare_index_query_gets_search_prepended():
-    """The form 27 of the 28 current rules take -- and exactly what tripped
+    """The form every current rule takes -- and exactly what tripped
     workflow run 31896204938."""
     q = 'index=sysmon Image="*\\\\tasklist.exe" CommandLine="*qwinsta*"'
     assert c.ensure_search_prefix(q) == f"search {q}"
 
 
 def test_a_query_already_starting_with_search_is_left_alone():
-    """DETECT-2026-0007's shape: `search index=... | rex ... | search ...`."""
+    """No committed rule's pySigma output takes this shape any more (that was
+    DETECT-2026-0007's `/dispatch` double-prepend bug), but a hand-written
+    `custom.splunk.raw_query` rule still could, and `_inject_index_prefix()`
+    now strips a leading "search" from those too -- this guards the case
+    where one somehow still reaches here with it intact."""
     q = 'search index=sysmon | rex field=CommandLine "foo"'
     assert c.ensure_search_prefix(q) == q
 

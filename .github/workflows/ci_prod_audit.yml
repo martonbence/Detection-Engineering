@@ -15,17 +15,13 @@ name: CI - Prod Audit
 # "is prod still what we think it is" has to be asked when *nothing* is
 # happening. Folding it into the deploy would only ever answer it right after a
 # deploy -- the one moment we already know the answer.
+#
+# No `schedule:` trigger: the self-hosted de-lab runner and its prod Splunk
+# are usually offline, so a nightly cron mostly no-ops. Run this by hand via
+# `workflow_dispatch` when the lab is actually up rather than on a timer that
+# rarely finds anything to check.
 
 on:
-  schedule:
-    # 05:40 UTC daily. Deliberately not on the hour: GitHub's scheduler queues
-    # the top of every hour heavily, and a drift report that arrives late is
-    # worth less than one that arrives.
-    #
-    # Note for whoever wonders why this never fired from a branch: GitHub only
-    # runs `schedule` from the default branch. Until this file is on main there
-    # is no daily audit, only the manual trigger below.
-    - cron: "40 5 * * *"
   workflow_dispatch:
 
 concurrency:

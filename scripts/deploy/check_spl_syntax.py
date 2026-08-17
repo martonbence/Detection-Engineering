@@ -90,12 +90,18 @@ def read_spl_query(path: Path) -> str:
 #
 # `sigma_to_spl.py::_inject_index_prefix()` is the reason every committed
 # .spl looks like this: it deliberately writes the SIGMA-defined index as a
-# BARE `index=<idx> ...` prefix (or leaves a `search ...` opener alone,
-# rewriting only the index inside it), never adding `search` itself -- that
-# was never its job, since the two consumers that read these files after
-# conversion (`saved/searches`, and a human pasting into the search bar) both
-# already add it implicitly. `search/v2/parser` is a third consumer with a
-# different contract, so the prepending has to happen here instead.
+# BARE `index=<idx> ...` prefix -- including for the one rule whose pySigma
+# output opens with a `| rex ...` chain rather than a bare field expression
+# (DETECT-2026-0007) -- never adding `search` itself. That was never its
+# job, since the two consumers that read these files after conversion
+# (`saved/searches`, and a human pasting into the search bar) both already
+# add it implicitly; `_inject_index_prefix()` briefly wrote an explicit
+# leading "search" for that one rule instead, which turned out to break a
+# third consumer of its own -- Splunk's `/saved/searches/{name}/dispatch`
+# endpoint double-prepends "search " onto stored text that already starts
+# with the word, silently zeroing out that rule's live results. `search/v2/
+# parser` is yet another consumer with a different contract from all of
+# those, so the prepending for its benefit has to happen here instead.
 _LEADING_PIPE_RE = re.compile(r"^\|")
 _LEADING_SEARCH_RE = re.compile(r"(?i)^search\s")
 
@@ -104,26 +110,34 @@ def ensure_search_prefix(query: str) -> str:
     """Make `query` what `search/v2/parser` actually needs to see.
 
     Conservative, not the fully general "every Splunk generating command"
-    rule: this repo's converter only ever emits two openers (confirmed by
-    inspecting all 28 current .spl files under rules/splunk/) --
+    rule: this repo's converter only ever emits one opener for a committed
+    .spl (confirmed by inspecting all current .spl files under
+    rules/splunk/) --
 
-      - `search ...`      (DETECT-2026-0007, the one `|re:`-backed rule,
-                            whose query needs an initial `search` term before
-                            its own `| rex | ... | search ...` chain)
-      - `index=... ...`   (every other rule; the bare form
-                            `_inject_index_prefix()` writes by default)
+      - `index=... ...`   (every rule; the bare form `_inject_index_prefix()`
+                            writes by default, including for a `|re:`-backed
+                            rule like DETECT-2026-0007 whose pySigma output
+                            opens with a non-generating `| rex ...` chain --
+                            that gets the same bare `index=<idx> | rex ...`
+                            treatment as anything else, never an explicit
+                            leading "search")
 
     A leading `|` is also left alone rather than getting `search` prepended:
     Splunk's true generating commands (`| tstats`, `| inputlookup`, ...) are
     complete pipelines on their own and `search | tstats ...` is not valid
     SPL. `_inject_index_prefix()` already guarantees that any leading `|`
     left in a committed .spl belongs to one of those -- a non-generating
-    `| rex ...`-style opener gets `search index=<idx>` written in front of it
+    `| rex ...`-style opener gets bare `index=<idx>` written in front of it
     at conversion time, so it no longer starts with `|` by the time it
     reaches this checker. If a future query shape breaks that invariant,
     Splunk's parser response is exactly what surfaced this bug in the first
     place: a loud, specific "Unknown search command" error, not a silent
     false negative.
+
+    A literal `search ...` opener is still recognized and left alone here
+    too (`_LEADING_SEARCH_RE`) for the same reason `_inject_index_prefix()`
+    still handles it defensively: no rule's pySigma output has ever produced
+    one, but a hand-written `custom.splunk.raw_query` rule could.
     """
     q = (query or "").strip()
     if not q:

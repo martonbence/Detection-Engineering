@@ -152,7 +152,7 @@ function Import-AtomicModule {
     Import-Module -Name Invoke-AtomicRedTeam -Force -ErrorAction Stop
 }
 
-function Test-AtomicPrerequisites {
+function Test-AtomicPrerequisite {
     param(
         [string]$ModulePath,
         [string]$AtomicsFolder
@@ -735,7 +735,7 @@ if ($matchedFiles -eq 0) {
 }
 
 if ($collected.Count -gt 0) {
-    Test-AtomicPrerequisites -ModulePath $DefaultModulePath -AtomicsFolder $AtomicsPath
+    Test-AtomicPrerequisite -ModulePath $DefaultModulePath -AtomicsFolder $AtomicsPath
 }
 
 if ($PreflightOnly.IsPresent) {

@@ -1,15 +1,16 @@
 {
   "detect_id": "DETECT-2026-0020",
   "title": "LSASS Credential Dump via comsvcs.dll MiniDump",
-  "verdict": "PASS",
-  "reason": "Event count 1 within expected range [1–10]",
-  "event_count": 1,
+  "verdict": "NOT_VERIFIED",
+  "reason": "Testing is disabled for this rule (custom.testing.enabled: false)",
+  "disabled": true,
+  "event_count": 0,
   "min_pass": 1,
   "max_pass": 10,
-  "earliest": "1786813957",
+  "earliest": "1786997202",
   "latest": "now",
-  "run_timestamp": "2026-08-15T17:21:15.688687+00:00",
-  "rule_version": "1.7",
-  "git_sha": "fc85ee0d4bbd7c507a1402eaab37b5b2c205ef2f",
-  "run_id": "31897646972"
+  "run_timestamp": "2026-08-17T20:08:36.916439+00:00",
+  "rule_version": "1.8",
+  "git_sha": "826c6fc8d59a641be9e25bf3411b1c6c51bfd772",
+  "run_id": "32064011123"
 }

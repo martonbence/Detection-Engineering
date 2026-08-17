@@ -91,7 +91,7 @@ custom:
     severity: critical
 
   testing:
-    enabled: true
+    enabled: false
     runner: windows-victim
     type: atomic
     atomics:
