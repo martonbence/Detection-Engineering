@@ -1,6 +1,6 @@
 {
-  "workflow_run_id": "32047210545",
+  "workflow_run_id": "32059698521",
   "run_attempt": "1",
-  "commit_sha": "13ccb5444afd0ec4212222afbfb42b389fe5f0ae",
+  "commit_sha": "db033f55c7ceea3d38c9c27253cd9f67af887445",
   "artifact_name": "spl-pipeline-bundle"
 }
