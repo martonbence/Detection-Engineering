@@ -75,5 +75,23 @@ Full collaboration map (who works closely with whom, and why) is in
    records actual legal/audit provenance for this project. It must never be
    overwritten with a team persona name like "Yuki" — the persona is an
    internal working identity, not a rule metadata value.
+7. **Model choice per dispatch is complexity-based, not fixed.** None of
+   the specialist agent files pin a `model:` in frontmatter, so by default
+   every dispatch inherits Gaz's own model. Gaz decides per call, not per
+   specialist, whether to override it:
+   - **Escalate** (pass an explicit stronger `model`, e.g. `opus`) for
+     subtasks that are unusually complex or high-stakes — deep rule-logic
+     review, ambiguous architecture or strategic judgment calls, anything
+     where a wrong call is costly to unwind.
+   - **Stay on the default or drop to a lighter model** for routine,
+     well-scoped work — scaffolding a rule, a mechanical doc update, a
+     status check — where the task is narrow enough that extra reasoning
+     buys nothing.
+   - The same specialist can run on different models across calls (e.g.
+     Bjorn gets `opus` for one hard review, the inherited default for the
+     next routine one) — the override lives on the dispatch, not the role.
+   - Exception: `subagent_type: "fork"` always inherits Gaz's own model:
+     any `model` override on a fork call is ignored, so this rule doesn't
+     apply to forked work.
 
 Full bios and (once assigned) avatars: see `TEAM.md`.
