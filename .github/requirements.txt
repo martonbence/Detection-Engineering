@@ -26,6 +26,31 @@
 # that actually serializes the query text, so leaving it floating would defeat
 # the pins on the two packages that wrap it.
 #
+# diskcache is also pinned even though nothing here imports it either: it is a
+# transitive dependency of pySigma (>=5.6.3,<6.0.0), and 5.6.3 -- the version
+# that constraint already forces -- is the one pip-audit flags as vulnerable
+# (PYSEC-2026-2447 / CVE-2025-69872, unsafe pickle deserialization in
+# diskcache's on-disk cache format; see the CI dependency_audit job, register
+# item 4.10). No fixed release exists: 5.6.3 is diskcache's latest, and the
+# advisory covers every version up to and including it, so there is nothing
+# newer to pin to yet -- this line pins the version we're already stuck with,
+# not a fix.
+#
+# Accepted risk, not a gap. Exploiting it needs local write access to the
+# on-disk cache directory *and* something in this toolchain actually reading
+# from it -- neither holds here. pySigma only touches diskcache to memoize its
+# optional MITRE ATT&CK/D3FEND lookup helpers (sigma.data.mitre_attack /
+# mitre_d3fend), which fetch data lazily on first attribute access. Nothing in
+# scripts/ imports either module, and a live `sigma convert` against this
+# repo's own rules and backend config creates no cache directory -- confirmed
+# by testing, not assumed -- so the vulnerable deserialization path never
+# executes in this pipeline. Every job that installs this file also runs on
+# either an ubuntu-latest runner whose filesystem is discarded at job end, or
+# (ci_prod_audit.yml's audit_prod job, self-hosted/de-lab) a job that installs
+# these pins but only ever imports requests/yaml, never sigma itself. When
+# diskcache ships a fix, pySigma's own <6.0.0 ceiling pulls it in on the next
+# bump of this file -- re-run pip-audit then and drop this comment.
+#
 # Deliberately NOT a full lock: transitive dependencies below these still
 # float and there are no hashes. pip-compile / --require-hashes and automated
 # version bumps belong to register item 2.11 (repo hygiene, dependabot).
@@ -38,3 +63,4 @@ sigma-cli==3.1.0
 pySigma==1.5.0
 pysigma-backend-splunk==2.1.0
 requests==2.34.2
+diskcache==5.6.3
