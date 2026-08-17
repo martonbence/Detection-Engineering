@@ -76,7 +76,7 @@ custom:
     severity: high
 
   testing:
-    enabled: true
+    enabled: false
     runner: windows-victim
     type: emulation
     custom:

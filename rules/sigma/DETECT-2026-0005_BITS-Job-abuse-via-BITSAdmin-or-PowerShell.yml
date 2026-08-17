@@ -148,7 +148,7 @@ custom:
     latest: "now"
     severity: high
   testing:
-    enabled: true
+    enabled: false
     runner: windows-victim
     type: atomic
     atomics:

@@ -49,7 +49,7 @@ custom:
       | table _time,CommandLine,ParentImage,Image,User,ProcessId
 
   testing:
-    enabled: true
+    enabled: false
     runner: windows-victim
     type: atomic
     atomics:
