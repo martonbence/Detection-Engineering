@@ -1559,7 +1559,7 @@ def _deployment_table(environments: dict, rules: list[dict], order: list[str]) -
     return (
         '<div class="dep-table-wrap"><table class="dep-rules">'
         f'<thead><tr><th scope="col">Rule</th><th scope="col">repo</th>{head}'
-        '<th scope="col">Last 10 runs</th></tr></thead>'
+        '<th scope="col">LAST 10 RUN VERDICT</th></tr></thead>'
         f"<tbody>{''.join(body)}</tbody></table></div>"
     )
 
