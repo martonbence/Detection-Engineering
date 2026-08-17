@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-08-17T16:19:32 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
+  "description": "Auto-generated detection coverage. 2026-08-17T16:43:47 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
   "filters": {
     "platforms": [
       "Windows",
@@ -37,14 +37,14 @@
     {
       "techniqueID": "T1059.001",
       "color": "#2EA44F",
-      "comment": "⚠ 2 of 12 covering rule(s) FAILED verification\nDETECT-2026-0003: Test3 (PASS)\nDETECT-2026-0007: PowerShell Encoded Command Execution (FAIL)\nDETECT-2026-0008: PowerShell Download Cradle Execution (PASS)\nDETECT-2026-0009: PowerShell Inline Base64 Decode and Execute (PASS)\nDETECT-2026-0010: PowerShell Execution Policy Bypass (PASS)\nDETECT-2026-0011: PowerShell Compressed Payload Decompression and Execute (PASS)\nDETECT-2026-0012: PowerShell AMSI Bypass (FAIL)\nDETECT-2026-0013: PowerShell Spawned from Suspicious Parent Process (PASS)\nDETECT-2026-0014: PowerShell Stealth Execution Flags Combination (PASS)\nDETECT-2026-0015: PowerShell Reflection-Based Assembly Load (PASS)\nDETECT-2026-0016: PowerShell Script Block or Module Logging Disable (PASS)\nDETECT-2026-0018: PowerShell Known Malicious Cmdlet Invocation (PASS)",
+      "comment": "⚠ 1 of 12 covering rule(s) FAILED verification\nDETECT-2026-0003: Test3 (PASS)\nDETECT-2026-0007: PowerShell Encoded Command Execution (FAIL)\nDETECT-2026-0008: PowerShell Download Cradle Execution (PASS)\nDETECT-2026-0009: PowerShell Inline Base64 Decode and Execute (NOT_VERIFIED)\nDETECT-2026-0010: PowerShell Execution Policy Bypass (PASS)\nDETECT-2026-0011: PowerShell Compressed Payload Decompression and Execute (NOT_VERIFIED)\nDETECT-2026-0012: PowerShell AMSI Bypass (NOT_VERIFIED)\nDETECT-2026-0013: PowerShell Spawned from Suspicious Parent Process (NOT_VERIFIED)\nDETECT-2026-0014: PowerShell Stealth Execution Flags Combination (NOT_VERIFIED)\nDETECT-2026-0015: PowerShell Reflection-Based Assembly Load (PASS)\nDETECT-2026-0016: PowerShell Script Block or Module Logging Disable (NOT_VERIFIED)\nDETECT-2026-0018: PowerShell Known Malicious Cmdlet Invocation (NOT_VERIFIED)",
       "enabled": true,
       "score": 100,
       "showSubtechniques": true,
       "metadata": [
         {
           "name": "Failing rules",
-          "value": "DETECT-2026-0007, DETECT-2026-0012"
+          "value": "DETECT-2026-0007"
         }
       ]
     },
@@ -58,10 +58,10 @@
     },
     {
       "techniqueID": "T1027.010",
-      "color": "#2EA44F",
-      "comment": "⚠ 1 of 3 covering rule(s) FAILED verification\nDETECT-2026-0007: PowerShell Encoded Command Execution (FAIL)\nDETECT-2026-0009: PowerShell Inline Base64 Decode and Execute (PASS)\nDETECT-2026-0011: PowerShell Compressed Payload Decompression and Execute (PASS)",
+      "color": "#d29922",
+      "comment": "⚠ 1 of 3 covering rule(s) FAILED verification\nDETECT-2026-0007: PowerShell Encoded Command Execution (FAIL)\nDETECT-2026-0009: PowerShell Inline Base64 Decode and Execute (NOT_VERIFIED)\nDETECT-2026-0011: PowerShell Compressed Payload Decompression and Execute (NOT_VERIFIED)",
       "enabled": true,
-      "score": 100,
+      "score": 75,
       "showSubtechniques": true,
       "metadata": [
         {
@@ -80,32 +80,26 @@
     },
     {
       "techniqueID": "T1685.001",
-      "color": "#2EA44F",
-      "comment": "⚠ 1 of 2 covering rule(s) FAILED verification\nDETECT-2026-0012: PowerShell AMSI Bypass (FAIL)\nDETECT-2026-0016: PowerShell Script Block or Module Logging Disable (PASS)",
+      "color": "#d29922",
+      "comment": "DETECT-2026-0012: PowerShell AMSI Bypass (NOT_VERIFIED)\nDETECT-2026-0016: PowerShell Script Block or Module Logging Disable (NOT_VERIFIED)",
       "enabled": true,
-      "score": 100,
-      "showSubtechniques": true,
-      "metadata": [
-        {
-          "name": "Failing rules",
-          "value": "DETECT-2026-0012"
-        }
-      ]
+      "score": 75,
+      "showSubtechniques": true
     },
     {
       "techniqueID": "T1566.001",
-      "color": "#2EA44F",
-      "comment": "DETECT-2026-0013: PowerShell Spawned from Suspicious Parent Process (PASS)",
+      "color": "#d29922",
+      "comment": "DETECT-2026-0013: PowerShell Spawned from Suspicious Parent Process (NOT_VERIFIED)",
       "enabled": true,
-      "score": 100,
+      "score": 75,
       "showSubtechniques": true
     },
     {
       "techniqueID": "T1564.003",
-      "color": "#2EA44F",
-      "comment": "DETECT-2026-0014: PowerShell Stealth Execution Flags Combination (PASS)",
+      "color": "#d29922",
+      "comment": "DETECT-2026-0014: PowerShell Stealth Execution Flags Combination (NOT_VERIFIED)",
       "enabled": true,
-      "score": 100,
+      "score": 75,
       "showSubtechniques": true
     },
     {
@@ -118,88 +112,82 @@
     },
     {
       "techniqueID": "T1685.005",
-      "color": "#2EA44F",
-      "comment": "DETECT-2026-0016: PowerShell Script Block or Module Logging Disable (PASS)",
+      "color": "#d29922",
+      "comment": "DETECT-2026-0016: PowerShell Script Block or Module Logging Disable (NOT_VERIFIED)",
       "enabled": true,
-      "score": 100,
+      "score": 75,
       "showSubtechniques": true
     },
     {
       "techniqueID": "T1003.001",
-      "color": "#2EA44F",
-      "comment": "⚠ 1 of 5 covering rule(s) FAILED verification\nDETECT-2026-0019: LSASS Memory Access by Non-Standard Process (FAIL)\nDETECT-2026-0020: LSASS Credential Dump via comsvcs.dll MiniDump (PASS)\nDETECT-2026-0021: LSASS Dump via ProcDump (PASS)\nDETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)\nDETECT-2026-0025: LSASS Memory Dump via Task Manager or Suspicious File Creation (PASS)",
+      "color": "#d29922",
+      "comment": "DETECT-2026-0019: LSASS Memory Access by Non-Standard Process (NOT_VERIFIED)\nDETECT-2026-0020: LSASS Credential Dump via comsvcs.dll MiniDump (NOT_VERIFIED)\nDETECT-2026-0021: LSASS Dump via ProcDump (NOT_VERIFIED)\nDETECT-2026-0022: Known Credential Dumping Tool Execution (NOT_VERIFIED)\nDETECT-2026-0025: LSASS Memory Dump via Task Manager or Suspicious File Creation (NOT_VERIFIED)",
       "enabled": true,
-      "score": 100,
-      "showSubtechniques": true,
-      "metadata": [
-        {
-          "name": "Failing rules",
-          "value": "DETECT-2026-0019"
-        }
-      ]
+      "score": 75,
+      "showSubtechniques": true
     },
     {
       "techniqueID": "T1218.011",
-      "color": "#2EA44F",
-      "comment": "DETECT-2026-0020: LSASS Credential Dump via comsvcs.dll MiniDump (PASS)",
+      "color": "#d29922",
+      "comment": "DETECT-2026-0020: LSASS Credential Dump via comsvcs.dll MiniDump (NOT_VERIFIED)",
       "enabled": true,
-      "score": 100,
+      "score": 75,
       "showSubtechniques": true
     },
     {
       "techniqueID": "T1003.002",
-      "color": "#2EA44F",
-      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)\nDETECT-2026-0023: SAM and LSA Secrets Dump via Registry Hive Export (PASS)\nDETECT-2026-0026: SAM and LSA Credential Hive Copy via esentutl (PASS)\nDETECT-2026-0027: Credential Hive Access via Volume Shadow Copy (PASS)",
+      "color": "#d29922",
+      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (NOT_VERIFIED)\nDETECT-2026-0023: SAM and LSA Secrets Dump via Registry Hive Export (NOT_VERIFIED)\nDETECT-2026-0026: SAM and LSA Credential Hive Copy via esentutl (NOT_VERIFIED)\nDETECT-2026-0027: Credential Hive Access via Volume Shadow Copy (NOT_VERIFIED)",
       "enabled": true,
-      "score": 100,
+      "score": 75,
       "showSubtechniques": true
     },
     {
       "techniqueID": "T1003.004",
-      "color": "#2EA44F",
-      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)\nDETECT-2026-0023: SAM and LSA Secrets Dump via Registry Hive Export (PASS)\nDETECT-2026-0026: SAM and LSA Credential Hive Copy via esentutl (PASS)",
+      "color": "#d29922",
+      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (NOT_VERIFIED)\nDETECT-2026-0023: SAM and LSA Secrets Dump via Registry Hive Export (NOT_VERIFIED)\nDETECT-2026-0026: SAM and LSA Credential Hive Copy via esentutl (NOT_VERIFIED)",
       "enabled": true,
-      "score": 100,
+      "score": 75,
       "showSubtechniques": true
     },
     {
       "techniqueID": "T1003.005",
-      "color": "#2EA44F",
-      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)\nDETECT-2026-0028: Cached Credential Enumeration via Cmdkey (PASS)",
+      "color": "#d29922",
+      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (NOT_VERIFIED)\nDETECT-2026-0028: Cached Credential Enumeration via Cmdkey (NOT_VERIFIED)",
       "enabled": true,
-      "score": 100,
+      "score": 75,
       "showSubtechniques": true
     },
     {
       "techniqueID": "T1003.006",
-      "color": "#2EA44F",
-      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)\nDETECT-2026-0029: DCSync via DSInternals Get-ADReplAccount (PASS)",
+      "color": "#d29922",
+      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (NOT_VERIFIED)\nDETECT-2026-0029: DCSync via DSInternals Get-ADReplAccount (NOT_VERIFIED)",
       "enabled": true,
-      "score": 100,
+      "score": 75,
       "showSubtechniques": true
     },
     {
       "techniqueID": "T1558.001",
-      "color": "#2EA44F",
-      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)",
+      "color": "#d29922",
+      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (NOT_VERIFIED)",
       "enabled": true,
-      "score": 100,
+      "score": 75,
       "showSubtechniques": true
     },
     {
       "techniqueID": "T1558.002",
-      "color": "#2EA44F",
-      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)",
+      "color": "#d29922",
+      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (NOT_VERIFIED)",
       "enabled": true,
-      "score": 100,
+      "score": 75,
       "showSubtechniques": true
     },
     {
       "techniqueID": "T1558.003",
-      "color": "#2EA44F",
-      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (PASS)",
+      "color": "#d29922",
+      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (NOT_VERIFIED)",
       "enabled": true,
-      "score": 100,
+      "score": 75,
       "showSubtechniques": true
     },
     {
@@ -212,10 +200,10 @@
     },
     {
       "techniqueID": "T1057",
-      "color": "#2EA44F",
-      "comment": "DETECT-2026-0032: Pipeline Test Rule - Tasklist Process Discovery (PASS)",
+      "color": "#d29922",
+      "comment": "DETECT-2026-0032: Pipeline Test Rule - Tasklist Process Discovery (NOT_VERIFIED)",
       "enabled": true,
-      "score": 100,
+      "score": 75,
       "showSubtechniques": true
     }
   ],
