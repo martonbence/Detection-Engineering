@@ -274,8 +274,8 @@
     },
     {
       "date": "2026-08-17",
-      "timestamp": "2026-08-17T16:49:49.383407+00:00",
-      "git_sha": "643d55d632d79f7658e16ae0e8fe4662fb8bee4b",
+      "timestamp": "2026-08-17T19:20:15.134601+00:00",
+      "git_sha": "76a95d603f05aceb3f441cfa860b5fb0a8a7f4be",
       "total_rules": 28,
       "total_sigma_rules": 28,
       "total_native_spl_rules": 1
