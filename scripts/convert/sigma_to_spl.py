@@ -194,11 +194,23 @@ def _inject_index_prefix(query: str, index_value: str) -> str:
     Ensure SPL starts with the Sigma-defined index.
 
     Behavior:
-      - "search <...>" -> "search index=<idx> <...>"
+      - "search <...>" -> "index=<idx> <...>"
       - "index=<...> <...>" -> replace leading index with Sigma index
       - "| <true generating command>" -> left alone (see below)
-      - "| <streaming/transforming command>" -> "search index=<idx> | <...>"
+      - "| <streaming/transforming command>" -> "index=<idx> | <...>"
       - everything else -> prefix with "index=<idx> "
+
+    Deliberately never writes a leading "search" itself, even for the
+    pipe-opened case: the two consumers that read a committed .spl as-is
+    (Splunk's `saved/searches` API and a human pasting into the search bar)
+    both already prepend an implicit "search" for text that opens with
+    neither `|` nor an explicit generating command, and Splunk's
+    `/saved/searches/{name}/dispatch` endpoint has been observed to
+    double-prepend "search " for stored text that already starts with the
+    literal word -- silently turning the second "search" into a keyword term
+    matched against raw event text and returning zero results. See the two
+    branches below for the two ways a query could otherwise have ended up
+    with that leading "search" baked in.
     """
     q = (query or "").strip()
     idx = _safe_str(index_value)
@@ -222,7 +234,7 @@ def _inject_index_prefix(query: str, index_value: str) -> str:
     # search term, so it emits `| rex ... | eval ... | search ...` instead --
     # a chain of ordinary streaming/transforming commands, not a generating
     # one. Those are exactly as prefixable as a bare field expression; they
-    # just need `search index=x` in front of the *whole* pipeline rather than
+    # just need `index=x` in front of the *whole* pipeline rather than
     # a single term. DETECT-2026-0007 (the only rule using `|re:` so far) hit
     # this: the blanket check matched its `| rex` opener, silently skipped the
     # index, and every deployed run of it searched Splunk's default index --
@@ -248,11 +260,45 @@ def _inject_index_prefix(query: str, index_value: str) -> str:
                 )
             return q
 
-        return f"search index={idx} {q}"
+        # The fix above used to write an explicit leading "search " here
+        # (`f"search index={idx} {q}"`) rather than the bare `index={idx} ...`
+        # form every other rule gets, on the theory that a `| rex ...`-opened
+        # pipeline needed a literal "search" command in front of it. It
+        # doesn't: both consumers that read a committed .spl as-is --
+        # `saved/searches` and a human pasting into the search bar -- already
+        # add an implicit "search" for text that opens with neither `|` nor
+        # an explicit generating command, exactly like the bare-index rules
+        # below. Writing one explicitly here instead produced DETECT-2026-0007
+        # as the one committed .spl that opened with the literal word
+        # "search" -- and Splunk's `/saved/searches/{name}/dispatch` REST
+        # endpoint (the code path CI's verification job actually calls,
+        # distinct from an ad-hoc `/search/jobs` search) appears to
+        # unconditionally prepend its own "search " when building the
+        # effective query for a saved search, without checking whether the
+        # stored text already starts with one. For a stored
+        # "search index=... | rex ..." that produced an effective
+        # "search search index=... | rex ...", where Splunk parsed the
+        # second "search" as a literal keyword term to match against raw
+        # event text -- which real event data never contains -- silently
+        # returning zero results every time, even though the same text
+        # pasted into a fresh ad-hoc search bar (which doesn't
+        # double-prepend) found the events correctly. The bare form below
+        # sidesteps the double "search" entirely, and matches every other
+        # rule in the repo.
+        return f"index={idx} {q}"
 
+    # A query that already opens with a literal "search" gets that leading
+    # "search" STRIPPED, not kept, for the same double-prepend reason as
+    # above: no rule's pySigma output has ever actually taken this branch
+    # (pySigma emits either a leading `|` pipeline, handled above, or a bare
+    # field expression, handled by the fallthrough below), but a
+    # `custom.splunk.raw_query` rule (register item 2.9) can contain
+    # anything a human wrote by hand, including a "search ..." opener, and it
+    # should get the same bare `index=<idx> ...` treatment rather than a
+    # second "search" surviving into the saved search.
     m = re.match(r"(?i)^search\s+", q)
     if m:
-        return f"search index={idx} {q[m.end():].lstrip()}"
+        return f"index={idx} {q[m.end():].lstrip()}"
 
     m = re.match(r"(?i)^index=[^\s]+\s*", q)
     if m:
