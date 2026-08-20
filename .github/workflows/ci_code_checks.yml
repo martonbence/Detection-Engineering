@@ -105,6 +105,54 @@ jobs:
       - name: Pytest
         run: pytest
 
+      # Kept as a step here rather than its own job (unlike powershell_analysis
+      # and workflow_analysis below): this is a syntax-only parse check, not a
+      # linter, and scripts/docs/assets/page.js -- the rule browser's JS -- had
+      # no automated check of any kind before this. The narrowest fix is one
+      # more step in the job that already exists for this kind of thing, not a
+      # new job, and not npm/eslint/a package.json for a single `node --check`.
+      #
+      # `if: ${{ !cancelled() }}` matters here in a way it does not for Ruff or
+      # Pytest above it: steps in a job run in sequence, and a failed Ruff or
+      # Pytest step would otherwise skip everything after it, including this
+      # one -- exactly the "steps run in sequence" risk the powershell_analysis
+      # and workflow_analysis comments describe for why those are separate
+      # jobs. Here the same risk is accepted (one job, not three) but closed at
+      # the step level instead: this still runs, and still fails the job on a
+      # parse error, even when an earlier step in static_analysis already
+      # failed. It is not continue-on-error -- see the dependency_audit job
+      # below for why that would be the wrong tool for a real gate.
+      - name: Setup Node.js
+        if: ${{ !cancelled() }}
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: lts/*
+
+      # page.js is a template fragment, not standalone JS: it carries 14
+      # @@TOKEN@@ placeholders (RULES_JSON, TACTIC_IDS_JSON, TS, TOTAL, ... see
+      # the html.replace("@@...@@", ...) calls in generate_stats.py) that are
+      # only filled in with real data once this file is inlined into
+      # docs/index.html. `node --check` on the file as committed fails
+      # unconditionally on the first of those, on every run, regardless of
+      # whether the rest of the file is sound -- so every @@TOKEN@@ is
+      # substituted with a syntactically valid stand-in on a throwaway copy
+      # first (an empty array for the *_JSON ones, 0 for the rest -- the exact
+      # values don't matter, only that they parse). This still catches every
+      # real defect (unbalanced brackets, a broken function, a stray token)
+      # anywhere else in the file; only the substitution sites themselves are
+      # exempt, and they are the tokens already known, by construction, not to
+      # be JS on their own.
+      - name: JS syntax check (page.js)
+        if: ${{ !cancelled() }}
+        run: |
+          set -euo pipefail
+          sed -E \
+            -e 's/@@[A-Z_]+_JSON@@/[]/g' \
+            -e 's/@@[A-Z_]+@@/0/g' \
+            scripts/docs/assets/page.js \
+            > "${RUNNER_TEMP}/page_js_syntax_check.js"
+          node --check "${RUNNER_TEMP}/page_js_syntax_check.js"
+
   # Separate job rather than two more steps in static_analysis, for two reasons:
   # steps run in sequence, so a ruff failure would hide a PowerShell failure
   # until the next push; and a parse error in a .ps1 has no business being
