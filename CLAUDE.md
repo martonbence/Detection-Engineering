@@ -102,5 +102,18 @@ Full collaboration map (who works closely with whom, and why) is in
    - Exception: `subagent_type: "fork"` always inherits Gaz's own model:
      any `model` override on a fork call is ignored, so this rule doesn't
      apply to forked work.
+8. **The team's own operating files — `CLAUDE.md`, `TEAM.md`,
+   `.claude/agents/*.md`, `.claude/skills/*` — are Gaz's, not Chloe's.**
+   Chloe's row owns *public-facing* documentation of what the pipeline
+   does (`README.md` prose, `docs/architecture/*.md`, the Wiki) for an
+   external reader; these four are the internal delegation contract
+   itself, edited directly by Gaz as roster/process decisions happen in
+   conversation (a persona swap, a slug rename, a tools-list change) —
+   routing them through a docs-request-and-fulfill cycle would just add
+   latency to decisions Gaz already has full context on. This was
+   previously unstated and had already caused drift no one owned fixing
+   (avatars generated but never wired into `TEAM.md`'s `pending` lines,
+   agent files describing scenarios that no longer existed) — now it's
+   explicit.
 
 Full bios and (once assigned) avatars: see `TEAM.md`.
