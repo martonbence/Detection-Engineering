@@ -118,11 +118,12 @@ reskins:
 | Bjorn | frosty glacier-blue-grey (cold Nordic fjord tone) |
 | Kwame | deep amber-gold (warm ledger/parchment tone) |
 | Masha | deep oxblood-red (cold Moscow winter-dusk tone) |
-| Zev | deep olive-khaki (desert-dusk tone) |
+| Jamal | deep copper-bronze (circuit-board/copper-wire tone) |
 | Chloe | deep indigo-ink-blue (fountain-pen-ink tone) |
 | Sienna | deep burnt-sienna terracotta (Tuscan clay-earth tone) |
 | Kai | deep turquoise-teal (Pacific-ocean tone) |
 | Yara | deep emerald river-green (Amazon-river tone) |
+| Gaz | deep mahogany-brown (leather armchair / cigar-lounge tone) |
 | Priya | deep saffron-marigold (marigold-garland tone) |
 
 Yuki's background wasn't recorded when it was generated — check

@@ -28,7 +28,7 @@ flowchart TD
   Masha["Masha<br/>Threat Intelligence Analyst"]:::analytical
   Yuki["Yuki<br/>Detection Engineer"]:::operational
   Bjorn["Bjorn<br/>Detection Quality Engineer"]:::operational
-  Zev["Zev<br/>DevOps Engineer"]:::operational
+  Jamal["Jamal<br/>DevOps Engineer"]:::operational
   Chloe["Chloe<br/>Technical Writer"]:::operational
   Sienna["Sienna<br/>Frontend Engineer"]:::operational
   Kai["Kai<br/>Platform Engineer"]:::operational
@@ -42,15 +42,15 @@ flowchart TD
   Masha ---|hands off ready findings| Yuki
   Yara -.->|ideas, routed by Gaz| Yuki
   Yuki ---|every rule: author to review| Bjorn
-  Kwame ---|verifies pipeline items| Zev
+  Kwame ---|verifies pipeline items| Jamal
   Kwame ---|verifies browser items| Sienna
-  Zev ---|CI publishes generated browser| Sienna
-  Zev ---|pipeline / platform boundary| Kai
+  Jamal ---|CI publishes generated browser| Sienna
+  Jamal ---|pipeline / platform boundary| Kai
   Sienna ---|PR and merge mechanics| Kai
   Chloe ---|PR and merge mechanics| Kai
-  Chloe ---|documents pipeline changes| Zev
+  Chloe ---|documents pipeline changes| Jamal
   Chloe ---|documents rule changes| Yuki
-  Priya ---|flags pipeline findings| Zev
+  Priya ---|flags pipeline findings| Jamal
   Priya ---|flags secrets and config findings| Kai
 ```
 
@@ -77,7 +77,7 @@ trio); routes work to and takes reports from all ten specialists.
 ---
 
 ### Bjorn - Detection Quality Engineer
-*Avatar: pending* · **Area:** Operational · agent slug: `detection-content-reviewer`
+*Avatar: pending* · **Area:** Operational · agent slug: `bjorn-detection-content-reviewer`
 
 Reviews rule *quality*, never authors: whether a Sigma rule's `detection:`
 block actually implements what its title and description claim, whether the
@@ -93,7 +93,7 @@ author, one reviewer, every rule.
 ---
 
 ### Yuki - Detection Engineer
-*Avatar: pending* · **Area:** Operational · agent slug: `detection-engineer`
+*Avatar: pending* · **Area:** Operational · agent slug: `yuki-detection-engineer`
 
 Writes new detections. Starts every rule from `scripts/new_rule.py`'s
 scaffold, fills in the real `detection:` logic (or the
@@ -109,8 +109,8 @@ what to build next; Chloe, who documents the results.
 
 ---
 
-### Zev - DevOps Engineer
-*Avatar: pending* · **Area:** Operational · agent slug: `devops-engineer`
+### Jamal - DevOps Engineer
+*Avatar: pending* · **Area:** Operational · agent slug: `jamal-devops-engineer`
 
 Owns the CI/CD pipeline as code: the three GitHub Actions workflows and
 every script along the Sigma → validate → convert → deploy → Atomic Red
@@ -125,20 +125,20 @@ verify and audit their surface respectively.
 ---
 
 ### Chloe - Technical Writer
-*Avatar: pending* · **Area:** Operational · agent slug: `docs-maintainer`
+*Avatar: pending* · **Area:** Operational · agent slug: `chloe-docs-maintainer`
 
 Keeps README.md, the four `docs/architecture/*.md` deep-reference pages, and
 the GitHub Wiki consistent with the actual state of the pipeline. Triggered
 after any structural change to `scripts/`, `rules/`, the CI workflows, the
 MCP setup, or — like right now — the team roster itself.
 
-**Works closely with:** Zev and Yuki, documenting what changes on their
+**Works closely with:** Jamal and Yuki, documenting what changes on their
 surfaces; Kai on PR mechanics for doc changes.
 
 ---
 
 ### Sienna - Frontend Engineer
-*Avatar: pending* · **Area:** Operational · agent slug: `frontend-engineer`
+*Avatar: pending* · **Area:** Operational · agent slug: `sienna-frontend-engineer`
 
 Owns the rule browser: `docs/index.html` (generated, never hand-edited),
 `scripts/docs/generate_stats.py`, and its `assets/` (template, CSS, JS), plus
@@ -146,26 +146,26 @@ the MITRE Navigator view. Covers layout, styling, and design decisions alike
 since this is a small static site with no separate design handoff. Verifies
 their own changes with Playwright before calling them done.
 
-**Works closely with:** Zev, whose CI publishes their output; Kai on
+**Works closely with:** Jamal, whose CI publishes their output; Kai on
 PR/merge mechanics; Kwame, who verifies their register items for drift.
 
 ---
 
 ### Kai - Platform Engineer
-*Avatar: pending* · **Area:** Operational · agent slug: `github-ops`
+*Avatar: pending* · **Area:** Operational · agent slug: `kai-github-ops`
 
 Handles the GitHub *platform* side — branches, PRs, merge conflicts (walked
 through with the user, never resolved unilaterally), releases/tags, repo
 settings, secrets, and self-hosted runner registration. Not the content that
 moves through those mechanisms — that belongs to whoever owns it.
 
-**Works closely with:** Zev, Sienna and Chloe on PR/merge mechanics for
+**Works closely with:** Jamal, Sienna and Chloe on PR/merge mechanics for
 their content; Priya on secrets and repo-settings exposure findings.
 
 ---
 
 ### Yara - Technology Strategist
-*Avatar: pending* · **Area:** Strategic · agent slug: `ideation`
+*Avatar: pending* · **Area:** Strategic · agent slug: `yara-ideation`
 
 Not a detection-only role: Yara's strategic ideation covers the whole
 repo — pipeline and tooling direction, rule-browser and dashboard features,
@@ -184,7 +184,7 @@ whichever specialist owns the relevant surface, via Gaz.
 ---
 
 ### Masha - Threat Intelligence Analyst
-*Avatar: pending* · **Area:** Analytical · agent slug: `threat-intel`
+*Avatar: pending* · **Area:** Analytical · agent slug: `masha-threat-intel`
 
 Looks outward instead of inward. Where Yara mines this repo's own coverage
 gaps, Masha researches what attackers are actually doing right now — CTI
@@ -200,7 +200,7 @@ prioritized briefs; Yuki, direct handoff when a finding is ready to build.
 ---
 
 ### Priya - Application Security Engineer
-*Avatar: pending* · **Area:** Operational · agent slug: `security-scanner`
+*Avatar: pending* · **Area:** Operational · agent slug: `priya-security-scanner`
 
 Audits the repo's own code and configuration — Python scripts, GitHub
 Actions workflows, config/schemas — for vulnerabilities, secrets, and risky
@@ -208,13 +208,13 @@ CI configuration, using semgrep plus supplementary open-source scanners.
 This is about securing the pipeline's engineering, not the detection rules'
 subject matter.
 
-**Works closely with:** Zev, flagging findings on pipeline code and CI
+**Works closely with:** Jamal, flagging findings on pipeline code and CI
 config; Kai, on secrets and repo-settings exposure.
 
 ---
 
 ### Kwame - Compliance Analyst
-*Avatar: pending* · **Area:** Strategic · agent slug: `audit-compliance`
+*Avatar: pending* · **Area:** Strategic · agent slug: `kwame-audit-compliance`
 
 Keeps the pipeline remediation register honest. `audit/remediation-plan.md`
 is maintained by hand, which means it drifts — an item can be marked done
@@ -226,5 +226,5 @@ fixing a flagged item goes back to whichever specialist owns that surface.
 May correct the register's own status bookkeeping once verified.
 
 **Works closely with:** Gaz and Yara (strategic peers) on what the program
-should prioritize next; Zev and Sienna, whose surfaces carry the most
+should prioritize next; Jamal and Sienna, whose surfaces carry the most
 register items to verify.

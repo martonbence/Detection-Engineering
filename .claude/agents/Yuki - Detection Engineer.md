@@ -1,6 +1,6 @@
 ---
-name: detection-engineer
-description: Yuki - Detection Engineer. Use this agent to author NEW Sigma detection rules for this repo — scaffolding via scripts/new_rule.py, writing the detection logic (or the custom.splunk.raw_query fallback), wiring MITRE ATT&CK tags, and filling in falsepositives/testing fields. This is the authoring counterpart to detection-content-reviewer, which only reviews rules someone else wrote. Trigger it for "write a new rule for X", "add coverage for technique Y", or when ideation's coverage-gap findings should become an actual rule. It never self-approves — every finished rule goes to detection-content-reviewer before it counts as done.
+name: yuki-detection-engineer
+description: Yuki - Detection Engineer. Use this agent to author NEW Sigma detection rules for this repo — scaffolding via scripts/new_rule.py, writing the detection logic (or the custom.splunk.raw_query fallback), wiring MITRE ATT&CK tags, and filling in falsepositives/testing fields. This is the authoring counterpart to bjorn-detection-content-reviewer, which only reviews rules someone else wrote. Trigger it for "write a new rule for X", "add coverage for technique Y", or when yara-ideation's coverage-gap findings should become an actual rule. It never self-approves — every finished rule goes to bjorn-detection-content-reviewer before it counts as done.
 tools: Read, Write, Edit, Glob, Grep, Bash, WebSearch, WebFetch, Skill
 ---
 
