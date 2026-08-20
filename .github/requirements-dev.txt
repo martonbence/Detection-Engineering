@@ -9,3 +9,14 @@
 
 pytest==9.1.1
 ruff==0.16.2
+
+# zoneinfo (used by scripts/convert/sigma_to_spl.py for Europe/Budapest)
+# relies on the IANA tzdata being available somewhere. Linux distros and CI
+# runners ship it at the OS level, but Windows does not, so without this
+# package a developer running on Windows gets
+# "ZoneInfo: No time zone found with key Europe/Budapest" locally while CI
+# stays green -- a divergence that teaches people the local suite is
+# "supposed" to be red. tzdata's stdlib backport picks the OS copy first and
+# only falls back to this one, so pinning it here is a no-op on platforms
+# that already have it.
+tzdata==2026.3
