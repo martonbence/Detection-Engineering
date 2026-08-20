@@ -2,6 +2,21 @@
   "attribution": {
     "commit": ""
   },
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest *)",
+      "Bash(ruff check *)",
+      "Bash(git status *)",
+      "Bash(git log *)",
+      "Bash(git fetch *)",
+      "Bash(git pull *)",
+      "Bash(git commit *)",
+      "Bash(python scripts/validate/*)"
+    ],
+    "deny": [
+      "Bash(git push *)"
+    ]
+  },
   "hooks": {
     "PostToolUse": [
       {
