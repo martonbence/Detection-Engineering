@@ -36,7 +36,7 @@ max_age=${DOCS_DRIFT_MAX_AGE_SECONDS:-300}
 head_ts=$(git log -1 --format=%ct 2>/dev/null || echo 0)
 now=$(date +%s)
 age=$((now - head_ts))
-[ "$head_ts" -gt 0 ] && [ "$age" -ge 0 ] && [ "$age" -le "$max_age" ] || exit 0
+[ "$head_ts" -gt 0 ] && [ "$age" -ge 0 ] && [ "$age" -lt "$max_age" ] || exit 0
 
 # 3. Did it touch anything the docs describe? These are the paths
 #    docs/architecture/*.md and README.md make claims about.
@@ -53,7 +53,18 @@ files=$(git show --pretty=format: --name-only HEAD 2>/dev/null \
 # Emit through python rather than string-building JSON in shell: a path with a
 # quote or a backslash in it would otherwise produce malformed JSON, and a
 # malformed hook response is worse than no response.
-printf '%s\n' "$files" | python -c '
+#
+# python3 first, python as fallback: unlike the CI workflows (which run on
+# GitHub-hosted runners where actions/setup-python guarantees a bare
+# `python`), this hook runs on whatever machine the user's Claude Code
+# session is on -- and a `python`-less, python3-only local install silently
+# broke this exact step (caught by test-docs-drift-check.sh once actually
+# run: `python: command not found`, swallowed by the unconditional `exit 0`
+# below, so the hook looked like a correctly-silent no-drift result instead
+# of a broken one).
+PY=python3
+command -v "$PY" >/dev/null 2>&1 || PY=python
+printf '%s\n' "$files" | "$PY" -c '
 import json, sys
 
 files = [line for line in sys.stdin.read().splitlines() if line]

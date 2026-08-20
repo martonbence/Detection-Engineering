@@ -10,6 +10,12 @@
 set -u
 
 HOOK=$(cd "$(dirname "$0")" && pwd)/docs-drift-check.sh
+
+# Same python3-first, python-fallback logic as the hook itself -- this
+# machine has no bare `python`, and the hook's own fix doesn't help a test
+# runner that hardcodes the same missing binary to parse its output.
+PY=python3
+command -v "$PY" >/dev/null 2>&1 || PY=python
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
@@ -35,7 +41,7 @@ run_hook() {
   if [ -z "$out" ]; then
     echo "silent"
   else
-    printf '%s' "$out" | python -c 'import json,sys; print(json.load(sys.stdin)["systemMessage"])'
+    printf '%s' "$out" | "$PY" -c 'import json,sys; print(json.load(sys.stdin)["systemMessage"])'
   fi
 }
 
