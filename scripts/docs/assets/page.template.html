@@ -80,6 +80,16 @@
             rule, however it is tested.</span>
           <span class="k"><span class="badge verdict-na">N/A</span></span>
           <span>Never tested — no test result exists for this rule.</span>
+          <span class="k"><span class="badge verdict-notverified">NOT VERIFIED</span><span
+              class="verdict-scoped"><svg viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="8" />
+                <line x1="6.3" y1="17.7" x2="17.7" y2="6.3" />
+              </svg></span></span>
+          <span><strong>Out of testing scope.</strong> The same NOT VERIFIED badge, but for the opposite reason:
+            <code>custom.testing.enabled: false</code> on the rule, so the pipeline deliberately skipped it instead of
+            trying and failing to measure it. Nothing went wrong. These rules are left out of the Pass Rate — a rate
+            measured over rules nobody attempted would read every deliberate skip as a failure — and counted against
+            <em>Current</em> in Evidence, which is what they actually cost: coverage, not correctness.</span>
         </div>
         <div class="info-note" style="margin-top:11px">A verdict badge links to the GitHub Actions run it came from, and
           the rule's drawer shows when it was last tested.</div>
@@ -110,9 +120,12 @@
             it.</span>
         </div>
         <div class="info-note" style="margin-top:11px">The <strong>Verdict &rarr; Evidence</strong> filter splits the
-          library on exactly this: <em>Current</em>, <em>Superseded</em>, <em>Expired</em>, <em>Never tested</em> — and
-          the <strong>Evidence</strong> chart on the Dashboards tab is the same four values as a ring. <em>Expired</em>
-          is simply not drawn while nothing has expired.</div>
+          library on exactly this: <em>Current</em>, <em>Superseded</em>, <em>Expired</em>, <em>Out of scope</em>,
+          <em>Never tested</em> — and the <strong>Evidence</strong> chart on the Dashboards tab is the same five values
+          as a ring. Empty values are simply not drawn, so <em>Expired</em> and <em>Out of scope</em> appear only once
+          something is in them. <em>Out of scope</em> is the one bucket that is not about a verdict going out of date:
+          it is a rule that was never measured on purpose (see <em>Verdicts</em> above). A rule that is both skipped and
+          stale is filed under the staleness, because that is what a re-run would have to clear first.</div>
         <div class="info-note">A rule's version comes from its commit history, so any edit to the file supersedes its
           verdict — a re-worded description counts the same as re-written logic. That is deliberately blunt: it can only
           ever overstate how much needs re-testing, never understate it.</div>
@@ -184,7 +197,8 @@
           own history — one data point per day the pipeline ran, so gaps in the line are days with no run.</div>
         <div class="info-note"><strong>Evidence</strong> and <strong>Verification</strong> are two rings because they
           are two questions, and a slice can only carry one name. Evidence asks how much of the library has a verdict
-          worth reading — all @@TOTAL@@ rules, split into Current / Superseded / Expired / Never tested. Verification
+          worth reading — all @@TOTAL@@ rules, split into Current / Superseded / Expired / Out of scope / Never tested.
+          Verification
           asks what those readable verdicts actually say, and counts <em>only</em> the current ones, so its ring is the
           Current slice of the one beside it, not the whole library. A lapsed PASS is not a pass that happens to be old
           — it is an absence of present-tense evidence, so it is counted once, on the left, and never as a pass on the
@@ -450,6 +464,24 @@
       <div class="dash-section-grid dash-section-grid-row2">
         <div class="chart-card">
           <div class="chart-card-title">Evidence</div>
+          <!-- Why Current can sit far below the rule count without anything
+               being broken. Seeded at build time and rewritten by the script
+               against the reader's clock, like every other number on this
+               card; hidden outright when no rule is out of scope, so it is a
+               note about a real state rather than a permanent caveat. -->
+          <div class="chart-card-sub chart-card-sub-scope" id="evidence-scope-note" hidden>
+            @@SCOPED_OUT@@ rules are out of testing scope and are not counted in the Pass Rate.
+          </div>
+          <!-- A plain historical fact ("when did the pipeline last measure
+               anything for real"), not a standing that erodes with elapsed
+               time -- see _last_live_verification() in generate_stats.py and
+               its page.js mirror. Hidden by default like the scope note
+               above it: JS unhides once it has recomputed the same figure
+               from RULES, so the two notes never disagree about whether
+               there is anything to say. -->
+          <div class="chart-card-sub chart-card-sub-lastlive" id="evidence-lastlive-note" hidden>
+            @@LAST_LIVE_TEXT@@
+          </div>
           <div class="verify-card-body verify-card-body-evidence">
             <div class="chart-card-canvas-wrap verify-canvas-wrap">
               <canvas id="chart-evidence"

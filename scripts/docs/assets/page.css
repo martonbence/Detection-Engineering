@@ -1597,6 +1597,19 @@
       color: #bc8cff;
     }
 
+    /* Same orange the Evidence ring gives the Out of scope slice, so the
+       drawer line, the table marker and the chart segment are recognisably
+       one fact in three places. */
+    .verify-meta .scoped {
+      color: #db6d28;
+    }
+
+    .verify-meta .scoped code {
+      font-family: var(--font);
+      font-size: 10px;
+      color: inherit;
+    }
+
     /* Verdict markers next to a badge in the table. Amber ● = the verdict is
        old; purple Δ = the verdict was measured on a different version of the
        rule. Two independent states, so two glyphs — a rule can carry either,
@@ -1631,6 +1644,28 @@
       fill: none;
       stroke-width: 2.4;
       stroke-linejoin: round;
+    }
+
+    /* Third marker, third state: orange ⊘ = nobody tried to measure this one.
+       Drawn rather than typed for the same reason the delta is — the ⊘
+       character sits off the badge's baseline at this size — and stroked at
+       the same weight as the delta so the two read as one family. */
+    .verdict-scoped {
+      color: #db6d28;
+      margin-left: 5px;
+      cursor: help;
+      display: inline-flex;
+      align-items: center;
+      vertical-align: middle;
+    }
+
+    .verdict-scoped svg {
+      width: 11px;
+      height: 11px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2.2;
+      stroke-linecap: round;
     }
 
     .code-head {
@@ -1828,6 +1863,28 @@
       color: var(--text3);
       line-height: 1.45;
       margin-top: -6px;
+    }
+
+    /* The Evidence card's scope note. Tinted and rule-marked rather than left
+       as plain sub-text: it explains a number that otherwise looks like a
+       broken pipeline, so it has to survive a glance. No display property
+       here on purpose — the element carries the `hidden` attribute when there
+       is nothing to say, and a display rule would override it. */
+    .chart-card-sub-scope {
+      border-left: 2px solid #db6d28;
+      padding: 2px 0 2px 8px;
+      color: var(--text2);
+    }
+
+    /* The Evidence card's last-live-verification note. Same treatment as the
+       scope note above -- rule-marked so it survives a glance -- but in the
+       page's neutral accent blue rather than the scope note's orange: this is
+       informational context ("here is when and how much"), not a caveat
+       about something being excluded from a number. */
+    .chart-card-sub-lastlive {
+      border-left: 2px solid var(--accent);
+      padding: 2px 0 2px 8px;
+      color: var(--text2);
     }
 
     /* Second row of the Rule Overview section. Its own grid so the four cards

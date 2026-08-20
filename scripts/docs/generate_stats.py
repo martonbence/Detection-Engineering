@@ -186,7 +186,7 @@ def extract_sigma_body(rule: dict) -> str:
 
 
 def load_verdicts() -> dict[str, dict]:
-    """Returns {detect_id: {verdict, run_id, run_timestamp, rule_version}}
+    """Returns {detect_id: {verdict, run_id, run_timestamp, rule_version, disabled}}
     from outputs/results/*/result.json.
 
     The timestamp and the tested rule_version are carried through so the browser
@@ -194,6 +194,16 @@ def load_verdicts() -> dict[str, dict]:
     measured against. A PASS is only evidence about the rule text that was
     actually fired at -- if the rule changed afterwards, the verdict is a
     statement about a rule that no longer exists.
+
+    "disabled" is pass_fail_eval.py's own record of WHY a NOT_VERIFIED verdict
+    came out that way: true means the rule was deliberately left out of the run
+    (custom.testing.enabled: false), false means the pipeline set out to measure
+    it and could not (attack timed out, Splunk search errored). The two look
+    identical in the verdict field and are opposite in meaning -- one is a
+    scoping decision, the other is a failure to measure -- so the flag is read
+    here rather than re-derived from the rule's own testing block: what matters
+    is what was true of the RUN that produced this verdict, not what the rule
+    says today.
     """
     verdicts: dict[str, dict] = {}
     results_dir = RESULTS_DIR
@@ -210,6 +220,12 @@ def load_verdicts() -> dict[str, dict]:
                     "run_id": data.get("run_id", ""),
                     "run_timestamp": str(data.get("run_timestamp") or ""),
                     "rule_version": str(data.get("rule_version") or ""),
+                    # Defaults to False for result.json files written before
+                    # the field existed: an old result with no flag is treated
+                    # as "we tried to measure it", which is the conservative
+                    # reading -- it keeps the rule in the pass-rate denominator
+                    # rather than quietly excusing it.
+                    "disabled": bool(data.get("disabled", False)),
                 }
         except Exception:
             pass
@@ -433,6 +449,68 @@ def _verdict_age_days(iso: str) -> int | None:
         parsed = parsed.replace(tzinfo=UTC)
     then = parsed.astimezone(UTC).date()
     return (datetime.now(UTC).date() - then).days
+
+
+def _last_live_verification(rules_detail: list[dict]) -> tuple[str, int]:
+    """(run_timestamp, rule_count) for the most recent pipeline run that
+    actually measured anything, or ("", 0) if no such run exists yet.
+
+    This answers a different question than pass_rate_pct / verification_current_pct:
+    those ask "of what we measured, how much still describes the rule as it
+    stands", which is a standing that erodes with elapsed time and a rule
+    edit. This asks "when did the pipeline last actually run against real
+    telemetry, and how much of the library did that run cover" -- a plain
+    historical fact that does not change while the page sits open, so unlike
+    the pass rate this is not recomputed against the reader's clock in the
+    browser. It exists so a stagnant or low pass rate can be read correctly:
+    a badge that hasn't moved in weeks might mean the detections regressed,
+    or it might just mean the lab has been offline (LAB_ONLINE=false) or most
+    of the library is temporarily testing-disabled -- this line is what tells
+    the two apart without the reader having to dig into outputs/results.
+    "Actually measured" means pass_fail_eval.py set out to measure the rule:
+    PASS, FAIL, and an inconclusive NOT_VERIFIED (attack timed out, Splunk
+    search errored) all qualify. Deliberately excluded are the two ways a
+    verdict carries no evidence that a run happened at all: verdict_testing_disabled
+    (skipped on purpose, custom.testing.enabled: false -- pass_fail_eval.py never
+    touched telemetry for it) and never_tested (no result.json, verdict falls
+    back to "N/A"). Staleness is NOT filtered out here on purpose: a PASS from
+    three review cycles ago is still real evidence that the pipeline ran live
+    against this rule at some point, which is exactly the fact this reports.
+
+    All result.json files written by one pipeline run share one run_id and one
+    run_timestamp (pass_fail_eval.py stamps every file from a given run
+    identically), so grouping by run_id and keeping the group with the latest
+    timestamp gives "how many rules did the most recent live run actually
+    cover" -- which can be well below the library size when a slice of it is
+    testing-disabled, and that gap is the whole point of surfacing this.
+
+    A rule missing either run_id or run_timestamp (result.json predates both
+    fields) is left out of consideration entirely, matching the page's
+    equivalent JS-side computation in page.js -- both sides have to agree on
+    which rows count, or the build-time seed and the client-side figure it is
+    overwritten by will disagree the moment someone opens the page.
+    """
+    latest_ts_by_run: dict[str, str] = {}
+    count_by_run: dict[str, int] = {}
+    for r in rules_detail:
+        if r.get("verdict_testing_disabled"):
+            continue
+        verdict = r.get("verdict", "N/A")
+        if verdict in ("N/A", ""):
+            continue
+        run_id = str(r.get("run_id") or "")
+        ts = str(r.get("verdict_at") or "")
+        if not run_id or not ts:
+            continue
+        count_by_run[run_id] = count_by_run.get(run_id, 0) + 1
+        if run_id not in latest_ts_by_run or ts > latest_ts_by_run[run_id]:
+            latest_ts_by_run[run_id] = ts
+
+    if not latest_ts_by_run:
+        return "", 0
+
+    latest_run_id = max(latest_ts_by_run, key=lambda rid: latest_ts_by_run[rid])
+    return latest_ts_by_run[latest_run_id], count_by_run[latest_run_id]
 
 
 def build_technique_coverage(rules_detail: list, repo: str) -> dict:
@@ -878,6 +956,27 @@ def generate_stats() -> dict:
     # instead of silently folding NOT_VERIFIED into the old N/A bucket.
     verified_not_verified = 0
     never_tested = 0
+    # The subset of verified_not_verified that was never attempted on purpose:
+    # custom.testing.enabled is false on the rule, so the pipeline skipped it
+    # instead of failing to measure it (pass_fail_eval.py records which of the
+    # two happened in result.json's "disabled" flag). Counted in ADDITION to
+    # verified_not_verified, never instead of it -- the README's shields.io
+    # badges query verified_not_verified / not_verified by URL, and narrowing
+    # either one would silently redefine a published number.
+    #
+    # Why it needs its own count at all: a deliberately unmeasured rule is not
+    # a rule that failed its measurement, and leaving the two in one bucket put
+    # 27 out-of-scope rules in the pass rate's denominator, publishing 4% for a
+    # library whose only measured rule passed.
+    verified_testing_disabled = 0
+    # What the denominator actually subtracts. verified_stale is subtracted
+    # too, and a disabled verdict can also BE stale (it ages past the review
+    # interval like any other), so counting it in both would remove the same
+    # rule twice and drive verified_current negative -- which would zero the
+    # pass rate a few weeks from now, the same failure in a new costume. Only
+    # the disabled rules not already removed as stale are counted here; the
+    # published verified_testing_disabled above stays the full, honest count.
+    verified_testing_disabled_current = 0
     # Verdicts measured against a rule version that no longer exists, and the
     # subset of PASSes that still describe the rule as it stands today. These
     # two drive the pass rate; the four counters above keep their original
@@ -919,6 +1018,10 @@ def generate_stats() -> dict:
         run_id = v_data.get("run_id", "")
         verdict_at = v_data.get("run_timestamp", "")
         verdict_rule_version = v_data.get("rule_version", "")
+        # Only meaningful on a NOT_VERIFIED verdict -- that is the only verdict
+        # pass_fail_eval.py produces for a skipped rule -- but read here for
+        # every rule so the page's row data carries it unconditionally.
+        verdict_testing_disabled = bool(v_data.get("disabled", False))
         rule_version = compute_rule_version(rule.get("_file_path", ""), repo_root=REPO_ROOT, default="")
 
         # A verdict is only as current as the rule it was measured on. Staleness
@@ -970,6 +1073,10 @@ def generate_stats() -> dict:
             verified_fail += 1
         elif verdict == "NOT_VERIFIED":
             verified_not_verified += 1
+            if verdict_testing_disabled:
+                verified_testing_disabled += 1
+                if not verdict_is_stale:
+                    verified_testing_disabled_current += 1
         else:
             never_tested += 1
 
@@ -1002,6 +1109,12 @@ def generate_stats() -> dict:
             "run_id": run_id,
             "verdict_at": verdict_at,
             "verdict_rule_version": verdict_rule_version,
+            # Deliberately named for the verdict, not the rule: it says testing
+            # was off for the RUN this verdict came from. The rule's current
+            # custom.testing block travels separately under "testing" below and
+            # can already disagree with it (someone re-enables testing; the last
+            # verdict is still the skipped one until the pipeline runs again).
+            "verdict_testing_disabled": verdict_testing_disabled,
             "tactics": tactics,
             "techniques": techniques,
             "file_path": rule.get("_file_path", ""),
@@ -1038,7 +1151,18 @@ def generate_stats() -> dict:
     # and verification_current_pct carries the other half of the truth: how
     # much of the library that measurement covers. The two are published, and
     # rendered, as a pair -- neither is honest read alone.
-    verified_current = total_verifiable - verified_stale - never_tested
+    #
+    # Rules deliberately taken out of testing scope leave the denominator for
+    # the same reason never_tested does, and it is worth being precise about
+    # which reason that is: not "they would probably pass", but "no measurement
+    # was attempted, so they carry no evidence either way". A rate is only
+    # honest over the population it was measured on. What they cost the library
+    # is coverage, and they still show up in full there -- verification_current_pct
+    # falls exactly as far as the pass rate rises, and the page names the count
+    # outright ("N out of testing scope") so the gap is never a mystery.
+    verified_current = (
+        total_verifiable - verified_stale - never_tested - verified_testing_disabled_current
+    )
     pass_rate = round(verified_pass_current / verified_current * 100) if verified_current > 0 else 0
     verification_current_pct = (
         round(verified_current / total_verifiable * 100) if total_verifiable > 0 else 0
@@ -1049,6 +1173,16 @@ def generate_stats() -> dict:
     # with "did we check recently" is exactly the conflation this fixes.
     confirmed_working_pct = (
         round(verified_pass_current / total_verifiable * 100) if total_verifiable > 0 else 0
+    )
+
+    # See _last_live_verification()'s docstring: when the pipeline last
+    # measured anything for real, and how much of the library that run
+    # covered. A plain historical fact, not a rate -- it sits beside the pass
+    # rate so a reader can tell "the number is low because the lab was
+    # offline / most of the library is testing-disabled" apart from "the
+    # number is low because rules regressed".
+    last_live_verification_at, last_live_verification_count = _last_live_verification(
+        rules_detail
     )
 
     # Unique parent techniques covered (T1053.005 → T1053)
@@ -1084,6 +1218,19 @@ def generate_stats() -> dict:
         "verified_pass": verified_pass,
         "verified_fail": verified_fail,
         "verified_not_verified": verified_not_verified,
+        # A new key, not a redefinition of the two around it: the rules inside
+        # verified_not_verified that were skipped on purpose
+        # (custom.testing.enabled: false) rather than failing to be measured.
+        # This is the number that explains why verified_current sits below
+        # total_rules, and the only one that separates "we chose not to look"
+        # from "we looked and could not tell".
+        "verified_testing_disabled": verified_testing_disabled,
+        # The share of the above that the pass-rate denominator actually
+        # subtracts -- the rest were already subtracted as stale. Published so
+        # verified_current is reproducible from stats.json alone; equal to
+        # verified_testing_disabled until a skipped verdict ages past the
+        # review interval.
+        "verified_testing_disabled_current": verified_testing_disabled_current,
         "never_tested": never_tested,
         # Kept as the union of never_tested + verified_not_verified for
         # backward compatibility -- the README's shields.io badge already
@@ -1112,6 +1259,12 @@ def generate_stats() -> dict:
         "verification_current_pct": verification_current_pct,
         "verification_current_color": pass_rate_color(verification_current_pct),
         "confirmed_working_pct": confirmed_working_pct,
+        # New keys, additive only -- see _last_live_verification()'s docstring.
+        # last_live_verification_at is an ISO timestamp ("" if the pipeline has
+        # never produced a real verdict yet); last_live_verification_count is
+        # how many rules that specific run covered, out of total_rules.
+        "last_live_verification_at": last_live_verification_at,
+        "last_live_verification_count": last_live_verification_count,
         "mitre_covered_techniques": covered_count,
         "mitre_total_techniques": mitre_total,
         "mitre_total_fetched_at": now_iso if was_fetched else (cached_at or now_iso),
@@ -1139,6 +1292,7 @@ def generate_stats() -> dict:
 
 def render_readme_section(stats: dict, repo: str) -> str:
     lines: list[str] = []
+    gh_pages = f"https://{repo.split('/')[0]}.github.io/{repo.split('/')[1]}/"
 
     # --- Shields.io dynamic badges ---
     raw_base = (
@@ -1175,7 +1329,49 @@ def render_readme_section(stats: dict, repo: str) -> str:
         lines.append(row)
     lines.append("")
 
-    gh_pages = f"https://{repo.split('/')[0]}.github.io/{repo.split('/')[1]}/"
+    # Pass Rate and Verified Current are both measured over the rules the
+    # pipeline actually tries to test, so when a slice of the library is
+    # deliberately out of scope the badges alone leave a reader to work out why
+    # the second number is low -- and the likeliest guess ("the pipeline is
+    # broken") is the wrong one. Written as a line rather than a seventh badge:
+    # this needs a clause to be honest, and a badge has room for a word.
+    # Emitted only while such rules exist, so the row is silent in the normal
+    # case instead of carrying a permanent "0 rules" footnote.
+    scoped_out = stats.get("verified_testing_disabled", 0)
+    if scoped_out:
+        lines += [
+            f"> **{scoped_out} of {stats['total_rules']} rules are currently out of testing "
+            f"scope** — `custom.testing.enabled: false`, so the pipeline skips them rather "
+            f"than failing to measure them. They are excluded from Pass Rate (which would "
+            f"otherwise read them as failures) and counted against Verified Current (which "
+            f"is what they actually cost: coverage, not correctness).",
+            "",
+        ]
+
+    # Pairs with the blockquote above rather than standing alone: both answer
+    # "what do the badges above actually mean today". A pass rate or Verified
+    # Current that hasn't moved in a while is easy to misread as regression --
+    # this line is what lets a reader tell that apart from "the lab has been
+    # offline" or "most of the library is temporarily testing-disabled"
+    # without opening outputs/results themselves. See
+    # _last_live_verification()'s docstring in generate_stats.py for exactly
+    # what counts as a live measurement here. Emitted only once the pipeline
+    # has produced at least one real verdict -- silent before that, same as
+    # the scoped-out line above it.
+    last_live_at = stats.get("last_live_verification_at", "")
+    last_live_count = stats.get("last_live_verification_count", 0)
+    if last_live_count:
+        last_live_display = last_live_at[:19].replace("T", " ") + " UTC"
+        lines += [
+            f"> **Last live verification: {last_live_display}** — {last_live_count} of "
+            f"{stats['total_rules']} rules were actually measured in that run. `stats.json` "
+            f"and the badges above are a build-time snapshot; a verdict's standing can "
+            f"change simply because time passed, so the rule browser itself "
+            f"([GitHub Pages]({gh_pages})) recomputes Pass Rate and coverage against the "
+            f"current date on every load.",
+            "",
+        ]
+
     lines += [
         f"🗺️ Interactive MITRE Navigator → [GitHub Pages]({gh_pages}#navigator)",
         "",
@@ -1655,9 +1851,20 @@ def render_html_summary(stats: dict, repo: str) -> str:
     never_tested = stats.get("never_tested", stats.get("not_verified", 0))
     pass_rate = stats["pass_rate_pct"]
     verified_current = stats.get("verified_current", total)
+    scoped_out = stats.get("verified_testing_disabled", 0)
     mitre_covered = stats.get("mitre_covered_techniques", 0)
     mitre_total = stats.get("mitre_total_techniques", 0)
     mitre_pct = stats.get("mitre_coverage_pct", 0.0)
+    # Build-time seed for the Evidence card's last-live-verification note,
+    # mirrored client-side in page.js from RULES the same way @@SCOPED_OUT@@
+    # is -- see _last_live_verification()'s docstring for why this is a plain
+    # historical fact rather than something recomputed against the reader's
+    # clock. Empty when no rule has ever been measured live yet.
+    last_live_at_raw = stats.get("last_live_verification_at", "")
+    last_live_count = stats.get("last_live_verification_count", 0)
+    last_live_at_display = (
+        last_live_at_raw[:19].replace("T", " ") + " UTC" if last_live_at_raw else ""
+    )
 
     rules_js = []
     for r in stats["rules"]:
@@ -1682,12 +1889,23 @@ def render_html_summary(stats: dict, repo: str) -> str:
                 f"https://github.com/{repo}/actions/runs/{r['run_id']}"
                 if r.get("run_id") else ""
             ),
+            # Raw run_id, not just the runUrl built from it: the page's
+            # last-live-verification note (see page.js) groups rules by run,
+            # same as generate_stats.py's _last_live_verification() does, and
+            # needs the id itself rather than a URL to do that grouping.
+            "runId": r.get("run_id", ""),
             "author": r.get("author", ""),
             "date": r.get("date", ""),
             "modified": r.get("modified", ""),
             "ruleVersion": r.get("rule_version", ""),
             "verdictAt": r.get("verdict_at", ""),
             "verdictRuleVersion": r.get("verdict_rule_version", ""),
+            # Why this rule's NOT_VERIFIED is a scoping decision rather than a
+            # failed measurement. The page classifies Evidence from RULES on
+            # every load, so without this field it would have to guess -- and
+            # guessing from the rule's current testing block would be the wrong
+            # answer the moment someone re-enables testing before the next run.
+            "testingDisabled": bool(r.get("verdict_testing_disabled", False)),
             "verifyMethod": VERIFY_METHOD_LABELS.get(
                 testing.get("type", ""), testing.get("type", "")
             ),
@@ -1729,6 +1947,25 @@ def render_html_summary(stats: dict, repo: str) -> str:
     # chart's Stable % (also integer) — no stray decimal on one but not the other.
     html = html.replace("@@PASS_RATE@@", str(round(pass_rate)))
     html = html.replace("@@VERIFIED_CURRENT@@", str(verified_current))
+    # Build-time seed for the Evidence card's scope note. The script recomputes
+    # the same number from RULES on load (an out-of-scope rule can lapse into
+    # Expired between the build and the read, exactly as any other verdict
+    # can), so this is what a reader sees before the script runs and what the
+    # aria-label carries.
+    html = html.replace("@@SCOPED_OUT@@", str(scoped_out))
+    # Same build-time-seed / client-side-overwrite pattern as @@SCOPED_OUT@@
+    # above. LAST_LIVE_TEXT is the whole sentence (not just the date), same as
+    # the scope note's own text is fully composed in Python rather than
+    # assembled from smaller markers -- keeps the wording in one place instead
+    # of split across the template and this function.
+    if last_live_count > 0:
+        last_live_text = (
+            f"Last live verification: {last_live_at_display} "
+            f"— {last_live_count} of {total} rules measured in that run."
+        )
+    else:
+        last_live_text = "No live verification recorded yet."
+    html = html.replace("@@LAST_LIVE_TEXT@@", last_live_text)
     html = html.replace("@@MITRE_COVERED@@", str(mitre_covered))
     html = html.replace("@@MITRE_TOTAL@@", str(mitre_total))
     html = html.replace("@@MITRE_PCT@@", str(mitre_pct))
@@ -1788,7 +2025,9 @@ def main() -> int:
     print(
         f"Stats: {stats['total_sigma_rules']} sigma + {stats['total_native_spl_rules']} native SPL rules — "
         f"{stats['verified_pass']} pass / {stats['verified_fail']} fail / "
-        f"{stats['not_verified']} not verified / {stats['verified_stale']} outdated — "
+        f"{stats['not_verified']} not verified "
+        f"(of which {stats['verified_testing_disabled']} out of testing scope) / "
+        f"{stats['verified_stale']} outdated — "
         f"pass rate: {stats['pass_rate_pct']}% of the {stats['verified_current']} "
         f"rule(s) verified against their current version "
         f"({stats['verification_current_pct']}% of the library)"
