@@ -456,16 +456,24 @@ jobs:
       # production) plus its outputs/results/ directory (which keeps counting
       # towards the dashboard's coverage).
       #
-      # This needs its own step and its own commit rather than riding along with
-      # "Commit converted SPL outputs": that step is gated on has_spl, which
-      # comes from has_rules, which is built from --diff-filter=AMRC -- so a
-      # commit that only *deletes* a rule produces no rule_files, skips every
-      # job below, and would never reach it. The orphan is created by precisely
-      # the event the rest of the pipeline cannot see.
+      # This detection step still needs to run on its own, unconditionally and
+      # early: it is not gated on has_rules because has_rules comes from
+      # --diff-filter=AMRC, and a commit that only *deletes* a rule produces no
+      # rule_files -- has_rules=false -- which is precisely the case this step
+      # exists to catch. Safe to run unconditionally because it compares
+      # current repo state rather than a diff: with nothing orphaned it prints
+      # one line and exits.
       #
-      # Deliberately not gated on has_rules for the same reason, and safe to run
-      # unconditionally because it compares current state rather than a diff:
-      # with nothing orphaned it prints one line and exits.
+      # It used to also commit and push here, in its own cycle, immediately
+      # after pruning. It no longer does: that meant a single run could push to
+      # dev twice before deploy/verify/dashboard even started (once here, once
+      # for the converted SPL further down), on top of every later job's own
+      # commit -- see "Commit pipeline outputs to dev" near the end of this job,
+      # where this step's staged deletions and the converted SPL are now
+      # committed together in one push. Only the detection (prune_orphans.py
+      # --apply) stays here; it still has to run before that later step so the
+      # deletions exist on disk for it to stage, and before anything else in
+      # this job that might care whether an orphaned file is still present.
       - name: Prune repo artefacts of deleted rules
         if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev'
         shell: bash
@@ -479,33 +487,6 @@ jobs:
           python -c "import yaml" 2>/dev/null || python -m pip install -r .github/requirements.txt
 
           python scripts/state/prune_orphans.py --apply
-
-          # -A so deletions are staged; the paths are scoped so nothing else
-          # this job produced can ride along in the commit.
-          git add -A rules/splunk outputs/results
-
-          if git diff --cached --quiet; then
-            echo "No orphaned artefacts to commit."
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -m "chore(prune): remove artefacts of deleted rules [skip ci]"
-
-          for i in 1 2 3; do
-            git fetch origin dev
-            git pull --rebase origin dev || true
-            if git push origin HEAD:dev; then
-              echo "Push succeeded."
-              exit 0
-            fi
-            echo "Push failed (attempt $i), retrying..."
-            sleep 2
-          done
-
-          echo "Push failed after 3 attempts."
-          exit 1
 
       - name: Validate Sigma rules
         if: steps.changes.outputs.has_rules == 'true'
@@ -917,25 +898,55 @@ jobs:
             '{workflow_run_id: $run_id, run_attempt: $attempt, commit_sha: $sha, artifact_name: "spl-pipeline-bundle"}' \
             > rules/splunk/.bundle-provenance.json
 
-      - name: Commit converted SPL outputs to dev
-        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev' &&
-          steps.bundle.outputs.has_spl == 'true'
+      # Register item 1.7 + the SPL commit this job already made, merged into
+      # one commit+push cycle. This job used to push to dev twice on a single
+      # run: "Prune repo artefacts of deleted rules" above committed its own
+      # deletions immediately after detecting them, and this step separately
+      # committed whatever "Convert Sigma rules to Splunk SPL" produced --
+      # two machine commits landing on dev before deploy, verify or the
+      # dashboard job even started, on top of every later job's own commit.
+      # That is part of why every local commit here needs a rebase first.
+      #
+      # Deliberately placed last in this job rather than where either commit
+      # used to sit: everything that can put a file under rules/splunk or
+      # outputs/results for this run -- prune's deletions, the SPL conversion,
+      # the unchanged-rule meta-sidecar refresh, the bundle build -- has to
+      # have already run before there is anything meaningful to stage. The
+      # prune *detection* itself (prune_orphans.py --apply) still runs early,
+      # in the step above -- see the comment there for why that half stays
+      # split from the commit half instead of also moving down here.
+      #
+      # Unconditional on has_spl, unlike the SPL-only step this replaces:
+      # prune's deletions must still reach dev on a run that converted
+      # nothing (mode=none, has_spl=false) -- a deletion-only push is exactly
+      # the case register item 1.7 exists for, and gating this step on
+      # has_spl would silently drop it again, the same way it did before that
+      # register item split pruning into its own step in the first place.
+      - name: Commit pipeline outputs to dev
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev'
         shell: bash
         run: |
           set -euo pipefail
 
+          # -A so deletions are staged; the paths are scoped so nothing else
+          # this job produced can ride along in the commit. Two `git add`
+          # calls, one per original step's own scope (prune's
+          # rules/splunk + outputs/results, the SPL step's rules/splunk),
+          # kept as two rather than folded into one to mirror exactly what
+          # each used to stage on its own.
+          git add -A rules/splunk outputs/results
           git add -A rules/splunk
           git reset -q -- 'rules/splunk/**/*.meta.json' 2>/dev/null || true
 
           if git diff --cached --quiet; then
-            echo "No SPL changes to commit."
+            echo "No pipeline outputs to commit."
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git commit -m "chore(splunk): update sigma-converted SPL outputs [skip ci]"
+          git commit -m "chore(convert): update SPL outputs and prune deleted-rule artefacts [skip ci]"
 
           for i in 1 2 3; do
             git fetch origin dev
