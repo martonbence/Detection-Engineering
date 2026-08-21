@@ -221,6 +221,7 @@
     </div>
   </div>
 
+  <main>
   <div id="tab-rules" class="tab-pane active">
     <div class="active-filter-row hidden" id="active-filter-row"></div>
     <div class="main">
@@ -575,6 +576,7 @@
       </div>
     </div>
   </div>
+  </main>
 
   <div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer()"></div>
   <div class="drawer" id="drawer">
@@ -584,7 +586,7 @@
           <div class="drawer-rule-id" id="d-rule-id"></div>
           <div class="drawer-title" id="d-title"></div>
         </div>
-        <button class="drawer-close" onclick="closeDrawer()">
+        <button class="drawer-close" onclick="closeDrawer()" aria-label="Close rule details">
           <svg viewBox="0 0 24 24" stroke-width="2">
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />

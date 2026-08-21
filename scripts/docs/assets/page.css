@@ -112,7 +112,11 @@
     .strip-total {
       font-family: var(--font);
       font-size: 12px;
-      color: var(--text3);
+      /* text3 measures 3.77:1 against this strip's bg2 background, short of
+         WCAG AA's 4.5:1 for text this size (register 3.12, color-contrast).
+         text2 is the same muted-label token already used elsewhere on the
+         page (e.g. .tab-btn:hover below) and clears it at 5.62:1. */
+      color: var(--text2);
       white-space: nowrap;
     }
 
@@ -139,7 +143,12 @@
     .tab-btn {
       background: none;
       border: 1px solid transparent;
-      color: var(--text3);
+      /* Inactive tabs ("MITRE Navigator", "Dashboards") were text3 at
+         3.77:1 against bg2 -- fails WCAG AA (register 3.12, color-contrast).
+         text2 clears 4.5:1 with room to spare; hover escalates further to
+         the brightest text token, the same base->hover pattern used by
+         .search-clear / .info-close / .nav-qf elsewhere on this page. */
+      color: var(--text2);
       padding: 5px 12px;
       border-radius: 20px;
       cursor: pointer;
@@ -150,13 +159,26 @@
     }
 
     .tab-btn:hover {
-      color: var(--text2);
+      color: var(--text);
     }
 
     .tab-btn.active {
       background: #ffaa00;
       border-color: #ffaa00;
       color: #111111;
+    }
+
+    /* The <main> landmark wraps the three tab panes (register 3.12,
+       landmark-one-main) purely for a11y structure -- it takes over the
+       flex-child role the panes used to hold directly against body, so the
+       panes' own flex:1/min-height:0 sizing below still fills the remaining
+       viewport height exactly as before. */
+    main {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
     .tab-pane {
@@ -733,7 +755,10 @@
 
     .result-count {
       font-size: 12px;
-      color: var(--text3);
+      /* text3 measures 4.12:1 against this row's (body) background --
+         still short of WCAG AA's 4.5:1 at this size (register 3.12,
+         color-contrast). text2 clears it at 6.15:1. */
+      color: var(--text2);
       white-space: nowrap;
       font-family: var(--font);
     }
@@ -1085,7 +1110,11 @@
       display: flex;
       flex-direction: column;
       align-items: flex-start;
-      gap: 4px;
+      /* 4px used to leave stacked pills ~21px apart center-to-center, under
+         the WCAG 24px target-size minimum once .badge-mitre below reaches
+         24px tall in its own right. 6px keeps clear daylight between two
+         adjacent tap targets on top of that (register 3.12, target-size). */
+      gap: 6px;
       overflow: visible;
       white-space: normal;
     }
@@ -1132,6 +1161,18 @@
     }
 
     .badge-mitre {
+      /* Base .badge's 2px/7px padding at font-size 10px lands at ~17px
+         tall, under the WCAG 24x24 target-size minimum -- these are the
+         only .badge instances that are also individually-clickable links
+         (register 3.12, target-size). min-height/min-width plus
+         inline-flex centering brings the tap target to 24x24 without
+         changing the badge's visual weight relative to the others. */
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 24px;
+      min-width: 24px;
+      padding: 4px 10px;
       background: rgba(143, 149, 214, 0.14);
       color: #b3b8e8;
       border: 1px solid rgba(143, 149, 214, 0.35);
