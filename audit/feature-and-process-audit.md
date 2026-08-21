@@ -154,14 +154,14 @@ viszont hiányos — a konfiguráció nagy része nincs a repóban, egy hook hal
 - [x] **5.1** A csapat saját operatív fájljai gazdátlanok · `CLAUDE.md`, `TEAM.md`, `.claude/agents/*.md`, `.claude/skills/*` · A roster-tábla minden sora egy-egy felületet nevez meg; egyik sem tartalmazza ezt a négyet. Chloe kifejezetten „README.md prose, `docs/architecture/*.md`, the GitHub Wiki"-t birtokol — a `TEAM.md`-t nem. Ennek közvetlen, mérhető következménye a 2.8 (két avatár létezik, a `TEAM.md` mind a tizenegyet „pending"-nek mondja) és az 5.5 (elavult tények az ügynökfájlokban). Javaslat: a `CLAUDE.md` kapjon egy explicit sort arról, ki tartja karban a roster-fájlokat — akár Chloe hatóköre bővül a `TEAM.md`-vel, akár Gaz tartja meg magának, csak legyen kimondva → **Gaz**
 - [x] **5.2** A docs-drift hook olyan eseményre tüzel, amit a projekt konvenciója kizár · `.claude/settings.json:5-19`, `.claude/hooks/docs-drift-check.sh:22-26` · A hook a Bash-hívás payloadjában a `git commit` szövegre szűr, majd ellenőrzi, hogy tényleg landolt-e friss commit. Csakhogy a projekt álló szabálya az, hogy **a commitokat a felhasználó csinálja, nem az ügynök** — így az ügynök Bash-hívásaiban gyakorlatilag sosem szerepel `git commit`, és a hook a gyakorlatban soha nem fut le. A kód maga jó minőségű (determinisztikus, LLM-mentes, saját teszt-scripttel `.claude/hooks/test-docs-drift-check.sh`), csak rossz eseményhez van kötve. Helyesebb trigger: `PostToolUse` `Edit|Write` matcher a `scripts/**` és `.github/workflows/**` útvonalakra, vagy `Stop` hook, ami a munkamenet végén összegzi az érintett fájlokat → **Jamal** (a hook script), **Gaz** (a konvenció eldöntése)
 - [x] **5.3** Nincs `permissions` blokk a `.claude/settings.json`-ben · `.claude/settings.json` (mindössze `attribution` + `hooks`) · Két külön veszteség. (a) *Hatékonyság*: nincs allow-lista a rutinparancsokra (`python -m pytest`, `ruff check`, `git status`, `git log`, `python scripts/validate/*.py`), tehát minden ügynök minden ellenőrző futása kézi jóváhagyást kér — pont az a művelet, amit a legtöbbször kell megismételni. (b) *Biztonság/konvenció*: a „Bence commitol, az ügynök nem" szabály ma csak emlékezetben és prózában él; egy `deny` bejegyzés (`Bash(git commit:*)`, `Bash(git push:*)`) gépiesen kikényszerítené. A repo egyébként pontosan ezt a filozófiát követi mindenhol máshol: ami szabály, az legyen kapu, ne emlékeztető → **Gaz**
-- [ ] **5.4** Nincs `.mcp.json` a repóban, három ügynök viszont MCP-eszközökre épül · `.claude/agents/Kai - Platform Engineer.md` (~40 `mcp__github__*` eszköz), `Priya - Application Security Engineer.md` (`mcp__semgrep__*`), `Sienna - Frontend Engineer.md` (`mcp__playwright__*`, `mcp__chrome-devtools__*`) · Ezek a szerverek felhasználói szinten vannak konfigurálva, nem a repóban (`find . -name .mcp.json` → nincs találat). Következmény: egy friss klónban (más gép, más felhasználó, vagy CI-környezet) ez a három ügynök csendben elveszti az eszközkészlete nagy részét — nem hibaüzenettel, hanem úgy, hogy a képességei egyszerűen nincsenek ott. Egy projektszintű `.mcp.json` (a titkokat környezeti változóból olvasva) tenné a csapatot hordozhatóvá; ahol ez nem megy (pl. felhasználóhoz kötött auth), ott legalább dokumentálva kellene lennie, mit kell egyszer beállítani → **Gaz** dönt, **Kai** hajtja végre
+- [x] **5.4** Nincs `.mcp.json` a repóban, három ügynök viszont MCP-eszközökre épül · `.claude/agents/Kai - Platform Engineer.md` (~40 `mcp__github__*` eszköz), `Priya - Application Security Engineer.md` (`mcp__semgrep__*`), `Sienna - Frontend Engineer.md` (`mcp__playwright__*`, `mcp__chrome-devtools__*`) · Ezek a szerverek felhasználói szinten vannak konfigurálva, nem a repóban (`find . -name .mcp.json` → nincs találat). Következmény: egy friss klónban (más gép, más felhasználó, vagy CI-környezet) ez a három ügynök csendben elveszti az eszközkészlete nagy részét — nem hibaüzenettel, hanem úgy, hogy a képességei egyszerűen nincsenek ott. Egy projektszintű `.mcp.json` (a titkokat környezeti változóból olvasva) tenné a csapatot hordozhatóvá; ahol ez nem megy (pl. felhasználóhoz kötött auth), ott legalább dokumentálva kellene lennie, mit kell egyszer beállítani → **Gaz** dönt, **Kai** hajtja végre
 - [x] **5.5** Elavult tények az ügynökfájlokban — és senki nem nézi őket rendszeresen · `.claude/agents/Kwame - Compliance Analyst.md` („last known count: 54 items, 43 done" — a register azóta 54/54 és lezárt), `Jamal - DevOps Engineer.md` (háromsoros workflow-tábla, a negyedik workflow hiányzik; a `ci_prod_workflow.yml` sora „Re-converts, drift-gates, deploys" — mindkettő megszűnt, lásd 1.1), `Bjorn - …md` (a megszűnt `rule_documentations/` könyvtár), `Priya - …md` (pontos telepítési útvonalak és MCP-elérhetőség, saját „confirm current state yourself, environments drift" kitétellel) · Ezek nem kozmetikai hibák: az ügynökfájl az első dolog, amit a diszpécselt specialista elolvas, tehát minden ilyen mondat egy hamis kiindulópont minden jövőbeli futásban. Kwame sajátja külön ironikus: a register-auditáló ügynök leírása maga elavult a registerhez képest. **Yara ugyanide jutott, egy fokkal általánosabban**, és a hiányzó *mechanizmust* nevezte meg: a `remediation-plan.md`-t Kwame állandó jelleggel ellenőrzi a valósággal szemben, az ügynökdefiníciókat viszont **semmi és senki** — nincs az a szerep, ami ezekre nézve játszaná Kwame szerepét. A tétel ezért kettős: (a) a mai konkrét elavulások javítása, (b) egy visszatérő „ügynökfájl-spot-check" beépítése valamelyik meglévő audit-körbe, hogy ne kelljen újra egy teljes átvizsgálás ahhoz, hogy kiderüljön → **gazdátlan, lásd 5.1**; a visszatérő ellenőrzés természetes helye **Kwame** köre
 - [x] **5.6** Megosztott, gyorsan avuló tudás perszóna-fájlokba égetve, nem skillbe · `.claude/skills/` ma három skillt tartalmaz: `sigma-rule-authoring`, `mitre-attack-mapping`, `team-avatars` · Mindhárom a szabály-szerzés / kozmetika körül forog. A commit-történet szerint viszont a munka zöme a pipeline-on (Jamal) és a rule browseren (Sienna) folyik, és ezeknek a konvenciói ma kizárólag 1 005 sornyi workflow-kommentben és az ügynökfájlok prózájában élnek — vagyis minden diszpécselés újra levezeti őket. **Yara adta hozzá a döntési szabályt, ami ezt élessé teszi:** ha egy perszóna-fájl saját szövege azt mondja, hogy „ezt ellenőrizd, mielőtt megbíznál benne" (szó szerint ez áll Priya környezet-bekezdésében), az pont az a pont-idejű, avuló tudás, amit a skill-mechanizmus izolálni hivatott — perszóna-fájlba égetve minden jövőbeli szerkesztésbe belemásolódik az elavulás. Konkrétan hiányzó skillek: (a) **`pipeline-ci-gotchas`** — Jamal fájlja (`:29-30`) két olyan csapdát dokumentál, amelyek saját bevallása szerint már okoztak valódi hibát (a `changes` step üres szabálylistája → minden downstream job kimarad, a run mégis zöld; és a `--diff-filter=AMRC`, ami a törléseket kizárja) — ez a tudás ma **láthatatlan** Priya (CI-konfigurációt auditál) és Kwame (pipeline-állításokat verifikál) számára, hacsak külön újra fel nem fedezik; (b) **rule-browser generátor-konvenciók** (a `docs/index.html` build-artefaktum, `@@MARKER@@` behelyettesítés, asset-inline-olás, normalizált diff-összehasonlítás) — ide tartozik a 2.12-ben hiányzónak talált `dataviz` is; (c) **audit-register konvenciók** (ennek a fájlnak a formátuma, súlyozás, naplóbejegyzés). Yara egy megjegyzése ide tartozik ellensúlyként: a `team-avatars` a három meglévő közül az egyetlen, ami nem szabály-helyességet kapuz — ha a skill-készlet karbantartása később teherré válik, ez az, amit a legkönnyebb visszaolvasztani egy egyszeri beszélgetésbe → **Gaz** dönt, tartalom a felület gazdájától
 - [x] **5.7** A `team-avatars` skill kimenete félkész és nincs bekötve · `.claude/skills/team-avatars/SKILL.md` · A skill precízen definiálja a stílus-lockot és a fájl helyét, de a tizenegy fős rosterből két avatár készült el, azok is a skill saját elnevezési szabályát megsértve, és egyik sincs bekötve a `TEAM.md`-be (lásd 2.8). Ez a legtisztább példa arra, amit az 5.1 leír: van skill, van kimenet, nincs gazda, aki végigvinné → **Gaz** dönt (befejezni vagy tudatosan lezárni „két avatár elég" indoklással)
 - [x] **5.8** Nincs `.claude/commands/` — a visszatérő műveletek nincsenek parancsba zárva · A repóban ma nulla slash-parancs van. Legalább négy művelet ismétlődik felismerhetően: register-állapot ellenőrzése, dashboard/statisztika helyi újragenerálása + normalizált diff, teljes lokális kapu-futtatás (ruff + pytest + validate + check_mitre_tags), és új szabály scaffoldolása a review-átadásig. Mindegyik ma prózából kerül újra összerakásra minden alkalommal → **Gaz**
 - [x] **5.9** Kwame eszközkészletében nincs `Write` · `.claude/agents/Kwame - Compliance Analyst.md` frontmatter: `tools: Read, Grep, Glob, Bash, Edit` · A szerepdefiníció szerint Kwame „reports accurate progress" és vezeti a registert — de új auditdokumentumot létrehozni nem tud, csak meglévőt szerkeszteni. Ez a dokumentum is `printf`-fel létrehozott helyőrző-fájl + `Edit` kerülőúton készült. Vagy a `Write` kerüljön be az eszközök közé, vagy legyen kimondva, hogy Kwame kizárólag meglévő registert könyvel, és új auditfájlt más hoz létre → **Gaz**
 - [ ] **5.10** A modellválasztási szabály nem mérhető és nem visszakövethető · `CLAUDE.md` 7. pont · A szabály jó (komplexitás-alapú eszkaláció dispatchenként, nem szerepenként), de semmilyen nyoma nem marad annak, melyik diszpécselés futott melyik modellen, tehát utólag nem lehet megmondani, hogy a szabály segít-e vagy sem. **Kwame és Yara egymástól függetlenül ugyanezt emelte ki**, és Yara pontosítása helytálló: ez futásidejű döntés, nem repo-artefaktum, tehát nem is lehet fájlban kikényszeríteni — amit viszont lehet, az a *nyom*. Legolcsóbb forma: a specialisták zárójelentése nevezze meg a modellt egy sorban, és a nagyobb körök (mint ez az audit) rögzítsék a Naplóban. Ez pontosan a repo saját „bizonyíték az állítás helyett" kultúrája, csak a folyamatra alkalmazva → **Gaz**
-- [ ] **5.11** A méret- és feltételfüggő elhalasztott döntéseknek nincs követett listája · a régi register négy tételt zárt le a *jelenlegi lépték* miatt: **3.8** (alkönyvtár-bontás), **4.1** (noise budget), **4.4** (Splunk ES / RBA), **4.11** (tömeges újramérés) · Mindegyik indoklása valós kiváltó feltételt tartalmaz, de az sűrű prózába temetve — senki nem figyeli, mikor lépjük át. Yara javaslata egy „lépték-függő döntések" tábla (tétel / mai mutató / küszöb / mi változik), ami Kwame következő körén gépiesen ellenőrizhető. Jó ötlet, **de a négy példa közül kettő pontosításra szorul**, és ez a pontosítás a tábla lényege: a **4.11** küszöbe valós és idézhető (a felhasználó a tömeges újramérést kifejezetten azzal utasította el, hogy „500+ szabálynál nem skálázna"); a **3.8**-é viszont **nem** — a register szó szerint rögzíti, hogy a „27 szabály még kezelhető, 150-nél nem" állítás rákérdezésre kiderülten *sosem volt alátámasztva*, tehát a 150-es szám nem küszöb, hanem visszavont feltevés, és a táblába is így kell bekerülnie, különben egy elvetett számot élesztünk újra. A **4.1** és a **4.4** pedig nem lépték-, hanem **feltételfüggő**: az egyik akkor nyílik újra, ha a labor Splunkja valódi háttérforgalmat kap, a másik akkor, ha telepítenek ES-t vagy megjelenik egy második üzemeltető. A tábla tehát „lépték- és feltételfüggő döntések" legyen, három oszloppal: mi a kiváltó, mérhető-e ma, és hol áll → **Kwame** (könyvelés), **Yara** (keretezés)
+- [x] **5.11** A méret- és feltételfüggő elhalasztott döntéseknek nincs követett listája · a régi register négy tételt zárt le a *jelenlegi lépték* miatt: **3.8** (alkönyvtár-bontás), **4.1** (noise budget), **4.4** (Splunk ES / RBA), **4.11** (tömeges újramérés) · Mindegyik indoklása valós kiváltó feltételt tartalmaz, de az sűrű prózába temetve — senki nem figyeli, mikor lépjük át. Yara javaslata egy „lépték-függő döntések" tábla (tétel / mai mutató / küszöb / mi változik), ami Kwame következő körén gépiesen ellenőrizhető. Jó ötlet, **de a négy példa közül kettő pontosításra szorul**, és ez a pontosítás a tábla lényege: a **4.11** küszöbe valós és idézhető (a felhasználó a tömeges újramérést kifejezetten azzal utasította el, hogy „500+ szabálynál nem skálázna"); a **3.8**-é viszont **nem** — a register szó szerint rögzíti, hogy a „27 szabály még kezelhető, 150-nél nem" állítás rákérdezésre kiderülten *sosem volt alátámasztva*, tehát a 150-es szám nem küszöb, hanem visszavont feltevés, és a táblába is így kell bekerülnie, különben egy elvetett számot élesztünk újra. A **4.1** és a **4.4** pedig nem lépték-, hanem **feltételfüggő**: az egyik akkor nyílik újra, ha a labor Splunkja valódi háttérforgalmat kap, a másik akkor, ha telepítenek ES-t vagy megjelenik egy második üzemeltető. A tábla tehát „lépték- és feltételfüggő döntések" legyen, három oszloppal: mi a kiváltó, mérhető-e ma, és hol áll → **Kwame** (könyvelés), **Yara** (keretezés)
 
 ## 6 · Amit ez az audit nem fedett
 
@@ -218,7 +218,31 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
 
 ---
 
-## Napló
+## 8 · Lépték- és feltételfüggő döntések — élő figyelőlista
+
+Nem munkatételek. A lezárt `remediation-plan.md` négy tételt zárt le arra
+hivatkozva, hogy a mai lépték vagy a mai környezeti feltétel nem indokolja a
+megvalósítást — nem azért, mert az ötlet rossz, hanem mert *ma* nincs mihez
+mérni vagy mekkora skálán érdemes. Ez a tábla az, amit **5.11** kért: azt
+tartja számon, mikor kellene ezeket újranyitni, hogy ne kelljen a döntést
+minden körben a sűrű register-prózából újra kibányászni. Yara állította
+össze, `remediation-plan.md`-t közvetlenül olvasva, nem parafrázisból;
+Kwame ellenőrizte a forrásidézeteket a mai bookkeelésnél. **Kwame feladata
+ezt minden jövőbeli register-körben újranézni** — a 4.1/4.4a sorok nem
+git-ből deríthetők, ott a felhasználót kell direktben megkérdezni, nem
+grep-elni.
+
+| Tétel | Kiváltó (a lezárt register saját szövege szerint) | Mérhető-e ma valós számmal/megfigyeléssel? | Mai státusz |
+|---|---|---|---|
+| **4.11** — tömeges újramérés / promóciós gate | Felhasználói kijelentés: „nem skálázna 500+ szabálynál" (`remediation-plan.md:186`) | Igen — kemény szám, közvetlenül számolható a `rules/sigma/`-ból | Messze a küszöbtől. Ma 28 szabály, a legutóbbi lezáráskor 27 volt. ~18x tartalék a kimondott küszöbig. |
+| **3.8** — flat szabálykönyvtár | **Nincs.** A „27 kezelhető / 150 nem" szám rákérdezésre kiderülten sosem lett alátámasztva — visszavont feltevés, nem elfogadott küszöb (`remediation-plan.md:171`, Napló `:1134`) | N/A — nincs mihez mérni | Nincs nyitott kiváltó. A repo ma is flat (ellenőrizve: nincs alkönyvtár a `rules/sigma/` alatt). Ez a sor kifejezetten azért van itt, hogy senki ne élessze fel a „150"-et küszöbként — a 3.8 újranyitásának egyetlen valódi útja, ha a felhasználó explicit könyvtár-alapú kategorizálást kér, ami preferencia-váltás, nem lépték-esemény. |
+| **4.1** — noise/false-positive budget | A labor Splunkja valódi, szervezetlen háttérforgalmat kezd kapni attack-teszt ablakokon kívül (`remediation-plan.md:176`) | Nem — nincs számszerű küszöb, egy bináris üzemeltetési tény, ami a repo fájljaiból nem vezethető le | Változatlan a 2026-08-15-i lezárás óta, a repóból nem ellenőrizhető. Ugyanaz a drift-osztály, mint a `LAB_ONLINE` (projektmemória: beragadt `true`-n, nincs automatizmus, ami pontosan tartaná) — ez a sor nem grep-elhető, minden körben direkt kérdés a felhasználónak. |
+| **4.4a** — Splunk ES / RBA mezők a deploy payloadban | Splunk Enterprise Security ténylegesen települ a laborban (`remediation-plan.md:179`) | Részben — a repo-oldali proxy grep-elhető (`notable`/`risk_object`/`risk_score` hivatkozás, ma nulla találat), de a valódi tény (van-e ES telepítve) a repón kívül dől el | Nem triggerelt a legutóbbi ellenőrzéskor, ugyanaz a külső-tény fenntartás, mint 4.1-nél. |
+| **4.4b** — riasztás-throttling / drilldown mezők | SOC vagy több-üzemeltetős kontextus jelenik meg (`remediation-plan.md:179`) | Nem — kvalitatív, nincs figyelendő szám | Nem triggerelt. A repo ma is egyszemélyes. |
+
+**Miért 4.4a/4.4b két külön sor, nem egy:** a lezárt register `remediation-plan.md:179`-ben a **4.4** két, minőségileg független dolgot bundlézott — az ES/RBA fél attól függ, hogy valaha települ-e Splunk ES, a throttling/drilldown fél attól, hogy valaha megjelenik-e SOC vagy több üzemeltető. A kettő egymástól függetlenül nyílhat újra (ES telepítése önmagában nem hoz SOC-ot, és fordítva), tehát egy közös sor elmosná, melyik feltétel teljesült. **Pontosítás, amit Yara saját maga vett észre és javított a dispatch-brief-jében, mielőtt ez a tábla elkészült:** a termék neve **Splunk Enterprise Security (Splunk ES)**, nem Elastic Security — más gyártó, más termék; a `remediation-plan.md:179` szövege explicit ezt mondja.
+
+
 
 - **2026-08-18** — Audit elvégezve (`dev @ d17ff7e`), 42 tétel rögzítve öt kategóriában,
   teljes súly 70, kiindulási pontszám 7,0/10. Semmi nincs még javítva. A kör Gaz felkérésére
@@ -1167,3 +1191,81 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   megoldás — pontosan az a mintázat, amit a register saját maga „elutasítás
   is lezárás" elve előír. A tétel nem marad nyitva a fel nem épített
   részek miatt.
+
+- **2026-08-21 — 5.11 lezárva, Kwame verifikálta a Yara által épített
+  táblát a `remediation-plan.md` ellen.** Új **8. szakasz** ("Lépték- és
+  feltételfüggő döntések — élő figyelőlista", fentebb) rögzíti a tábla-
+  javaslatot, ahogy a tétel szövege kérte: kiváltó / mérhető-e ma / mai
+  státusz oszlopokkal, a régi register négy elutasított tételére
+  (**3.8**, **4.1**, **4.4**, **4.11**), a **4.4**-et a saját maga
+  hordozta két független feltétel szerint (**4.4a** ES/RBA, **4.4b**
+  throttling/drilldown) szétbontva.
+  **Önálló ellenőrzés, nem a relé-üzenet visszaolvasása:** mindhárom
+  forrásidézetet közvetlenül `audit/remediation-plan.md`-ben néztem meg.
+  (1) **4.11** — `:186` szó szerint tartalmazza: „mert 500+ szabálynál nem
+  skálázna". (2) **3.8** — `:171` szó szerint: „a felhasználó
+  rákérdezésére kiderült, hogy sosem volt tényleg alátámasztva"; a Napló
+  `:1134` ugyanezt ismétli meg, más szavakkal, közvetlenül a döntés
+  napján rögzítve („az eredeti audit-tétel »27 még kezelhető, 150 már
+  nem« állítása nem volt ténylegesen alátámasztva — átvett feltételezés
+  volt a 2026-07-26-os statikus átvizsgálásból") — két független helyen,
+  nem csak egyszer állítva. Ez a sor korábban már egyszer helyesen
+  visszautasításra került ebben a registerben is (lásd a 2026-08-18-i
+  revíziós Napló-bejegyzést, Yara eredeti briefjének 2. pontosítása) —
+  ma ugyanez a korrekció épül be a táblába, nem újra felfedezve, hanem
+  megerősítve. (3) **4.1**/**4.4** — `:176` és `:179` mindkettő explicit
+  „megvizsgálva, elutasítva" fejléccel zár, feltételt (nem számot) ad meg;
+  a `:179` szövege szó szerint „Splunk Enterprise Security"-t mond, nem
+  Elastic-et — Yara saját maga vette észre és javította ezt a dispatch-
+  brief-jében, mielőtt a tábla elkészült volna, ellenőrizve, hogy a végső
+  táblasor is a helyes terméknevet hordozza.
+  **Repo-oldali spot-check a "mai státusz" oszlophoz:** `ls rules/sigma/
+  *.yml *.yaml 2>/dev/null | wc -l` → **28** (a `remediation-plan.md`
+  4.11-es lezárásakor 27 volt, a tábla ezt helyesen frissként, nem a
+  register eredeti számaként adja meg); `find rules/sigma -mindepth 1
+  -type d` → **üres**, a könyvtár ma is flat, megerősítve a 3.8 sor „nincs
+  nyitott kiváltó" állítását.
+  **Következtetés:** mindhárom forrásidézet pontos, a 4.4a/4.4b szétválás
+  indokolt és a register saját szövegéből következik, a termék-névkorrekció
+  (Splunk ES, nem Elastic) helytálló. A tábla élő figyelőlistaként kerül a
+  registerbe, nem a Naplóba — a Napló egyszeri esemény, ez viszont minden
+  jövőbeli Kwame-körön újranézendő; a 4.1/4.4a sorok kifejezetten nem
+  git-ből deríthetők, azokhoz direkt kérdés kell a felhasználónak minden
+  körben. A tétel hiánytalanul lezárva.
+
+- **2026-08-21 — 5.4 lezárva, Kwame verifikálta.** Kai két új fájlt épített:
+  `.mcp.json` (repógyökér) és `docs/mcp-setup.md`; Gaz saját hatáskörben
+  (a `.claude/agents/*.md` az ő felülete) egy mutatót tett Kai ügynökfájljába
+  a doksira.
+  **`.mcp.json` — valódi, nem stub.** `python3 -m json.tool` → érvényes JSON.
+  Mind a négy megnevezett szerver jelen van (`python3 -c "json.load(...).
+  keys()"` → `github`, `semgrep`, `playwright`, `chrome-devtools`). Nulla
+  literális titok: `grep -nE 'ghp_|gho_|github_pat_|Bearer [A-Za-z0-9]'` a
+  fájlon **nulla találat**; az egyetlen auth-sor `"Authorization": "Bearer
+  ${GITHUB_TOKEN}"` — környezeti változó, nem beégetett érték, pontosan a
+  tétel saját követelése („a titkokat környezeti változóból olvasva").
+  **`docs/mcp-setup.md` — valódi, nem stub.** 130 sor, mind a négy
+  szerverhez saját szakasz egy-egy „One-time setup" listával, plusz egy
+  explicit „Things this doc deliberately does not solve" szakasz (CI
+  npm-egress, verziópinelés) — ez utóbbi nyitva hagyva, nem eltitkolva.
+  **Kereszt-ellenőrzés a doksi állításai és a `.mcp.json` tényleges tartalma
+  között, soronként:** `github` — a doksi „`https://api.githubcopilot.com/
+  mcp`" URL-t és „`Authorization: Bearer ${GITHUB_TOKEN}`" fejlécet állít —
+  mindkettő szó szerint egyezik a `.mcp.json` 5. és 7. sorával. `semgrep` —
+  a doksi „just runs `semgrep mcp`" — egyezik (`"command": "semgrep",
+  "args": ["mcp"]`). `playwright` — a doksi „runs `npx -y @playwright/
+  mcp@latest` with no `--executable-path` override" — egyezik, és a
+  `.mcp.json`-ban ténylegesen nincs `--executable-path` kulcs (a felhasználói
+  scope-ban a doksi szerint volt egy gép-specifikus Chromium-útvonal, ez a
+  checked-in configból tudatosan kimaradt). `chrome-devtools` — a doksi
+  „runs `npx -y chrome-devtools-mcp@latest` as-is" — egyezik.
+  **Mellékes ellenőrzés:** `.claude/agents/Kai - Platform Engineer.md`
+  ténylegesen tartalmaz egy mutatót (`:16`, „see `docs/mcp-setup.md` for
+  what each server needs") — a Gaz által állított külön szerkesztés valós.
+  **Nem verifikálható innen, a doksi maga is így jelzi:** hogy a leírt
+  one-time setup lépések (token-mintés, `pipx install semgrep`, `npx
+  playwright install chromium`) ténylegesen működnek-e egy tényleg friss
+  klónon vagy CI-környezetben — ez a repón kívüli, élő végrehajtást igényelne,
+  amit ez a kör nem futtatott le; a doksi két nyitva hagyott korlátja (helyi
+  scope felülírás, CI npm-egress/verziópinelés) pontosan ezt a határt jelöli
+  ki, nem próbálja elfedni. A tétel hiánytalanul lezárva.
