@@ -1868,30 +1868,71 @@ jobs:
           EVAL_EXIT=$?
           echo "exit_code=$EVAL_EXIT" >> "$GITHUB_OUTPUT"
 
-      # Register item 2.16. Each hits.json carries the raw Splunk events behind a
-      # verdict -- command lines, usernames, hostnames, paths from the lab hosts
-      # -- and artifacts on a public repository are downloadable by anyone.
+      # Register item 3.10, closing what 2.16 left open. 2.16 chose shorter
+      # retention (90 -> 14 days) over field stripping, and that call was
+      # right -- the raw event *is* the debugging value -- but its own text
+      # named the remainder: the lab's naming (hosts, domain, service
+      # accounts), which has reconnaissance value to the extent the lab
+      # mirrors production. This step rewrites those identifiers to stable
+      # per-entity pseudonyms, so the artifact keeps the property a debugger
+      # needs (which events came from the same box/account) and loses the one
+      # an outsider wants.
       #
-      # Kept rather than filtered, because the raw event *is* the debugging
-      # value: when a count looks wrong, the command line is the thing you need
-      # to read. What was wrong was the window. These exist to explain one run,
-      # and nobody debugs a three-month-old run, so 90 days was retention with
-      # no use case attached. 14 covers a long weekend plus a holiday.
+      # Placed after Evaluate Pass/Fail on purpose, not before: pass_fail_eval
+      # reads the raw directory, and while it drops `events` from what it
+      # keeps, running the anonymizer first would still put a rewrite between
+      # the measurement and the thing measured for no gain. Nothing after this
+      # step reads matched_events_dir.
       #
-      # The exposure that actually matters here is not the synthetic attack
-      # traffic but the lab's naming -- hosts, domain, service accounts -- which
-      # has reconnaissance value to the extent the lab mirrors production.
-      # The env guard is not belt-and-braces. `matched_events_dir` is written to
-      # $GITHUB_ENV by the query step; if that step never ran, always() still
-      # fires this one with an empty `path`, and the job reports "Input required
-      # and not supplied: path" -- a second error, about this step, when the
-      # thing that actually went wrong was several steps earlier.
-      - name: Upload matched events artifact
+      # A SEPARATE OUTPUT DIRECTORY, and the env var exported only after a
+      # zero exit, is what makes this fail closed. If the tool errors --
+      # unparseable hits.json, a self-check that still finds a known
+      # identifier -- `set -e` stops the step before the export, so
+      # matched_events_anon_dir stays empty and the always() upload below
+      # finds nothing to upload. In-place rewriting would have had the
+      # opposite failure mode: a crash halfway through leaves the raw
+      # directory sitting there and always() ships it.
+      #
+      # No --map-out here. The real -> pseudonym map is the de-anonymization
+      # key; it is only ever produced by a person running this by hand against
+      # a downloaded artifact, on a machine that already knows the lab's names.
+      # MATCHED_EVENTS_ANON_SALT is deliberately read from a repository secret
+      # that need not exist: unset, the tool falls back to a constant, which
+      # still gives cross-run stable pseudonyms and only forfeits resistance
+      # to someone confirming a *guessed* hostname. Providing the secret
+      # (kai-github-ops' call, not this file's) hardens it with no code change.
+      - name: Anonymize matched events before upload
         if: always() && env.matched_events_dir != ''
+        shell: bash
+        env:
+          MATCHED_EVENTS_ANON_SALT: ${{ secrets.MATCHED_EVENTS_ANON_SALT }}
+        run: |
+          set -euo pipefail
+
+          ANON_DIR=$(mktemp -d)
+
+          python scripts/verify/anonymize_matched_events.py \
+            --output-dir "$ANON_DIR" \
+            "${{ env.matched_events_dir }}"
+
+          echo "matched_events_anon_dir=$ANON_DIR" >> "$GITHUB_ENV"
+
+      # Retention stays at 14 days for 2.16's reasons, unchanged: these exist
+      # to explain one run, nobody debugs a three-month-old run, and 14 covers
+      # a long weekend plus a holiday.
+      #
+      # The env guard is not belt-and-braces. `matched_events_anon_dir` is
+      # written to $GITHUB_ENV by the step above; if that step never ran or
+      # failed, always() still fires this one with an empty `path`, and the job
+      # reports "Input required and not supplied: path" -- a second error,
+      # about this step, when the thing that actually went wrong was several
+      # steps earlier.
+      - name: Upload matched events artifact
+        if: always() && env.matched_events_anon_dir != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: matched-events-sigma-${{ github.run_id }}
-          path: ${{ env.matched_events_dir }}
+          path: ${{ env.matched_events_anon_dir }}
           retention-days: 14
           if-no-files-found: ignore
 
