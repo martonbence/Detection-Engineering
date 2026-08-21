@@ -28,7 +28,7 @@ az itt kezdődik elölről.
 
 ## Pontszám
 
-Kiindulás: **7,0 / 10**. Kész súly: **0 / 79**.
+Kiindulás: **7,0 / 10**. Kész súly: **0 / 80,5**.
 
 Dimenziók — most → hova vinné a register teljesítése:
 
@@ -44,8 +44,8 @@ Dimenziók — most → hova vinné a register teljesítése:
 
 A register meterének súlyozása: kritikus ×3, robusztusság ×2, funkció ×1,5,
 Claude-munkamodell ×1,5, dokumentáció ×1.
-A teljes súly **79** = 6×3 + 7×2 + 11×1,5 + 11×1,5 + 14×1.
-Projektált pontszám = `7,0 + 2,5 × (kész súly / 79)`.
+A teljes súly **80,5** = 6×3 + 7×2 + 12×1,5 + 11×1,5 + 14×1.
+Projektált pontszám = `7,0 + 2,5 × (kész súly / 80,5)`.
 
 *(A súly 70-ről 79-re nőtt a Yara-brief beolvasztásakor: hét új tétel a
 funkció-, dokumentáció- és folyamat-kategóriákban. A kiindulási pontszám nem
@@ -113,19 +113,20 @@ teljesíthető utasítással indul.
 - [ ] **2.13** Nincs architektúra-dokumentum magáról a `.claude/` ökoszisztémáról · `docs/architecture/` négy mély referenciát ad a pipeline-ról, a csapatmodellről egyet sem · A `CLAUDE.md` előíró (ki mit birtokol, hogyan megy a delegálás), a `TEAM.md` roster — egyik sem „hogyan folyik a munka a gyakorlatban" referencia valódi példákkal. Egy `docs/architecture/agent_workflow.md` (Yuki→Bjorn átadás, egy Kwame-féle drift-elkapás, egy Gaz-féle feladatszétvágás, mindegyik valós esettel) egyszerre lenne onboarding-anyag és annak a dokumentálása, ami ebben a repóban ténylegesen újszerű. Yara javaslata; a jelen audit 5. szakasza pont azt bizonyítja, hogy van mit leírni → **Chloe**
 - [ ] **2.14** Nincs `CONTRIBUTING.md` · ellenőrizve: a fájl nem létezik · A régi register **2.11**-e a CODEOWNERS-t és a PR-sablont utasította el mint „checklist-ballaszt" egy egyszemélyes repóban — ez a döntés áll. A `CONTRIBUTING.md` viszont más kérdésre válaszol: nem kapu, hanem egy helyen összeszedett szerzői folyamat (szabály-scaffold → validálás → review → promotion), ami ma öt dokumentum és három skill között van szétszórva. Alacsony prioritás az egyszemélyes valóság miatt, de olcsó, és a 2.6 (lokális futtatás) természetes otthona lenne. Yara javaslata → **Chloe**
 
-## 3 · Funkció- és képességhiányok (11) · ×1,5
+## 3 · Funkció- és képességhiányok (12) · ×1,5
 
 - [x] **3.1** Az elévülés mechanizmusa megvan, a visszamérésé nincs · nincs `schedule:` trigger egyetlen workflow-ban sem (`grep cron` → 0 találat; a `ci_prod_audit.yml:19` tudatosan indokolja a magáét) · A `REVIEW_INTERVAL_DAYS = 180` gondoskodik róla, hogy egy verdikt lejárjon, és a README büszkén állítja, hogy „a pipeline that stopped running would drive the pass rate to zero within 180 days" — de semmi nem méri újra automatikusan. A „Needs Re-run" halmaz csak nőhet, amíg valaki kézzel nem indít `workflow_dispatch`-et. A `select_unverified.py` + a dispatch `unverified` scope pontosan ehhez készült; hiányzik a heti/havi ütemezés `LAB_ONLINE`-tudatos kapuval (ami már létezik, és pont ezt a helyzetet kezeli offline lab esetén) → **Jamal**
 - [ ] **3.2** A prod-audit csak kézzel indul · `.github/workflows/ci_prod_audit.yml:19-22` · A „nincs schedule" indoklás (offline lab) helytálló volt, de a `LAB_ONLINE` gate azóta pont ezt a helyzetet kezeli máshol. Egy ütemezett futás `LAB_ONLINE != 'false'` feltétellel offline labnál is csak kihagyja magát — cserébe a „prod még az, aminek hisszük?" kérdés nem attól függ, hogy valakinek eszébe jut-e megkérdezni. Ugyanaz a minta, mint a 3.1, ezért érdemes egyszerre → **Jamal**
 - [ ] **3.3** Egyetlen backend, és a második létezését csak szintetikus teszt bizonyítja · `config/backends.yml`, `tests/test_backend_config.py:106-148` · A régi register 3.7 kivette a backend-döntést a kódból adatba — a fájl saját kommentje szerint „a new backend is a new block below, and the converter's code path is unchanged". Ezt ma **semmi valódi futás nem támasztja alá**: a `config/backends.yml`-ben egyetlen `splunk` blokk van, a „több backend is működik" állítást pedig kizárólag a tesztfájlban felépített, kitalált `esql` / `elastic` konfiguráció támasztja alá — ami a *betöltőt* teszteli, nem a konverziót. Yara ugyanide jutott, és egy konkrét eszközt javasolt hozzá: egy kis CLI, ami kap egy backend-konfigurációt + mintaszabályokat, és megmondja, mi fordul le és mi nem. Ez egyszerre lenne a 3.7 falszifikálása és egy jövőbeli „adjunk hozzá Elasticet" kör önellenőrző eszköze → **Gaz** dönt hatókört, **Jamal** hajtja végre (a `scripts/convert/` mellé)
 - [ ] **3.4** A verdikt csak azt méri, hogy „tüzelt-e" — a zajszintről nincs adat · `scripts/verify/pass_fail_eval.py` (`1 ≤ events ≤ 10`) · A README maga nevezi meg a korlátot („A PASS still only proves the search fired once, on one synthetic execution"). A lezárt register **4.1**-e (csendes ablak mérése) jó okkal lett elutasítva: a laborban nincs háttérforgalom. De a maradék rés más alakban is megfogható: pl. a saved search futásidejének / `scanCount`-jának rögzítése a verify során, ami a szabály *költségét* méri, nem az FP-arányát, és háttérforgalom nélkül is értelmes szám → **Yara** (formálás) → **Jamal**
-- [ ] **3.5** A rule browser egyetlen 674 KB-os fájl, mindent előre betöltve · `docs/index.html` (674 590 bájt), forrás: `page.js` 2 878 sor / 128 KB, `page.css` 4 036 sor / 98 KB · 28 szabálynál ez működik; a növekedés viszont lineáris, mert a teljes szabálytest, a MITRE-mátrix, két history-idősor és a deployment-panel is beágyazottan utazik. Nincs mérés arról, hol a fájdalomküszöb — egy Lighthouse-futás (a `chrome-devtools` MCP-eszközök Sienna készletében megvannak) megmondaná, hogy ez ma probléma-e vagy csak később az → **Sienna**
+- [x] **3.5** A rule browser egyetlen 674 KB-os fájl, mindent előre betöltve · `docs/index.html` (674 590 bájt), forrás: `page.js` 2 878 sor / 128 KB, `page.css` 4 036 sor / 98 KB · 28 szabálynál ez működik; a növekedés viszont lineáris, mert a teljes szabálytest, a MITRE-mátrix, két history-idősor és a deployment-panel is beágyazottan utazik. Nincs mérés arról, hol a fájdalomküszöb — egy Lighthouse-futás (a `chrome-devtools` MCP-eszközök Sienna készletében megvannak) megmondaná, hogy ez ma probléma-e vagy csak később az → **Sienna**
 - [ ] **3.6** Nincs értesítés a pipeline eredményéről a GitHub felületén kívül · A PASS/FAIL verdikt ma a job exit-kódjában, a step summaryben és a promotion PR meglétében jelenik meg. Aki nem nézi az Actions fület, semmiről nem tud — arról sem, hogy 27 szabály hetek óta `NOT_VERIFIED` (1.5). Legolcsóbb forma: GitHub Issue automatikus nyitása/frissítése a lejárt+superseded halmazról, vagy bármilyen tartós felület a step summary helyett → **Jamal** (CI), **Kai** (ha issue/platform-oldali)
 - [ ] **3.7** A lefedettségi cél nincs adatként jelen · `outputs/reports/stats.json`: `mitre_covered_techniques: 12`, `mitre_total_techniques: 222`, `mitre_coverage_pct: 5,4` · A dashboard megmutatja, mi van; nem mutatja, mi lenne a cél, és milyen ütemben haladunk felé. A `coverage_history.json` és a `rule_growth_history.json` már gyűjti az idősort — hiányzik a szándék (célhalmaz, prioritás, „következő 5 technika") rögzítése adatként, amihez a trend mérhető. Ez az a pont, ahol Yara és Masha kimenete tényleges repo-artefaktummá válhatna → **Yara** (tartalom), **Sienna** (megjelenítés)
 - [ ] **3.8** A szabálykönyvtár két taktika-családra szűkül, hét taktikán nulla szabály · gépi számlálás a 28 szabály `attack.*` tactic-tagjein: `execution` 14, `credential_access` 13, `stealth` 8, `persistence` 2, `defense_impairment` 2, `command_and_control` 1, `initial_access` 1, `discovery` 1 · A felső ATT&CK enterprise-taxonómiához mérve **hét taktikán nulla szabály van**: Reconnaissance, Resource Development, Privilege Escalation, Lateral Movement, Collection, Exfiltration, Impact. Teljes technika-lefedettség 12/222 (5,4%). Ez nem hiba — tudatos mélységi fókusz lehet —, de sehol nincs kimondva, hogy az, és a hét üres taktika kész felvételi lista a következő körhöz. Yara javaslata a sorrendre, amivel egyetértek: a **Privilege Escalation** és a **Lateral Movement** az a kettő, amihez a meglévő victim + DC labor-hostokon reálisan van valódi Atomic-teszt — vagyis ezekre nemcsak szabály írható, hanem a repo lényegét adó *élő verifikáció* is elvégezhető rajtuk. (Pontosítás Yara briefjéhez: a repo saját taktika-szótára nem azonos az upstream ATT&CK-kal — `stealth` és `defense_impairment` itt valós taktika, lásd a `mitre-attack-mapping` skillt —, tehát nyolc taktikán *van* szabály, nem kettőn; a koncentráció állítása viszont változatlanul áll.) → **Masha** (külső megalapozás) → **Yara** (priorizálás) → **Yuki** (megvalósítás), dokumentálva **Chloe**
 - [x] **3.9** A publikált szám mellett nincs ott, hogy mikor mértek utoljára élesben · `README.md` badge-sor, `docs/index.html` Verification-gyűrű · Ma a `stats.json` (generálva 2026-08-17) 4% pass rate-et és 27/28 `NOT_VERIFIED`-et mutat, három nappal azután, hogy a régi register naplója egy valódi `LAB_ONLINE=true` futást rögzített 26 szabály éles history-jával. Aki csak a badge-et látja, romlásnak olvassa. Hiányzik egy „utolsó éles verifikáció: `<dátum>`, N/M szabály" jelzés közvetlenül a Pass Rate badge és a gyűrű mellett, plusz a rule browserben egy önkiszolgáló szűrő/jelvény a „újramérésre vár" halmazra, ami megkülönbözteti a *szerkesztés miatt felülírt* és az *elévült* esetet (az adat mindkettőre megvan a `stats.json`-ben). Yara ezt priorizálta a legmagasabbra a briefjében, és egyetértek a *javaslattal* — a diagnózisával nem (lásd a Naplót és az 1.5-öt: a mai 4% nem elévülésből jön, `verified_stale = 0`) → **Sienna**
 - [x] **3.10** Nincs anonimizálás a publikusan letölthető diagnosztikai artifactban · `ci_dev_workflow.yml:1882` (`matched-events-sigma-<run_id>`, 14 napos retention, publikus repón bárki által letölthető) · A régi register **2.16**-a ezt a kockázatot megvizsgálta, és tudatosan a **rövidebb retenciót** választotta (90 → 14 nap) a mezőszűrés helyett — az indoklás jó volt (a nyers esemény maga a hibakeresési érték) —, de a tétel szövege maga nevezi meg, mi maradt kitéve: **a labor névtana** (gépnevek, domain, szolgáltatásfiókok). Egy verify és artifact-feltöltés közé illesztett eszköz, ami a labor-azonosítókat stabil, entitásonként konzisztens álnevekre cseréli (megőrizve az események közti korrelációt, tehát a debug-értéket is), pontosan azt a maradékot zárná le, amit a 2.16 nyitva hagyott. Yara javaslata, a register szövegével megerősítve. Önálló eszköz, nincs mai gazdája — a CI-ba **Jamal** kötné be → **Gaz** dönt gazdát
 - [x] **3.11** Nincs eszköz egy találatszám-eltérés kivizsgálására · verifikálva a `outputs/results/DETECT-2026-0019/history.jsonl`-ből: ugyanaz a szabály négy futás alatt **FAIL (11 esemény) → NOT_VERIFIED (1) → FAIL (0) → NOT_VERIFIED (kikapcsolva)** három nap alatt, közben a `rule_version` 1.6-ról 1.7-re mozdult · A régi register **2.7**-e a globális `--max-pass 10` ablakot vizsgálta, és elutasítással zárult: a felső korlát rossz eszköz, mert az *attack-ablak* számából elvből nem derül ki, hogy a szabály túl tág-e vagy a technika generál tényleg annyi eseményt. Ez a következtetés áll — de a gyakorlati rés megmaradt: ha egy szám 11 lesz 10 helyett, ma **semmi nem mondja meg, melyik esemény volt a plusz egy**. Egy script, ami betölti egy szabály illeszkedett eseményeit és megmutatja, mely mező(k) mentén válik szét a halmaz, a mai „ismert flakiness"-t vizsgálhatóvá tenné. Yara javaslata; a register 2.7-hez fűzött indoklása pontosítva (nem „not-a-bug flakiness"-ként lett lezárva, hanem a felső korlát elvi elutasításaként) → **Jamal** (a `scripts/verify/` kiterjesztéseként), vagy önálló eszköz, ha külön akarjuk tartani a CI-tól
+- [ ] **3.12** Négy valódi, egymástól független, eddig nem követett accessibility-hiba, amit a 3.5 Lighthouse-mérése hozott felszínre · `scripts/docs/assets/page.template.html`, `page.css`, `page.js` · Mind a négy audit-tétel bukott (mobil + desktop preset), és egyik sem a szabályszámmal növekvő teher (nem a 3.5 hatóköre) — ma javítható, önálló hiba: **(1) `button-name`** — a drawer bezáró gombja (`button.drawer-close`, `onclick="closeDrawer()"`, `page.template.html:587`) ikon-only, `aria-label` nélkül; a minta ismert és helyesen alkalmazott máshol ugyanabban a fájlban (`.info-close`, `:61`, `aria-label="Close"`), csak erre a gombra nem lett átvezetve. **(2) `color-contrast`** — 4 elem bukik WCAG-kontraszton: `#strip-total` („28 rules" szöveg), a „MITRE Navigator" és „Dashboards" fül-gombok, és `#result-count` („28 / 28" szöveg). **(3) `landmark-one-main`** — nincs `<main>` landmark a dokumentumban sehol (`grep '<main' page.template.html` → 0 találat). **(4) `target-size`** (desktop nézet) — a szabálytáblázat MITRE taktika-pill jelvényei (`a.badge.badge-mitre`, `page.js:1583`, CSS `page.css:1134`) kb. 73×17–85×17 px méretűek, a WCAG 24×24 px érintési minimum alatt, szűken egymás mellett csomagolva. **Elhatárolás:** ez **nem** azonos a régi `remediation-plan.md` „amit ez az audit nem fedett" szakaszában rögzített, sosem újraellenőrzött sormagasság-hibával (badge-listás sorok `vertical-align: middle` miatti üres tere, `DETECT-2026-0022`-nél ~183px sor — az a hiba a *sor* magasságáról szól, ez a tétel a *jelvény* kattintható méretéről; szomszédos felület, a régi tétel máig nyitott/nem újraellenőrzött, ebben a körben sem lett vizsgálva) → **Sienna**
 
 ## 4 · Robusztusság és karbantarthatóság (7) · ×2
 
@@ -703,3 +704,69 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
      (`:130`) — ez **szándékos és dokumentált** (a modul-docstring
      „Pseudonym stability" szakasza), nem hiba: cross-run stabilitást ad, a
      titkosság hiányát a 3. pont oldja fel opcionálisan.
+
+- **2026-08-21 — 3.5 lezárva mérés alapján (nem megvalósítás) (Sienna), Kwame könyvelte.**
+  Nincs kódváltozás — a `git status`/`git diff` a mérés előtt és után is tiszta munkafát
+  mutatott, ahogy a tétel jellege (mérés, nem javítás) is megkívánta.
+  **Módszer, a tétel szövegétől eltérve, indokoltan:** a tétel a `chrome-devtools` MCP-t
+  nevezte meg; Sienna sandboxában nincs rendszerszintű Chrome, ezért a helyette önálló
+  `lighthouse` CLI-t futtatta Playwright Chromiumja ellen, ugyanazokkal az audit-
+  kategóriákkal és ugyanazzal a motorral — érvényes helyettesítés, de eltérés a tétel
+  szó szerinti szövegétől, ezért itt rögzítve.
+  **Mérés (friss `docs/index.html`, mobil + desktop preset):** Performance 78/100 mobil,
+  96/100 desktop; Accessibility 86/100 mobil, 81/100 desktop; Best Practices 96/100; SEO
+  100/100.
+  **A mobil performance-szám mérési módszertan műterméke, nem valós tünet.** A mérés
+  Python `http.server`-rel kiszolgált, tömörítetlen fájl ellen futott (681 KB átvitel).
+  Sienna külön ellenőrizte a valódi production URL-t (GitHub Pages) `curl`-lel — ezt
+  itt önállóan megismételtem: `https://martonbence.github.io/Detection-Engineering/`
+  `content-encoding: gzip`, `content-length: 114220` (~114 KB), `HTTP/2 200`, saját
+  mérésem szerint ~200 ms teljes idő / ~183 ms TTFB erről a gépről (más hálózati út,
+  mint Sienna méréséé — a nagyságrend, a gzip-tömörítés ténye és a ~114 KB méret
+  egyezik az állítással, az abszolút ezredmásodperc-szám hálózatfüggő, nem
+  összehasonlítható 1:1). JS-futási költség ~0 (0 ms total-blocking-time, 0,1 s
+  main-thread munka) — a mérőszámot a Lighthouse-fékezési feltételezések torzítják egy
+  nem production-hű teszt-felállásban, nem az oldal tartalma.
+  **Fájlméret-bontás** (680 982 bájt, tömörítetlen — a helyi fájl mérete önállóan
+  ellenőrizve: `ls -la docs/index.html` → pontosan 680 982 bájt; `page.js` 134 412 bájt
+  egyezik, `page.css` 98 349 bájt a jelentett 98 356-tal szemben, 7 bájt eltérés,
+  elhanyagolható, valószínűleg más mérési időpont): MITRE Navigator mátrix HTML
+  267 345 bájt (39,3%, **nem nő** a szabályszámmal — fix rács a 222 ATT&CK technikán),
+  `page.js` 134 412 (19,7%, statikus), RULES JSON 71 111 (10,4%, a ténylegesen
+  szabályszám-lineáris rész, ~2,5 KB/szabály), `page.css` 98 356 (14,4%, statikus),
+  deployment-panel HTML 57 819 (8,5%, részben lineáris), history JSON 15 214 (2,2%,
+  idő-, nem szabályszám-alapú), maradék statikus markup ~36 725 (5,4%).
+  **Következtetés, rögzítve:** 28 szabálynál nem élő probléma, és a növekedési görbe
+  enyhébb, mint a tétel eredeti keretezése feltételezte — a legnagyobb szelet (39%, a
+  MITRE-mátrix) már mérethatáron van, nem nő tovább; csak ~2,5 KB/szabály valóban
+  lineáris, tehát 10x növekedés (~280 szabály) is csak ~120 KB-ot tenne a mai ~114 KB
+  gzippelt méretre — még mindig gyors oldal bármilyen normál mércével. Ha a növekedés
+  valaha valódi gonddá válik, a böngészőbeli DOM-méret/render-költség valószínűbb
+  jövőbeli fájdalompont, mint a hálózati átviteli bájtszám — ezt érdemes követni, nem a
+  nyers fájlméretet. **Revizit-küszöb, explicit rögzítve:** nincs mai indok az
+  átdolgozásra; a következő nézőpont a DOM-méret/render-költség legyen, nem a
+  fájlméret, ha ez a tétel valaha újranyílik.
+  **Mellékes, opcionális flag:** egy hiányzó `favicon.ico` miatti konzol-404 a Best
+  Practices alatt — triviális, nem kapott önálló tételszámot, csak itt jegyezve.
+  **Négy, a mérés által feltárt, valódi és önálló accessibility-hiba nem ennek a
+  tételnek a lezárásába, hanem egy új, nyitott tételbe (3.12) került** — lásd alább.
+
+- **2026-08-21 — 3.12 felvéve (Kwame könyvelte, Sienna Lighthouse-mérése alapján).** A
+  3.5 mérése négy, a szabályszámtól független, ma javítható accessibility-hibát hozott
+  fel (`button-name`, `color-contrast`, `landmark-one-main`, `target-size`) — ezek nem
+  tartoznak a 3.5 mérés-alapú lezárásába, mert nem mérési következtetések, hanem
+  konkrét, azonnal cselekvő hibák. Új tételszám: **3.12** (a szakasz addigi legmagasabb
+  tétele a 3.11 volt). A szakaszfejléc `(11)` → `(12)`-re módosult, a teljes register-súly
+  **79 → 80,5** (a funkció-kategória 11×1,5=16,5 → 12×1,5=18). A `target-size` találatot
+  (MITRE taktika-pill jelvények érintési célmérete) szándékosan elhatárolva a régi
+  `remediation-plan.md` „amit nem fedett" szakaszában rögzített, sosem újraellenőrzött
+  sormagasság-hibától (badge-listás sorok `vertical-align`-problémája) — a kettő
+  szomszédos felület, de különböző hiba; ebben a körben egyiket sem ellenőriztem újra a
+  kettő közül, csak a mostani Lighthouse-találatot verifikáltam. Ellenőrzés a felvétel
+  előtt: `grep`-pel megerősítve, hogy a `button.drawer-close` (`page.template.html:587`)
+  ténylegesen nem kap `aria-label`-t, míg az `.info-close` gomb ugyanabban a fájlban
+  igen (`:61`); hogy `<main` egyszer sem fordul elő a template-ben; és hogy az
+  `a.badge.badge-mitre` (`page.js:1583`, `page.css:1134`) ténylegesen létező, a leírt
+  módon használt osztály. A színkontraszt-állítást (4 elem) nem tudtam önállóan
+  újramérni (nincs Lighthouse/böngésző-eszköz ebben a munkamenetben) — ezen a ponton
+  Sienna jelentésére támaszkodom.
