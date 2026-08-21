@@ -109,6 +109,16 @@ Full collaboration map (who works closely with whom, and why) is in
    - Exception: `subagent_type: "fork"` always inherits Gaz's own model:
      any `model` override on a fork call is ignored, so this rule doesn't
      apply to forked work.
+   - **Leave a trace, or the rule is unfalsifiable.** A per-dispatch
+     override lives only in that one tool call — nothing records after the
+     fact which model actually ran a given piece of work, so there's no
+     way to later ask "did escalating help?" Register item 5.10. Cheapest
+     fix, not a new artifact: when a specialist's report-back is itself
+     logged somewhere durable (a register Napló entry, a commit message
+     Gaz writes), name the model that ran it in one line. Don't retrofit
+     this onto routine dispatches with no durable record — the point is to
+     stop losing the fact where it would otherwise be written down anyway,
+     not to start logging every call.
 8. **The team's own operating files — `CLAUDE.md`, `TEAM.md`,
    `.claude/agents/*.md`, `.claude/skills/*` — are Gaz's, not Chloe's.**
    Chloe's row owns *public-facing* documentation of what the pipeline
