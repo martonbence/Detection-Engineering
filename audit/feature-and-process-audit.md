@@ -533,3 +533,44 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   **Nem történt meg:** a fagyasztott-órás pre/post frozen-clock összehasonlítás önálló
   újra-lefuttatása (lásd fent, miért) — ezen a ponton Sienna számszerű jelentésére
   támaszkodom, nem saját, független bájt-egyezés-mérésre.
+
+- **2026-08-21 — 4.4 vizsgálat lezárva eredmény nélkül (Jamal, opus), a tétel
+  változatlanul `[ ]` marad.** A 2026-08-20 részleges bejegyzés után Gaz a hátralévő
+  hatókört (verify-results + dashboard commit összevonása, `if: always()`
+  hibatűréssel) adta ki vizsgálatra. Jamal **nem implementált semmit** — ellenőrizve:
+  `git status` és `git diff -- .github/workflows/ci_dev_workflow.yml` üres, a fájl
+  byte-azonos a HEAD-del. A vizsgálat a kiinduló feltevést cáfolta meg, nem csak
+  kockázatosnak találta: a `splunk_verify` job (self-hosted lab runner, `ci_dev_
+  workflow.yml:1559`) és az `update_dashboard` job (ubuntu-latest, `:2251`) **két
+  különböző runneren** fut. Az `update_dashboard` friss checkout-ot és `git reset
+  --hard origin/dev`-et futtat (`:2332`) a statisztika-újragenerálás előtt; a
+  `generate_stats.py` kizárólag a munkafát olvassa (`outputs/results/*/result.json`,
+  `outputs/reports/deployment_inventory.json`) — nincs GitHub Actions artifact, ami a
+  verify-eredményt átvinné a két job között. A `splunk_verify` commitja (`:2135`,
+  szintén `git reset --hard origin/dev` előzi meg) **az egyetlen adatátviteli
+  csatorna** az `update_dashboard` felé.
+  **Konkrét hibaforgatókönyv:** egy `workflow_dispatch` újramérés (scope: all vagy
+  egy adott szabály) egy, az elmúlt 180 napban PASS-t kapott szabályt élesben
+  újramér, és FAIL/NOT_VERIFIED lesz belőle. Ha a verify-results commit elmaradna
+  (elhalasztva/összevonva), és a dashboard mindenképp lefutna a végén (`if:
+  always()`), az `update_dashboard` `origin/dev`-re resetelne, nem találna friss
+  eredményfájlt, és a *korábbi* (életkor/verzió alapján még nem elévült) PASS
+  verdiktet publikálná újra aktuálisként — egy zöld, teljesen hihetőnek tűnő commit,
+  ami félreértelmezi, mi történt ténylegesen abban a futásban. A meglévő
+  elévülés-kezelés (1.5/3.9 — verzió-alapú felülírás, 180 napos lejárat) ezt az
+  esetet nem fogja meg, mert maga a szabály nem változott, csak az újramérés adott
+  eltérő eredményt.
+  **A két kézenfekvő megkerülés is kívül esik a hatókörön:** (a) az
+  `outputs/results` cross-runner artifactként való átvitele — ez újraépítené a
+  törékeny, append-only `history.jsonl`-összefésülő logikát (`ci_dev_workflow.yml`
+  kb. `2111-2219`), és egy olyan futásban, ahol az `update_dashboard` sosem indul el,
+  a verdiktek teljesen elvesznének — rosszabb hibatűrés, mint ma; (b) a
+  `generate_stats.py` áthelyezése magába a `splunk_verify` jobba — ez visszavonná a
+  tudatos `[dashboard-decoupling]` döntést, ami miatt a dashboard offline lab esetén
+  is tovább frissül.
+  **Rögzítve:** a commit-szám változatlan (3/futás: [prune+SPL], [verify-results],
+  [dashboard]), kód nem változott, a 4.4 hátralévő hatóköréhez a tételszövegben már
+  megnevezett nagyobb átalakítás kell (branch-eltávolítás / Pages-artifact
+  alternatíva, a 3.5-tel összekötve), nem egy egyszerű write-back-összevonás — ezt
+  explicit rögzítjük, hogy egy jövőbeli nekifutásnak ne kelljen nulláról
+  újralevezetnie a cross-runner korlátot.
