@@ -125,7 +125,7 @@ teljesíthető utasítással indul.
 - [ ] **3.8** A szabálykönyvtár két taktika-családra szűkül, hét taktikán nulla szabály · gépi számlálás a 28 szabály `attack.*` tactic-tagjein: `execution` 14, `credential_access` 13, `stealth` 8, `persistence` 2, `defense_impairment` 2, `command_and_control` 1, `initial_access` 1, `discovery` 1 · A felső ATT&CK enterprise-taxonómiához mérve **hét taktikán nulla szabály van**: Reconnaissance, Resource Development, Privilege Escalation, Lateral Movement, Collection, Exfiltration, Impact. Teljes technika-lefedettség 12/222 (5,4%). Ez nem hiba — tudatos mélységi fókusz lehet —, de sehol nincs kimondva, hogy az, és a hét üres taktika kész felvételi lista a következő körhöz. Yara javaslata a sorrendre, amivel egyetértek: a **Privilege Escalation** és a **Lateral Movement** az a kettő, amihez a meglévő victim + DC labor-hostokon reálisan van valódi Atomic-teszt — vagyis ezekre nemcsak szabály írható, hanem a repo lényegét adó *élő verifikáció* is elvégezhető rajtuk. (Pontosítás Yara briefjéhez: a repo saját taktika-szótára nem azonos az upstream ATT&CK-kal — `stealth` és `defense_impairment` itt valós taktika, lásd a `mitre-attack-mapping` skillt —, tehát nyolc taktikán *van* szabály, nem kettőn; a koncentráció állítása viszont változatlanul áll.) → **Masha** (külső megalapozás) → **Yara** (priorizálás) → **Yuki** (megvalósítás), dokumentálva **Chloe**
 - [x] **3.9** A publikált szám mellett nincs ott, hogy mikor mértek utoljára élesben · `README.md` badge-sor, `docs/index.html` Verification-gyűrű · Ma a `stats.json` (generálva 2026-08-17) 4% pass rate-et és 27/28 `NOT_VERIFIED`-et mutat, három nappal azután, hogy a régi register naplója egy valódi `LAB_ONLINE=true` futást rögzített 26 szabály éles history-jával. Aki csak a badge-et látja, romlásnak olvassa. Hiányzik egy „utolsó éles verifikáció: `<dátum>`, N/M szabály" jelzés közvetlenül a Pass Rate badge és a gyűrű mellett, plusz a rule browserben egy önkiszolgáló szűrő/jelvény a „újramérésre vár" halmazra, ami megkülönbözteti a *szerkesztés miatt felülírt* és az *elévült* esetet (az adat mindkettőre megvan a `stats.json`-ben). Yara ezt priorizálta a legmagasabbra a briefjében, és egyetértek a *javaslattal* — a diagnózisával nem (lásd a Naplót és az 1.5-öt: a mai 4% nem elévülésből jön, `verified_stale = 0`) → **Sienna**
 - [ ] **3.10** Nincs anonimizálás a publikusan letölthető diagnosztikai artifactban · `ci_dev_workflow.yml:1882` (`matched-events-sigma-<run_id>`, 14 napos retention, publikus repón bárki által letölthető) · A régi register **2.16**-a ezt a kockázatot megvizsgálta, és tudatosan a **rövidebb retenciót** választotta (90 → 14 nap) a mezőszűrés helyett — az indoklás jó volt (a nyers esemény maga a hibakeresési érték) —, de a tétel szövege maga nevezi meg, mi maradt kitéve: **a labor névtana** (gépnevek, domain, szolgáltatásfiókok). Egy verify és artifact-feltöltés közé illesztett eszköz, ami a labor-azonosítókat stabil, entitásonként konzisztens álnevekre cseréli (megőrizve az események közti korrelációt, tehát a debug-értéket is), pontosan azt a maradékot zárná le, amit a 2.16 nyitva hagyott. Yara javaslata, a register szövegével megerősítve. Önálló eszköz, nincs mai gazdája — a CI-ba **Jamal** kötné be → **Gaz** dönt gazdát
-- [ ] **3.11** Nincs eszköz egy találatszám-eltérés kivizsgálására · verifikálva a `outputs/results/DETECT-2026-0019/history.jsonl`-ből: ugyanaz a szabály négy futás alatt **FAIL (11 esemény) → NOT_VERIFIED (1) → FAIL (0) → NOT_VERIFIED (kikapcsolva)** három nap alatt, közben a `rule_version` 1.6-ról 1.7-re mozdult · A régi register **2.7**-e a globális `--max-pass 10` ablakot vizsgálta, és elutasítással zárult: a felső korlát rossz eszköz, mert az *attack-ablak* számából elvből nem derül ki, hogy a szabály túl tág-e vagy a technika generál tényleg annyi eseményt. Ez a következtetés áll — de a gyakorlati rés megmaradt: ha egy szám 11 lesz 10 helyett, ma **semmi nem mondja meg, melyik esemény volt a plusz egy**. Egy script, ami betölti egy szabály illeszkedett eseményeit és megmutatja, mely mező(k) mentén válik szét a halmaz, a mai „ismert flakiness"-t vizsgálhatóvá tenné. Yara javaslata; a register 2.7-hez fűzött indoklása pontosítva (nem „not-a-bug flakiness"-ként lett lezárva, hanem a felső korlát elvi elutasításaként) → **Jamal** (a `scripts/verify/` kiterjesztéseként), vagy önálló eszköz, ha külön akarjuk tartani a CI-tól
+- [x] **3.11** Nincs eszköz egy találatszám-eltérés kivizsgálására · verifikálva a `outputs/results/DETECT-2026-0019/history.jsonl`-ből: ugyanaz a szabály négy futás alatt **FAIL (11 esemény) → NOT_VERIFIED (1) → FAIL (0) → NOT_VERIFIED (kikapcsolva)** három nap alatt, közben a `rule_version` 1.6-ról 1.7-re mozdult · A régi register **2.7**-e a globális `--max-pass 10` ablakot vizsgálta, és elutasítással zárult: a felső korlát rossz eszköz, mert az *attack-ablak* számából elvből nem derül ki, hogy a szabály túl tág-e vagy a technika generál tényleg annyi eseményt. Ez a következtetés áll — de a gyakorlati rés megmaradt: ha egy szám 11 lesz 10 helyett, ma **semmi nem mondja meg, melyik esemény volt a plusz egy**. Egy script, ami betölti egy szabály illeszkedett eseményeit és megmutatja, mely mező(k) mentén válik szét a halmaz, a mai „ismert flakiness"-t vizsgálhatóvá tenné. Yara javaslata; a register 2.7-hez fűzött indoklása pontosítva (nem „not-a-bug flakiness"-ként lett lezárva, hanem a felső korlát elvi elutasításaként) → **Jamal** (a `scripts/verify/` kiterjesztéseként), vagy önálló eszköz, ha külön akarjuk tartani a CI-tól
 
 ## 4 · Robusztusság és karbantarthatóság (7) · ×2
 
@@ -135,7 +135,7 @@ teljesíthető utasítással indul.
 - [ ] **4.4** Hat különböző commit-visszaírási út, futásonként 3-4 gépi commit · `ci_dev_workflow.yml` (4 commit: prune / SPL / verify results / dashboard), `ci_code_checks.yml` (1), `ci_prod_audit.yml` (1) · 894 commitból **256** (29%) `[skip ci]` gépi commit; a `docs/index.html`-t 185, az `outputs/`-ot 221 commit érinti. Következmény a napi munkára: a felhasználó minden helyi commit előtt rebase-elni kényszerül, mert a CI mindig elé ír (ez már rögzített projekt-tapasztalat). A történet ettől olvashatatlan is: egy valódi változtatás körül 3-4 zajcommit ül. Irány: egy futás = legfeljebb egy visszaírás (az `update_dashboard` amúgy is külön jobban fut, oda összevonható), vagy a generált artefaktumok kivezetése a branchről (Pages-artifact + release-asset), ami a 3.5-tel is összeér → **Jamal** ⟶ folyamatban
 - [x] **4.5** A generátor központi függvénye 277 soros, és egyetlen tesztmodul importálja · `scripts/docs/generate_stats.py:863-1140` (`generate_stats()`), a fájl összesen 1 812 sor · A régi register **3.4 phase 1** kiszedte az inline HTML/CSS/JS literált (6 000 → 1 812 sor); a phase 2, a számítási mag szétbontása nem történt meg. Ez a függvény állítja elő egyszerre az összes publikált számot, a MITRE-lefedettséget, a README-blokkot és a history-idősorokat. Az 1.6 (tesztek) ennek a szétbontásával lesz olcsó, nem előtte → **Sienna**
 - [x] **4.6** Három hard CI-kapu körül nincs teszt · `scripts/validate/validate_sigma.py` (a séma-kapu, amin minden szabály átmegy), `scripts/validate/check_detect_id_uniqueness.py`, `scripts/new_rule.py` · A `tests/` egyik modulja sem importálja őket (a `check_version_bump`, `check_test_routing`, `check_mitre_tags`, `check_spl_syntax` viszont mind fedve van, jól). A `new_rule.py` külön súlyos: a `sigma-rule-authoring` skill *minden* új szabályt ezzel indíttat, tehát a scaffold hibája minden jövőbeli szabályba beépül; a skill állítása („every placeholder already satisfies the schema, `validate_sigma.py` passes on the untouched skeleton") ma nincs teszttel bizonyítva, pedig pontosan egy ilyen `scaffold → validate` round-trip teszt írná le → **Jamal**
-- [ ] **4.7** Nincs UI-regressziós ellenőrzés, pedig az ügynök-szerződés előírja a manuálisat · `.claude/agents/Sienna - Frontend Engineer.md` („Verifies their own changes with Playwright before calling them done") · A Playwright-ellenőrzés így minden alkalommal kézi, egyszeri és nyomtalan: nincs elmentett snapshot, nincs CI-ban futó smoke-teszt, ami észrevenné, hogy egy `@@MARKER@@` kicseréletlenül maradt, egy doughnut nem renderelődik, vagy a Navigator-nézet elszáll. Egy egyszerű headless smoke (az oldal betölt, nincs console error, megvan a várt N szabálysor és a két gyűrű) a `ci_code_checks.yml`-ben megfogná a leggyakoribb regressziót → **Sienna** + **Jamal**
+- [x] **4.7** Nincs UI-regressziós ellenőrzés, pedig az ügynök-szerződés előírja a manuálisat · `.claude/agents/Sienna - Frontend Engineer.md` („Verifies their own changes with Playwright before calling them done") · A Playwright-ellenőrzés így minden alkalommal kézi, egyszeri és nyomtalan: nincs elmentett snapshot, nincs CI-ban futó smoke-teszt, ami észrevenné, hogy egy `@@MARKER@@` kicseréletlenül maradt, egy doughnut nem renderelődik, vagy a Navigator-nézet elszáll. Egy egyszerű headless smoke (az oldal betölt, nincs console error, megvan a várt N szabálysor és a két gyűrű) a `ci_code_checks.yml`-ben megfogná a leggyakoribb regressziót → **Sienna** + **Jamal**
 
 ## 5 · A Claude-munkamodell mint fejlesztési folyamat (11) · ×1,5
 
@@ -574,3 +574,65 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   alternatíva, a 3.5-tel összekötve), nem egy egyszerű write-back-összevonás — ezt
   explicit rögzítjük, hogy egy jövőbeli nekifutásnak ne kelljen nulláról
   újralevezetnie a cross-runner korlátot.
+
+- **2026-08-21 — 4.7 lezárva (Sienna + Jamal), Kwame verifikálta, önálló futtatással.**
+  Két commit: `df50d31` (Sienna) — új `scripts/docs/smoke_test_rule_browser.js` (373 sor),
+  öt ellenőrzés: nulla kicseréletlen `@@MARKER@@` a `docs/index.html`-ben, oldalbetöltés
+  hiba nélkül, nulla console/page error, a szabálysor-szám egyezése három forrás között
+  (`stats.json` `total_rules`, az oldalba ágyazott `RULES` tömb hossza, a `#result-count`
+  szöveg), és a Dashboards-fül két gyűrűje (`chart-evidence`, `chart-verify`) ténylegesen
+  Chart.js-példányként létezik, látható méretű, és a mögötte lévő adathalmaz összege > 0.
+  `35fb6c6` (Jamal) — bekötve a `ci_code_checks.yml` `static_analysis` jobjába: friss
+  `python scripts/docs/generate_stats.py` futás, majd Playwright telepítés (pinelve
+  `1.55.0`-ra, `--no-save`, mert nincs `package.json`), majd maga a smoke teszt, mindkét
+  lépés `steps.generate_smoke_fixture.outcome == 'success'`-re kapuzva. `.gitignore`
+  kiegészült a `node_modules/`-szal.
+  **Ellenőrzés:** mindkét commit létezik és a leírtnak megfelelő tartalommal (`git show`
+  teljes diff elolvasva, nem csak a commit-üzenet). A workflow-diff a `static_analysis`
+  jobon belül landol, a meglévő `page.js`-szintaxis-lépés után, `regenerate_console` előtt
+  — pontosan a Jamal-jelentésben leírt job-gráf. `actionlint 1.7.12` +
+  `shellcheck 0.10.0` (frissen letöltve, mert ezen a gépen alapból nincs) → hiba nélkül.
+  **Sienna és Jamal is jelezte, hogy nem futott náluk Playwright/Chromium** — ezen a gépen
+  viszont igen: telepítettem `playwright@1.55.0`-t (`npm install --no-save`), a hozzá
+  tartozó Chromium-revíziót (`1187`) a helyi `~/.cache/ms-playwright` már tartalmazta
+  (`--with-deps` szudó nélkül elhasalt, sima `npx playwright install chromium` viszont csak
+  "removing unused browser"-t írt ki, mert a szükséges revízió már megvolt), tehát **önállóan
+  lefuttattam a smoke tesztet a valódi, frissen regenerált `docs/index.html`-en** (`python3
+  scripts/docs/generate_stats.py`, majd `node scripts/docs/smoke_test_rule_browser.js
+  --docs-dir docs --stats outputs/reports/stats.json`): mind az 5 ellenőrzés **PASS**, végső
+  státusz `SMOKE TEST: PASSED`. A generálással keletkezett munkafa-változásokat
+  (`README.md`, `docs/index.html`, `outputs/reports/*.json`) `git checkout --`-tal
+  visszaállítottam, a `node_modules/`-t töröltem — a repó tisztán maradt, nincs commit.
+
+- **2026-08-21 — 3.11 lezárva (feltárt, dokumentált korláttal), Kwame verifikálta.**
+  `0c573e9`: új `scripts/verify/diff_matched_events.py` (308 sor, önálló CLI, tudatosan
+  nincs CI-ba kötve — vizsgáló eszköz, nem kapu) + `tests/test_diff_matched_events.py`
+  (252 sor, 22 teszt). A modul minden, legalább egy eseményen jelen lévő mezőre megnézi,
+  van-e szigorú többségi érték (`> total/2`), és ha igen, a kisebbségi értékeket az
+  eseményindexeikkel együtt jelenti; a mezőket a kisebbség méretének növekvő sorrendjében
+  rangsorolja — pontosan a „FAIL(11) vs. PASS(10), melyik volt a plusz esemény" esetet
+  célozva, ahogy a tétel és a modul saját docstringje is leírja. `_hashable()` a lista/dict
+  mezőket hasható alakra hozza, hiányzó mező `"(missing)"` szentinelt kap. Alapértelmezett
+  kizárás: `_`-prefixű Splunk-bookkeeping mezők + egy névvel felsorolt metaadat-halmaz
+  (`linecount`, `punct`, `splunk_server`, …), `--include-field`/`--all-fields`-szel
+  felülírható.
+  **Ellenőrzés:** `python -m pytest tests/test_diff_matched_events.py` → **22/22 zöld**
+  (pinelt `pytest==9.1.1`, izolált venv-ben, mert ezen a gépen sincs rendszerszintű pip/
+  pytest). `ruff check scripts/verify/diff_matched_events.py tests/test_diff_matched_events.py`
+  (pinelt `ruff==0.16.3`) → **All checks passed!**. A modul docstringje és a
+  `find_splitting_fields()` törzse végigolvasva: a leírt majority/minority-logika és a
+  kisebbség-szerinti rangsorolás valóban ezt csinálja, nem csak azt állítja.
+  **Ismert korlát, amit nem takarok el a lezárással (a modul saját docstringje és a
+  commit-üzenet is nevesíti):** a nyers illeszkedett-esemény adat (a
+  `check_saved_search_hits.py` által termelt `events` tömb) **sosem kerül be az
+  `outputs/`-ba** — kizárólag a `matched-events-sigma-<run_id>` CI-artifactban létezik,
+  14 napos retencióval (`ci_dev_workflow.yml:1882`). Vagyis a `diff_matched_events.py` a
+  3.11 tényleges hatókörére helyes és teljes, de **ma csak ezen a 14 napos ablakon belül
+  ténylegesen használható** — utána nincs mit betölteni vele, hacsak valaki nem menti le
+  kézzel az artifactot lejárat előtt. Ez ugyanaz a `matched-events-sigma-<run_id>` artifact,
+  amit a **3.10** (a labor-névtan anonimizálása) is érint — bárki, aki legközelebb az egyiket
+  nyitja meg, nézze meg a másikat is: mindkettő ugyanabból a perzisztencia-hiányból ered
+  (a nyers matched-event adat sosem landol a repó/`outputs/` tartós rétegében), és egy közös
+  megoldás (pl. az artifact tartalmának szűrt/anonimizált formában való megőrzése
+  `outputs/`-ban) mindkettőt egyszerre zárná. Nem kapott önálló tételszámot — bekövetkezett
+  tényként rögzítve itt, a 3.11 zárásában, a 2.12-nél alkalmazott konvenció szerint.
