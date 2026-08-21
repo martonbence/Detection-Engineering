@@ -127,7 +127,7 @@ teljesíthető utasítással indul.
 - [x] **3.10** Nincs anonimizálás a publikusan letölthető diagnosztikai artifactban · `ci_dev_workflow.yml:1882` (`matched-events-sigma-<run_id>`, 14 napos retention, publikus repón bárki által letölthető) · A régi register **2.16**-a ezt a kockázatot megvizsgálta, és tudatosan a **rövidebb retenciót** választotta (90 → 14 nap) a mezőszűrés helyett — az indoklás jó volt (a nyers esemény maga a hibakeresési érték) —, de a tétel szövege maga nevezi meg, mi maradt kitéve: **a labor névtana** (gépnevek, domain, szolgáltatásfiókok). Egy verify és artifact-feltöltés közé illesztett eszköz, ami a labor-azonosítókat stabil, entitásonként konzisztens álnevekre cseréli (megőrizve az események közti korrelációt, tehát a debug-értéket is), pontosan azt a maradékot zárná le, amit a 2.16 nyitva hagyott. Yara javaslata, a register szövegével megerősítve. Önálló eszköz, nincs mai gazdája — a CI-ba **Jamal** kötné be → **Gaz** dönt gazdát
 - [x] **3.11** Nincs eszköz egy találatszám-eltérés kivizsgálására · verifikálva a `outputs/results/DETECT-2026-0019/history.jsonl`-ből: ugyanaz a szabály négy futás alatt **FAIL (11 esemény) → NOT_VERIFIED (1) → FAIL (0) → NOT_VERIFIED (kikapcsolva)** három nap alatt, közben a `rule_version` 1.6-ról 1.7-re mozdult · A régi register **2.7**-e a globális `--max-pass 10` ablakot vizsgálta, és elutasítással zárult: a felső korlát rossz eszköz, mert az *attack-ablak* számából elvből nem derül ki, hogy a szabály túl tág-e vagy a technika generál tényleg annyi eseményt. Ez a következtetés áll — de a gyakorlati rés megmaradt: ha egy szám 11 lesz 10 helyett, ma **semmi nem mondja meg, melyik esemény volt a plusz egy**. Egy script, ami betölti egy szabály illeszkedett eseményeit és megmutatja, mely mező(k) mentén válik szét a halmaz, a mai „ismert flakiness"-t vizsgálhatóvá tenné. Yara javaslata; a register 2.7-hez fűzött indoklása pontosítva (nem „not-a-bug flakiness"-ként lett lezárva, hanem a felső korlát elvi elutasításaként) → **Jamal** (a `scripts/verify/` kiterjesztéseként), vagy önálló eszköz, ha külön akarjuk tartani a CI-tól
 - [x] **3.12** Négy valódi, egymástól független, eddig nem követett accessibility-hiba, amit a 3.5 Lighthouse-mérése hozott felszínre · `scripts/docs/assets/page.template.html`, `page.css`, `page.js` · Mind a négy audit-tétel bukott (mobil + desktop preset), és egyik sem a szabályszámmal növekvő teher (nem a 3.5 hatóköre) — ma javítható, önálló hiba: **(1) `button-name`** — a drawer bezáró gombja (`button.drawer-close`, `onclick="closeDrawer()"`, `page.template.html:587`) ikon-only, `aria-label` nélkül; a minta ismert és helyesen alkalmazott máshol ugyanabban a fájlban (`.info-close`, `:61`, `aria-label="Close"`), csak erre a gombra nem lett átvezetve. **(2) `color-contrast`** — 4 elem bukik WCAG-kontraszton: `#strip-total` („28 rules" szöveg), a „MITRE Navigator" és „Dashboards" fül-gombok, és `#result-count` („28 / 28" szöveg). **(3) `landmark-one-main`** — nincs `<main>` landmark a dokumentumban sehol (`grep '<main' page.template.html` → 0 találat). **(4) `target-size`** (desktop nézet) — a szabálytáblázat MITRE taktika-pill jelvényei (`a.badge.badge-mitre`, `page.js:1583`, CSS `page.css:1134`) kb. 73×17–85×17 px méretűek, a WCAG 24×24 px érintési minimum alatt, szűken egymás mellett csomagolva. **Elhatárolás:** ez **nem** azonos a régi `remediation-plan.md` „amit ez az audit nem fedett" szakaszában rögzített, sosem újraellenőrzött sormagasság-hibával (badge-listás sorok `vertical-align: middle` miatti üres tere, `DETECT-2026-0022`-nél ~183px sor — az a hiba a *sor* magasságáról szól, ez a tétel a *jelvény* kattintható méretéről; szomszédos felület, a régi tétel máig nyitott/nem újraellenőrzött, ebben a körben sem lett vizsgálva) → **Sienna**
-- [ ] **3.13** A 3.12 javítása után új, korábban nem dokumentált `color-contrast` bukások jelentek meg más elemeken · `scripts/docs/assets/page.css`: `.filter-group-label`, `.filter-uniq`, `.filter-supergroup-title`, `.filters-generated`, `.kbd-hint`, és néhány verdikt-jelvény (`badge-category` / `badge-service` a szabálytáblázatban) · Sienna a 3.12 javítása után futtatott Lighthouse-újramérésben ezt az elemhalmazt 4,19–4,47:1 tartományban jelentette (WCAG AA 4,5:1 alatt) — **ez a fenti hatókörön kívül eső, mellékesen felfedezett hiba, amit a 3.12 szándékosan nem javított**, hogy ne táguljon menet közben a tétel hatóköre; ugyanaz a mintázat, mint ami a 3.5-ből a 3.12-t termelte. Kwame saját, a `docs/index.html` friss regenerálásán futtatott Lighthouse-mérése (desktop preset, ugyanaz a `color-contrast` audit) megerősíti, hogy a hiba valós és pontosan ezt a hat elemtípust érinti, de **tágabb tartományt mér, mint Sienna jelentése**: `.filter-group-label` / `.filter-uniq` / `.filter-supergroup-title` **3,52:1** (`#6e7681` / `#1c2128`), `.filters-generated` **3,76:1** (`#6e7681` / `#161b22`), `.kbd-hint` **4,11:1** (`#6e7681` / `#0d1117`), a verdikt-jelvények **4,19–4,47:1** (`#f85149` / `#332227` és `#38272c`, `#2ea44f` / `#1e302c`) — vagyis a jelvények tartománya egyezik Sienna számával, a `#6e7681` szövegszín (feltehetően egy `text3`-hoz hasonló, tompított token) viszont a háttértől függően ennél lényegesen rosszabb is lehet. A pontos kontraszt-arányokat és a jelenlegi színtoken-kontextust (melyik CSS-változó adja a `#6e7681`-et, milyen háttereken) a javítás előtt élőben érdemes újranézni, ne csak a fenti mérésekre hagyatkozva → **Sienna**
+- [x] **3.13** A 3.12 javítása után új, korábban nem dokumentált `color-contrast` bukások jelentek meg más elemeken · `scripts/docs/assets/page.css`: `.filter-group-label`, `.filter-uniq`, `.filter-supergroup-title`, `.filters-generated`, `.kbd-hint`, és néhány verdikt-jelvény (`badge-category` / `badge-service` a szabálytáblázatban) · Sienna a 3.12 javítása után futtatott Lighthouse-újramérésben ezt az elemhalmazt 4,19–4,47:1 tartományban jelentette (WCAG AA 4,5:1 alatt) — **ez a fenti hatókörön kívül eső, mellékesen felfedezett hiba, amit a 3.12 szándékosan nem javított**, hogy ne táguljon menet közben a tétel hatóköre; ugyanaz a mintázat, mint ami a 3.5-ből a 3.12-t termelte. Kwame saját, a `docs/index.html` friss regenerálásán futtatott Lighthouse-mérése (desktop preset, ugyanaz a `color-contrast` audit) megerősíti, hogy a hiba valós és pontosan ezt a hat elemtípust érinti, de **tágabb tartományt mér, mint Sienna jelentése**: `.filter-group-label` / `.filter-uniq` / `.filter-supergroup-title` **3,52:1** (`#6e7681` / `#1c2128`), `.filters-generated` **3,76:1** (`#6e7681` / `#161b22`), `.kbd-hint` **4,11:1** (`#6e7681` / `#0d1117`), a verdikt-jelvények **4,19–4,47:1** (`#f85149` / `#332227` és `#38272c`, `#2ea44f` / `#1e302c`) — vagyis a jelvények tartománya egyezik Sienna számával, a `#6e7681` szövegszín (feltehetően egy `text3`-hoz hasonló, tompított token) viszont a háttértől függően ennél lényegesen rosszabb is lehet. A pontos kontraszt-arányokat és a jelenlegi színtoken-kontextust (melyik CSS-változó adja a `#6e7681`-et, milyen háttereken) a javítás előtt élőben érdemes újranézni, ne csak a fenti mérésekre hagyatkozva → **Sienna**
 
 ## 4 · Robusztusság és karbantarthatóság (7) · ×2
 
@@ -885,3 +885,71 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   a jövőbeli javítás ne a szűkebb, Sienna-jelentette tartományból induljon
   ki. Nem javítottam semmit — a tétel nyitva marad, gazdája **Sienna** →
   lásd a tétel szövegét a 3. szakaszban.
+
+- **2026-08-21 — 3.13 lezárva, Kwame verifikálta.** Az `593e181` commit (1
+  fájl: `page.css`, 33 sor hozzáadva / 7 törölve) a tétel mind a hét
+  elemtípusán javít, a diff ellenőrizve a tétel állításai ellen, nem csak a
+  commit-üzenet elfogadva. **(1)** `.filter-group-label` (`:479`),
+  `.filter-uniq` (`:494`), `.filter-supergroup-title` (`:402`),
+  `.filters-generated` (`:128`), `.kbd-hint` (`:775`) mind `text3`-ról
+  `text2`-re váltottak — pontosan a saját, a tétel felvételekor mért
+  3,52–4,11:1 tartomány ellen, a diff minden egyes hunkja idézi a saját
+  mérésemet kommentben (`register 3.13, color-contrast`). **(2)**
+  `.badge-category` / `.badge-service` (`:1158`, `:1177`) nem
+  token-cserét kapott, hanem új, konkrét színt: `color: #f85149` →
+  `#ff7b72`, `color: var(--green)` → `#3fb950`. A commit indoklása
+  (a `--red`/`--green` alapszín a féláttetsző jelvény-háttéren minden
+  valós renderelési kontextusban — táblázatsor, hover, drawer — AA alatt
+  marad, mert az alfa-emelés rontja, nem javítja a kontrasztot) ellenőrizve:
+  a `#ff7b72` valóban a `.t-kw`/`.t-cond` szintaxis-kiemelés szín
+  (`grep #ff7b72 page.css` → ugyanaz az érték már használatban), a
+  `#3fb950` valóban a `.fc-service` szűrő-chip akcentusszíne — egyik sem új
+  szín, mindkettő már megalapozott máshol az oldalon, a commit-üzenet
+  állítása pontos.
+
+  Önálló verifikáció, nem csak a register/commit saját szövegének
+  visszaolvasása: `node scripts/docs/smoke_test_rule_browser.js` PASS mind
+  az öt ellenőrzésen (helyi Playwright-hiány ugyanúgy a korábbi munkamenet
+  gyorsítótárából pótolva, `NODE_PATH`, Chromium-revízió 1187 — ugyanaz a
+  módszer, mint a 3.12 zárásakor). Friss `docs/index.html` regenerálva
+  (`python3 scripts/docs/generate_stats.py`), Lighthouse újrafuttatva
+  ugyanazzal a helyi `npx`-gyorsítótárban lévő `lighthouse@13.4.1` +
+  Playwright Chromium 140.0.7339.16 (`CHROME_PATH`) párossal, `file://`
+  helyett helyi HTTP-szerveren át (a `file://` séma `INVALID_URL`-lel
+  bukott ezen a Lighthouse-verzión): **`color-contrast` 1,0/0 bukás mind
+  desktop, mind mobil preseten**, teljes accessibility-pontszám mindkettőn
+  **1,0** — egyezik Sienna jelentésével. A munkamenet a saját felületemen
+  kívül (`docs/index.html`, `README.md`, `outputs/reports/*.json`) nem
+  hagyott változást — a regenerált fájlokat `git checkout`-tal
+  visszaálltam, ugyanúgy, ahogy a 3.12 zárásakor.
+
+  **Mellékes, opcionális flag, nem kapott önálló tételszámot:** a `593e181`
+  commit-üzenete jelzi, hogy a javítás közben Sienna holt CSS-t talált —
+  `.sev-critical`, `.sev-high`, `.sev-medium`, `.sev-low`,
+  `.sev-informational`, `.status-stable`, `.status-test`,
+  `.status-experimental`, `.status-deprecated` a `page.css`-ben, amit
+  semmi nem hivatkozik. Ellenőrizve `grep`-pel mindkét fogyasztó fájlon
+  (`page.js`, `page.template.html`): **nulla valódi találat** — a
+  severity/status legend-kártyák ténylegesen a `LEVEL_COLORS[lvl]` /
+  `STATUS_HEX[k]` inline JS színkonstansokból építik a pöttyöt
+  (`.sev-legend-dot` / `.status-legend`, `page.js:229,437,491`), a
+  `.sev-*`/`.status-*` szelektorok tényleg sehol nincsenek bekötve. Az
+  állítás igaz. **Miért footnote, nem új tétel:** ez ma nem élő,
+  Lighthouse-mérhető hiba — holt CSS-t a böngésző nem renderel, tehát nem
+  is bukhat rajta felhasználó —, és a javítása triviális (törlés, vagy ha
+  valaha be lesz kötve, a 3.13-ban most alkalmazott mintát kell rá
+  másolni). A `.sev-critical`/`.sev-high` és a `.status-stable`/… valóban
+  ugyanazt a féláttetsző-jelvény piros/zöld mintát hordozza, ami a
+  `badge-category`/`badge-service`-t buktatta — ha valaki ezt a holt kódot
+  a jövőben szó szerint bekötné legend-swatchnak a mai inline JS-szín
+  helyett, ugyanaz a kontraszt-hiba térne vissza némán. Ez a kockázat
+  eléggé konkrét ahhoz, hogy megérje leírni, de nem elég sürgős/valós ahhoz,
+  hogy a register súlyát/nevezőjét egy ma-nem-létező hibáért módosítsuk →
+  **Sienna** dönt (törlés vagy tudatos megtartás indoklással), ha időszerű.
+
+  A checkbox-matek ellenőrizve a lezárás után: `grep -c '^- \[x\] \*\*'` /
+  `'^- \[ \] \*\*'` a fájlon **21 kész / 30 nyitott, összesen 51** (a
+  3.12 zárása után a szakaszfejléc-számok és a 82-es teljes súly már
+  frissültek, a `Kész súly` sor `0/82` maradt — az a numerátor a v1.0
+  kiindulási alapállapotot rögzíti, nem élő számláló, korábbi lezárások
+  sem módosították).
