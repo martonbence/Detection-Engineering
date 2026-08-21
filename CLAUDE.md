@@ -79,6 +79,13 @@ Full collaboration map (who works closely with whom, and why) is in
    `.claude/skills/mitre-attack-mapping` encode repo-specific conventions
    that both Yuki and Bjorn should follow via the Skill tool, rather than
    each re-deriving the process independently.
+   `.claude/skills/pipeline-ci-gotchas` (added 2026-08-21) is the same
+   pattern for CI failure modes: it catalogs real, already-happened
+   workflow bugs — silent-skip cascades, environment-scoped-var traps,
+   bundle packaging gaps — so Jamal (who owns the workflows), Priya (who
+   audits them), and Kwame (who verifies claims about them) share one
+   source instead of Jamal's own agent file being the only place this
+   knowledge lives and everyone else rediscovering it independently.
 6. **Author identity on rule content is a real fact, not a persona.** The
    `author:` field on Sigma rules (`scripts/new_rule.py`'s `DEFAULT_AUTHOR`)
    records actual legal/audit provenance for this project. It must never be
