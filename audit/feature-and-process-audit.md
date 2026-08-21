@@ -28,7 +28,7 @@ az itt kezdődik elölről.
 
 ## Pontszám
 
-Kiindulás: **7,0 / 10**. Kész súly: **0 / 80,5**.
+Kiindulás: **7,0 / 10**. Kész súly: **0 / 82**.
 
 Dimenziók — most → hova vinné a register teljesítése:
 
@@ -44,8 +44,8 @@ Dimenziók — most → hova vinné a register teljesítése:
 
 A register meterének súlyozása: kritikus ×3, robusztusság ×2, funkció ×1,5,
 Claude-munkamodell ×1,5, dokumentáció ×1.
-A teljes súly **80,5** = 6×3 + 7×2 + 12×1,5 + 11×1,5 + 14×1.
-Projektált pontszám = `7,0 + 2,5 × (kész súly / 80,5)`.
+A teljes súly **82** = 6×3 + 7×2 + 13×1,5 + 11×1,5 + 14×1.
+Projektált pontszám = `7,0 + 2,5 × (kész súly / 82)`.
 
 *(A súly 70-ről 79-re nőtt a Yara-brief beolvasztásakor: hét új tétel a
 funkció-, dokumentáció- és folyamat-kategóriákban. A kiindulási pontszám nem
@@ -113,7 +113,7 @@ teljesíthető utasítással indul.
 - [ ] **2.13** Nincs architektúra-dokumentum magáról a `.claude/` ökoszisztémáról · `docs/architecture/` négy mély referenciát ad a pipeline-ról, a csapatmodellről egyet sem · A `CLAUDE.md` előíró (ki mit birtokol, hogyan megy a delegálás), a `TEAM.md` roster — egyik sem „hogyan folyik a munka a gyakorlatban" referencia valódi példákkal. Egy `docs/architecture/agent_workflow.md` (Yuki→Bjorn átadás, egy Kwame-féle drift-elkapás, egy Gaz-féle feladatszétvágás, mindegyik valós esettel) egyszerre lenne onboarding-anyag és annak a dokumentálása, ami ebben a repóban ténylegesen újszerű. Yara javaslata; a jelen audit 5. szakasza pont azt bizonyítja, hogy van mit leírni → **Chloe**
 - [ ] **2.14** Nincs `CONTRIBUTING.md` · ellenőrizve: a fájl nem létezik · A régi register **2.11**-e a CODEOWNERS-t és a PR-sablont utasította el mint „checklist-ballaszt" egy egyszemélyes repóban — ez a döntés áll. A `CONTRIBUTING.md` viszont más kérdésre válaszol: nem kapu, hanem egy helyen összeszedett szerzői folyamat (szabály-scaffold → validálás → review → promotion), ami ma öt dokumentum és három skill között van szétszórva. Alacsony prioritás az egyszemélyes valóság miatt, de olcsó, és a 2.6 (lokális futtatás) természetes otthona lenne. Yara javaslata → **Chloe**
 
-## 3 · Funkció- és képességhiányok (12) · ×1,5
+## 3 · Funkció- és képességhiányok (13) · ×1,5
 
 - [x] **3.1** Az elévülés mechanizmusa megvan, a visszamérésé nincs · nincs `schedule:` trigger egyetlen workflow-ban sem (`grep cron` → 0 találat; a `ci_prod_audit.yml:19` tudatosan indokolja a magáét) · A `REVIEW_INTERVAL_DAYS = 180` gondoskodik róla, hogy egy verdikt lejárjon, és a README büszkén állítja, hogy „a pipeline that stopped running would drive the pass rate to zero within 180 days" — de semmi nem méri újra automatikusan. A „Needs Re-run" halmaz csak nőhet, amíg valaki kézzel nem indít `workflow_dispatch`-et. A `select_unverified.py` + a dispatch `unverified` scope pontosan ehhez készült; hiányzik a heti/havi ütemezés `LAB_ONLINE`-tudatos kapuval (ami már létezik, és pont ezt a helyzetet kezeli offline lab esetén) → **Jamal**
 - [x] **3.2** A prod-audit csak kézzel indul · `.github/workflows/ci_prod_audit.yml:19-22` · A „nincs schedule" indoklás (offline lab) helytálló volt, de a `LAB_ONLINE` gate azóta pont ezt a helyzetet kezeli máshol. Egy ütemezett futás `LAB_ONLINE != 'false'` feltétellel offline labnál is csak kihagyja magát — cserébe a „prod még az, aminek hisszük?" kérdés nem attól függ, hogy valakinek eszébe jut-e megkérdezni. Ugyanaz a minta, mint a 3.1, ezért érdemes egyszerre → **Jamal** · **Elutasítva, lásd Napló 2026-08-21**
@@ -126,7 +126,8 @@ teljesíthető utasítással indul.
 - [x] **3.9** A publikált szám mellett nincs ott, hogy mikor mértek utoljára élesben · `README.md` badge-sor, `docs/index.html` Verification-gyűrű · Ma a `stats.json` (generálva 2026-08-17) 4% pass rate-et és 27/28 `NOT_VERIFIED`-et mutat, három nappal azután, hogy a régi register naplója egy valódi `LAB_ONLINE=true` futást rögzített 26 szabály éles history-jával. Aki csak a badge-et látja, romlásnak olvassa. Hiányzik egy „utolsó éles verifikáció: `<dátum>`, N/M szabály" jelzés közvetlenül a Pass Rate badge és a gyűrű mellett, plusz a rule browserben egy önkiszolgáló szűrő/jelvény a „újramérésre vár" halmazra, ami megkülönbözteti a *szerkesztés miatt felülírt* és az *elévült* esetet (az adat mindkettőre megvan a `stats.json`-ben). Yara ezt priorizálta a legmagasabbra a briefjében, és egyetértek a *javaslattal* — a diagnózisával nem (lásd a Naplót és az 1.5-öt: a mai 4% nem elévülésből jön, `verified_stale = 0`) → **Sienna**
 - [x] **3.10** Nincs anonimizálás a publikusan letölthető diagnosztikai artifactban · `ci_dev_workflow.yml:1882` (`matched-events-sigma-<run_id>`, 14 napos retention, publikus repón bárki által letölthető) · A régi register **2.16**-a ezt a kockázatot megvizsgálta, és tudatosan a **rövidebb retenciót** választotta (90 → 14 nap) a mezőszűrés helyett — az indoklás jó volt (a nyers esemény maga a hibakeresési érték) —, de a tétel szövege maga nevezi meg, mi maradt kitéve: **a labor névtana** (gépnevek, domain, szolgáltatásfiókok). Egy verify és artifact-feltöltés közé illesztett eszköz, ami a labor-azonosítókat stabil, entitásonként konzisztens álnevekre cseréli (megőrizve az események közti korrelációt, tehát a debug-értéket is), pontosan azt a maradékot zárná le, amit a 2.16 nyitva hagyott. Yara javaslata, a register szövegével megerősítve. Önálló eszköz, nincs mai gazdája — a CI-ba **Jamal** kötné be → **Gaz** dönt gazdát
 - [x] **3.11** Nincs eszköz egy találatszám-eltérés kivizsgálására · verifikálva a `outputs/results/DETECT-2026-0019/history.jsonl`-ből: ugyanaz a szabály négy futás alatt **FAIL (11 esemény) → NOT_VERIFIED (1) → FAIL (0) → NOT_VERIFIED (kikapcsolva)** három nap alatt, közben a `rule_version` 1.6-ról 1.7-re mozdult · A régi register **2.7**-e a globális `--max-pass 10` ablakot vizsgálta, és elutasítással zárult: a felső korlát rossz eszköz, mert az *attack-ablak* számából elvből nem derül ki, hogy a szabály túl tág-e vagy a technika generál tényleg annyi eseményt. Ez a következtetés áll — de a gyakorlati rés megmaradt: ha egy szám 11 lesz 10 helyett, ma **semmi nem mondja meg, melyik esemény volt a plusz egy**. Egy script, ami betölti egy szabály illeszkedett eseményeit és megmutatja, mely mező(k) mentén válik szét a halmaz, a mai „ismert flakiness"-t vizsgálhatóvá tenné. Yara javaslata; a register 2.7-hez fűzött indoklása pontosítva (nem „not-a-bug flakiness"-ként lett lezárva, hanem a felső korlát elvi elutasításaként) → **Jamal** (a `scripts/verify/` kiterjesztéseként), vagy önálló eszköz, ha külön akarjuk tartani a CI-tól
-- [ ] **3.12** Négy valódi, egymástól független, eddig nem követett accessibility-hiba, amit a 3.5 Lighthouse-mérése hozott felszínre · `scripts/docs/assets/page.template.html`, `page.css`, `page.js` · Mind a négy audit-tétel bukott (mobil + desktop preset), és egyik sem a szabályszámmal növekvő teher (nem a 3.5 hatóköre) — ma javítható, önálló hiba: **(1) `button-name`** — a drawer bezáró gombja (`button.drawer-close`, `onclick="closeDrawer()"`, `page.template.html:587`) ikon-only, `aria-label` nélkül; a minta ismert és helyesen alkalmazott máshol ugyanabban a fájlban (`.info-close`, `:61`, `aria-label="Close"`), csak erre a gombra nem lett átvezetve. **(2) `color-contrast`** — 4 elem bukik WCAG-kontraszton: `#strip-total` („28 rules" szöveg), a „MITRE Navigator" és „Dashboards" fül-gombok, és `#result-count` („28 / 28" szöveg). **(3) `landmark-one-main`** — nincs `<main>` landmark a dokumentumban sehol (`grep '<main' page.template.html` → 0 találat). **(4) `target-size`** (desktop nézet) — a szabálytáblázat MITRE taktika-pill jelvényei (`a.badge.badge-mitre`, `page.js:1583`, CSS `page.css:1134`) kb. 73×17–85×17 px méretűek, a WCAG 24×24 px érintési minimum alatt, szűken egymás mellett csomagolva. **Elhatárolás:** ez **nem** azonos a régi `remediation-plan.md` „amit ez az audit nem fedett" szakaszában rögzített, sosem újraellenőrzött sormagasság-hibával (badge-listás sorok `vertical-align: middle` miatti üres tere, `DETECT-2026-0022`-nél ~183px sor — az a hiba a *sor* magasságáról szól, ez a tétel a *jelvény* kattintható méretéről; szomszédos felület, a régi tétel máig nyitott/nem újraellenőrzött, ebben a körben sem lett vizsgálva) → **Sienna**
+- [x] **3.12** Négy valódi, egymástól független, eddig nem követett accessibility-hiba, amit a 3.5 Lighthouse-mérése hozott felszínre · `scripts/docs/assets/page.template.html`, `page.css`, `page.js` · Mind a négy audit-tétel bukott (mobil + desktop preset), és egyik sem a szabályszámmal növekvő teher (nem a 3.5 hatóköre) — ma javítható, önálló hiba: **(1) `button-name`** — a drawer bezáró gombja (`button.drawer-close`, `onclick="closeDrawer()"`, `page.template.html:587`) ikon-only, `aria-label` nélkül; a minta ismert és helyesen alkalmazott máshol ugyanabban a fájlban (`.info-close`, `:61`, `aria-label="Close"`), csak erre a gombra nem lett átvezetve. **(2) `color-contrast`** — 4 elem bukik WCAG-kontraszton: `#strip-total` („28 rules" szöveg), a „MITRE Navigator" és „Dashboards" fül-gombok, és `#result-count` („28 / 28" szöveg). **(3) `landmark-one-main`** — nincs `<main>` landmark a dokumentumban sehol (`grep '<main' page.template.html` → 0 találat). **(4) `target-size`** (desktop nézet) — a szabálytáblázat MITRE taktika-pill jelvényei (`a.badge.badge-mitre`, `page.js:1583`, CSS `page.css:1134`) kb. 73×17–85×17 px méretűek, a WCAG 24×24 px érintési minimum alatt, szűken egymás mellett csomagolva. **Elhatárolás:** ez **nem** azonos a régi `remediation-plan.md` „amit ez az audit nem fedett" szakaszában rögzített, sosem újraellenőrzött sormagasság-hibával (badge-listás sorok `vertical-align: middle` miatti üres tere, `DETECT-2026-0022`-nél ~183px sor — az a hiba a *sor* magasságáról szól, ez a tétel a *jelvény* kattintható méretéről; szomszédos felület, a régi tétel máig nyitott/nem újraellenőrzött, ebben a körben sem lett vizsgálva) → **Sienna**
+- [ ] **3.13** A 3.12 javítása után új, korábban nem dokumentált `color-contrast` bukások jelentek meg más elemeken · `scripts/docs/assets/page.css`: `.filter-group-label`, `.filter-uniq`, `.filter-supergroup-title`, `.filters-generated`, `.kbd-hint`, és néhány verdikt-jelvény (`badge-category` / `badge-service` a szabálytáblázatban) · Sienna a 3.12 javítása után futtatott Lighthouse-újramérésben ezt az elemhalmazt 4,19–4,47:1 tartományban jelentette (WCAG AA 4,5:1 alatt) — **ez a fenti hatókörön kívül eső, mellékesen felfedezett hiba, amit a 3.12 szándékosan nem javított**, hogy ne táguljon menet közben a tétel hatóköre; ugyanaz a mintázat, mint ami a 3.5-ből a 3.12-t termelte. Kwame saját, a `docs/index.html` friss regenerálásán futtatott Lighthouse-mérése (desktop preset, ugyanaz a `color-contrast` audit) megerősíti, hogy a hiba valós és pontosan ezt a hat elemtípust érinti, de **tágabb tartományt mér, mint Sienna jelentése**: `.filter-group-label` / `.filter-uniq` / `.filter-supergroup-title` **3,52:1** (`#6e7681` / `#1c2128`), `.filters-generated` **3,76:1** (`#6e7681` / `#161b22`), `.kbd-hint` **4,11:1** (`#6e7681` / `#0d1117`), a verdikt-jelvények **4,19–4,47:1** (`#f85149` / `#332227` és `#38272c`, `#2ea44f` / `#1e302c`) — vagyis a jelvények tartománya egyezik Sienna számával, a `#6e7681` szövegszín (feltehetően egy `text3`-hoz hasonló, tompított token) viszont a háttértől függően ennél lényegesen rosszabb is lehet. A pontos kontraszt-arányokat és a jelenlegi színtoken-kontextust (melyik CSS-változó adja a `#6e7681`-et, milyen háttereken) a javítás előtt élőben érdemes újranézni, ne csak a fenti mérésekre hagyatkozva → **Sienna**
 
 ## 4 · Robusztusság és karbantarthatóság (7) · ×2
 
@@ -817,3 +818,70 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   zárta le a szomszédos 3.1-et is 2026-08-20-án** (lásd fent) — a lab jellemzően
   offline állapota mindkét tételnél ugyanazt a következtetést hozta ki, csak itt
   egy konkrét, mért `LAB_ONLINE`-drift bizonyítja is, nem csak feltételezi.
+
+- **2026-08-21 — 3.12 lezárva, Kwame verifikálta.** A `c178581` commit (2 fájl:
+  `page.css`, `page.template.html`) mind a négy megnevezett hibát javítja, a
+  diff ellenőrizve a tétel négy állítása ellen: **(1) `button-name`** —
+  `aria-label="Close rule details"` került a `button.drawer-close`-ra
+  (`page.template.html:589`), pontosan az `.info-close`-nál már meglévő
+  mintát követve. **(2) `color-contrast`** — `.strip-total`, `.tab-btn`
+  (alap állapot) és `.result-count` a `page.css`-ben `text3`-ról `text2`-re
+  váltott; `.tab-btn:hover` `text2`-ről `text`-re, hogy a hover-eszkaláció ne
+  vesszen el azzal, hogy az alapállapot feljebb került. **(3)
+  `landmark-one-main`** — egy `<main>` elem veszi körbe mindhárom fület
+  (`#tab-rules`, `#tab-navigator`, `#tab-dashboards`), kísérő
+  `main { flex:1; min-height:0; … }` CSS-szabállyal, ami a korábbi
+  layoutot változatlanul tartja. **(4) `target-size`** — `.badge-mitre`
+  `min-height`/`min-width: 24px` + `padding` kapott (korábban ~17px magas
+  volt), `.cell-pills` gap 4px→6px. Mind a négy állítás valós a diffben, nem
+  csak a commit-üzenetben.
+
+  Önálló verifikáció, nem csak a register saját szövegének visszaolvasása:
+  friss `docs/index.html` regenerálva (`python3 scripts/docs/generate_stats.py`,
+  utána `git checkout` a mellékesen módosult `README.md` / `outputs/reports/*`
+  fájlokra, hogy a munkamenet ne hagyjon a saját felületemen kívüli
+  változást). `node scripts/docs/smoke_test_rule_browser.js` PASS mind az öt
+  ellenőrzésen (nincs `@@MARKER@@` maradék, oldal hiba nélkül tölt be, 28
+  sor, mindkét gyűrű renderel, nincs konzolhiba) — helyi Playwright-csomag
+  hiányzott a rendszeren, egy korábbi munkamenet gyorsítótárából
+  (`NODE_PATH`) pótoltam, verzió és Chromium-revízió (1187) egyezik. Lighthouse
+  is elérhető volt (helyi `npx`-gyorsítótárban lévő `lighthouse@13.4.1` +
+  Playwright Chromium 140.0.7339.16 mint `CHROME_PATH`) — tehát a Sienna által
+  jelentett előtte/utána pontszámokat nem csak átvettem, hanem ugyanazzal a
+  módszerrel újra lefuttattam: **accessibility desktop 0,95** (1 preset ×
+  `--only-categories=accessibility`), **mobil 1,00** — mindkettő egyezik
+  Sienna jelentésével (0,81→0,95 desktop, 0,86→1,00 mobil), és a négy
+  megnevezett audit (`button-name`, `landmark-one-main`, `target-size`, és a
+  4 eredeti `color-contrast` elem) mind zöld a friss mérésben. Az egyetlen
+  megmaradó `color-contrast` bukás egy **másik** elemhalmazon jelentkezik —
+  ez nem cáfolja a 3.12 zárását, hanem az alább nyitott 3.13 tárgya.
+
+- **2026-08-21 — 3.13 felvéve (Kwame könyvelte, saját Lighthouse-mérés
+  alapján, Sienna jelentésének megerősítéseként és pontosításaként).** A
+  3.12 zárásához futtatott Lighthouse-újramérés (lásd fent) egy hat elemből
+  álló, korábban dokumentálatlan `color-contrast` bukást mutat:
+  `.filter-group-label`, `.filter-uniq`, `.filter-supergroup-title`,
+  `.filters-generated`, `.kbd-hint`, és a szabálytáblázat verdikt-jelvényei
+  (`badge-category` / `badge-service`). Ez a hatókör-elhatárolás szándékos
+  volt a 3.12 lezárásakor (lásd a `c178581` commit-üzenetének utolsó
+  bekezdését) — nem menet közbeni hatókör-tágítás, hanem egy önálló,
+  mellékesen felfedezett hiba, amit külön tételbe kell venni. Új tételszám:
+  **3.13** (a szakasz addigi legmagasabb tétele a 3.12 volt, ellenőrizve
+  `grep`-pel a szakasz teljes tartalmán). A szakaszfejléc `(12)` → `(13)`-ra
+  módosult, a teljes register-súly **80,5 → 82** (a funkció-kategória
+  12×1,5=18 → 13×1,5=19,5); a `Kész súly` sor nevezője és a projektált
+  pontszám képlete is frissült ugyanerre.
+
+  A számokat nem csak átvettem: saját Lighthouse-mérést futtattam a friss
+  `docs/index.html`-en (desktop preset, ugyanaz a `color-contrast` audit),
+  ami megerősíti a hibát, de **tágabb tartományt mér, mint Sienna
+  jelentése**. Sienna 4,19–4,47:1-et jelentett; a saját mérésem szerint ez
+  csak a verdikt-jelvényekre igaz (4,19–4,47:1, `#f85149`/`#332227` és
+  `#38272c`, `#2ea44f`/`#1e302c`) — a `.filter-group-label` /
+  `.filter-uniq` / `.filter-supergroup-title` hármas ennél lényegesen
+  rosszabb, **3,52:1** (`#6e7681` a `#1c2128` háttéren), a
+  `.filters-generated` **3,76:1** (`#161b22` háttéren), a `.kbd-hint`
+  **4,11:1** (`#0d1117` háttéren). Ez a tétel szövegében rögzítve van, hogy
+  a jövőbeli javítás ne a szűkebb, Sienna-jelentette tartományból induljon
+  ki. Nem javítottam semmit — a tétel nyitva marad, gazdája **Sienna** →
+  lásd a tétel szövegét a 3. szakaszban.
