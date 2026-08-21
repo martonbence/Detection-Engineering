@@ -129,7 +129,10 @@
       text-align: center;
       font-family: var(--font);
       font-size: 10px;
-      color: var(--text3);
+      /* text3 measures 3.76:1 against this strip's bg2 background, short of
+         WCAG AA (register 3.13, color-contrast). text2 clears 5.62:1, same
+         fix as .strip-total above. */
+      color: var(--text2);
       padding-top: 4px;
     }
 
@@ -402,7 +405,9 @@
       font-weight: 600;
       letter-spacing: 0.8px;
       text-transform: uppercase;
-      color: var(--text3);
+      /* text3 measures 3.52:1 against this panel's bg3 background, short of
+         WCAG AA (register 3.13, color-contrast). text2 clears 5.26:1. */
+      color: var(--text2);
     }
 
     .filter-supergroup.open>.filter-supergroup-head .filter-supergroup-title {
@@ -476,7 +481,9 @@
       font-weight: 600;
       letter-spacing: 0.8px;
       text-transform: uppercase;
-      color: var(--text3);
+      /* text3 measures 3.52:1 against this panel's bg3 background, short of
+         WCAG AA (register 3.13, color-contrast). text2 clears 5.26:1. */
+      color: var(--text2);
       flex: 1;
     }
 
@@ -488,7 +495,9 @@
       font-family: var(--font);
       font-weight: 400;
       font-size: 9px;
-      color: var(--text3);
+      /* text3 measures 3.52:1 against this panel's bg3 background, short of
+         WCAG AA (register 3.13, color-contrast). text2 clears 5.26:1. */
+      color: var(--text2);
       letter-spacing: 0;
     }
 
@@ -768,7 +777,11 @@
       align-items: center;
       gap: 4px;
       font-size: 10px;
-      color: var(--text3);
+      /* text3 measures 4.11:1 against this row's (body) background --
+         still short of WCAG AA (register 3.13, color-contrast; same
+         background/context as .result-count above, fixed in 3.12).
+         text2 clears it at 6.15:1. */
+      color: var(--text2);
       white-space: nowrap;
     }
 
@@ -1144,7 +1157,14 @@
 
     .badge-category {
       background: rgba(248, 81, 73, 0.13);
-      color: #f85149;
+      /* Base --red (#f85149) on this translucent pill only clears 3.95-4.48:1
+         depending on which background it composites over (table row, its
+         hover state, or the drawer) -- short of WCAG AA in every one of
+         those contexts (register 3.13, color-contrast). #ff7b72 is already
+         used elsewhere on this page as the brighter member of this exact red
+         family (the .t-kw/.t-cond syntax-highlight tokens); reusing it here
+         clears 5.25:1+ in all of them. */
+      color: #ff7b72;
       border: 1px solid rgba(248, 81, 73, 0.3);
     }
 
@@ -1156,7 +1176,13 @@
 
     .badge-service {
       background: var(--green-bg);
-      color: var(--green);
+      /* Base --green (#2ea44f) on this translucent pill only clears
+         4.06-4.62:1 depending on background context -- short of WCAG AA in
+         most of them (register 3.13, color-contrast). #3fb950 is already
+         the "service" facet's own accent elsewhere on this page
+         (.fc-service et al.); reusing it here clears 5.14:1+ in every
+         context this badge renders in. */
+      color: #3fb950;
       border: 1px solid rgba(63, 185, 80, 0.25);
     }
 
