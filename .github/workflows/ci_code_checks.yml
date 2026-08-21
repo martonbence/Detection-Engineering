@@ -153,6 +153,76 @@ jobs:
             > "${RUNNER_TEMP}/page_js_syntax_check.js"
           node --check "${RUNNER_TEMP}/page_js_syntax_check.js"
 
+      # Register item 4.7. Three more steps here rather than a dedicated job,
+      # even though "smoke test" is a stretch of this job's "static analysis"
+      # name: a separate job would need its own checkout plus a *second*
+      # Python setup+install (to run generate_stats.py below) and a *second*
+      # Node setup (to run Playwright) -- both already paid for in this job,
+      # the first by the Ruff/Pytest steps above, the second by the page.js
+      # check right above this comment. Piggybacking here is the same
+      # narrowest-fix reasoning the page.js check's own comment gives for
+      # living in this job instead of getting one of its own.
+      #
+      # docs/index.html and outputs/reports/stats.json are regenerated fresh
+      # right here rather than smoke-tested as committed in the checkout:
+      # those files are only ever refreshed by ci_code_checks.yml's own
+      # regenerate_console job below, which runs solely on a push (or manual
+      # dispatch) to dev -- never on a pull request, and never as part of
+      # *this* job's run even on dev, since regenerate_console is a separate,
+      # later job. Checking the committed copies here would mean a PR (or a
+      # push to any other branch) that breaks page.js, page.template.html, or
+      # a rule's metadata sails through this check against a stale page that
+      # was generated before the change under test existed. Running the exact
+      # command regenerate_console itself runs closes that gap: this step
+      # always exercises what this commit would actually produce.
+      - name: Generate rule browser for smoke test
+        id: generate_smoke_fixture
+        if: ${{ !cancelled() }}
+        run: |
+          set -euo pipefail
+          python scripts/docs/generate_stats.py
+
+      # Playwright is pinned like every other tool this workflow installs
+      # (actionlint, PSScriptAnalyzer) and for the same reason: left floating,
+      # a browser-automation library updating itself out from under this step
+      # would turn an unrelated push red on Microsoft's release schedule, not
+      # this repo's. Deliberately not added to either requirements*.txt (see
+      # scripts/docs/smoke_test_rule_browser.js's own module docstring): this
+      # is the one piece of CI that needs a real browser, kept on the Node
+      # side rather than pulled into the Python toolchain for it.
+      #
+      # --no-save: there is no package.json in this repo, and one dev-only
+      # npm dependency is not reason enough to add one; --no-save stops npm
+      # from creating one just to record this install.
+      #
+      # Gated on the generate step's own outcome, not just !cancelled() like
+      # the steps above: without a freshly generated docs/index.html there is
+      # nothing valid for the smoke test to check, so there is no point
+      # spending the time to download Chromium if that step already failed.
+      - name: Install Playwright
+        if: ${{ !cancelled() && steps.generate_smoke_fixture.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-audit --no-fund playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      # See scripts/docs/smoke_test_rule_browser.js's own module docstring
+      # for exactly what this checks (leftover @@MARKER@@ placeholders, page
+      # load, console/page errors, rule row count agreement, the two
+      # Dashboards-tab rings) and its exit-code contract (0 pass, 1 fail).
+      # --docs-dir/--stats point explicitly at the copies the step above just
+      # generated in this checkout -- the same paths are also this script's
+      # defaults, but naming them here is deliberate so this step keeps
+      # working, and keeps testing the right files, even if that default ever
+      # changes.
+      - name: Rule browser smoke test
+        if: ${{ !cancelled() && steps.generate_smoke_fixture.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          node scripts/docs/smoke_test_rule_browser.js \
+            --docs-dir docs \
+            --stats outputs/reports/stats.json
+
   # Separate job rather than two more steps in static_analysis, for two reasons:
   # steps run in sequence, so a ruff failure would hide a PowerShell failure
   # until the next push; and a parse error in a .ps1 has no business being
