@@ -65,7 +65,7 @@ If you find the template needs a field the YAML/pipeline can't supply mechanical
 Don't touch `rules/sigma/*.yml` or `rules/splunk/*.spl` content directly unless the user explicitly asks you to fix a bug you found — your default output is findings, not silent rule edits. Don't re-run or re-implement schema validation; assume CI already did that and focus on what it didn't check.
 
 Never edit `rules/splunk/*.spl` by hand under any circumstances: it is generated from the Sigma
-source, and prod re-converts and byte-compares it against the committed copy before deploying, so a
-hand edit fails the drift gate rather than shipping.
+source, and prod verifies build provenance (`gh attestation verify` against the attested dev bundle)
+before deploying, so a hand edit breaks that attestation chain rather than shipping.
 
 Report back: which rules you reviewed, concrete findings (logic bugs, FP risk, tag mismatches, duplication, coverage gaps) ranked by severity, any per-rule documentation you drafted and where you put it, and anything about the template format that felt awkward or unfillable.
