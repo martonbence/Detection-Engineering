@@ -28,7 +28,10 @@ az itt kezdődik elölről.
 
 ## Pontszám
 
-Kiindulás: **7,0 / 10**. Kész súly: **0 / 82**.
+Kiindulás: **7,0 / 10**. Kész súly: **0 / 82**. *(Ez a v1.0 kiindulási
+alapállapot, szándékosan befagyasztva — nem élő számláló, egyetlen lezárás
+sem növeli, ellentétben a lezárt `remediation-plan.md` azonos formátumú
+sorával. Részletek: Napló, 2026-08-21.)*
 
 Dimenziók — most → hova vinné a register teljesítése:
 
@@ -105,7 +108,7 @@ teljesíthető utasítással indul.
 - [ ] **2.5** 19 helyen kézzel bedrótozott „27 szabály" / „12 of 27" / „92%" · `README.md:48,50,52,56,57,59`, `docs/architecture/*.md` · A könyvtár ma **28** szabály, a mai adatokon 1 PASS / 27 NOT_VERIFIED / 4%. A próza számai a `<!-- STATS_START -->` blokkon *kívül* élnek, tehát a generátor sosem frissíti őket. Két megoldás közül kell választani: vagy a próza ne idézzen élő számot (csak fogalmat magyarázzon, példát „pl."-lel jelölve), vagy a generátor kapjon több behelyettesíthető markert. A jelenlegi állapot a rosszabbik: konkrét, hitelesnek *látszó* és hamis → **Chloe**, generált markerek esetén **Sienna**
 - [ ] **2.6** Nincs „hogyan futtasd le helyben" dokumentum · sem `README.md`, sem `docs/architecture/` · Nincs leírva, mit kell telepíteni ahhoz, hogy a `pytest`, a `ruff`, a `validate_sigma.py` vagy a `generate_stats.py` helyben fusson; a `.github/requirements*.txt` fejléce kifejezetten azt mondja, hogy „nothing here is needed to work on the rules locally" — ami a tesztekre nem igaz. Lásd a 4.3-at: a suite ma bukik a fejlesztő saját gépén, és nincs hova utánanézni → **Chloe**, a tényleges függőséglista **Jamal**
 - [ ] **2.7** A Wiki továbbra sem létezik · `README.md:177,182`, `.claude/agents/Chloe - Technical Writer.md` · A README őszintén jelzi, hogy nincs — ez rendben van —, de a „planned newcomer-facing walkthrough" tartósan terv marad, miközben a `docs/architecture/` négy fájlja együtt 1 400+ sor mély referencia, kezdő belépési pont nélkül. Döntést igényel: vagy engedélyezés + első oldal (**Kai**, majd **Chloe**), vagy a Wiki-hivatkozások kivezetése a README-ből, hogy ne ígérjen nem létező felületet → **Gaz** dönt
-- [ ] **2.8** `TEAM.md`: 11/11 „Avatar: pending", holott két avatár létezik · `TEAM.md:5,63,80,96,…` vs. `.claude/agents/avatars/Bjorn.jpg`, `Yuki.png` · Ráadásul a `team-avatars` skill (`.claude/skills/team-avatars/SKILL.md:84-89`) `<firstname-lowercase>.png` elnevezést és `![Bjorn](...)` bekötést ír elő — a két meglévő fájl nagy kezdőbetűs, az egyik `.jpg`, és egyik sincs bekötve. A `Yuki.png` 1,1 MB, a repo legnagyobb követett fájlja. **Kwame és Yara egymástól függetlenül ugyanezt találta meg** — a két átvizsgálás egyetlen teljes átfedése, ami önmagában is jelzés arról, mennyire látható ez a rés → **gazdátlan, lásd 5.1**
+- [x] **2.8** `TEAM.md`: 11/11 „Avatar: pending", holott két avatár létezik · `TEAM.md:5,63,80,96,…` vs. `.claude/agents/avatars/Bjorn.jpg`, `Yuki.png` · Ráadásul a `team-avatars` skill (`.claude/skills/team-avatars/SKILL.md:84-89`) `<firstname-lowercase>.png` elnevezést és `![Bjorn](...)` bekötést ír elő — a két meglévő fájl nagy kezdőbetűs, az egyik `.jpg`, és egyik sincs bekötve. A `Yuki.png` 1,1 MB, a repo legnagyobb követett fájlja. **Kwame és Yara egymástól függetlenül ugyanezt találta meg** — a két átvizsgálás egyetlen teljes átfedése, ami önmagában is jelzés arról, mennyire látható ez a rés → **gazdátlan, lásd 5.1**
 - [ ] **2.9** Nincs per-szabály dokumentáció, és a hozzá tartozó hivatkozás holt · `README.md:175` (issue #20), `.claude/agents/Bjorn - Detection Quality Engineer.md` frontmatter (a `rule_documentations/` könyvtárra hivatkozik, ami már nincs a repóban — az ügynökfájl maga jelzi ezt, de a mondat így is félrevezető) · A README szerint a metaadat-forrás kérdése megoldódott (minden a `rules/sigma/*.yml`-ben van), tehát az automatizálásnak nincs technikai akadálya. Ma egyetlen szabályról sincs önálló, olvasható lap sem a repóban, sem a rule browserben → **Gaz** priorizál, **Sienna** (generátor) vagy **Jamal** (CI-lépés)
 - [ ] **2.10** Feloldatlan register-hivatkozás a kódban: `[dashboard-decoupling]` · `.github/workflows/ci_dev_workflow.yml:2064,2243,2526` · Három komment hivatkozik erre a „register item"-re; a lezárt `audit/remediation-plan.md`-ben **nulla** előfordulása van. A repo minden más ilyen kommentje valódi számozott tételre mutat (38 különböző azonosító). Ez egy elvégzett, de sosem regisztrált munka — a lezárt register így nem teljes rekord. Javaslat: vagy ebbe az új registerbe kerüljön be utólagos, lezárt tételként a tényleges tartalmával, vagy a kommentek a PR-re/commitra hivatkozzanak helyette → **Kwame** (register-könyvelés) + **Jamal** (kommentek)
 - [ ] **2.11** A `dependabot.yml` indoklása a 3.2 előtti világot írja le · `.github/dependabot.yml:5-8` · „The pins exist because prod re-runs the converter over the same Sigma source dev already converted…" — a prod ezt már nem teszi (a `.github/requirements-deploy.txt` fejléce ezt helyesen le is írja). A pineknek ma is van értelme (a dev saját reprodukálhatósága), csak nem ez az. Konfigurációs komment, de a repo szerkesztési kultúrájában ezek dokumentumértékűek → **Jamal**
@@ -152,10 +155,10 @@ viszont hiányos — a konfiguráció nagy része nincs a repóban, egy hook hal
 - [x] **5.2** A docs-drift hook olyan eseményre tüzel, amit a projekt konvenciója kizár · `.claude/settings.json:5-19`, `.claude/hooks/docs-drift-check.sh:22-26` · A hook a Bash-hívás payloadjában a `git commit` szövegre szűr, majd ellenőrzi, hogy tényleg landolt-e friss commit. Csakhogy a projekt álló szabálya az, hogy **a commitokat a felhasználó csinálja, nem az ügynök** — így az ügynök Bash-hívásaiban gyakorlatilag sosem szerepel `git commit`, és a hook a gyakorlatban soha nem fut le. A kód maga jó minőségű (determinisztikus, LLM-mentes, saját teszt-scripttel `.claude/hooks/test-docs-drift-check.sh`), csak rossz eseményhez van kötve. Helyesebb trigger: `PostToolUse` `Edit|Write` matcher a `scripts/**` és `.github/workflows/**` útvonalakra, vagy `Stop` hook, ami a munkamenet végén összegzi az érintett fájlokat → **Jamal** (a hook script), **Gaz** (a konvenció eldöntése)
 - [x] **5.3** Nincs `permissions` blokk a `.claude/settings.json`-ben · `.claude/settings.json` (mindössze `attribution` + `hooks`) · Két külön veszteség. (a) *Hatékonyság*: nincs allow-lista a rutinparancsokra (`python -m pytest`, `ruff check`, `git status`, `git log`, `python scripts/validate/*.py`), tehát minden ügynök minden ellenőrző futása kézi jóváhagyást kér — pont az a művelet, amit a legtöbbször kell megismételni. (b) *Biztonság/konvenció*: a „Bence commitol, az ügynök nem" szabály ma csak emlékezetben és prózában él; egy `deny` bejegyzés (`Bash(git commit:*)`, `Bash(git push:*)`) gépiesen kikényszerítené. A repo egyébként pontosan ezt a filozófiát követi mindenhol máshol: ami szabály, az legyen kapu, ne emlékeztető → **Gaz**
 - [ ] **5.4** Nincs `.mcp.json` a repóban, három ügynök viszont MCP-eszközökre épül · `.claude/agents/Kai - Platform Engineer.md` (~40 `mcp__github__*` eszköz), `Priya - Application Security Engineer.md` (`mcp__semgrep__*`), `Sienna - Frontend Engineer.md` (`mcp__playwright__*`, `mcp__chrome-devtools__*`) · Ezek a szerverek felhasználói szinten vannak konfigurálva, nem a repóban (`find . -name .mcp.json` → nincs találat). Következmény: egy friss klónban (más gép, más felhasználó, vagy CI-környezet) ez a három ügynök csendben elveszti az eszközkészlete nagy részét — nem hibaüzenettel, hanem úgy, hogy a képességei egyszerűen nincsenek ott. Egy projektszintű `.mcp.json` (a titkokat környezeti változóból olvasva) tenné a csapatot hordozhatóvá; ahol ez nem megy (pl. felhasználóhoz kötött auth), ott legalább dokumentálva kellene lennie, mit kell egyszer beállítani → **Gaz** dönt, **Kai** hajtja végre
-- [ ] **5.5** Elavult tények az ügynökfájlokban — és senki nem nézi őket rendszeresen · `.claude/agents/Kwame - Compliance Analyst.md` („last known count: 54 items, 43 done" — a register azóta 54/54 és lezárt), `Jamal - DevOps Engineer.md` (háromsoros workflow-tábla, a negyedik workflow hiányzik; a `ci_prod_workflow.yml` sora „Re-converts, drift-gates, deploys" — mindkettő megszűnt, lásd 1.1), `Bjorn - …md` (a megszűnt `rule_documentations/` könyvtár), `Priya - …md` (pontos telepítési útvonalak és MCP-elérhetőség, saját „confirm current state yourself, environments drift" kitétellel) · Ezek nem kozmetikai hibák: az ügynökfájl az első dolog, amit a diszpécselt specialista elolvas, tehát minden ilyen mondat egy hamis kiindulópont minden jövőbeli futásban. Kwame sajátja külön ironikus: a register-auditáló ügynök leírása maga elavult a registerhez képest. **Yara ugyanide jutott, egy fokkal általánosabban**, és a hiányzó *mechanizmust* nevezte meg: a `remediation-plan.md`-t Kwame állandó jelleggel ellenőrzi a valósággal szemben, az ügynökdefiníciókat viszont **semmi és senki** — nincs az a szerep, ami ezekre nézve játszaná Kwame szerepét. A tétel ezért kettős: (a) a mai konkrét elavulások javítása, (b) egy visszatérő „ügynökfájl-spot-check" beépítése valamelyik meglévő audit-körbe, hogy ne kelljen újra egy teljes átvizsgálás ahhoz, hogy kiderüljön → **gazdátlan, lásd 5.1**; a visszatérő ellenőrzés természetes helye **Kwame** köre
-- [ ] **5.6** Megosztott, gyorsan avuló tudás perszóna-fájlokba égetve, nem skillbe · `.claude/skills/` ma három skillt tartalmaz: `sigma-rule-authoring`, `mitre-attack-mapping`, `team-avatars` · Mindhárom a szabály-szerzés / kozmetika körül forog. A commit-történet szerint viszont a munka zöme a pipeline-on (Jamal) és a rule browseren (Sienna) folyik, és ezeknek a konvenciói ma kizárólag 1 005 sornyi workflow-kommentben és az ügynökfájlok prózájában élnek — vagyis minden diszpécselés újra levezeti őket. **Yara adta hozzá a döntési szabályt, ami ezt élessé teszi:** ha egy perszóna-fájl saját szövege azt mondja, hogy „ezt ellenőrizd, mielőtt megbíznál benne" (szó szerint ez áll Priya környezet-bekezdésében), az pont az a pont-idejű, avuló tudás, amit a skill-mechanizmus izolálni hivatott — perszóna-fájlba égetve minden jövőbeli szerkesztésbe belemásolódik az elavulás. Konkrétan hiányzó skillek: (a) **`pipeline-ci-gotchas`** — Jamal fájlja (`:29-30`) két olyan csapdát dokumentál, amelyek saját bevallása szerint már okoztak valódi hibát (a `changes` step üres szabálylistája → minden downstream job kimarad, a run mégis zöld; és a `--diff-filter=AMRC`, ami a törléseket kizárja) — ez a tudás ma **láthatatlan** Priya (CI-konfigurációt auditál) és Kwame (pipeline-állításokat verifikál) számára, hacsak külön újra fel nem fedezik; (b) **rule-browser generátor-konvenciók** (a `docs/index.html` build-artefaktum, `@@MARKER@@` behelyettesítés, asset-inline-olás, normalizált diff-összehasonlítás) — ide tartozik a 2.12-ben hiányzónak talált `dataviz` is; (c) **audit-register konvenciók** (ennek a fájlnak a formátuma, súlyozás, naplóbejegyzés). Yara egy megjegyzése ide tartozik ellensúlyként: a `team-avatars` a három meglévő közül az egyetlen, ami nem szabály-helyességet kapuz — ha a skill-készlet karbantartása később teherré válik, ez az, amit a legkönnyebb visszaolvasztani egy egyszeri beszélgetésbe → **Gaz** dönt, tartalom a felület gazdájától
-- [ ] **5.7** A `team-avatars` skill kimenete félkész és nincs bekötve · `.claude/skills/team-avatars/SKILL.md` · A skill precízen definiálja a stílus-lockot és a fájl helyét, de a tizenegy fős rosterből két avatár készült el, azok is a skill saját elnevezési szabályát megsértve, és egyik sincs bekötve a `TEAM.md`-be (lásd 2.8). Ez a legtisztább példa arra, amit az 5.1 leír: van skill, van kimenet, nincs gazda, aki végigvinné → **Gaz** dönt (befejezni vagy tudatosan lezárni „két avatár elég" indoklással)
-- [ ] **5.8** Nincs `.claude/commands/` — a visszatérő műveletek nincsenek parancsba zárva · A repóban ma nulla slash-parancs van. Legalább négy művelet ismétlődik felismerhetően: register-állapot ellenőrzése, dashboard/statisztika helyi újragenerálása + normalizált diff, teljes lokális kapu-futtatás (ruff + pytest + validate + check_mitre_tags), és új szabály scaffoldolása a review-átadásig. Mindegyik ma prózából kerül újra összerakásra minden alkalommal → **Gaz**
+- [x] **5.5** Elavult tények az ügynökfájlokban — és senki nem nézi őket rendszeresen · `.claude/agents/Kwame - Compliance Analyst.md` („last known count: 54 items, 43 done" — a register azóta 54/54 és lezárt), `Jamal - DevOps Engineer.md` (háromsoros workflow-tábla, a negyedik workflow hiányzik; a `ci_prod_workflow.yml` sora „Re-converts, drift-gates, deploys" — mindkettő megszűnt, lásd 1.1), `Bjorn - …md` (a megszűnt `rule_documentations/` könyvtár), `Priya - …md` (pontos telepítési útvonalak és MCP-elérhetőség, saját „confirm current state yourself, environments drift" kitétellel) · Ezek nem kozmetikai hibák: az ügynökfájl az első dolog, amit a diszpécselt specialista elolvas, tehát minden ilyen mondat egy hamis kiindulópont minden jövőbeli futásban. Kwame sajátja külön ironikus: a register-auditáló ügynök leírása maga elavult a registerhez képest. **Yara ugyanide jutott, egy fokkal általánosabban**, és a hiányzó *mechanizmust* nevezte meg: a `remediation-plan.md`-t Kwame állandó jelleggel ellenőrzi a valósággal szemben, az ügynökdefiníciókat viszont **semmi és senki** — nincs az a szerep, ami ezekre nézve játszaná Kwame szerepét. A tétel ezért kettős: (a) a mai konkrét elavulások javítása, (b) egy visszatérő „ügynökfájl-spot-check" beépítése valamelyik meglévő audit-körbe, hogy ne kelljen újra egy teljes átvizsgálás ahhoz, hogy kiderüljön → **gazdátlan, lásd 5.1**; a visszatérő ellenőrzés természetes helye **Kwame** köre
+- [x] **5.6** Megosztott, gyorsan avuló tudás perszóna-fájlokba égetve, nem skillbe · `.claude/skills/` ma három skillt tartalmaz: `sigma-rule-authoring`, `mitre-attack-mapping`, `team-avatars` · Mindhárom a szabály-szerzés / kozmetika körül forog. A commit-történet szerint viszont a munka zöme a pipeline-on (Jamal) és a rule browseren (Sienna) folyik, és ezeknek a konvenciói ma kizárólag 1 005 sornyi workflow-kommentben és az ügynökfájlok prózájában élnek — vagyis minden diszpécselés újra levezeti őket. **Yara adta hozzá a döntési szabályt, ami ezt élessé teszi:** ha egy perszóna-fájl saját szövege azt mondja, hogy „ezt ellenőrizd, mielőtt megbíznál benne" (szó szerint ez áll Priya környezet-bekezdésében), az pont az a pont-idejű, avuló tudás, amit a skill-mechanizmus izolálni hivatott — perszóna-fájlba égetve minden jövőbeli szerkesztésbe belemásolódik az elavulás. Konkrétan hiányzó skillek: (a) **`pipeline-ci-gotchas`** — Jamal fájlja (`:29-30`) két olyan csapdát dokumentál, amelyek saját bevallása szerint már okoztak valódi hibát (a `changes` step üres szabálylistája → minden downstream job kimarad, a run mégis zöld; és a `--diff-filter=AMRC`, ami a törléseket kizárja) — ez a tudás ma **láthatatlan** Priya (CI-konfigurációt auditál) és Kwame (pipeline-állításokat verifikál) számára, hacsak külön újra fel nem fedezik; (b) **rule-browser generátor-konvenciók** (a `docs/index.html` build-artefaktum, `@@MARKER@@` behelyettesítés, asset-inline-olás, normalizált diff-összehasonlítás) — ide tartozik a 2.12-ben hiányzónak talált `dataviz` is; (c) **audit-register konvenciók** (ennek a fájlnak a formátuma, súlyozás, naplóbejegyzés). Yara egy megjegyzése ide tartozik ellensúlyként: a `team-avatars` a három meglévő közül az egyetlen, ami nem szabály-helyességet kapuz — ha a skill-készlet karbantartása később teherré válik, ez az, amit a legkönnyebb visszaolvasztani egy egyszeri beszélgetésbe → **Gaz** dönt, tartalom a felület gazdájától
+- [x] **5.7** A `team-avatars` skill kimenete félkész és nincs bekötve · `.claude/skills/team-avatars/SKILL.md` · A skill precízen definiálja a stílus-lockot és a fájl helyét, de a tizenegy fős rosterből két avatár készült el, azok is a skill saját elnevezési szabályát megsértve, és egyik sincs bekötve a `TEAM.md`-be (lásd 2.8). Ez a legtisztább példa arra, amit az 5.1 leír: van skill, van kimenet, nincs gazda, aki végigvinné → **Gaz** dönt (befejezni vagy tudatosan lezárni „két avatár elég" indoklással)
+- [x] **5.8** Nincs `.claude/commands/` — a visszatérő műveletek nincsenek parancsba zárva · A repóban ma nulla slash-parancs van. Legalább négy művelet ismétlődik felismerhetően: register-állapot ellenőrzése, dashboard/statisztika helyi újragenerálása + normalizált diff, teljes lokális kapu-futtatás (ruff + pytest + validate + check_mitre_tags), és új szabály scaffoldolása a review-átadásig. Mindegyik ma prózából kerül újra összerakásra minden alkalommal → **Gaz**
 - [x] **5.9** Kwame eszközkészletében nincs `Write` · `.claude/agents/Kwame - Compliance Analyst.md` frontmatter: `tools: Read, Grep, Glob, Bash, Edit` · A szerepdefiníció szerint Kwame „reports accurate progress" és vezeti a registert — de új auditdokumentumot létrehozni nem tud, csak meglévőt szerkeszteni. Ez a dokumentum is `printf`-fel létrehozott helyőrző-fájl + `Edit` kerülőúton készült. Vagy a `Write` kerüljön be az eszközök közé, vagy legyen kimondva, hogy Kwame kizárólag meglévő registert könyvel, és új auditfájlt más hoz létre → **Gaz**
 - [ ] **5.10** A modellválasztási szabály nem mérhető és nem visszakövethető · `CLAUDE.md` 7. pont · A szabály jó (komplexitás-alapú eszkaláció dispatchenként, nem szerepenként), de semmilyen nyoma nem marad annak, melyik diszpécselés futott melyik modellen, tehát utólag nem lehet megmondani, hogy a szabály segít-e vagy sem. **Kwame és Yara egymástól függetlenül ugyanezt emelte ki**, és Yara pontosítása helytálló: ez futásidejű döntés, nem repo-artefaktum, tehát nem is lehet fájlban kikényszeríteni — amit viszont lehet, az a *nyom*. Legolcsóbb forma: a specialisták zárójelentése nevezze meg a modellt egy sorban, és a nagyobb körök (mint ez az audit) rögzítsék a Naplóban. Ez pontosan a repo saját „bizonyíték az állítás helyett" kultúrája, csak a folyamatra alkalmazva → **Gaz**
 - [ ] **5.11** A méret- és feltételfüggő elhalasztott döntéseknek nincs követett listája · a régi register négy tételt zárt le a *jelenlegi lépték* miatt: **3.8** (alkönyvtár-bontás), **4.1** (noise budget), **4.4** (Splunk ES / RBA), **4.11** (tömeges újramérés) · Mindegyik indoklása valós kiváltó feltételt tartalmaz, de az sűrű prózába temetve — senki nem figyeli, mikor lépjük át. Yara javaslata egy „lépték-függő döntések" tábla (tétel / mai mutató / küszöb / mi változik), ami Kwame következő körén gépiesen ellenőrizhető. Jó ötlet, **de a négy példa közül kettő pontosításra szorul**, és ez a pontosítás a tábla lényege: a **4.11** küszöbe valós és idézhető (a felhasználó a tömeges újramérést kifejezetten azzal utasította el, hogy „500+ szabálynál nem skálázna"); a **3.8**-é viszont **nem** — a register szó szerint rögzíti, hogy a „27 szabály még kezelhető, 150-nél nem" állítás rákérdezésre kiderülten *sosem volt alátámasztva*, tehát a 150-es szám nem küszöb, hanem visszavont feltevés, és a táblába is így kell bekerülnie, különben egy elvetett számot élesztünk újra. A **4.1** és a **4.4** pedig nem lépték-, hanem **feltételfüggő**: az egyik akkor nyílik újra, ha a labor Splunkja valódi háttérforgalmat kap, a másik akkor, ha telepítenek ES-t vagy megjelenik egy második üzemeltető. A tábla tehát „lépték- és feltételfüggő döntések" legyen, három oszloppal: mi a kiváltó, mérhető-e ma, és hol áll → **Kwame** (könyvelés), **Yara** (keretezés)
@@ -953,3 +956,214 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   frissültek, a `Kész súly` sor `0/82` maradt — az a numerátor a v1.0
   kiindulási alapállapotot rögzíti, nem élő számláló, korábbi lezárások
   sem módosították).
+
+- **2026-08-21 — 2.8 lezárva, Kwame verifikálta.** Gaz munkafa-szerkesztése
+  (nem commitolt): `TEAM.md` mind a 11 sora `*Avatar: pending*`-ről
+  `![Name](.claude/agents/avatars/Name.png)`-re váltott, a bevezető
+  „avatars are pending” mondat eltűnt. Önálló ellenőrzés, nem a register
+  saját szövegének visszaolvasása: `grep -i pending TEAM.md` → **0
+  találat**; mind a 11 hivatkozott fájl (`Bjorn.png` … `Yuki.png`)
+  ténylegesen létezik `.claude/agents/avatars/`-ban (`ls -la`, mind
+  2026-08-20-i keltezéssel, a jelen munkameneten kívül generálva) — az
+  eredeti tétel csak kettőt talált (`Bjorn.jpg`, `Yuki.png`, rossz
+  elnevezéssel), ma mind a 11 megvan, a skill saját elnevezési
+  konvenciójának megfelelően (nagybetűs név, `.png`, alkönyvtár nélkül).
+  Teljes, hiánytalan lezárás.
+
+- **2026-08-21 — 5.5 részben verifikálva, a tétel `[ ]` marad.** Gaz
+  munkafa-szerkesztése (nem commitolt) mind a három megnevezett fájlt
+  (`Kwame`, `Jamal`, `Bjorn`) módosította; a negyediket (`Priya`)
+  szándékosan érintetlenül hagyta.
+  **Kwame fájlja — pontos.** „closed at 54/54 as of 2026-08-15" —
+  ellenőrizve `audit/remediation-plan.md`-n: `grep -c '^- \[x\] \*\*'` →
+  **54**, `'^- \[ \] \*\*'` → **0**. Az új mondat a második registerre is
+  helyesen utal, és arra is, hogy annak saját státuszoszlopa sem
+  megbízható forrás.
+  **Bjorn fájlja — pontos.** A „prod re-converts and byte-compares …
+  drift gate" mondat „prod verifies build provenance (`gh attestation
+  verify` against the attested dev bundle) … attestation chain"-re
+  változott — ellenőrizve `.github/workflows/ci_prod_workflow.yml`-ben: a
+  fájl ténylegesen `gh attestation verify`-t hív a
+  `.bundle-provenance.json` pointer ellen (`:166,237`), és nincs benne
+  újrakonverziós lépés. A `rule_documentations/` mondatot Gaz eredetileg is
+  pontosnak találta és nem nyúlt hozzá — ellenőrizve, a fájl valóban
+  explicit jelzi, hogy a könyvtár megszűnt, és megkérdezi a felhasználót a
+  céldirektóriumról commit előtt.
+  **Jamal fájlja — részben hibás, új elavulással.** A workflow-tábla
+  helyesen bővült négy sorra, és a `ci_prod_workflow.yml` sora pontosan
+  írja le az attesztációs mechanizmust (ugyanaz az ellenőrzés, mint
+  Bjornnál). **De** az új `ci_prod_audit.yml` sor azt állítja, hogy a
+  workflow „scheduled + `workflow_dispatch`" triggerre fut — ez **ma nem
+  igaz**: `.github/workflows/ci_prod_audit.yml:24-25` kizárólag
+  `workflow_dispatch:`-et tartalmaz, nincs `schedule:` blokk, és a fájl
+  saját fejléc-kommentje (`:19-21`) explicit indokolja, miért nincs cron.
+  Ez nem régi, hátrahagyott elavulás, hanem a **mai batch-szerkesztés
+  terméke** — és pontosan azzal a ténnyel áll ellentmondásban, amit ez a
+  register saját maga rögzített ugyanaznap: a **3.2 tétel 2026-08-21-i
+  elutasítása** (fentebb), ahol Jamal egy `schedule:` trigger hozzáadását
+  próbálta ki, a felhasználó a `LAB_ONLINE`-drift miatt leállította, és a
+  diffet commit előtt visszaállította — a workflow ma pontosan olyan, mint
+  a kísérlet előtt (nincs schedule). Az ügynökfájl így egy friss, hamis
+  tényt állít, amit a register saját naplója ugyanabban a körben cáfol.
+  **Priya fájlja — érintetlen, egyetértek Gaz döntésével.** A fájl már ma
+  is explicit figyelmezteti az olvasót („Confirm current state yourself …
+  environments drift"), ami az 5.5 által hiányolt védelmi mintát más
+  eszközzel valósítja meg, mint a másik három (nem a tényt frissíti, hanem
+  bizonytalanná teszi, ahol az valóban bizonytalan). Spot-check ezen a
+  gépen: `semgrep` valóban elérhető (`~/.local/bin/semgrep`, symlink),
+  `pip-audit` valóban telepítve `pipx`-szel, PDF-eszköz (`pandoc` /
+  `wkhtmltopdf` / `weasyprint`) valóban egyik sincs — a fájl állítása ma is
+  helytálló. Nem tekintem nyitott résznek.
+  **Következtetés:** a tétel nem zárható le hiánytalanul — 3 a 4 fájlból
+  pontos, a negyedik (Jamal) egy új, konkrét, azonosított hibát tartalmaz.
+  A tétel `[ ]` marad, szövege változatlan; a hátralévő javítás egysoros
+  (a `ci_prod_audit.yml` táblasorból törölni a „scheduled + " részt) →
+  **vissza Gaznak**, a fájl gazdájának (5.1 döntés szerint).
+
+- **2026-08-21 — 5.7 lezárva, Kwame verifikálta.** Az eredeti tétel két
+  konkrét hiányt nevezett meg: a 11 fős rosterből csak kettő avatár készült
+  el, és egyik sincs bekötve a `TEAM.md`-be. Mindkettő megszűnt: lásd 2.8
+  (mind a 11 megvan, mind a 11 be van kötve, helyes elnevezéssel). A skill
+  saját fájlja (`.claude/skills/team-avatars/SKILL.md:79-88`) ma már a
+  valódi állapotot írja le konvencióként („Capitalized first name,
+  directly in `avatars/`… this is the convention all current files
+  follow"), nem ellentmond neki.
+  **Maradék, nem blokkoló rés, footnote-ként rögzítve (a 2.12/3.11-nél
+  alkalmazott konvenció szerint):** a SKILL.md kifejezetten előírja, hogy
+  minden legenerált avatar prompt-szövegét naplózni kell magában a
+  skill-fájlban, tartós rekordként (`:90-94`) — ma ennek csak **1/11**
+  felel meg (Jamal worked example-je, `:41-52`); a `## Background colors
+  already in use` táblázat is elismeri, hogy Yuki háttérszíne „not
+  recorded, check `Yuki.png` directly", a többi 9 személy prompt-szövege
+  pedig sehol nincs rögzítve a fájlban. Gaz nem pótolta ezt utólagos
+  kitalált prompttal — helyesen, mert az hamis rekordot hozott volna létre.
+  Ez a rés más jellegű, mint az eredeti tétel diagnózisa (nem hiányzó
+  kimenet, hanem hiányzó dokumentáció a meglévő kimenetről), ezért nem
+  tartja nyitva 5.7-et, de érdemes egy jövőbeli körben külön megnézni, ha
+  valaki a `team-avatars` skillhez nyúl.
+
+- **2026-08-21 — 5.8 lezárva caveattal, Kwame verifikálta.**
+  `.claude/commands/` létezik, 4 fájllal (`register-status.md`,
+  `rebuild-dashboard.md`, `local-gate.md`, `new-rule.md`), mindegyik
+  helyes `description`/`argument-hint` frontmatterrel.
+  **`register-status.md`, `rebuild-dashboard.md`, `new-rule.md` — pontos.**
+  A `rebuild-dashboard.md` normalizáló `sed` kifejezését szó szerint
+  összevetettem a `ci_code_checks.yml` `regenerate_console` jobjának saját
+  `normalize()` függvényével (`:571-576`) — byte-azonos minta
+  (timestamp-regex, 40 karakteres SHA-regex), ugyanaz a kizárt útvonal
+  (`outputs/results/` kihagyva, csak `outputs/reports/`, `README.md`,
+  `docs/index.html` figyelve), ugyanaz a „byte-identical, nothing to
+  publish" / „only generation timestamps moved" megkülönböztetés. A
+  `new-rule.md` `python scripts/new_rule.py "$ARGUMENTS"` hívása egyezik a
+  script tényleges pozicionális-argumentum szignatúrájával (`--help`
+  ellenőrizve), és a Yuki→Bjorn átadási sorrend egyezik a `CLAUDE.md`
+  delegálási modellel.
+  **`local-gate.md` — a parancsok és flag-ek pontosak, a sorrend-állítás
+  nem.** Mind a hét lépés (`ruff check .`, `pytest`,
+  `validate_sigma.py --schema …`, `check_mitre_tags.py`,
+  `check_detect_id_uniqueness.py`, `check_test_routing.py`,
+  `check_version_bump.py --base-ref …`) létező scriptre és valós, `--help`-
+  fel ellenőrzött szignatúrára hivatkozik (a `check_test_routing.py`
+  „warns, doesn't hard-fail without `--strict`" állítása is egyezik a
+  tényleges `--help` szöveggel). **De** a fájl kifejezetten azt állítja,
+  hogy „the same order `ci_code_checks.yml` and the validation stage of
+  `ci_dev_workflow.yml` do" — ez a 4-6. lépésre **nem igaz**: a
+  `ci_dev_workflow.yml` tényleges lépéssorrendje (`git show`, sorszám
+  szerint olvasva) `Validate Sigma rules` → `Check every rule has a job
+  that can run its test` (`check_test_routing.py`, `:529-535`) → `Check
+  detect_id uniqueness` (`:552-557`) → `Check MITRE ATT&CK tags`
+  (`:577-582`) → `Check version bump discipline` (`:625-647`) — vagyis
+  `check_test_routing` → `check_detect_id_uniqueness` → `check_mitre_tags`,
+  míg a `local-gate.md` `check_mitre_tags` → `check_detect_id_uniqueness`
+  → `check_test_routing` sorrendet ad. Funkcionálisan ártalmatlan (a hét
+  ellenőrzés egymástól független, a „stop at first failure" viselkedés
+  ugyanazt az eredményt adja, csak más hibaüzenet-sorrendben többszörös
+  bukás esetén), de a fájl saját állítása a sorrendről pontatlan. Egysoros
+  javítás (3 lépés felcserélése) → **vissza Gaznak**, a fájl gazdájának.
+  Nem tartom ezt elég súlyosnak ahhoz, hogy a tételt nyitva hagyja — a
+  tényleges parancsok és kapuk helyesek, csak a leírás egy mondata nem —,
+  de rögzítve, hogy ne vesszen el.
+
+- **2026-08-21 — 5.5 lezárva, a Jamal-fájl javítását Kwame verifikálta.**
+  Gaz javította a korábban jelzett hibát: `.claude/agents/Jamal - DevOps
+  Engineer.md` `ci_prod_audit.yml` tábla-sora mostantól „`workflow_dispatch`
+  only, manually triggered" (a „scheduled + " rész törölve), plusz egy
+  megjegyzés, hogy egy ütemezett változatot felvetettek és elutasítottak
+  ugyanaznap (register 3.2) `LAB_ONLINE`-drift kockázat miatt.
+  **Önálló ellenőrzés, nem a javítás saját szövegének visszaolvasása:**
+  `.github/workflows/ci_prod_audit.yml:24-25` `on:` blokkja ma is
+  kizárólag `workflow_dispatch:`-et tartalmaz, nincs `schedule:` — a fájl
+  saját fejléc-kommentje (`:19-21`) ugyanezt indokolja, változatlanul. A
+  register saját 3.2 tétele (fentebb, 119. sor és a hozzá tartozó
+  2026-08-21-i Napló-bejegyzés) szó szerint alátámasztja az új megjegyzés
+  állítását: Jamal ténylegesen megpróbált egy `schedule:` triggert
+  hozzáadni, a felhasználó a `LAB_ONLINE` és a lab tényleges
+  áramállapotának szétcsúszása miatt leállította, és a diffet commit előtt
+  visszaállította — a mai `workflow_dispatch`-only állapot ennek pontosan
+  megfelel. A mai javítás nem termelt új elavulást (ellentétben a tegnapi
+  első kísérlettel).
+  A `.claude/commands/local-gate.md` mellékesen említett sorrend-cserét
+  (4-6. lépés `check_test_routing` → `check_detect_id_uniqueness` →
+  `check_mitre_tags`-re) is ellenőriztem: a fájl ma pontosan ezt a
+  sorrendet adja, egyezik a `ci_dev_workflow.yml` tényleges lépéssorrendjével
+  (lásd az 5.8 lezárásának fenti indoklását) — ez az 5.8-hoz tartozó
+  tisztogatás volt, nem önálló tétel, és nem igényelt újranyitást, ahogy
+  Gaz is jelezte.
+  **Következtetés:** mind a négy megnevezett ügynökfájl (Kwame, Jamal,
+  Bjorn) pontos, illetve (Priya) szándékosan és indokoltan érintetlen. A
+  tétel hiánytalanul lezárva.
+
+- **2026-08-21 — 5.6 lezárva, három megnevezett hiányból egy megvalósítva,
+  kettő tudatosan elhalasztva — a tétel a régi register „elutasítás is
+  lezárás" szabálya szerint (26-27. sor) ennek ellenére hiánytalanul zárt,
+  nem marad nyitva a fel nem épített részekért.**
+  **(a) `pipeline-ci-gotchas` — megépült, verifikálva.**
+  `.claude/skills/pipeline-ci-gotchas/SKILL.md` létezik, 269 sor, 8
+  kategória (A–H), 24 megnevezett csapda, mindegyik konkrét
+  `.github/workflows/*.yml` fájl:sor-hivatkozással és valós incidenssel
+  vagy védekező kódrészlettel alátámasztva (pl. `run 31307470773`,
+  `run 30154222981`, „named incident run #67") — nem spekulatív lista,
+  minden bejegyzés forrása visszakereshető. Nem stub. A `Skill` tool
+  ellenőrizve mind a három megnevezett ügynökfájl frontmatterjében:
+  `Jamal - DevOps Engineer.md` (`tools: … Bash, Skill`), `Priya -
+  Application Security Engineer.md` (`tools: … Bash, Skill, WebSearch…`),
+  `Kwame - Compliance Analyst.md` (`tools: … Edit, Skill`) — egyiknél sem
+  volt ott korábban, tehát egyik sem tudott volna ténylegesen skillt hívni
+  előtte. Mindhárom fájlban van tényleges hivatkozás a skillre a releváns
+  ponton (`grep -n pipeline-ci-gotchas` mindhárom fájlon talál — Jamal:
+  „Check the `pipeline-ci-gotchas` skill (via the Skill tool) first",
+  Kwame: ugyanez a mondat a saját instrukciómban, Priya: két külön helyen,
+  a függőség-audit és a workflow-mintázat-értékelés lépésénél). A hivatkozás
+  a `pipeline-ci-gotchas` skill saját leírásában is szerepel a triggerek
+  között. Teljes, valódi lezárás erre a részre.
+  **(b) rule-browser generátor-konvenciók — kiértékelve, tudatosan
+  elhalasztva, nem épült meg.** Sienna vizsgálata szerint az eredeti
+  indoklás két lába kidőlt: a `@@MARKER@@`-hiba (2026-08-10) mára
+  kódszintű védelmet kapott (`generate_stats.py` `SystemExit`-et dob
+  eltérésnél, nem emberi tudásra van szükség hozzá), a „hiányzik a
+  `dataviz` skill" hivatkozás pedig a register saját, azóta korrigált
+  téves ellenőrzésén alapult (lásd **2.12** lezárása, 2026-08-21 — a
+  `dataviz` létezik, csak nem a `.claude/skills/` alatt). A
+  cross-specialista-facing rész (normalizált diff-logika) ma a
+  `.claude/commands/rebuild-dashboard.md`-ban él, amit Gaz ugyanazon a
+  napon épített — ellenőrizve az 5.8 lezárásakor, hogy a fájl normalize()
+  mintája byte-azonos a `ci_code_checks.yml` `regenerate_console` jobjáéval.
+  **(c) audit-register konvenciók — kiértékelve, tudatosan elhalasztva, nem
+  épült meg.** Saját vizsgálatom szerint a Napló/státuszjelölő konvenció
+  már ma is jól lefedett a „olvasd el a fájlt, kövesd a konvencióját"
+  elvvel (ez már a saját ügynökfájlam instrukciója is), és ezt a mai
+  körben kétszer is bizonyítottam működés közben (2.8/5.7/5.8, majd 5.5
+  lezárása — mindkétszer a fájl saját, meglévő mintáját követtem, skill
+  nélkül). Egy valódi, szűk rést találtam — a „Kész súly" sor más
+  jelentéssel bír itt (befagyasztott induló állapot), mint a lezárt
+  `remediation-plan.md`-ben (élő számláló) — de ezt Gaz egy egysoros
+  pontosítással oldotta meg a skill helyett; ellenőrizve, a megjegyzés
+  ténylegesen ott van a 31-34. sorban: „Ez a v1.0 kiindulási alapállapot,
+  szándékosan befagyasztva — nem élő számláló, egyetlen lezárás sem
+  növeli, ellentétben a lezárt `remediation-plan.md` azonos formátumú
+  sorával."
+  **Következtetés:** (a) valódi, verifikált megvalósítás; (b) és (c) nem
+  hiányzó munka, hanem szakértői ajánlásra tudatosan elutasított/elhalasztott
+  megoldás — pontosan az a mintázat, amit a register saját maga „elutasítás
+  is lezárás" elve előír. A tétel nem marad nyitva a fel nem épített
+  részek miatt.
