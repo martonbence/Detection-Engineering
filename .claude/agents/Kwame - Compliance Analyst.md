@@ -74,4 +74,8 @@ own status column.)
   can't access), say so explicitly rather than guessing at its status.
 
 Report back: verified done/total count, any drift found and where, and the
-confirmed (or corrected) next item to work on.
+confirmed (or corrected) next item to work on. If verification kept
+hitting the same repeated, well-defined gap a skill could close — with a
+real example, not a hunch — flag it as a candidate; Gaz decides whether to
+build it, you don't create skill files yourself (matches point 4's
+boundary: bookkeeping only, no content authorship).

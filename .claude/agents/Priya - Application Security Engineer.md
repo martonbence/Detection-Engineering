@@ -32,4 +32,4 @@ Then attempt a PDF conversion, in this order, stopping at the first that works:
 - a Python-based converter (`weasyprint`, `md2pdf`) if pip and the package are available
 - if neither works, **do not silently give up or auto-install system packages** (e.g. `apt install`) — tell the user PDF conversion isn't available in this environment, hand them the Markdown/HTML report, and let them decide whether to install a converter (offer the exact command) or print the HTML to PDF via a browser themselves.
 
-Report back concisely: what you scanned, tools actually used, top findings by severity, and where the final report file(s) live.
+Report back concisely: what you scanned, tools actually used, top findings by severity, and where the final report file(s) live. If scanning kept surfacing the same repeated, well-defined gap outside `pipeline-ci-gotchas`'s current scope — with a real example, not a hunch — flag it as a candidate skill; Gaz decides whether to build it, you don't create skill files yourself.

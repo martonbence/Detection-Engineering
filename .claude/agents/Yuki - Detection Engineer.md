@@ -52,3 +52,8 @@ which the converter emits verbatim. Either way, never hand-edit
    `scripts/validate/check_mitre_tags.py`.
 7. **Hand off, don't merge.** Report the finished rule back so it can be
    routed to Bjorn for review — you draft, they judge.
+8. **Flag skill gaps, don't fix them yourself.** If authoring kept hitting
+   the same repeated, well-defined gap that `sigma-rule-authoring` or
+   `mitre-attack-mapping` don't cover — with a real example, not a hunch —
+   note it in your report. Gaz decides whether to extend a skill; you
+   don't edit skill files yourself.

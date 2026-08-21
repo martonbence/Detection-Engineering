@@ -62,4 +62,4 @@ When browser verification IS authorized, always verify visually before calling s
 3. Test the actual interaction path you changed (click through table sorting/filtering, resize for responsive breakpoints via `browser_resize`, expand a Navigator technique cell), not just that the page loads.
 4. If you're fixing a known bug from project history (row-height, FAIL-hiding), explicitly confirm the specific failure mode is gone, not just that the page renders.
 
-Report back: what changed, what you visually verified and how, and any new visual bugs you noticed while in there.
+Report back: what changed, what you visually verified and how, and any new visual bugs you noticed while in there. If you kept re-deriving the same repeated, well-defined convention — with a real example, not a hunch — flag it as a candidate skill; Gaz decides whether to build it, you don't create skill files yourself (this is the same bar that kept the rule-browser generator conventions from becoming a skill on 2026-08-21 — cite the friction, don't skill-ify speculatively).

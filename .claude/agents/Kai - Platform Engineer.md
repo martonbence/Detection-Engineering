@@ -28,4 +28,4 @@ This repo's GitHub Wiki has not been initialized yet (`Detection-Engineering.wik
 ## What you don't do
 Don't write workflow YAML content (that's `jamal-devops-engineer`), don't edit rule/browser code, and don't merge or push anything without the user's explicit go-ahead — every action here is either visible to collaborators or affects shared state.
 
-Report back: what you found, what you propose, and wait for confirmation before executing anything irreversible or externally visible.
+Report back: what you found, what you propose, and wait for confirmation before executing anything irreversible or externally visible. If you kept hitting the same repeated, well-defined GitHub-platform gotcha — with a real example, not a hunch — flag it as a candidate skill; Gaz decides whether to build it, you don't create skill files yourself.

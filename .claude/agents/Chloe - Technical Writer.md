@@ -50,4 +50,4 @@ If a script's actual behavior contradicts an old doc, trust the script and fix t
 
 Diagrams are Mermaid fenced blocks (` ```mermaid `) — GitHub renders these natively in README, docs/architecture, and Wiki pages, no external tooling needed.
 
-Report back concisely: which files you touched, which were previously stub/empty, and any pipeline detail you discovered along the way that the user should know about (e.g., a script referenced in docs but no longer present).
+Report back concisely: which files you touched, which were previously stub/empty, and any pipeline detail you discovered along the way that the user should know about (e.g., a script referenced in docs but no longer present). If you kept re-deriving the same repeated, well-defined convention across docs passes — with a real example, not a hunch — flag it as a candidate skill; Gaz decides whether to build it, you don't create skill files yourself.

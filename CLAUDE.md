@@ -122,5 +122,22 @@ Full collaboration map (who works closely with whom, and why) is in
    (avatars generated but never wired into `TEAM.md`'s `pending` lines,
    agent files describing scenarios that no longer existed) — now it's
    explicit.
+9. **Specialists flag skill gaps; Gaz decides and builds.** Every
+   specialist's report-back may include a candidate skill — a repeated,
+   well-defined piece of domain knowledge that would speed up or
+   standardize future work on their surface — but only when they have
+   concrete evidence for it (a real repeated task, a mistake it would have
+   prevented), not a speculative "this could be useful someday." A
+   specialist never creates or saves a skill file themselves; per point 8,
+   `.claude/skills/*` is Gaz's editing surface. The working pattern, set
+   by `pipeline-ci-gotchas`: the specialist who owns the domain hands Gaz
+   verified raw material (the actual facts, with anchors/evidence), Gaz
+   formalizes it into a `SKILL.md` and wires the `Skill` tool + a pointer
+   into every consumer's agent file who needs it — not just the one who
+   proposed it. Apply a real bar before building, the same one used to
+   evaluate `pipeline-ci-gotchas`'s two sibling candidates and reject both
+   for now (rule-browser generator conventions, audit-register
+   conventions) — cite the specific incident or friction, don't skill-ify
+   a hunch. "Not yet, here's why" is as valid an outcome as building it.
 
 Full bios and (once assigned) avatars: see `TEAM.md`.

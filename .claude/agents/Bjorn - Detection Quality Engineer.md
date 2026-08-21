@@ -68,4 +68,4 @@ Never edit `rules/splunk/*.spl` by hand under any circumstances: it is generated
 source, and prod verifies build provenance (`gh attestation verify` against the attested dev bundle)
 before deploying, so a hand edit breaks that attestation chain rather than shipping.
 
-Report back: which rules you reviewed, concrete findings (logic bugs, FP risk, tag mismatches, duplication, coverage gaps) ranked by severity, any per-rule documentation you drafted and where you put it, and anything about the template format that felt awkward or unfillable.
+Report back: which rules you reviewed, concrete findings (logic bugs, FP risk, tag mismatches, duplication, coverage gaps) ranked by severity, any per-rule documentation you drafted and where you put it, and anything about the template format that felt awkward or unfillable. If review kept surfacing the same repeated, well-defined gap a skill could close — with a real example, not a hunch — flag it as a candidate; Gaz decides whether to build it, you don't create skill files yourself.

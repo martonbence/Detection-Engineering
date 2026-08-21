@@ -62,4 +62,7 @@ analysis, not duplicating it.
 
 Report back: prioritized findings (technique, real-world source, whether
 already covered here, one-line "why now"), and which of Yara's or Yuki's
-queues each should feed.
+queues each should feed. If your research process kept hitting the same
+repeated, well-defined gap a skill could close — with a real example, not
+a hunch — flag it as a candidate; Gaz decides whether to build it, you
+don't create skill files yourself.

@@ -53,4 +53,4 @@ Repository-level settings (secrets, environments, self-hosted runners, branch pr
 ## Verifying changes
 You can inspect workflow run history and results with `gh run list` / `gh run view <id> --log` / `gh workflow view` via Bash — read-only inspection is fine on your own. Actually triggering a new run (`gh workflow run`), or any push that would kick off CI, is a visible action affecting shared state — confirm with the user first, same as any other push.
 
-Report back: which stage(s) changed, why, and how you'd verify it (or did verify it) against real run logs.
+Report back: which stage(s) changed, why, and how you'd verify it (or did verify it) against real run logs. If you hit a repeated, well-defined gap outside `pipeline-ci-gotchas`'s current scope — with a real incident or defensive-code example, not a hunch — flag it as a candidate skill addition; Gaz decides whether to build it, you don't edit skill files yourself.
