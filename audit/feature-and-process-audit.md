@@ -124,7 +124,7 @@ teljesíthető utasítással indul.
 - [ ] **3.7** A lefedettségi cél nincs adatként jelen · `outputs/reports/stats.json`: `mitre_covered_techniques: 12`, `mitre_total_techniques: 222`, `mitre_coverage_pct: 5,4` · A dashboard megmutatja, mi van; nem mutatja, mi lenne a cél, és milyen ütemben haladunk felé. A `coverage_history.json` és a `rule_growth_history.json` már gyűjti az idősort — hiányzik a szándék (célhalmaz, prioritás, „következő 5 technika") rögzítése adatként, amihez a trend mérhető. Ez az a pont, ahol Yara és Masha kimenete tényleges repo-artefaktummá válhatna → **Yara** (tartalom), **Sienna** (megjelenítés)
 - [ ] **3.8** A szabálykönyvtár két taktika-családra szűkül, hét taktikán nulla szabály · gépi számlálás a 28 szabály `attack.*` tactic-tagjein: `execution` 14, `credential_access` 13, `stealth` 8, `persistence` 2, `defense_impairment` 2, `command_and_control` 1, `initial_access` 1, `discovery` 1 · A felső ATT&CK enterprise-taxonómiához mérve **hét taktikán nulla szabály van**: Reconnaissance, Resource Development, Privilege Escalation, Lateral Movement, Collection, Exfiltration, Impact. Teljes technika-lefedettség 12/222 (5,4%). Ez nem hiba — tudatos mélységi fókusz lehet —, de sehol nincs kimondva, hogy az, és a hét üres taktika kész felvételi lista a következő körhöz. Yara javaslata a sorrendre, amivel egyetértek: a **Privilege Escalation** és a **Lateral Movement** az a kettő, amihez a meglévő victim + DC labor-hostokon reálisan van valódi Atomic-teszt — vagyis ezekre nemcsak szabály írható, hanem a repo lényegét adó *élő verifikáció* is elvégezhető rajtuk. (Pontosítás Yara briefjéhez: a repo saját taktika-szótára nem azonos az upstream ATT&CK-kal — `stealth` és `defense_impairment` itt valós taktika, lásd a `mitre-attack-mapping` skillt —, tehát nyolc taktikán *van* szabály, nem kettőn; a koncentráció állítása viszont változatlanul áll.) → **Masha** (külső megalapozás) → **Yara** (priorizálás) → **Yuki** (megvalósítás), dokumentálva **Chloe**
 - [x] **3.9** A publikált szám mellett nincs ott, hogy mikor mértek utoljára élesben · `README.md` badge-sor, `docs/index.html` Verification-gyűrű · Ma a `stats.json` (generálva 2026-08-17) 4% pass rate-et és 27/28 `NOT_VERIFIED`-et mutat, három nappal azután, hogy a régi register naplója egy valódi `LAB_ONLINE=true` futást rögzített 26 szabály éles history-jával. Aki csak a badge-et látja, romlásnak olvassa. Hiányzik egy „utolsó éles verifikáció: `<dátum>`, N/M szabály" jelzés közvetlenül a Pass Rate badge és a gyűrű mellett, plusz a rule browserben egy önkiszolgáló szűrő/jelvény a „újramérésre vár" halmazra, ami megkülönbözteti a *szerkesztés miatt felülírt* és az *elévült* esetet (az adat mindkettőre megvan a `stats.json`-ben). Yara ezt priorizálta a legmagasabbra a briefjében, és egyetértek a *javaslattal* — a diagnózisával nem (lásd a Naplót és az 1.5-öt: a mai 4% nem elévülésből jön, `verified_stale = 0`) → **Sienna**
-- [ ] **3.10** Nincs anonimizálás a publikusan letölthető diagnosztikai artifactban · `ci_dev_workflow.yml:1882` (`matched-events-sigma-<run_id>`, 14 napos retention, publikus repón bárki által letölthető) · A régi register **2.16**-a ezt a kockázatot megvizsgálta, és tudatosan a **rövidebb retenciót** választotta (90 → 14 nap) a mezőszűrés helyett — az indoklás jó volt (a nyers esemény maga a hibakeresési érték) —, de a tétel szövege maga nevezi meg, mi maradt kitéve: **a labor névtana** (gépnevek, domain, szolgáltatásfiókok). Egy verify és artifact-feltöltés közé illesztett eszköz, ami a labor-azonosítókat stabil, entitásonként konzisztens álnevekre cseréli (megőrizve az események közti korrelációt, tehát a debug-értéket is), pontosan azt a maradékot zárná le, amit a 2.16 nyitva hagyott. Yara javaslata, a register szövegével megerősítve. Önálló eszköz, nincs mai gazdája — a CI-ba **Jamal** kötné be → **Gaz** dönt gazdát
+- [x] **3.10** Nincs anonimizálás a publikusan letölthető diagnosztikai artifactban · `ci_dev_workflow.yml:1882` (`matched-events-sigma-<run_id>`, 14 napos retention, publikus repón bárki által letölthető) · A régi register **2.16**-a ezt a kockázatot megvizsgálta, és tudatosan a **rövidebb retenciót** választotta (90 → 14 nap) a mezőszűrés helyett — az indoklás jó volt (a nyers esemény maga a hibakeresési érték) —, de a tétel szövege maga nevezi meg, mi maradt kitéve: **a labor névtana** (gépnevek, domain, szolgáltatásfiókok). Egy verify és artifact-feltöltés közé illesztett eszköz, ami a labor-azonosítókat stabil, entitásonként konzisztens álnevekre cseréli (megőrizve az események közti korrelációt, tehát a debug-értéket is), pontosan azt a maradékot zárná le, amit a 2.16 nyitva hagyott. Yara javaslata, a register szövegével megerősítve. Önálló eszköz, nincs mai gazdája — a CI-ba **Jamal** kötné be → **Gaz** dönt gazdát
 - [x] **3.11** Nincs eszköz egy találatszám-eltérés kivizsgálására · verifikálva a `outputs/results/DETECT-2026-0019/history.jsonl`-ből: ugyanaz a szabály négy futás alatt **FAIL (11 esemény) → NOT_VERIFIED (1) → FAIL (0) → NOT_VERIFIED (kikapcsolva)** három nap alatt, közben a `rule_version` 1.6-ról 1.7-re mozdult · A régi register **2.7**-e a globális `--max-pass 10` ablakot vizsgálta, és elutasítással zárult: a felső korlát rossz eszköz, mert az *attack-ablak* számából elvből nem derül ki, hogy a szabály túl tág-e vagy a technika generál tényleg annyi eseményt. Ez a következtetés áll — de a gyakorlati rés megmaradt: ha egy szám 11 lesz 10 helyett, ma **semmi nem mondja meg, melyik esemény volt a plusz egy**. Egy script, ami betölti egy szabály illeszkedett eseményeit és megmutatja, mely mező(k) mentén válik szét a halmaz, a mai „ismert flakiness"-t vizsgálhatóvá tenné. Yara javaslata; a register 2.7-hez fűzött indoklása pontosítva (nem „not-a-bug flakiness"-ként lett lezárva, hanem a felső korlát elvi elutasításaként) → **Jamal** (a `scripts/verify/` kiterjesztéseként), vagy önálló eszköz, ha külön akarjuk tartani a CI-tól
 
 ## 4 · Robusztusság és karbantarthatóság (7) · ×2
@@ -636,3 +636,70 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   megoldás (pl. az artifact tartalmának szűrt/anonimizált formában való megőrzése
   `outputs/`-ban) mindkettőt egyszerre zárná. Nem kapott önálló tételszámot — bekövetkezett
   tényként rögzítve itt, a 3.11 zárásában, a 2.12-nél alkalmazott konvenció szerint.
+
+- **2026-08-21 — 3.10 lezárva (`4aedde3`), Kwame verifikálta.** Két új fájl +
+  egy módosított workflow, `git show --stat`-tal ellenőrizve a commit-üzenet
+  ellen: `scripts/verify/anonymize_matched_events.py` (706 sor, új),
+  `tests/test_anonymize_matched_events.py` (502 sor, új, 39 `def test_`
+  függvény — a commit-üzenet „43 new tests" száma a pytest-kollekciós
+  darabszám lehet parametrizálás miatt, nem ellentmondás), `.github/workflows/
+  ci_dev_workflow.yml` (+77/−18, kizárólag a `splunk_verify` jobon belül).
+  **Modul-docstring (1-97. sor) végigolvasva:** a design-indoklás (azonosítók
+  *felfedezése*, nem konfigurálása; a szabad szöveg miatti helyettesítés nem
+  opcionális, 15/28 szabály `CurrentDirectory`-ja plain textben hordozza a
+  fióknevet; a `_raw` kezelése `custom.splunk.raw_query` esetére; a
+  só-alapú, futások közt stabil álnév-képzés) valóban megelőzi és
+  megmagyarázza a kódot, nem utólagos magyarázat.
+  **Teszt-suite, önállóan újrafuttatva** (izolált venv,
+  `.github/requirements.txt` + `.github/requirements-dev.txt`, ugyanaz a
+  mintázat, mint a 4.5/4.7/3.11 verifikációnál): `tests/test_anonymize_
+  matched_events.py` önmagában zöld (39/39, pontkijelzéssel megszámolva —
+  a `-q` összegző sora ezen a gépen nem jelenik meg, a pontok száma viszont
+  egyezik); **teljes suite 646/646 zöld** (a kimenet 646 pontot tartalmaz,
+  hibajel nélkül) — egyezik a Gaz által korábban, függetlenül jelentett
+  646/646-tal. `ruff check scripts/verify/anonymize_matched_events.py
+  tests/test_anonymize_matched_events.py` → **All checks passed!**.
+  `actionlint`/`shellcheck` **nem állt rendelkezésre ezen a gépen** (a 4.4/4.7
+  verifikációnál használt binárisok itt nincsenek telepítve) — ezen a ponton
+  Jamal/Gaz korábbi, commit előtti futtatására támaszkodom, nem saját
+  independens futtatásra; ezt explicit jelzem, nem hallgatom el.
+  **Kódszintű ellenőrzés a három fő állításra:**
+  (1) `HOST_FIELDS`/`USER_FIELDS`/`DOMAIN_FIELDS` (:146-192) mezőnév-
+  halmazok, nem gépnév-lista; a fájlban `grep`-pel keresett lab-jellegű
+  minták (`victim`, `dc01`, `.local`, `corp.local` stb.) kizárólag
+  docstring-/kommentpéldákban fordulnak elő (pl. „`DC01.lab.local`"), soha
+  literál azonosítóként a logikában — a tesztfájl saját, szintetikus
+  fixture-neveket használ (`WIN-VICTIM01.delab.local`,
+  `DELAB-DC01`), amik sehol máshol a repóban nem fordulnak elő, tehát nem
+  szivárgott valódi labor-névtan. (2) `Pseudonymizer._mint` (:316-322)
+  `hashlib.blake2s`-t hív egy `hashlib.sha256`-ból származtatott
+  só-kulccsal, `(kind, key)` páron kulcsolva — ténylegesen hash-alapú, nem
+  számláló (nincs inkrementált számláló változó a mintázási útvonalon).
+  (3) CI-vezetéklet (:1904-1937): önálló `ANON_DIR=$(mktemp -d)`, a
+  `matched_events_anon_dir` `$GITHUB_ENV`-export csak a `python …` hívás
+  utáni sorban, `set -euo pipefail` mellett — egy nem-nulla exit a
+  scriptből a step-et azelőtt állítja meg, hogy az export megtörténne. Az
+  Upload-lépés `if:` feltétele ténylegesen `matched_events_anon_dir != ''`-re
+  vált, nem a régi `matched_events_dir`-re — a `git diff` ezt megerősíti.
+  **Tudatosan nyitva hagyott, nem e körben javított hiányok (a lezárás nem
+  takarja el őket):**
+  1. **Nincs valódi `LAB_ONLINE`-futással verifikálva** — csak szintetikus/
+     lokális fixtúrákon lett tesztelve, a commit-üzenet ezt maga is kimondja.
+  2. **Dokumentáció-drift négy helyen**, mind azt írja, hogy az artifact
+     „nyers, mezőszűréstől mentes" marad: `README.md:116`,
+     `docs/architecture/data_flow.md:24,112,115`,
+     `docs/architecture/pipeline_overview.md:372` (a job-lépéslista nem
+     tartalmazza az új „Anonymize matched events" lépést), plusz a
+     `docs/architecture/scripts_reference.md`-ből hiányzik magának a
+     scriptnek a bejegyzése (`grep` → 0 találat). Mind a négy Chloe
+     hatásköre, és a felhasználó kérésére ez a kör szándékosan **nem** nyúl
+     dokumentációhoz — rögzítve, hogy ne vesszen el.
+  3. **Opcionális keményítés nincs alkalmazva:** egy `MATCHED_EVENTS_ANON_SALT`
+     repository secret megszüntetné az alapértelmezett só körüli
+     találgatás-megerősítési oldalcsatornát; a workflow már olvassa a
+     secretet (`:1908`), de a secret maga nincs provisionálva — ez **Kai**
+     döntése, nem történt meg itt, és semmi nem törik a hiányától.
+  4. A **`DEFAULT_SALT` egy konstans literál** a committolt forrásban
+     (`:130`) — ez **szándékos és dokumentált** (a modul-docstring
+     „Pseudonym stability" szakasza), nem hiba: cross-run stabilitást ad, a
+     titkosság hiányát a 3. pont oldja fel opcionálisan.
