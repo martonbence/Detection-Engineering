@@ -133,7 +133,7 @@ teljesíthető utasítással indul.
 - [x] **4.2** 7 500 sor front-end, nulla automatizált ellenőrzés · `scripts/docs/assets/page.js` (2 878), `page.css` (4 036), `page.template.html` (586) · A `ci_code_checks.yml` négy checkerje Pythont (ruff+pytest), PowerShellt (parser+PSScriptAnalyzer), workflow-YAML-t (actionlint+shellcheck) és függőséget (pip-audit) fed — JS/CSS/HTML-t **egyiket sem**. `grep eslint|stylelint|prettier|npm` a workflow-kban: 0 találat. Arányában: 3 400 sor Pythont 555 teszt véd, 7 500 sor front-endet semmi. Belépő szint: `eslint` minimál szabálykészlettel + HTML-validáció a generált oldalon, önálló jobként (hogy egy JS-hiba ne maszkolja a ruffot, a repo bevált mintája szerint) → **Sienna** (tartalom) + **Jamal** (job)
 - [x] **4.3** A teszt-suite bukik a fejlesztő saját gépén · `python -m pytest` → **3 failed, 552 passed**, mindhárom a `tests/test_meta_only.py`-ban, hibaüzenet: `'No time zone found with key Europe/Budapest'` · Ok: a `scripts/convert/sigma_to_spl.py:334` `ZoneInfo("Europe/Budapest")`-et használ, Windows alatt viszont nincs rendszerszintű tzdata, és a `.github/requirements-dev.txt` (pytest, ruff) nem tartalmazza a `tzdata` csomagot. CI-ban (ubuntu) zöld, helyben piros — ez a legrosszabb fajta eltérés, mert a fejlesztőt arra tanítja, hogy a piros suite normális. Javítás: `tzdata` a dev-requirementsbe (és/vagy a sidecar időbélyegének UTC-re váltása) → **Jamal**
 - [ ] **4.4** Hat különböző commit-visszaírási út, futásonként 3-4 gépi commit · `ci_dev_workflow.yml` (4 commit: prune / SPL / verify results / dashboard), `ci_code_checks.yml` (1), `ci_prod_audit.yml` (1) · 894 commitból **256** (29%) `[skip ci]` gépi commit; a `docs/index.html`-t 185, az `outputs/`-ot 221 commit érinti. Következmény a napi munkára: a felhasználó minden helyi commit előtt rebase-elni kényszerül, mert a CI mindig elé ír (ez már rögzített projekt-tapasztalat). A történet ettől olvashatatlan is: egy valódi változtatás körül 3-4 zajcommit ül. Irány: egy futás = legfeljebb egy visszaírás (az `update_dashboard` amúgy is külön jobban fut, oda összevonható), vagy a generált artefaktumok kivezetése a branchről (Pages-artifact + release-asset), ami a 3.5-tel is összeér → **Jamal** ⟶ folyamatban
-- [ ] **4.5** A generátor központi függvénye 277 soros, és egyetlen tesztmodul importálja · `scripts/docs/generate_stats.py:863-1140` (`generate_stats()`), a fájl összesen 1 812 sor · A régi register **3.4 phase 1** kiszedte az inline HTML/CSS/JS literált (6 000 → 1 812 sor); a phase 2, a számítási mag szétbontása nem történt meg. Ez a függvény állítja elő egyszerre az összes publikált számot, a MITRE-lefedettséget, a README-blokkot és a history-idősorokat. Az 1.6 (tesztek) ennek a szétbontásával lesz olcsó, nem előtte → **Sienna**
+- [x] **4.5** A generátor központi függvénye 277 soros, és egyetlen tesztmodul importálja · `scripts/docs/generate_stats.py:863-1140` (`generate_stats()`), a fájl összesen 1 812 sor · A régi register **3.4 phase 1** kiszedte az inline HTML/CSS/JS literált (6 000 → 1 812 sor); a phase 2, a számítási mag szétbontása nem történt meg. Ez a függvény állítja elő egyszerre az összes publikált számot, a MITRE-lefedettséget, a README-blokkot és a history-idősorokat. Az 1.6 (tesztek) ennek a szétbontásával lesz olcsó, nem előtte → **Sienna**
 - [x] **4.6** Három hard CI-kapu körül nincs teszt · `scripts/validate/validate_sigma.py` (a séma-kapu, amin minden szabály átmegy), `scripts/validate/check_detect_id_uniqueness.py`, `scripts/new_rule.py` · A `tests/` egyik modulja sem importálja őket (a `check_version_bump`, `check_test_routing`, `check_mitre_tags`, `check_spl_syntax` viszont mind fedve van, jól). A `new_rule.py` külön súlyos: a `sigma-rule-authoring` skill *minden* új szabályt ezzel indíttat, tehát a scaffold hibája minden jövőbeli szabályba beépül; a skill állítása („every placeholder already satisfies the schema, `validate_sigma.py` passes on the untouched skeleton") ma nincs teszttel bizonyítva, pedig pontosan egy ilyen `scaffold → validate` round-trip teszt írná le → **Jamal**
 - [ ] **4.7** Nincs UI-regressziós ellenőrzés, pedig az ügynök-szerződés előírja a manuálisat · `.claude/agents/Sienna - Frontend Engineer.md` („Verifies their own changes with Playwright before calling them done") · A Playwright-ellenőrzés így minden alkalommal kézi, egyszeri és nyomtalan: nincs elmentett snapshot, nincs CI-ban futó smoke-teszt, ami észrevenné, hogy egy `@@MARKER@@` kicseréletlenül maradt, egy doughnut nem renderelődik, vagy a Navigator-nézet elszáll. Egy egyszerű headless smoke (az oldal betölt, nincs console error, megvan a várt N szabálysor és a két gyűrű) a `ci_code_checks.yml`-ben megfogná a leggyakoribb regressziót → **Sienna** + **Jamal**
 
@@ -492,3 +492,44 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   tényleges elérhető-skillek listája (a futó munkamenet skill-katalógusa) a mérvadó forrás,
   mert a globálisan csomagolt skillek onnan hiányoznak, mégis élnek. Nem kapott önálló
   tételszámot, mert nem repo-hiány, hanem az audit saját ellenőrzési lépésének korrekciója.
+
+- **2026-08-21 — 4.5 lezárva (Sienna, opus), Kwame verifikálta.** A tétel saját szövege
+  elavult volt már a munka *előtt* is: 277 sort és `863-1140`-et mond, a valós állapot a
+  munka megkezdésekor 352 sor volt, `941-1292` (a diagnózis lényege — hogy a számítási mag
+  egyetlen, tesztek szempontjából nehezen célozható függvény — attól még helytálló maradt,
+  csak a konkrét sorhivatkozás csúszott el egy korábbi, nem naplózott módosítás miatt). Ez a
+  bejegyzés a `863-1140`/277 sor számot **történeti, a munka előtti állapotként** rögzíti,
+  nem javítja utólag a fenti tételszöveget — ugyanaz a konvenció, amit a 4.3 bejegyzés is
+  követ (a tételszöveg az eredeti diagnózis pillanatképe marad, a felbontás ide, a Naplóba
+  kerül).
+  `commit 37d7c84` (`refactor(docs): split generate_stats() into focused helpers`,
+  `scripts/docs/generate_stats.py` +383/−225, kizárólag ezt az egy fájlt érinti — `git show
+  --stat`-tal ellenőrizve). `generate_stats()` ma `1335-1448` között él, **114 sor**, és
+  végigolvasva ténylegesen összeszerelő függvény: `_collect_rule_details`,
+  `_group_rule_dimensions`, `_tally_verdicts`, `_compute_rate_stats`,
+  `_last_live_verification`, `_compute_mitre_coverage`, `update_trend_history` hívásaiból áll,
+  ezek pedig további nevesített segédfüggvényekre bomlanak (`_verdict_standing`,
+  `_build_rule_detail`, `_read_cached_mitre_total`) és négy `NamedTuple`-ra
+  (`_VerdictStanding`, `_VerdictCounts`, `_RateStats`, `_MitreCoverage`) — összesen a Sienna
+  által jelentett ~12 nevesített segéd/`NamedTuple` valóban létezik és ténylegesen hívva van,
+  nem kozmetikus átnevezés.
+  **Kimenet-azonosság:** Sienna jelentése szerint fagyasztott-órás, byte-azonos futtatással
+  hasonlította össze a pre- és post-refaktor modult (`stats` dict kulcssorrenddel együtt,
+  README badge-blokk, `docs/index.html`, `navigator_layer.json`). Ezt **nem futtattam újra
+  önállóan** — a `generate_stats()` valódi hívása írna a `outputs/reports/coverage_history.json`
+  és `rule_growth_history.json` gyorsítótárakba (`update_trend_history()`), ami piszkos
+  munkafát hagyna maga után egy verifikációs lépéstől, ezért helyette kód-szintű átolvasással
+  és a teszt-suite eredményével pótoltam (lásd lent) — ez a Sienna-jelentés spot-check-e, nem
+  önálló újra-levezetése, a dispatch instrukciójának megfelelően.
+  **Tesztek:** ezen a gépen nincs rendszerszintű `pytest` (`python3 -m pytest` →
+  `No module named pytest`) — Sienna jelentése szerint ugyanez volt az ő gépén is, egyszer
+  használt venv-vel oldotta meg, én is ugyanígy jártam el
+  (`/tmp/.../scratchpad/venv`, `pip install pytest -r .github/requirements-dev.txt`).
+  `tests/test_generate_stats_math.py` + `tests/test_deployment_panel.py`: **26/26 zöld**.
+  Teljes suite: **581/581 zöld** — pontosan egyezik a Sienna commit-üzenetében jelentett
+  581-es számmal. `ruff check scripts/` → **All checks passed!**. `git status` a futtatások
+  után tisztán jött vissza (a tesztek fixtúrákon/tmp-útvonalon dolgoznak, nem a valódi
+  gyorsítótár-fájlokon).
+  **Nem történt meg:** a fagyasztott-órás pre/post frozen-clock összehasonlítás önálló
+  újra-lefuttatása (lásd fent, miért) — ezen a ponton Sienna számszerű jelentésére
+  támaszkodom, nem saját, független bájt-egyezés-mérésre.
