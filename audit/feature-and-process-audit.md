@@ -109,7 +109,7 @@ teljesíthető utasítással indul.
 - [ ] **2.9** Nincs per-szabály dokumentáció, és a hozzá tartozó hivatkozás holt · `README.md:175` (issue #20), `.claude/agents/Bjorn - Detection Quality Engineer.md` frontmatter (a `rule_documentations/` könyvtárra hivatkozik, ami már nincs a repóban — az ügynökfájl maga jelzi ezt, de a mondat így is félrevezető) · A README szerint a metaadat-forrás kérdése megoldódott (minden a `rules/sigma/*.yml`-ben van), tehát az automatizálásnak nincs technikai akadálya. Ma egyetlen szabályról sincs önálló, olvasható lap sem a repóban, sem a rule browserben → **Gaz** priorizál, **Sienna** (generátor) vagy **Jamal** (CI-lépés)
 - [ ] **2.10** Feloldatlan register-hivatkozás a kódban: `[dashboard-decoupling]` · `.github/workflows/ci_dev_workflow.yml:2064,2243,2526` · Három komment hivatkozik erre a „register item"-re; a lezárt `audit/remediation-plan.md`-ben **nulla** előfordulása van. A repo minden más ilyen kommentje valódi számozott tételre mutat (38 különböző azonosító). Ez egy elvégzett, de sosem regisztrált munka — a lezárt register így nem teljes rekord. Javaslat: vagy ebbe az új registerbe kerüljön be utólagos, lezárt tételként a tényleges tartalmával, vagy a kommentek a PR-re/commitra hivatkozzanak helyette → **Kwame** (register-könyvelés) + **Jamal** (kommentek)
 - [ ] **2.11** A `dependabot.yml` indoklása a 3.2 előtti világot írja le · `.github/dependabot.yml:5-8` · „The pins exist because prod re-runs the converter over the same Sigma source dev already converted…" — a prod ezt már nem teszi (a `.github/requirements-deploy.txt` fejléce ezt helyesen le is írja). A pineknek ma is van értelme (a dev saját reprodukálhatósága), csak nem ez az. Konfigurációs komment, de a repo szerkesztési kultúrájában ezek dokumentumértékűek → **Jamal**
-- [ ] **2.12** Élő hivatkozás egy nem létező skillre · `.claude/agents/Sienna - Frontend Engineer.md:48`: „when adding or redesigning any chart, graph, stat tile, or dashboard element, **invoke the `dataviz` skill first** … before writing chart code" · A `.claude/skills/` alatt három skill van: `mitre-attack-mapping`, `sigma-rule-authoring`, `team-avatars`. `dataviz` **nincs**. Ez nem elavulás, hanem működő hiba: kötelező érvényű utasítás egy nem teljesíthető lépésre, ami minden front-end diagram-munka elejére be van építve. Két út: megírni a skillt (a repo diagram-konvenciói ma a `page.css` 4 036 sorában és a `page.js` chart-kódjában élnek, tehát lenne mit rögzíteni), vagy törölni a sort. Yara találata, `grep`-pel megerősítve → **Gaz** dönt (skill-gazda kijelölése az 5.1-gyel együtt), tartalom **Sienna**
+- [x] **2.12** Élő hivatkozás egy nem létező skillre · `.claude/agents/Sienna - Frontend Engineer.md:48`: „when adding or redesigning any chart, graph, stat tile, or dashboard element, **invoke the `dataviz` skill first** … before writing chart code" · A `.claude/skills/` alatt három skill van: `mitre-attack-mapping`, `sigma-rule-authoring`, `team-avatars`. `dataviz` **nincs**. Ez nem elavulás, hanem működő hiba: kötelező érvényű utasítás egy nem teljesíthető lépésre, ami minden front-end diagram-munka elejére be van építve. Két út: megírni a skillt (a repo diagram-konvenciói ma a `page.css` 4 036 sorában és a `page.js` chart-kódjában élnek, tehát lenne mit rögzíteni), vagy törölni a sort. Yara találata, `grep`-pel megerősítve → **Gaz** dönt (skill-gazda kijelölése az 5.1-gyel együtt), tartalom **Sienna**
 - [ ] **2.13** Nincs architektúra-dokumentum magáról a `.claude/` ökoszisztémáról · `docs/architecture/` négy mély referenciát ad a pipeline-ról, a csapatmodellről egyet sem · A `CLAUDE.md` előíró (ki mit birtokol, hogyan megy a delegálás), a `TEAM.md` roster — egyik sem „hogyan folyik a munka a gyakorlatban" referencia valódi példákkal. Egy `docs/architecture/agent_workflow.md` (Yuki→Bjorn átadás, egy Kwame-féle drift-elkapás, egy Gaz-féle feladatszétvágás, mindegyik valós esettel) egyszerre lenne onboarding-anyag és annak a dokumentálása, ami ebben a repóban ténylegesen újszerű. Yara javaslata; a jelen audit 5. szakasza pont azt bizonyítja, hogy van mit leírni → **Chloe**
 - [ ] **2.14** Nincs `CONTRIBUTING.md` · ellenőrizve: a fájl nem létezik · A régi register **2.11**-e a CODEOWNERS-t és a PR-sablont utasította el mint „checklist-ballaszt" egy egyszemélyes repóban — ez a döntés áll. A `CONTRIBUTING.md` viszont más kérdésre válaszol: nem kapu, hanem egy helyen összeszedett szerzői folyamat (szabály-scaffold → validálás → review → promotion), ami ma öt dokumentum és három skill között van szétszórva. Alacsony prioritás az egyszemélyes valóság miatt, de olcsó, és a 2.6 (lokális futtatás) természetes otthona lenne. Yara javaslata → **Chloe**
 
@@ -461,3 +461,34 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   teljesítés ciklusba terelve csak késleltetést adna hozzá olyan döntésekhez, amikről Gaznak
   már úgyis teljes kontextusa van. A `CLAUDE.md`-be bekerült egy explicit 8. pont, ami ezt
   kimondja. Nincs kódoldali végrehajtó.
+
+- **2026-08-21 — 2.12 lezárva verifikációval, nem megvalósítással (Gaz döntése, Kwame
+  könyvelte).** A tétel premisszája elavult volt, nem a hivatkozás. Ellenőrizve: a
+  `.claude/skills/` alatt ma is pontosan három könyvtár van (`mitre-attack-mapping`,
+  `sigma-rule-authoring`, `team-avatars`) — ez a rész a tétel eredeti megállapításából
+  helytálló. Az viszont téves következtetés, hogy ettől a `dataviz` skill nem létezik: a
+  `dataviz` nem projekt-helyi skill, hanem a Claude Code-hoz globálisan csomagolt skillek
+  egyike (ugyanabban a rétegben, mint pl. `artifact-design`, `design`, `code-review`, amik
+  szintén nem élnek a `.claude/skills/` alatt, mégis meghívhatók). Gaz a saját munkamenete
+  elérhető-skillek listáján közvetlenül megerősítette, hogy szerepel benne egy pontosan
+  `dataviz` nevű bejegyzés, leírása szinte szó szerint egyezik Sienna use case-ével
+  („create ANY chart, graph, plot, dashboard… stat tile, sparkline, heatmap…"). Ez
+  önmagában Gaz állítása, ezért független megerősítést kerestem a register saját
+  naplójában: az **1.5 megvalósítva (Sienna, opus)** bejegyzés (fentebb, 2026-08-20) már
+  konkrét, mérőszámos bizonyítékot rögzített arra, hogy Sienna egy korábbi, valódi
+  dispatchben ténylegesen meghívta és használta ezt a skillt — „kontraszt-validált narancs
+  `#db6d28`, ΔE 15.3-17.5 a `dataviz` skill validátora szerint". Ez nem Gaz mai
+  kijelentésének visszamondása, hanem egy másik napon, más kontextusban rögzített,
+  numerikus kimenetet is tartalmazó tény ugyanarról a skillről — vagyis a `dataviz` nem
+  csak feloldható név egy skill-listában, hanem ténylegesen lefutott és hasznos kimenetet
+  adott éles munka közben. `Sienna - Frontend Engineer.md:48` szövege ellenőrizve: nem
+  állítja, hogy a `dataviz` projekt-helyi lenne, csak annyit mond, hívja meg — ez az
+  állítás igaz, a sor nem hibás, nem is igényel szerkesztést. **Következtetés:** 2.12 nem
+  élő hiba, hanem hiányos módszertan volt — a „hiányzik a `.claude/skills/`-ből" és a
+  „nem hívható meg" nem ugyanaz, és az eredeti átvizsgálás (Yara, `grep`-alapú) ezt a
+  kettőt összemosta. Nincs kódoldali/tartalmi végrehajtó, mert nincs mit javítani.
+  **Módszertani megjegyzés a register további köreihez:** jövőbeli skill-hivatkozás-
+  ellenőrzéskor (Yara vagy bárki más) nem elég a `.claude/skills/` könyvtárlistázás — a
+  tényleges elérhető-skillek listája (a futó munkamenet skill-katalógusa) a mérvadó forrás,
+  mert a globálisan csomagolt skillek onnan hiányoznak, mégis élnek. Nem kapott önálló
+  tételszámot, mert nem repo-hiány, hanem az audit saját ellenőrzési lépésének korrekciója.
