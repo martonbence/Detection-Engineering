@@ -116,7 +116,7 @@ teljesíthető utasítással indul.
 ## 3 · Funkció- és képességhiányok (12) · ×1,5
 
 - [x] **3.1** Az elévülés mechanizmusa megvan, a visszamérésé nincs · nincs `schedule:` trigger egyetlen workflow-ban sem (`grep cron` → 0 találat; a `ci_prod_audit.yml:19` tudatosan indokolja a magáét) · A `REVIEW_INTERVAL_DAYS = 180` gondoskodik róla, hogy egy verdikt lejárjon, és a README büszkén állítja, hogy „a pipeline that stopped running would drive the pass rate to zero within 180 days" — de semmi nem méri újra automatikusan. A „Needs Re-run" halmaz csak nőhet, amíg valaki kézzel nem indít `workflow_dispatch`-et. A `select_unverified.py` + a dispatch `unverified` scope pontosan ehhez készült; hiányzik a heti/havi ütemezés `LAB_ONLINE`-tudatos kapuval (ami már létezik, és pont ezt a helyzetet kezeli offline lab esetén) → **Jamal**
-- [ ] **3.2** A prod-audit csak kézzel indul · `.github/workflows/ci_prod_audit.yml:19-22` · A „nincs schedule" indoklás (offline lab) helytálló volt, de a `LAB_ONLINE` gate azóta pont ezt a helyzetet kezeli máshol. Egy ütemezett futás `LAB_ONLINE != 'false'` feltétellel offline labnál is csak kihagyja magát — cserébe a „prod még az, aminek hisszük?" kérdés nem attól függ, hogy valakinek eszébe jut-e megkérdezni. Ugyanaz a minta, mint a 3.1, ezért érdemes egyszerre → **Jamal**
+- [x] **3.2** A prod-audit csak kézzel indul · `.github/workflows/ci_prod_audit.yml:19-22` · A „nincs schedule" indoklás (offline lab) helytálló volt, de a `LAB_ONLINE` gate azóta pont ezt a helyzetet kezeli máshol. Egy ütemezett futás `LAB_ONLINE != 'false'` feltétellel offline labnál is csak kihagyja magát — cserébe a „prod még az, aminek hisszük?" kérdés nem attól függ, hogy valakinek eszébe jut-e megkérdezni. Ugyanaz a minta, mint a 3.1, ezért érdemes egyszerre → **Jamal** · **Elutasítva, lásd Napló 2026-08-21**
 - [ ] **3.3** Egyetlen backend, és a második létezését csak szintetikus teszt bizonyítja · `config/backends.yml`, `tests/test_backend_config.py:106-148` · A régi register 3.7 kivette a backend-döntést a kódból adatba — a fájl saját kommentje szerint „a new backend is a new block below, and the converter's code path is unchanged". Ezt ma **semmi valódi futás nem támasztja alá**: a `config/backends.yml`-ben egyetlen `splunk` blokk van, a „több backend is működik" állítást pedig kizárólag a tesztfájlban felépített, kitalált `esql` / `elastic` konfiguráció támasztja alá — ami a *betöltőt* teszteli, nem a konverziót. Yara ugyanide jutott, és egy konkrét eszközt javasolt hozzá: egy kis CLI, ami kap egy backend-konfigurációt + mintaszabályokat, és megmondja, mi fordul le és mi nem. Ez egyszerre lenne a 3.7 falszifikálása és egy jövőbeli „adjunk hozzá Elasticet" kör önellenőrző eszköze → **Gaz** dönt hatókört, **Jamal** hajtja végre (a `scripts/convert/` mellé)
 - [ ] **3.4** A verdikt csak azt méri, hogy „tüzelt-e" — a zajszintről nincs adat · `scripts/verify/pass_fail_eval.py` (`1 ≤ events ≤ 10`) · A README maga nevezi meg a korlátot („A PASS still only proves the search fired once, on one synthetic execution"). A lezárt register **4.1**-e (csendes ablak mérése) jó okkal lett elutasítva: a laborban nincs háttérforgalom. De a maradék rés más alakban is megfogható: pl. a saved search futásidejének / `scanCount`-jának rögzítése a verify során, ami a szabály *költségét* méri, nem az FP-arányát, és háttérforgalom nélkül is értelmes szám → **Yara** (formálás) → **Jamal**
 - [x] **3.5** A rule browser egyetlen 674 KB-os fájl, mindent előre betöltve · `docs/index.html` (674 590 bájt), forrás: `page.js` 2 878 sor / 128 KB, `page.css` 4 036 sor / 98 KB · 28 szabálynál ez működik; a növekedés viszont lineáris, mert a teljes szabálytest, a MITRE-mátrix, két history-idősor és a deployment-panel is beágyazottan utazik. Nincs mérés arról, hol a fájdalomküszöb — egy Lighthouse-futás (a `chrome-devtools` MCP-eszközök Sienna készletében megvannak) megmondaná, hogy ez ma probléma-e vagy csak később az → **Sienna**
@@ -770,3 +770,50 @@ Nem munkatételek, hanem a lefedettség őszinte korlátai. Bármelyik külön k
   módon használt osztály. A színkontraszt-állítást (4 elem) nem tudtam önállóan
   újramérni (nincs Lighthouse/böngésző-eszköz ebben a munkamenetben) — ezen a ponton
   Sienna jelentésére támaszkodom.
+
+- **2026-08-21 — 3.2 elutasítva.** Gaz Jamalt bízta meg a `schedule:` trigger
+  hozzáadásával a `ci_prod_audit.yml`-hez, a tétel saját indoklása alapján (a
+  `LAB_ONLINE` gate offline labnál is tisztán kihagyná az ütemezett futást). Jamal
+  megvalósította, `actionlint`-tel ellenőrizte, és megerősítette, hogy a mechanizmus
+  technikailag helyes: a `vars.LAB_ONLINE` a GitHub vezérlősík által a job `if:`
+  feltételénél kiértékelt repository-változó, *mielőtt* a job egyáltalán igényelné az
+  önhosztolt `de-lab` runnert — tehát `LAB_ONLINE == 'false'` esetén a futás tiszta
+  „skipped", nulla runner-kontaktussal.
+
+  A felhasználó a commit előtt elkapta a valódi hibát, ami a tétel *előfeltevését*
+  dönti meg, nem csak a megvalósítást: a mechanizmus csak akkor biztonságos, ha a
+  `LAB_ONLINE` naponta pontosan követi, hogy a lab VM ténylegesen be van-e kapcsolva.
+  `gh variable list` szerint `LAB_ONLINE` ma `true`, utoljára 2026-08-15-én változott —
+  hat nappal e lezárás előtt. A felhasználó megerősítette, hogy **nincs megbízható
+  szokás vagy automatizmus**, ami a változót a VM valódi áramellátásához
+  szinkronizálná; mivel a VM állítása szerint ritkán van bekapcsolva, a `true` érték a
+  legtöbb napon valószínűleg elavult alapállapot.
+
+  Ennek a következménye: ha a `LAB_ONLINE` `true`-n áll, miközben a VM valójában ki
+  van kapcsolva, egy ütemezett futás **nem** ugrik ki tisztán — átmegy az `if:`
+  kapun, igényli az önhosztolt `de-lab` runnert, majd sorban vár egy runnerre, ami nem
+  figyel (a runner-folyamathoz magának a VM-nek fent és csatlakozva kell lennie). Ez
+  minden ütemezett ciklusban egy beragadt/várakozó futás (a GitHub végül
+  időtúllépésbe futtatja, de csak hosszú várakozás után) — ami szigorúan rosszabb a
+  mai kézi-only állapotnál: napi zajt termel az Actions fülön, megfelelő audit-érték
+  nélkül, pontosan amiért a workflow saját eredeti (a változtatás előtti) kommentje
+  már megmondta: „the self-hosted de-lab runner and its prod Splunk are usually
+  offline, so a nightly cron mostly no-ops… run this by hand when the lab is actually
+  up."
+
+  Jamal diffje commit előtt vissza lett állítva (`git checkout --
+  .github/workflows/ci_prod_audit.yml`) — verifikálva: `git status` tiszta, `git
+  diff` üres a fájlra, és a fájl az `1113a4d` (2026-08-17, „drop nightly schedule,
+  keep manual dispatch") commit óta változatlan; más fájlt sem érintett a
+  megszakított kísérlet.
+
+  A tétel premisszája (a `LAB_ONLINE` gate biztonságossá teszi az ütemezést)
+  technikailag helyes volt magára a kapu-mechanizmusra nézve, de téves az
+  előfeltételre nézve — feltételezte, hogy a `LAB_ONLINE` a gyakorlatban követi a
+  valódi VM-állapotot, ami itt nem igaz. Újranyitható, ha valaha megbízható mód
+  (kézi fegyelem vagy automatizálás) születik a `LAB_ONLINE` és a VM tényleges
+  áramállapotának szinkronban tartására — addig az eredeti workflow-szerző
+  indoklása áll, és a tétel nem valósítandó meg. **Megjegyzés: ugyanez a minta
+  zárta le a szomszédos 3.1-et is 2026-08-20-án** (lásd fent) — a lab jellemzően
+  offline állapota mindkét tételnél ugyanazt a következtetést hozta ki, csak itt
+  egy konkrét, mért `LAB_ONLINE`-drift bizonyítja is, nem csak feltételezi.
