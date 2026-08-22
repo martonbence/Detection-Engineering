@@ -2869,6 +2869,145 @@ jobs:
             echo "::warning::Opened $pr_url but failed to add it to Project #3 (GH_PAT_DEV_PUSH likely lacks Projects permission -- known gap for fine-grained PATs on user-owned projects): $item_id"
           fi
 
+  # audit/feature-and-process-audit.md item 3.6 (not remediation-plan.md's own
+  # 3.6, which is the unrelated, already-closed bundle-smoke-test item -- both
+  # files number independently). Before this job, a PASS/FAIL verdict and the
+  # stale/NOT_VERIFIED rule counts only ever showed up in the Actions tab, the
+  # step summary, or the promotion PR -- nothing reached anyone not actively
+  # watching this repo's Actions runs.
+  notify_pipeline_status:
+    name: Notify Pipeline Status (Slack)
+    needs: [ splunk_verify, update_dashboard, persist_results_fallback ]
+    # update_dashboard and persist_results_fallback are both in `needs:` for
+    # ordering, same reasoning as open_promotion_pr's comment above about
+    # update_dashboard: this job reads outputs/reports/stats.json off dev via
+    # the contents API a few lines below, and that file is only as fresh as
+    # whichever of those two jobs last committed it. Waiting on both (GitHub
+    # Actions waits for a named job to *complete* regardless of whether it
+    # ran, was skipped, or failed) is what guarantees this reads the actually
+    # merged state rather than a pre-merge snapshot from a single job -- on
+    # the fallback path persist_results_fallback commits raw results only, not
+    # a regenerated dashboard, so stats.json there is still whatever
+    # update_dashboard last landed before it failed; that is still the honest
+    # "currently on dev" answer, just not necessarily from this exact run.
+    #
+    # Gated the same way deploy_pages is: only fire once update_dashboard
+    # actually attempted something (success or failure). A *skipped*
+    # update_dashboard means this push had has_spl == 'false' (no rule files
+    # changed, e.g. a workflow-only or docs-only push) -- nothing pipeline-ish
+    # happened worth a Slack message. LAB_ONLINE=false does NOT skip this job:
+    # update_dashboard still runs and regenerates the dashboard from the
+    # previously committed verification state on that path (see
+    # [dashboard-decoupling] above), so "N rules still NOT_VERIFIED/stale" is
+    # exactly the kind of thing worth surfacing when the lab has been off for
+    # a while -- deliberate, not an oversight. The message itself calls that
+    # case out via LAB_ONLINE below rather than silently reporting the same
+    # shape of message either way.
+    if: |
+      always() &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev' &&
+      (needs.update_dashboard.result == 'success' || needs.update_dashboard.result == 'failure')
+    runs-on: ubuntu-latest
+    # A couple of gh/curl calls and nothing else.
+    timeout-minutes: 5
+    # Required for secrets.SLACK_WEBHOOK_URL to resolve -- it is a dev
+    # environment secret, same scope as GH_PAT_DEV_PUSH. Deliberately NOT read
+    # in this job's `if:` above, only inside the step's own `env:` block below:
+    # environment-scoped secrets/vars resolve after the job's own `if:` is
+    # evaluated and would read as empty there -- the same trap
+    # SPLUNK_APP/SPLUNK_VERIFY_TLS hit (audit/remediation-plan.md item 2.20 --
+    # the active register's section 2 stops at 2.14 and has no 2.20).
+    environment: dev
+
+    steps:
+      - name: Post pipeline summary to Slack
+        shell: bash
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          GH_TOKEN: ${{ github.token }}
+          LAB_ONLINE: ${{ vars.LAB_ONLINE }}
+          RUN_RESULT: ${{ needs.splunk_verify.result }}
+        run: |
+          set -uo pipefail
+
+          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
+            echo "::warning title=Slack notification skipped::SLACK_WEBHOOK_URL did not resolve (missing from the dev environment?); nothing sent. This does not fail the run."
+            exit 0
+          fi
+
+          # "This run's PASS/FAIL verdict" (audit/feature-and-process-audit.md
+          # item 3.6) is splunk_verify's own job result, not a re-derivation:
+          # its last step ("Report verification verdict") re-exits with the
+          # real PASS/FAIL code, so the job result IS the verdict -- same
+          # reasoning open_promotion_pr's comment above spells out for why
+          # this reads .result and not .outputs.
+          case "$RUN_RESULT" in
+            success) run_verdict="PASS" ;;
+            failure) run_verdict="FAIL" ;;
+            skipped) run_verdict="SKIPPED (Splunk verification did not run this run)" ;;
+            *) run_verdict="$RUN_RESULT" ;;
+          esac
+
+          lab_note=""
+          if [ "$LAB_ONLINE" == "false" ]; then
+            lab_note=" _(lab offline this run -- counts below are from the last time it actually ran)_"
+          fi
+
+          # Read stats.json straight off dev's HEAD via the contents API --
+          # same pattern open_promotion_pr uses a few jobs up -- rather than a
+          # full checkout, so this job stays "a couple of API calls". Guarantees
+          # we see whatever update_dashboard / persist_results_fallback just
+          # committed, since this step only runs after both completed.
+          stats_json=""
+          if ! stats_json=$(gh api "repos/${{ github.repository }}/contents/outputs/reports/stats.json?ref=dev" -H "Accept: application/vnd.github.raw" 2>/dev/null); then
+            echo "::warning title=Slack notification degraded::Could not fetch outputs/reports/stats.json from dev; posting the run verdict only."
+            stats_json=""
+          fi
+
+          verified_pass=0
+          verified_fail=0
+          verified_not_verified=0
+          verified_stale=0
+          pass_rate_pct=0
+          total_rules=0
+          if [ -n "$stats_json" ]; then
+            verified_pass=$(jq -r '.verified_pass // 0' <<<"$stats_json" 2>/dev/null || echo 0)
+            verified_fail=$(jq -r '.verified_fail // 0' <<<"$stats_json" 2>/dev/null || echo 0)
+            verified_not_verified=$(jq -r '.verified_not_verified // 0' <<<"$stats_json" 2>/dev/null || echo 0)
+            verified_stale=$(jq -r '.verified_stale // 0' <<<"$stats_json" 2>/dev/null || echo 0)
+            pass_rate_pct=$(jq -r '.pass_rate_pct // 0' <<<"$stats_json" 2>/dev/null || echo 0)
+            total_rules=$(jq -r '.total_rules // 0' <<<"$stats_json" 2>/dev/null || echo 0)
+          fi
+
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          # Built with printf rather than a literal multi-line bash string: a
+          # bare embedded newline here would need to sit at column 1, which
+          # falls outside this step's `run: |` YAML block-scalar indentation
+          # and breaks the workflow file's own YAML parsing.
+          text=$(printf ':satellite: *Detection-Engineering dev pipeline* -- run verdict: *%s*%s\nLibrary: %s pass / %s fail / %s not verified / %s stale (of %s rules, %s%% pass rate)\n<%s|View run>' \
+            "$run_verdict" "$lab_note" "$verified_pass" "$verified_fail" "$verified_not_verified" "$verified_stale" "$total_rules" "$pass_rate_pct" "$run_url")
+
+          payload=$(jq -n --arg text "$text" '{text: $text}')
+
+          # Distinguishes "curl could not reach Slack" (network/DNS/webhook
+          # revoked) from "Slack accepted the POST" -- matches this repo's own
+          # pip-audit pattern (ci_code_checks.yml's dependency_audit job) of
+          # not letting continue-on-error paint a real problem green: a
+          # non-2xx response or a curl failure both only warn, never fail this
+          # step, but they are NOT silently swallowed either.
+          http_code=$(curl -sS -o /tmp/slack_resp.txt -w '%{http_code}' -X POST -H 'Content-type: application/json' --data "$payload" "$SLACK_WEBHOOK_URL" 2>/tmp/slack_curl_err.txt) || http_code="curl_error"
+
+          if [ "$http_code" = "curl_error" ]; then
+            echo "::warning title=Slack notification failed::curl could not reach the Slack webhook: $(cat /tmp/slack_curl_err.txt 2>/dev/null). Pipeline result is unaffected."
+          elif [[ "$http_code" == 2* ]]; then
+            echo "Slack notification posted (HTTP $http_code)."
+          else
+            echo "::warning title=Slack notification failed::Slack webhook responded HTTP $http_code: $(cat /tmp/slack_resp.txt 2>/dev/null). Pipeline result is unaffected."
+          fi
+
+          exit 0
+
   deploy_pages:
     name: Deploy GitHub Pages
     needs: [update_dashboard]

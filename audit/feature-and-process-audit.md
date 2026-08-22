@@ -123,7 +123,7 @@ teljesíthető utasítással indul.
 - [ ] **3.3** Egyetlen backend, és a második létezését csak szintetikus teszt bizonyítja · `config/backends.yml`, `tests/test_backend_config.py:106-148` · A régi register 3.7 kivette a backend-döntést a kódból adatba — a fájl saját kommentje szerint „a new backend is a new block below, and the converter's code path is unchanged". Ezt ma **semmi valódi futás nem támasztja alá**: a `config/backends.yml`-ben egyetlen `splunk` blokk van, a „több backend is működik" állítást pedig kizárólag a tesztfájlban felépített, kitalált `esql` / `elastic` konfiguráció támasztja alá — ami a *betöltőt* teszteli, nem a konverziót. Yara ugyanide jutott, és egy konkrét eszközt javasolt hozzá: egy kis CLI, ami kap egy backend-konfigurációt + mintaszabályokat, és megmondja, mi fordul le és mi nem. Ez egyszerre lenne a 3.7 falszifikálása és egy jövőbeli „adjunk hozzá Elasticet" kör önellenőrző eszköze → **Gaz** dönt hatókört, **Jamal** hajtja végre (a `scripts/convert/` mellé)
 - [ ] **3.4** A verdikt csak azt méri, hogy „tüzelt-e" — a zajszintről nincs adat · `scripts/verify/pass_fail_eval.py` (`1 ≤ events ≤ 10`) · A README maga nevezi meg a korlátot („A PASS still only proves the search fired once, on one synthetic execution"). A lezárt register **4.1**-e (csendes ablak mérése) jó okkal lett elutasítva: a laborban nincs háttérforgalom. De a maradék rés más alakban is megfogható: pl. a saved search futásidejének / `scanCount`-jának rögzítése a verify során, ami a szabály *költségét* méri, nem az FP-arányát, és háttérforgalom nélkül is értelmes szám → **Yara** (formálás) → **Jamal**
 - [x] **3.5** A rule browser egyetlen 674 KB-os fájl, mindent előre betöltve · `docs/index.html` (674 590 bájt), forrás: `page.js` 2 878 sor / 128 KB, `page.css` 4 036 sor / 98 KB · 28 szabálynál ez működik; a növekedés viszont lineáris, mert a teljes szabálytest, a MITRE-mátrix, két history-idősor és a deployment-panel is beágyazottan utazik. Nincs mérés arról, hol a fájdalomküszöb — egy Lighthouse-futás (a `chrome-devtools` MCP-eszközök Sienna készletében megvannak) megmondaná, hogy ez ma probléma-e vagy csak később az → **Sienna**
-- [ ] **3.6** Nincs értesítés a pipeline eredményéről a GitHub felületén kívül · A PASS/FAIL verdikt ma a job exit-kódjában, a step summaryben és a promotion PR meglétében jelenik meg. Aki nem nézi az Actions fület, semmiről nem tud — arról sem, hogy 27 szabály hetek óta `NOT_VERIFIED` (1.5). Legolcsóbb forma: GitHub Issue automatikus nyitása/frissítése a lejárt+superseded halmazról, vagy bármilyen tartós felület a step summary helyett → **Jamal** (CI), **Kai** (ha issue/platform-oldali)
+- [x] **3.6** Nincs értesítés a pipeline eredményéről a GitHub felületén kívül · A PASS/FAIL verdikt ma a job exit-kódjában, a step summaryben és a promotion PR meglétében jelenik meg. Aki nem nézi az Actions fület, semmiről nem tud — arról sem, hogy 27 szabály hetek óta `NOT_VERIFIED` (1.5). Legolcsóbb forma: GitHub Issue automatikus nyitása/frissítése a lejárt+superseded halmazról, vagy bármilyen tartós felület a step summary helyett → **Jamal** (CI), **Kai** (ha issue/platform-oldali)
 - [x] **3.7** A lefedettségi cél nincs adatként jelen · `outputs/reports/stats.json`: `mitre_covered_techniques: 12`, `mitre_total_techniques: 222`, `mitre_coverage_pct: 5,4` · A dashboard megmutatja, mi van; nem mutatja, mi lenne a cél, és milyen ütemben haladunk felé. A `coverage_history.json` és a `rule_growth_history.json` már gyűjti az idősort — hiányzik a szándék (célhalmaz, prioritás, „következő 5 technika") rögzítése adatként, amihez a trend mérhető. Ez az a pont, ahol Yara és Masha kimenete tényleges repo-artefaktummá válhatna → **Yara** (tartalom), **Sienna** (megjelenítés) · **Elutasítva, lásd Napló 2026-08-22**
 - [ ] **3.8** A szabálykönyvtár két taktika-családra szűkül, hét taktikán nulla szabály · gépi számlálás a 28 szabály `attack.*` tactic-tagjein: `execution` 14, `credential_access` 13, `stealth` 8, `persistence` 2, `defense_impairment` 2, `command_and_control` 1, `initial_access` 1, `discovery` 1 · A felső ATT&CK enterprise-taxonómiához mérve **hét taktikán nulla szabály van**: Reconnaissance, Resource Development, Privilege Escalation, Lateral Movement, Collection, Exfiltration, Impact. Teljes technika-lefedettség 12/222 (5,4%). Ez nem hiba — tudatos mélységi fókusz lehet —, de sehol nincs kimondva, hogy az, és a hét üres taktika kész felvételi lista a következő körhöz. Yara javaslata a sorrendre, amivel egyetértek: a **Privilege Escalation** és a **Lateral Movement** az a kettő, amihez a meglévő victim + DC labor-hostokon reálisan van valódi Atomic-teszt — vagyis ezekre nemcsak szabály írható, hanem a repo lényegét adó *élő verifikáció* is elvégezhető rajtuk. (Pontosítás Yara briefjéhez: a repo saját taktika-szótára nem azonos az upstream ATT&CK-kal — `stealth` és `defense_impairment` itt valós taktika, lásd a `mitre-attack-mapping` skillt —, tehát nyolc taktikán *van* szabály, nem kettőn; a koncentráció állítása viszont változatlanul áll.) → **Masha** (külső megalapozás) → **Yara** (priorizálás) → **Yuki** (megvalósítás), dokumentálva **Chloe**
 - [x] **3.9** A publikált szám mellett nincs ott, hogy mikor mértek utoljára élesben · `README.md` badge-sor, `docs/index.html` Verification-gyűrű · Ma a `stats.json` (generálva 2026-08-17) 4% pass rate-et és 27/28 `NOT_VERIFIED`-et mutat, három nappal azután, hogy a régi register naplója egy valódi `LAB_ONLINE=true` futást rögzített 26 szabály éles history-jával. Aki csak a badge-et látja, romlásnak olvassa. Hiányzik egy „utolsó éles verifikáció: `<dátum>`, N/M szabály" jelzés közvetlenül a Pass Rate badge és a gyűrű mellett, plusz a rule browserben egy önkiszolgáló szűrő/jelvény a „újramérésre vár" halmazra, ami megkülönbözteti a *szerkesztés miatt felülírt* és az *elévült* esetet (az adat mindkettőre megvan a `stats.json`-ben). Yara ezt priorizálta a legmagasabbra a briefjében, és egyetértek a *javaslattal* — a diagnózisával nem (lásd a Naplót és az 1.5-öt: a mai 4% nem elévülésből jön, `verified_stale = 0`) → **Sienna**
@@ -1403,3 +1403,60 @@ grep-elni.
   `2.11` tételszámot. **Jamal** végezte a szerkesztést, ma korábban, a mai
   könyvelési kör előtt. A tétel hiánytalanul lezárva. **Modell:** ez a
   könyvelési kör Sonnet 5-ön futott.
+
+- **2026-08-22 — 3.6 lezárva, implementálva, éles megerősítés még nyitott,
+  Kwame verifikálta.** `ci_dev_workflow.yml` új `notify_pipeline_status`
+  jobja (jelenleg uncommitted a munkafában, közvetlenül a fájlból
+  ellenőrizve, nem a dispatch-üzenet visszaolvasva) — `open_promotion_pr`
+  után, `deploy_pages` előtt beszúrva (`:2878-3009`). Megfelel a tétel
+  szövegének: (1) **Slack-üzenetet küld** a `dev` environment-hez kötött
+  `SLACK_WEBHOOK_URL` secreten keresztül — a secret jelenlétét és
+  helyes hatókörét Kai már ellenőrizte (ezt a jelen könyvelési kör nem
+  ismételte meg, mert nincs hozzáférése a titkosított értékhez; a
+  workflow-oldali *használat* helyessége viszont igen, ld. lent). (2)
+  **A futás PASS/FAIL verdiktjét** `needs.splunk_verify.result`-ból
+  veszi (`RUN_RESULT` env, `:2929`, `case` ág `:2944-2949`) — ugyanaz a
+  minta, mint `open_promotion_pr`-nál (job *result*, nem `.outputs`,
+  a fájl saját, korábban rögzített okából). (3) **A `stats.json`
+  aktuális számait** (`verified_pass`, `verified_fail`,
+  `verified_not_verified`, `verified_stale`, `total_rules`,
+  `pass_rate_pct`) a contents API-n olvassa dev HEAD-jéről (`:2961-2980`),
+  ugyanazzal a mintával, mint `open_promotion_pr` `stats_json`
+  lekérése. **Nem blokkoló:** minden hibaág (`SLACK_WEBHOOK_URL` hiányzik
+  `:2933-2936`, `stats.json` nem olvasható `:2962-2965`, `curl` nem éri el
+  a webhookot `:2999-3002`, nem 2xx válasz `:3003-3007`) kizárólag
+  `::warning::`-ot ír, a lépés minden ágon `exit 0`-val zár (`:3009`) —
+  ellenőrizve, hogy egyik hibaág sem hagyja el a scriptet nem-nulla
+  kilépőkóddal. **Helyesen skópolt:** `environment: dev` job-szinten
+  (`:2920`), a `SLACK_WEBHOOK_URL` kizárólag a lépés saját `env:`
+  blokkjában olvasva (`:2926`), a job-szintű `if:` (`:2906-2909`) csak
+  `github.event_name`/`github.ref`/`needs.update_dashboard.result`-ot néz,
+  environment-scope-olt secretet vagy var-t nem — pontosan az a csapda,
+  amit a `pipeline-ci-gotchas` skill B szakasza ismertet
+  (`SPLUNK_APP`/`SPLUNK_VERIFY_TLS` a job-szintű `if:`-ben üresként
+  olvasna), és amit a job saját kommentje (`:2913-2919`) kifejezetten
+  nevesít is, helyesen hivatkozva `audit/remediation-plan.md` 2.20-ára
+  (a jelen, aktív register 2. szakasza csak 2.14-ig megy — a fájlnevesítés
+  itt helyes, a `pipeline-ci-gotchas` skill I szakaszában leírt csapda
+  elkerülve). **Eltérés a tétel saját javaslatától:** a tétel szövege a
+  „legolcsóbb formaként" egy GitHub Issue automatikus nyitását/frissítését
+  javasolta; a felhasználó saját döntése alapján helyette egy általa
+  most először beállított Slack webhook lett a választott megoldás — ez a
+  tétel saját „vagy bármilyen tartós felület" záradéka alá fér, csak nem
+  a legolcsóbb útvonal. **Nyitva maradó rész, explicit:** az élő
+  Slack-posztolás ma **nincs valódi pipeline-futáson igazolva** — Jamal
+  jelentése szerint a script logikáját helyi stub-harnessel validálta
+  (siker / hiba / kihagyott / hiányzó-secret / curl-hiba / nem-2xx-válasz
+  ágak, mindegyik `exit 0`-val), de nem indított és nem posztolt valódi
+  workflow-futást; ezt a jelen könyvelési kör sem tudta pótolni (nincs
+  élő dispatch-hozzáférés ehhez). A tétel ezért **implementálva, első
+  éles megerősítésre várva** státusszal zár, nem teljesen bizonyított
+  lezárásként — ugyanaz a mintázat, mint a 4.3-nál (2026-08-20, szimulált
+  Windows-ellenőrzés helyi futtatással, valódi Windows-futtatás nélkül) és
+  a lab-függő tételeknél általában: a checkbox `[x]`-re vált, mert a
+  megvalósítás valós és a leírt viselkedésnek megfelel, de a fennmaradó
+  bizonyítási rés (első valódi Slack-poszt megfigyelése egy tényleges
+  `dev` push/`workflow_dispatch` futáson) itt, a Naplóban rögzítve marad,
+  nem hallgatva el. → **Jamal** (a tényleges, első éles futás megfigyelése,
+  amikor a lab/pipeline legközelebb fut). **Modell:** ez a könyvelési kör
+  Sonnet 5-ön futott.
