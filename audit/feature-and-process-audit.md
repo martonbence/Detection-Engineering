@@ -28,7 +28,7 @@ az itt kezdődik elölről.
 
 ## Pontszám
 
-Kiindulás: **7,0 / 10**. Kész súly: **0 / 82**. *(Ez a v1.0 kiindulási
+Kiindulás: **7,0 / 10**. Kész súly: **0 / 84**. *(Ez a v1.0 kiindulási
 alapállapot, szándékosan befagyasztva — nem élő számláló, egyetlen lezárás
 sem növeli, ellentétben a lezárt `remediation-plan.md` azonos formátumú
 sorával. Részletek: Napló, 2026-08-21.)*
@@ -47,8 +47,8 @@ Dimenziók — most → hova vinné a register teljesítése:
 
 A register meterének súlyozása: kritikus ×3, robusztusság ×2, funkció ×1,5,
 Claude-munkamodell ×1,5, dokumentáció ×1.
-A teljes súly **82** = 6×3 + 7×2 + 13×1,5 + 11×1,5 + 14×1.
-Projektált pontszám = `7,0 + 2,5 × (kész súly / 82)`.
+A teljes súly **84** = 6×3 + 8×2 + 13×1,5 + 11×1,5 + 14×1.
+Projektált pontszám = `7,0 + 2,5 × (kész súly / 84)`.
 
 *(A súly 70-ről 79-re nőtt a Yara-brief beolvasztásakor: hét új tétel a
 funkció-, dokumentáció- és folyamat-kategóriákban. A kiindulási pontszám nem
@@ -110,8 +110,8 @@ teljesíthető utasítással indul.
 - [ ] **2.7** A Wiki továbbra sem létezik · `README.md:177,182`, `.claude/agents/Chloe - Technical Writer.md` · A README őszintén jelzi, hogy nincs — ez rendben van —, de a „planned newcomer-facing walkthrough" tartósan terv marad, miközben a `docs/architecture/` négy fájlja együtt 1 400+ sor mély referencia, kezdő belépési pont nélkül. Döntést igényel: vagy engedélyezés + első oldal (**Kai**, majd **Chloe**), vagy a Wiki-hivatkozások kivezetése a README-ből, hogy ne ígérjen nem létező felületet → **Gaz** dönt
 - [x] **2.8** `TEAM.md`: 11/11 „Avatar: pending", holott két avatár létezik · `TEAM.md:5,63,80,96,…` vs. `.claude/agents/avatars/Bjorn.jpg`, `Yuki.png` · Ráadásul a `team-avatars` skill (`.claude/skills/team-avatars/SKILL.md:84-89`) `<firstname-lowercase>.png` elnevezést és `![Bjorn](...)` bekötést ír elő — a két meglévő fájl nagy kezdőbetűs, az egyik `.jpg`, és egyik sincs bekötve. A `Yuki.png` 1,1 MB, a repo legnagyobb követett fájlja. **Kwame és Yara egymástól függetlenül ugyanezt találta meg** — a két átvizsgálás egyetlen teljes átfedése, ami önmagában is jelzés arról, mennyire látható ez a rés → **gazdátlan, lásd 5.1**
 - [ ] **2.9** Nincs per-szabály dokumentáció, és a hozzá tartozó hivatkozás holt · `README.md:175` (issue #20), `.claude/agents/Bjorn - Detection Quality Engineer.md` frontmatter (a `rule_documentations/` könyvtárra hivatkozik, ami már nincs a repóban — az ügynökfájl maga jelzi ezt, de a mondat így is félrevezető) · A README szerint a metaadat-forrás kérdése megoldódott (minden a `rules/sigma/*.yml`-ben van), tehát az automatizálásnak nincs technikai akadálya. Ma egyetlen szabályról sincs önálló, olvasható lap sem a repóban, sem a rule browserben → **Gaz** priorizál, **Sienna** (generátor) vagy **Jamal** (CI-lépés)
-- [ ] **2.10** Feloldatlan register-hivatkozás a kódban: `[dashboard-decoupling]` · `.github/workflows/ci_dev_workflow.yml:2064,2243,2526` · Három komment hivatkozik erre a „register item"-re; a lezárt `audit/remediation-plan.md`-ben **nulla** előfordulása van. A repo minden más ilyen kommentje valódi számozott tételre mutat (38 különböző azonosító). Ez egy elvégzett, de sosem regisztrált munka — a lezárt register így nem teljes rekord. Javaslat: vagy ebbe az új registerbe kerüljön be utólagos, lezárt tételként a tényleges tartalmával, vagy a kommentek a PR-re/commitra hivatkozzanak helyette → **Kwame** (register-könyvelés) + **Jamal** (kommentek)
-- [ ] **2.11** A `dependabot.yml` indoklása a 3.2 előtti világot írja le · `.github/dependabot.yml:5-8` · „The pins exist because prod re-runs the converter over the same Sigma source dev already converted…" — a prod ezt már nem teszi (a `.github/requirements-deploy.txt` fejléce ezt helyesen le is írja). A pineknek ma is van értelme (a dev saját reprodukálhatósága), csak nem ez az. Konfigurációs komment, de a repo szerkesztési kultúrájában ezek dokumentumértékűek → **Jamal**
+- [x] **2.10** Feloldatlan register-hivatkozás a kódban: `[dashboard-decoupling]` · `.github/workflows/ci_dev_workflow.yml:1131,1601,2116,2295,2578` (öt komment, nem három — a szám a v1.0 kiadás óta nőtt) · A lezárt `audit/remediation-plan.md`-ben **nulla** előfordulása van; a repo minden más ilyen kommentje valódi számozott tételre mutat (38 azonosító). A mögöttes döntés (`cb99a97`) valós és jó volt, csak sosem lett regisztrálva. **Utólag felvéve és lezárva mint 4.8** (ld. ott a teljes tartalom) — ez a tétel saját maga kínálta (a) opció. A (b) opció (a kódkommentek szövege a placeholder helyett `4.8`-ra hivatkozzon) **nem történt meg**: a register-könyvelés kész, a kommentcsere Jamal külön hatásköre (`ci_dev_workflow.yml` tartalma), Kwame nem szerkesztheti → **Jamal** (5 komment `[dashboard-decoupling]` → `4.8`)
+- [x] **2.11** A `dependabot.yml` indoklása a 3.2 előtti világot írja le · `.github/dependabot.yml:5-8` · „The pins exist because prod re-runs the converter over the same Sigma source dev already converted…" — a prod ezt már nem teszi (a `.github/requirements-deploy.txt` fejléce ezt helyesen le is írja). A pineknek ma is van értelme (a dev saját reprodukálhatósága), csak nem ez az. Konfigurációs komment, de a repo szerkesztési kultúrájában ezek dokumentumértékűek → **Jamal** · **Javítva, lásd Napló 2026-08-22.**
 - [x] **2.12** Élő hivatkozás egy nem létező skillre · `.claude/agents/Sienna - Frontend Engineer.md:48`: „when adding or redesigning any chart, graph, stat tile, or dashboard element, **invoke the `dataviz` skill first** … before writing chart code" · A `.claude/skills/` alatt három skill van: `mitre-attack-mapping`, `sigma-rule-authoring`, `team-avatars`. `dataviz` **nincs**. Ez nem elavulás, hanem működő hiba: kötelező érvényű utasítás egy nem teljesíthető lépésre, ami minden front-end diagram-munka elejére be van építve. Két út: megírni a skillt (a repo diagram-konvenciói ma a `page.css` 4 036 sorában és a `page.js` chart-kódjában élnek, tehát lenne mit rögzíteni), vagy törölni a sort. Yara találata, `grep`-pel megerősítve → **Gaz** dönt (skill-gazda kijelölése az 5.1-gyel együtt), tartalom **Sienna**
 - [ ] **2.13** Nincs architektúra-dokumentum magáról a `.claude/` ökoszisztémáról · `docs/architecture/` négy mély referenciát ad a pipeline-ról, a csapatmodellről egyet sem · A `CLAUDE.md` előíró (ki mit birtokol, hogyan megy a delegálás), a `TEAM.md` roster — egyik sem „hogyan folyik a munka a gyakorlatban" referencia valódi példákkal. Egy `docs/architecture/agent_workflow.md` (Yuki→Bjorn átadás, egy Kwame-féle drift-elkapás, egy Gaz-féle feladatszétvágás, mindegyik valós esettel) egyszerre lenne onboarding-anyag és annak a dokumentálása, ami ebben a repóban ténylegesen újszerű. Yara javaslata; a jelen audit 5. szakasza pont azt bizonyítja, hogy van mit leírni → **Chloe**
 - [ ] **2.14** Nincs `CONTRIBUTING.md` · ellenőrizve: a fájl nem létezik · A régi register **2.11**-e a CODEOWNERS-t és a PR-sablont utasította el mint „checklist-ballaszt" egy egyszemélyes repóban — ez a döntés áll. A `CONTRIBUTING.md` viszont más kérdésre válaszol: nem kapu, hanem egy helyen összeszedett szerzői folyamat (szabály-scaffold → validálás → review → promotion), ami ma öt dokumentum és három skill között van szétszórva. Alacsony prioritás az egyszemélyes valóság miatt, de olcsó, és a 2.6 (lokális futtatás) természetes otthona lenne. Yara javaslata → **Chloe**
@@ -124,7 +124,7 @@ teljesíthető utasítással indul.
 - [ ] **3.4** A verdikt csak azt méri, hogy „tüzelt-e" — a zajszintről nincs adat · `scripts/verify/pass_fail_eval.py` (`1 ≤ events ≤ 10`) · A README maga nevezi meg a korlátot („A PASS still only proves the search fired once, on one synthetic execution"). A lezárt register **4.1**-e (csendes ablak mérése) jó okkal lett elutasítva: a laborban nincs háttérforgalom. De a maradék rés más alakban is megfogható: pl. a saved search futásidejének / `scanCount`-jának rögzítése a verify során, ami a szabály *költségét* méri, nem az FP-arányát, és háttérforgalom nélkül is értelmes szám → **Yara** (formálás) → **Jamal**
 - [x] **3.5** A rule browser egyetlen 674 KB-os fájl, mindent előre betöltve · `docs/index.html` (674 590 bájt), forrás: `page.js` 2 878 sor / 128 KB, `page.css` 4 036 sor / 98 KB · 28 szabálynál ez működik; a növekedés viszont lineáris, mert a teljes szabálytest, a MITRE-mátrix, két history-idősor és a deployment-panel is beágyazottan utazik. Nincs mérés arról, hol a fájdalomküszöb — egy Lighthouse-futás (a `chrome-devtools` MCP-eszközök Sienna készletében megvannak) megmondaná, hogy ez ma probléma-e vagy csak később az → **Sienna**
 - [ ] **3.6** Nincs értesítés a pipeline eredményéről a GitHub felületén kívül · A PASS/FAIL verdikt ma a job exit-kódjában, a step summaryben és a promotion PR meglétében jelenik meg. Aki nem nézi az Actions fület, semmiről nem tud — arról sem, hogy 27 szabály hetek óta `NOT_VERIFIED` (1.5). Legolcsóbb forma: GitHub Issue automatikus nyitása/frissítése a lejárt+superseded halmazról, vagy bármilyen tartós felület a step summary helyett → **Jamal** (CI), **Kai** (ha issue/platform-oldali)
-- [ ] **3.7** A lefedettségi cél nincs adatként jelen · `outputs/reports/stats.json`: `mitre_covered_techniques: 12`, `mitre_total_techniques: 222`, `mitre_coverage_pct: 5,4` · A dashboard megmutatja, mi van; nem mutatja, mi lenne a cél, és milyen ütemben haladunk felé. A `coverage_history.json` és a `rule_growth_history.json` már gyűjti az idősort — hiányzik a szándék (célhalmaz, prioritás, „következő 5 technika") rögzítése adatként, amihez a trend mérhető. Ez az a pont, ahol Yara és Masha kimenete tényleges repo-artefaktummá válhatna → **Yara** (tartalom), **Sienna** (megjelenítés)
+- [x] **3.7** A lefedettségi cél nincs adatként jelen · `outputs/reports/stats.json`: `mitre_covered_techniques: 12`, `mitre_total_techniques: 222`, `mitre_coverage_pct: 5,4` · A dashboard megmutatja, mi van; nem mutatja, mi lenne a cél, és milyen ütemben haladunk felé. A `coverage_history.json` és a `rule_growth_history.json` már gyűjti az idősort — hiányzik a szándék (célhalmaz, prioritás, „következő 5 technika") rögzítése adatként, amihez a trend mérhető. Ez az a pont, ahol Yara és Masha kimenete tényleges repo-artefaktummá válhatna → **Yara** (tartalom), **Sienna** (megjelenítés) · **Elutasítva, lásd Napló 2026-08-22**
 - [ ] **3.8** A szabálykönyvtár két taktika-családra szűkül, hét taktikán nulla szabály · gépi számlálás a 28 szabály `attack.*` tactic-tagjein: `execution` 14, `credential_access` 13, `stealth` 8, `persistence` 2, `defense_impairment` 2, `command_and_control` 1, `initial_access` 1, `discovery` 1 · A felső ATT&CK enterprise-taxonómiához mérve **hét taktikán nulla szabály van**: Reconnaissance, Resource Development, Privilege Escalation, Lateral Movement, Collection, Exfiltration, Impact. Teljes technika-lefedettség 12/222 (5,4%). Ez nem hiba — tudatos mélységi fókusz lehet —, de sehol nincs kimondva, hogy az, és a hét üres taktika kész felvételi lista a következő körhöz. Yara javaslata a sorrendre, amivel egyetértek: a **Privilege Escalation** és a **Lateral Movement** az a kettő, amihez a meglévő victim + DC labor-hostokon reálisan van valódi Atomic-teszt — vagyis ezekre nemcsak szabály írható, hanem a repo lényegét adó *élő verifikáció* is elvégezhető rajtuk. (Pontosítás Yara briefjéhez: a repo saját taktika-szótára nem azonos az upstream ATT&CK-kal — `stealth` és `defense_impairment` itt valós taktika, lásd a `mitre-attack-mapping` skillt —, tehát nyolc taktikán *van* szabály, nem kettőn; a koncentráció állítása viszont változatlanul áll.) → **Masha** (külső megalapozás) → **Yara** (priorizálás) → **Yuki** (megvalósítás), dokumentálva **Chloe**
 - [x] **3.9** A publikált szám mellett nincs ott, hogy mikor mértek utoljára élesben · `README.md` badge-sor, `docs/index.html` Verification-gyűrű · Ma a `stats.json` (generálva 2026-08-17) 4% pass rate-et és 27/28 `NOT_VERIFIED`-et mutat, három nappal azután, hogy a régi register naplója egy valódi `LAB_ONLINE=true` futást rögzített 26 szabály éles history-jával. Aki csak a badge-et látja, romlásnak olvassa. Hiányzik egy „utolsó éles verifikáció: `<dátum>`, N/M szabály" jelzés közvetlenül a Pass Rate badge és a gyűrű mellett, plusz a rule browserben egy önkiszolgáló szűrő/jelvény a „újramérésre vár" halmazra, ami megkülönbözteti a *szerkesztés miatt felülírt* és az *elévült* esetet (az adat mindkettőre megvan a `stats.json`-ben). Yara ezt priorizálta a legmagasabbra a briefjében, és egyetértek a *javaslattal* — a diagnózisával nem (lásd a Naplót és az 1.5-öt: a mai 4% nem elévülésből jön, `verified_stale = 0`) → **Sienna**
 - [x] **3.10** Nincs anonimizálás a publikusan letölthető diagnosztikai artifactban · `ci_dev_workflow.yml:1882` (`matched-events-sigma-<run_id>`, 14 napos retention, publikus repón bárki által letölthető) · A régi register **2.16**-a ezt a kockázatot megvizsgálta, és tudatosan a **rövidebb retenciót** választotta (90 → 14 nap) a mezőszűrés helyett — az indoklás jó volt (a nyers esemény maga a hibakeresési érték) —, de a tétel szövege maga nevezi meg, mi maradt kitéve: **a labor névtana** (gépnevek, domain, szolgáltatásfiókok). Egy verify és artifact-feltöltés közé illesztett eszköz, ami a labor-azonosítókat stabil, entitásonként konzisztens álnevekre cseréli (megőrizve az események közti korrelációt, tehát a debug-értéket is), pontosan azt a maradékot zárná le, amit a 2.16 nyitva hagyott. Yara javaslata, a register szövegével megerősítve. Önálló eszköz, nincs mai gazdája — a CI-ba **Jamal** kötné be → **Gaz** dönt gazdát
@@ -132,15 +132,16 @@ teljesíthető utasítással indul.
 - [x] **3.12** Négy valódi, egymástól független, eddig nem követett accessibility-hiba, amit a 3.5 Lighthouse-mérése hozott felszínre · `scripts/docs/assets/page.template.html`, `page.css`, `page.js` · Mind a négy audit-tétel bukott (mobil + desktop preset), és egyik sem a szabályszámmal növekvő teher (nem a 3.5 hatóköre) — ma javítható, önálló hiba: **(1) `button-name`** — a drawer bezáró gombja (`button.drawer-close`, `onclick="closeDrawer()"`, `page.template.html:587`) ikon-only, `aria-label` nélkül; a minta ismert és helyesen alkalmazott máshol ugyanabban a fájlban (`.info-close`, `:61`, `aria-label="Close"`), csak erre a gombra nem lett átvezetve. **(2) `color-contrast`** — 4 elem bukik WCAG-kontraszton: `#strip-total` („28 rules" szöveg), a „MITRE Navigator" és „Dashboards" fül-gombok, és `#result-count` („28 / 28" szöveg). **(3) `landmark-one-main`** — nincs `<main>` landmark a dokumentumban sehol (`grep '<main' page.template.html` → 0 találat). **(4) `target-size`** (desktop nézet) — a szabálytáblázat MITRE taktika-pill jelvényei (`a.badge.badge-mitre`, `page.js:1583`, CSS `page.css:1134`) kb. 73×17–85×17 px méretűek, a WCAG 24×24 px érintési minimum alatt, szűken egymás mellett csomagolva. **Elhatárolás:** ez **nem** azonos a régi `remediation-plan.md` „amit ez az audit nem fedett" szakaszában rögzített, sosem újraellenőrzött sormagasság-hibával (badge-listás sorok `vertical-align: middle` miatti üres tere, `DETECT-2026-0022`-nél ~183px sor — az a hiba a *sor* magasságáról szól, ez a tétel a *jelvény* kattintható méretéről; szomszédos felület, a régi tétel máig nyitott/nem újraellenőrzött, ebben a körben sem lett vizsgálva) → **Sienna**
 - [x] **3.13** A 3.12 javítása után új, korábban nem dokumentált `color-contrast` bukások jelentek meg más elemeken · `scripts/docs/assets/page.css`: `.filter-group-label`, `.filter-uniq`, `.filter-supergroup-title`, `.filters-generated`, `.kbd-hint`, és néhány verdikt-jelvény (`badge-category` / `badge-service` a szabálytáblázatban) · Sienna a 3.12 javítása után futtatott Lighthouse-újramérésben ezt az elemhalmazt 4,19–4,47:1 tartományban jelentette (WCAG AA 4,5:1 alatt) — **ez a fenti hatókörön kívül eső, mellékesen felfedezett hiba, amit a 3.12 szándékosan nem javított**, hogy ne táguljon menet közben a tétel hatóköre; ugyanaz a mintázat, mint ami a 3.5-ből a 3.12-t termelte. Kwame saját, a `docs/index.html` friss regenerálásán futtatott Lighthouse-mérése (desktop preset, ugyanaz a `color-contrast` audit) megerősíti, hogy a hiba valós és pontosan ezt a hat elemtípust érinti, de **tágabb tartományt mér, mint Sienna jelentése**: `.filter-group-label` / `.filter-uniq` / `.filter-supergroup-title` **3,52:1** (`#6e7681` / `#1c2128`), `.filters-generated` **3,76:1** (`#6e7681` / `#161b22`), `.kbd-hint` **4,11:1** (`#6e7681` / `#0d1117`), a verdikt-jelvények **4,19–4,47:1** (`#f85149` / `#332227` és `#38272c`, `#2ea44f` / `#1e302c`) — vagyis a jelvények tartománya egyezik Sienna számával, a `#6e7681` szövegszín (feltehetően egy `text3`-hoz hasonló, tompított token) viszont a háttértől függően ennél lényegesen rosszabb is lehet. A pontos kontraszt-arányokat és a jelenlegi színtoken-kontextust (melyik CSS-változó adja a `#6e7681`-et, milyen háttereken) a javítás előtt élőben érdemes újranézni, ne csak a fenti mérésekre hagyatkozva → **Sienna**
 
-## 4 · Robusztusság és karbantarthatóság (7) · ×2
+## 4 · Robusztusság és karbantarthatóság (8) · ×2
 
 - [ ] **4.1** 1 827 sor inline shell a workflow-kban, ebből 1 263 a dev workflow-ban · `ci_dev_workflow.yml` 2 572 sor (1 005 komment, 1 263 inline `run:` shell), `ci_code_checks.yml` 252, `ci_prod_audit.yml` 175, `ci_prod_workflow.yml` 137 · Ez a repo legnagyobb tesztelhetetlen kódfelülete: unit-teszt nem éri el, csak a shellcheck látja (actionlinten keresztül) — az pedig szintaxist ellenőriz, nem viselkedést. A pipeline logikájának jelentős része itt él (verify-ablak számítása, commit-visszaírás retryvel, bundle-kezelés, provenance-ellenőrzés). Nem az egész kiszervezése a cél, hanem a leghosszabb, legtöbb elágazást tartalmazó blokkoké `scripts/ci/*.sh` vagy Python alá, ahol a pytest is látja őket. (Helyi megjegyzés: az actionlint Windowson beragad nagy `run:` blokkokon — a méret már ma is fáj.) → **Jamal**
 - [x] **4.2** 7 500 sor front-end, nulla automatizált ellenőrzés · `scripts/docs/assets/page.js` (2 878), `page.css` (4 036), `page.template.html` (586) · A `ci_code_checks.yml` négy checkerje Pythont (ruff+pytest), PowerShellt (parser+PSScriptAnalyzer), workflow-YAML-t (actionlint+shellcheck) és függőséget (pip-audit) fed — JS/CSS/HTML-t **egyiket sem**. `grep eslint|stylelint|prettier|npm` a workflow-kban: 0 találat. Arányában: 3 400 sor Pythont 555 teszt véd, 7 500 sor front-endet semmi. Belépő szint: `eslint` minimál szabálykészlettel + HTML-validáció a generált oldalon, önálló jobként (hogy egy JS-hiba ne maszkolja a ruffot, a repo bevált mintája szerint) → **Sienna** (tartalom) + **Jamal** (job)
 - [x] **4.3** A teszt-suite bukik a fejlesztő saját gépén · `python -m pytest` → **3 failed, 552 passed**, mindhárom a `tests/test_meta_only.py`-ban, hibaüzenet: `'No time zone found with key Europe/Budapest'` · Ok: a `scripts/convert/sigma_to_spl.py:334` `ZoneInfo("Europe/Budapest")`-et használ, Windows alatt viszont nincs rendszerszintű tzdata, és a `.github/requirements-dev.txt` (pytest, ruff) nem tartalmazza a `tzdata` csomagot. CI-ban (ubuntu) zöld, helyben piros — ez a legrosszabb fajta eltérés, mert a fejlesztőt arra tanítja, hogy a piros suite normális. Javítás: `tzdata` a dev-requirementsbe (és/vagy a sidecar időbélyegének UTC-re váltása) → **Jamal**
-- [ ] **4.4** Hat különböző commit-visszaírási út, futásonként 3-4 gépi commit · `ci_dev_workflow.yml` (4 commit: prune / SPL / verify results / dashboard), `ci_code_checks.yml` (1), `ci_prod_audit.yml` (1) · 894 commitból **256** (29%) `[skip ci]` gépi commit; a `docs/index.html`-t 185, az `outputs/`-ot 221 commit érinti. Következmény a napi munkára: a felhasználó minden helyi commit előtt rebase-elni kényszerül, mert a CI mindig elé ír (ez már rögzített projekt-tapasztalat). A történet ettől olvashatatlan is: egy valódi változtatás körül 3-4 zajcommit ül. Irány: egy futás = legfeljebb egy visszaírás (az `update_dashboard` amúgy is külön jobban fut, oda összevonható), vagy a generált artefaktumok kivezetése a branchről (Pages-artifact + release-asset), ami a 3.5-tel is összeér → **Jamal** ⟶ folyamatban
+- [ ] **4.4** Hat különböző commit-visszaírási út, futásonként 3-4 gépi commit · `ci_dev_workflow.yml` (jelenleg 3 commit: összevont prune+SPL / verify results / dashboard — ld. Napló 2026-08-22), `ci_code_checks.yml` (1), `ci_prod_audit.yml` (1) · 894 commitból **256** (29%) `[skip ci]` gépi commit; a `docs/index.html`-t 185, az `outputs/`-ot 221 commit érinti. Következmény a napi munkára: a felhasználó minden helyi commit előtt rebase-elni kényszerül, mert a CI mindig elé ír (ez már rögzített projekt-tapasztalat). A történet ettől olvashatatlan is: egy valódi változtatás körül 3-4 zajcommit ül. Irány: egy futás = legfeljebb egy visszaírás (az `update_dashboard` amúgy is külön jobban fut, oda összevonható), vagy a generált artefaktumok kivezetése a branchről (Pages-artifact + release-asset), ami a 3.5-tel is összeér → **Jamal** ⟶ részlegesen lezárva (a biztonságos fele kész, a maradék nagyobb léptékű átalakítást igényel és nem közeli munka, ld. Napló 2026-08-22)
 - [x] **4.5** A generátor központi függvénye 277 soros, és egyetlen tesztmodul importálja · `scripts/docs/generate_stats.py:863-1140` (`generate_stats()`), a fájl összesen 1 812 sor · A régi register **3.4 phase 1** kiszedte az inline HTML/CSS/JS literált (6 000 → 1 812 sor); a phase 2, a számítási mag szétbontása nem történt meg. Ez a függvény állítja elő egyszerre az összes publikált számot, a MITRE-lefedettséget, a README-blokkot és a history-idősorokat. Az 1.6 (tesztek) ennek a szétbontásával lesz olcsó, nem előtte → **Sienna**
 - [x] **4.6** Három hard CI-kapu körül nincs teszt · `scripts/validate/validate_sigma.py` (a séma-kapu, amin minden szabály átmegy), `scripts/validate/check_detect_id_uniqueness.py`, `scripts/new_rule.py` · A `tests/` egyik modulja sem importálja őket (a `check_version_bump`, `check_test_routing`, `check_mitre_tags`, `check_spl_syntax` viszont mind fedve van, jól). A `new_rule.py` külön súlyos: a `sigma-rule-authoring` skill *minden* új szabályt ezzel indíttat, tehát a scaffold hibája minden jövőbeli szabályba beépül; a skill állítása („every placeholder already satisfies the schema, `validate_sigma.py` passes on the untouched skeleton") ma nincs teszttel bizonyítva, pedig pontosan egy ilyen `scaffold → validate` round-trip teszt írná le → **Jamal**
 - [x] **4.7** Nincs UI-regressziós ellenőrzés, pedig az ügynök-szerződés előírja a manuálisat · `.claude/agents/Sienna - Frontend Engineer.md` („Verifies their own changes with Playwright before calling them done") · A Playwright-ellenőrzés így minden alkalommal kézi, egyszeri és nyomtalan: nincs elmentett snapshot, nincs CI-ban futó smoke-teszt, ami észrevenné, hogy egy `@@MARKER@@` kicseréletlenül maradt, egy doughnut nem renderelődik, vagy a Navigator-nézet elszáll. Egy egyszerű headless smoke (az oldal betölt, nincs console error, megvan a várt N szabálysor és a két gyűrű) a `ci_code_checks.yml`-ben megfogná a leggyakoribb regressziót → **Sienna** + **Jamal**
+- [x] **4.8** A dashboard/Pages publikálás a Splunk-függő láncra volt kötve, csendben eldobva `LAB_ONLINE=false` esetén — utólag felvett, már lezárt tétel · `.github/workflows/ci_dev_workflow.yml` (a jelenlegi `update_dashboard`/`deploy_pages` job-pár, 5 kódkomment `[dashboard-decoupling]` néven hivatkozik erre a döntésre — ld. **2.10**) · A korábbi felépítésben a stats/README/`docs/index.html`-generálás a `splunk_verify` job része volt, a `deploy_pages` pedig `splunk_verify` sikeres eredményét várta; `LAB_ONLINE=false` (vagy bármilyen felsőbb hiba, ami kihagyja `deploy_to_splunk`-ot) esetén ez az egész lánc — `deploy_to_splunk` → `splunk_verify` → `deploy_pages` — kimaradt, tehát egy új/módosított szabály SPL-je bekerült a repóba, de a rule browseren **soha nem jelent meg**, még „Not Verified"-ként sem, amíg valaki kézzel újra nem futtatta a pipeline-t labor-visszaálláskor. **Megoldva `cb99a97`-ben (2026-08-14, „fix(ci): decouple dashboard/Pages publish from Splunk-dependent chain")**: a `generate_stats.py` hívás és a README/`docs/index.html` commit kikerült egy önálló `update_dashboard` jobba (`needs: [prepare_validate_convert, splunk_verify]`, `always()`), ami `LAB_ONLINE` állapottól és `splunk_verify` tényleges kimenetelétől (siker/skip/hiba) függetlenül lefut; a `deploy_pages` mostantól erre mutat a korábbi `splunk_verify`-függés helyett. Új/módosított szabály ma azonnal publikálódik, becsületes „Not Verified" / „Not deployed" státusszal, labor-állapottól függetlenül. A munka megtörtént és jó, csak sosem lett regisztrálva ebben vagy a lezárt registerben → **Jamal** (eredeti megvalósítás, `cb99a97`)
 
 ## 5 · A Claude-munkamodell mint fejlesztési folyamat (11) · ×1,5
 
@@ -160,7 +161,7 @@ viszont hiányos — a konfiguráció nagy része nincs a repóban, egy hook hal
 - [x] **5.7** A `team-avatars` skill kimenete félkész és nincs bekötve · `.claude/skills/team-avatars/SKILL.md` · A skill precízen definiálja a stílus-lockot és a fájl helyét, de a tizenegy fős rosterből két avatár készült el, azok is a skill saját elnevezési szabályát megsértve, és egyik sincs bekötve a `TEAM.md`-be (lásd 2.8). Ez a legtisztább példa arra, amit az 5.1 leír: van skill, van kimenet, nincs gazda, aki végigvinné → **Gaz** dönt (befejezni vagy tudatosan lezárni „két avatár elég" indoklással)
 - [x] **5.8** Nincs `.claude/commands/` — a visszatérő műveletek nincsenek parancsba zárva · A repóban ma nulla slash-parancs van. Legalább négy művelet ismétlődik felismerhetően: register-állapot ellenőrzése, dashboard/statisztika helyi újragenerálása + normalizált diff, teljes lokális kapu-futtatás (ruff + pytest + validate + check_mitre_tags), és új szabály scaffoldolása a review-átadásig. Mindegyik ma prózából kerül újra összerakásra minden alkalommal → **Gaz**
 - [x] **5.9** Kwame eszközkészletében nincs `Write` · `.claude/agents/Kwame - Compliance Analyst.md` frontmatter: `tools: Read, Grep, Glob, Bash, Edit` · A szerepdefiníció szerint Kwame „reports accurate progress" és vezeti a registert — de új auditdokumentumot létrehozni nem tud, csak meglévőt szerkeszteni. Ez a dokumentum is `printf`-fel létrehozott helyőrző-fájl + `Edit` kerülőúton készült. Vagy a `Write` kerüljön be az eszközök közé, vagy legyen kimondva, hogy Kwame kizárólag meglévő registert könyvel, és új auditfájlt más hoz létre → **Gaz**
-- [ ] **5.10** A modellválasztási szabály nem mérhető és nem visszakövethető · `CLAUDE.md` 7. pont · A szabály jó (komplexitás-alapú eszkaláció dispatchenként, nem szerepenként), de semmilyen nyoma nem marad annak, melyik diszpécselés futott melyik modellen, tehát utólag nem lehet megmondani, hogy a szabály segít-e vagy sem. **Kwame és Yara egymástól függetlenül ugyanezt emelte ki**, és Yara pontosítása helytálló: ez futásidejű döntés, nem repo-artefaktum, tehát nem is lehet fájlban kikényszeríteni — amit viszont lehet, az a *nyom*. Legolcsóbb forma: a specialisták zárójelentése nevezze meg a modellt egy sorban, és a nagyobb körök (mint ez az audit) rögzítsék a Naplóban. Ez pontosan a repo saját „bizonyíték az állítás helyett" kultúrája, csak a folyamatra alkalmazva → **Gaz**
+- [x] **5.10** A modellválasztási szabály nem mérhető és nem visszakövethető · `CLAUDE.md` 7. pont · A szabály jó (komplexitás-alapú eszkaláció dispatchenként, nem szerepenként), de semmilyen nyoma nem marad annak, melyik diszpécselés futott melyik modellen, tehát utólag nem lehet megmondani, hogy a szabály segít-e vagy sem. **Kwame és Yara egymástól függetlenül ugyanezt emelte ki**, és Yara pontosítása helytálló: ez futásidejű döntés, nem repo-artefaktum, tehát nem is lehet fájlban kikényszeríteni — amit viszont lehet, az a *nyom*. Legolcsóbb forma: a specialisták zárójelentése nevezze meg a modellt egy sorban, és a nagyobb körök (mint ez az audit) rögzítsék a Naplóban. Ez pontosan a repo saját „bizonyíték az állítás helyett" kultúrája, csak a folyamatra alkalmazva → **Gaz**
 - [x] **5.11** A méret- és feltételfüggő elhalasztott döntéseknek nincs követett listája · a régi register négy tételt zárt le a *jelenlegi lépték* miatt: **3.8** (alkönyvtár-bontás), **4.1** (noise budget), **4.4** (Splunk ES / RBA), **4.11** (tömeges újramérés) · Mindegyik indoklása valós kiváltó feltételt tartalmaz, de az sűrű prózába temetve — senki nem figyeli, mikor lépjük át. Yara javaslata egy „lépték-függő döntések" tábla (tétel / mai mutató / küszöb / mi változik), ami Kwame következő körén gépiesen ellenőrizhető. Jó ötlet, **de a négy példa közül kettő pontosításra szorul**, és ez a pontosítás a tábla lényege: a **4.11** küszöbe valós és idézhető (a felhasználó a tömeges újramérést kifejezetten azzal utasította el, hogy „500+ szabálynál nem skálázna"); a **3.8**-é viszont **nem** — a register szó szerint rögzíti, hogy a „27 szabály még kezelhető, 150-nél nem" állítás rákérdezésre kiderülten *sosem volt alátámasztva*, tehát a 150-es szám nem küszöb, hanem visszavont feltevés, és a táblába is így kell bekerülnie, különben egy elvetett számot élesztünk újra. A **4.1** és a **4.4** pedig nem lépték-, hanem **feltételfüggő**: az egyik akkor nyílik újra, ha a labor Splunkja valódi háttérforgalmat kap, a másik akkor, ha telepítenek ES-t vagy megjelenik egy második üzemeltető. A tábla tehát „lépték- és feltételfüggő döntések" legyen, három oszloppal: mi a kiváltó, mérhető-e ma, és hol áll → **Kwame** (könyvelés), **Yara** (keretezés)
 
 ## 6 · Amit ez az audit nem fedett
@@ -1269,3 +1270,136 @@ grep-elni.
   amit ez a kör nem futtatott le; a doksi két nyitva hagyott korlátja (helyi
   scope felülírás, CI npm-egress/verziópinelés) pontosan ezt a határt jelöli
   ki, nem próbálja elfedni. A tétel hiánytalanul lezárva.
+
+- **2026-08-22 — 4.4 részlegesen lezárva, Jamal jelentése alapján
+  könyvelve (nem újra levezetve).** A `ci_dev_workflow.yml`-ben a
+  korábbi 4 gépi commit (prune / SPL / verify results / dashboard)
+  közül az első kettő már `6e29280` óta (2026-08-20, „refactor(ci-dev):
+  merge prune and SPL commits into one") egy commitba van összevonva —
+  az a commit-üzenet saját maga mondja, hogy „Register item 4.4, safe
+  half only." Mai spot-check: `grep -n "git commit -m"
+  ci_dev_workflow.yml` → pontosan **3** találat marad (`:949` összevont
+  prune+SPL, `:2267` verify-results, `:2385` dashboard) — egyezik
+  Jamal állításával.
+  **A maradék két commit (verify-results, dashboard) nem vonható
+  tovább össze a jelenlegi architektúrában:** a `splunk_verify` a
+  self-hosted lab runneren fut, az `update_dashboard` gyakran másik
+  runneren, friss checkout-tal, és kizárólag `origin/dev`
+  munkafájából olvas — a git commit az egyetlen runnerek közötti
+  adatátviteli út. Ez pontosan a `pipeline-ci-gotchas` skill D
+  szakaszában (`ci_dev_workflow.yml:2116-2141`) és a projekt-memóriában
+  („verify/dashboard commit coupling") már rögzített tény, ezt a kör
+  nem vizsgálta újra, mert nincs miért — összevonásuk azt kockáztatná,
+  hogy az `update_dashboard` egy elavult PASS-verdiktet republikál
+  csendben, ha a friss verify-eredmény éppen nem ért be időben.
+  **Két valódi további út maradt, egyik sem közeli munka:** (a) az
+  `outputs/results/` GH Actions cross-runner artifactként utazzon git
+  helyett, (b) a generált artefaktumok teljesen kikerüljenek a `dev`
+  branchről — ez utóbbi a 3.5-tel ér össze. Mindkettő nagyobb léptékű
+  átalakítás, nem ennek a tételnek a hatóköre.
+  **Következtetés:** a tétel se nem „folyamatban" (nincs tervezett
+  következő lépés a közeljövőben), se nem teljesen lezárt (a hat
+  eredeti út ötre csökkent, nem egyre) — a tételszöveg és a
+  státuszjelző ezért „részlegesen lezárva"-ra módosult, a checkbox
+  `[ ]` marad, mert a maradék kockázat és a döntés (3.2/3.5-ös léptékű
+  redesign) valós és nyitva van. `ci_code_checks.yml` és
+  `ci_prod_audit.yml` egyenként továbbra is 1-1 gépi commitot csinál,
+  ezt ez a tétel sosem célozta, változatlan. **Modell:** ez a
+  könyvelési kör Sonnet 5-ön futott.
+
+- **2026-08-22 — 5.10 lezárva, Kwame verifikálta.** `CLAUDE.md` 7. pontja
+  ma valóban tartalmazza a „Leave a trace, or the rule is unfalsifiable"
+  alpontot — közvetlenül a fájlból ellenőrizve, nem a register saját
+  szövegét visszaolvasva. Az alpont pontosan azt a rést zárja, amit a
+  tétel leírt: egy per-dispatch modell-override csak az adott hívásban él,
+  utólag semmi nem rögzíti, melyik diszpécselés melyik modellen futott,
+  tehát nem lehetne megmondani, segít-e az eszkalációs szabály; a fix egy
+  sornyi konvenció, nem új artefaktum — amikor egy specialista
+  zárójelentése amúgy is tartós helyre kerül (register Napló, commit-
+  üzenet), a modell neve is odakerül, rutin diszpécseléseknél nem
+  visszamenőlegesen. `git log --oneline -1 --grep="5.10"` → `f5373e5`
+  („docs(process): trace which model ran a dispatch, where it's already
+  logged"); a commit-üzenet szó szerint mondja: „Register item 5.10." A
+  diff (`git show f5373e5`) pontosan ezt a 10 sort adja hozzá `CLAUDE.md`
+  7. pontjához, más fájlt nem érint. Gaz jelzése szerint a konvenciót még
+  aznap éles Napló-bejegyzésben is használta (a 4.4 zárásánál, „ez a
+  könyvelési kör Sonnet 5-ön futott") — ez tehát nem csak papíron létező
+  szabály, hanem már bizonyítottan alkalmazott, ez a jelen bejegyzés a
+  második valódi előfordulása. A tétel hiánytalanul lezárva. **Modell:**
+  ez a könyvelési kör Sonnet 5-ön futott.
+
+- **2026-08-22 — 4.8 felvéve és azonnal lezárva, Kwame könyvelte
+  (retroaktív tétel, Gaz nyomozása alapján, önállóan ellenőrizve, nem a
+  dispatch-üzenet visszaolvasva).** Az 5 `[dashboard-decoupling]`
+  kódkomment (`ci_dev_workflow.yml:1131,1601,2116,2295,2578` — `grep -n`-nel
+  frissen ellenőrizve; az audit v1.0 kiadásakor még csak 3 volt, a szám a
+  fájl azóta történt szerkesztései miatt nőtt 5-re) egy sosem regisztrált,
+  de valós döntést takar. `git show cb99a97` (2026-08-14, „fix(ci): decouple
+  dashboard/Pages publish from Splunk-dependent chain") — a diff maga
+  ellenőrizve, nem csak a commit-üzenet elfogadva: az `update_dashboard`
+  job ténylegesen létezik, `needs: [prepare_validate_convert, splunk_verify]`,
+  és a jelenlegi kódkommentek (`:1131`, `:2295`, `:2578`) egybehangzóan
+  írják le, hogy LAB_ONLINE-tól és `splunk_verify` tényleges kimenetelétől
+  függetlenül fut; a `generate_stats.py` hívás és a README/`docs/index.html`
+  commit ténylegesen a `splunk_verify` jobból ebbe a jobba költözött át
+  (a diff törli a régi „Generate stats and update README" lépést
+  `splunk_verify`-ból, és hozzáadja az egyenértékű lépést `update_dashboard`-
+  hoz); a `deploy_pages` `needs: [update_dashboard]`-ra vált a korábbi
+  `splunk_verify`-függés helyett (`:2578` kommentje ezt a régi
+  `needs.splunk_verify.result == 'success' || 'failure'` feltételt idézi
+  szó szerint, mint amit a változás lecserélt). A commit-üzenet állítása
+  (LAB_ONLINE=false esetén a korábbi lánc a dashboard-publikálást is némán
+  kihagyta, ezért egy új szabály SPL-je bekerült, de sosem jelent meg a
+  dashboardon) egyezik mindhárom megmaradt kódkomment tartalmával.
+  **Új tétel: 4.8**, a `4 · Robusztusság és karbantarthatóság` szakaszban
+  (a `4.7` volt eddig a szakasz legmagasabb tétele, `grep`-pel ellenőrizve)
+  — ez a szakasz illik rá tartalmilag, nem a 2. (dokumentáció): maga a
+  döntés pipeline-robusztusság (a Pages-publikálás ne függjön hamisan egy
+  másik alrendszer állapotától), nem dokumentáció-hiány; a **2.10** marad
+  a *dokumentálatlanság* tünetének helye, nem a döntés tartalmának.
+  A szakaszfejléc `(7)` → `(8)`-ra módosult, a teljes register-súly
+  **82 → 84** (a robusztusság-kategória 7×2=14 → 8×2=16), a `Kész súly`
+  sor nevezője és a projektált pontszám képlete is frissült ugyanerre —
+  ugyanaz a minta, mint a 3.13 felvételekor (ld. fent, 2026-08-21).
+  **2.10 ezután lezárva, de nem hiánytalanul.** A tétel saját maga két
+  remediációs formát ajánlott: (a) valódi, számozott, lezárt tétel a
+  tényleges tartalommal, vagy (b) a kódkommentek a commitra/PR-re
+  hivatkozzanak a placeholder helyett. Gaz az (a) utat választotta — ez
+  most elkészült, tehát a register-oldali hiány (nulla előfordulás a
+  lezárt `remediation-plan.md`-ben, egy sosem regisztrált munka) megszűnt.
+  A kódkommentek szövege viszont **ma is szó szerint** `[dashboard-
+  decoupling]`-et mond mind az 5 helyen — ezt még nem cserélték `4.8`-ra,
+  és ez a csere kifejezetten Jamal hatásköre (`ci_dev_workflow.yml`
+  tartalma), Kwame nem szerkesztheti. A 2.10 checkboxa `[x]`-re váltott,
+  mert az eredeti hiba (a hivatkozott register-tétel nem létezett) valóban
+  megszűnt, de a tétel szövege és az → sor mostantól a fennmaradó, Jamalnak
+  szánt lépésre mutat (5 komment cseréje), nem a régi hiányra. **Modell:**
+  ez a könyvelési kör Sonnet 5-ön futott.
+
+- **2026-08-22 — 3.7 elutasítva.** A felhasználót közvetlenül megkérdezték,
+  érdemes-e egy lefedettségi *cél* (következő prioritási technikák,
+  cél-szám vagy -ütem) adatként rögzíteni, hogy a dashboard ne csak a mai
+  állapotot mutassa, hanem a felé haladást is. A válasz elutasító, saját
+  szavaival: „szerintem erre nincsen szükség. Én majd a saját ütememben
+  akarom fejleszteni ezeket a szabályokat." Ez kifejezetten a *célkitűzés
+  formalizálása és követése* ellen szól, nem a mögöttes lefedettség-
+  priorizálás ellen — a **3.8** tétel Yara/Masha-javaslata (Privilege
+  Escalation és Lateral Movement előrevétele) ettől függetlenül,
+  változatlanul áll, végrehajtásra vár. Nincs végrehajtó.
+
+- **2026-08-22 — 2.11 lezárva, Kwame verifikálta.** `.github/dependabot.yml:1-14`
+  ma valóban az átírt fejlécet mutatja, közvetlenül a fájlból ellenőrizve
+  (uncommitted working tree állapotban, ahogy a mai többi tétel esetén is).
+  **Előtte** (a tétel eredeti idézete szerint): „The pins exist because prod
+  re-runs the converter over the same Sigma source dev already converted…" —
+  ez a `3.2` előtti világot írta le, amikor a prod-oldali újrakonverzió és a
+  drift-gate még létezett. **Utána** (`:4-8`): „The pins exist for dev's own
+  conversion reproducibility (register item 2.11): dev converts every Sigma
+  rule to SPL with this exact toolchain, and the bytes it produces are what
+  gets committed, atomic-tested, and eventually deployed, so the conversion
+  needs to be reproducible on its own terms, not tied to whatever happens to
+  resolve on a given day…" — az indoklás most a `3.2` utáni valós mechanizmust
+  írja le (dev saját reprodukálhatósága), és a mondat maga is hivatkozza a
+  `2.11` tételszámot. **Jamal** végezte a szerkesztést, ma korábban, a mai
+  könyvelési kör előtt. A tétel hiánytalanul lezárva. **Modell:** ez a
+  könyvelési kör Sonnet 5-ön futott.
