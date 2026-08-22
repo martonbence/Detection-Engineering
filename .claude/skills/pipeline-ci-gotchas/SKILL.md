@@ -145,16 +145,29 @@ is a packaging omission two jobs upstream.
 
 ## D — Commit-back and state-consistency traps
 
-**Three separate pushes to `dev` per run, deliberately not merged further.**
-`prepare_validate_convert`'s output commit (`925-963`), `splunk_verify`'s
-result commit (`2142-2279`), and `update_dashboard`'s dashboard commit
-(`2361-2397`) are independent fetch/reset/reapply/push cycles. Comment at
-`2116-2141` explains why the last two stay separate: `splunk_verify` runs
-on the self-hosted lab runner and must commit `outputs/results/` *before*
-`update_dashboard` (often a different runner) can read those results back
-off `origin/dev` — it doesn't read them off local disk. Merging these two
-steps to "simplify" creates a job-ordering/race problem. (Matches project
-memory: verify/dashboard commit coupling — don't re-derive, this is why.)
+**Two pushes to `dev` per run — down from three as of register item 4.4
+(2026-08-22), not further mergeable without a real transport channel.**
+`prepare_validate_convert`'s output commit (`925-963`) stays independent —
+`deploy_to_splunk` needs the SPL bundle committed before it can read it
+back, same reasoning as below, just one hop earlier in the graph.
+`splunk_verify` no longer commits at all: it *uploads* a delta artifact
+(`verify-results-${{ github.run_id }}`, step "Stage verification results
+for transport") instead of pushing, because it runs on the self-hosted lab
+runner while `update_dashboard` (often a different runner) does its own
+`git reset --hard origin/dev` and only ever reads the working tree — a
+push was the only channel before this fix, now the artifact is. If you're
+tempted to "simplify" by having `splunk_verify` commit again, you're
+reverting 4.4, not fixing anything — the artifact-download step in
+`update_dashboard` (`2359-2385` region) merges it in and makes the single
+remaining write-back commit. A `persist_results_fallback` job
+(`needs.splunk_verify.result != 'skipped' && needs.update_dashboard.result
+!= 'success'`) exists specifically to re-commit the artifact if
+`update_dashboard` itself fails after downloading it — don't mistake that
+job's *existence* for a sign the artifact transport is unsafe; it's the
+one edge case (a mid-flight failure) that transport can't self-heal, and
+it's designed to run approximately never. (Matches project memory: verify/
+dashboard commit coupling, and the 4.4 register Napló entry — don't
+re-derive either, this entry is the summary of both.)
 
 **`reconcile.py`'s report reflects pre-`--apply` state.** Comment at
 `ci_dev_workflow.yml:2038-2046`, verified against two real runs (`#42`
@@ -266,3 +279,32 @@ independently). `compute_rule_version()` runs `git log --follow` per rule
 to derive its version from commit count; a shallow checkout makes every
 rule silently report version `1.0` — no error, just wrong dashboard data.
 Any new job that regenerates the dashboard needs the full checkout.
+
+## I — Register-item citations
+
+**A bare "register item N.N" in a comment is ambiguous, and it has already
+misled twice.** This repo runs *two* independent audit registers —
+`audit/feature-and-process-audit.md` (active) and `audit/remediation-plan.md`
+(closed) — and both number their items `N.N` from scratch, so the same
+number means two unrelated things depending on which file you mean. Real
+incidents, not a hypothetical: (1) 2026-08-21, `.github/requirements.txt`
+cited "register item 4.10" for the diskcache CVE accepted-risk note — that's
+`remediation-plan.md`'s 4.10 (closed 2026-08-04); the active register's
+section 4 doesn't reach 4.10 at all. (2) 2026-08-22, while implementing
+register item 4.4 (this file's own D-section entry above), a first draft
+introduced **ten** bare citations across new comments in
+`ci_dev_workflow.yml` — three of the four distinct numbers used (`4.6`,
+`4.7`, `2.20`) collided with real, unrelated items in the *other* file, and
+would have silently resolved to a plausible-looking wrong item for any
+reader who defaulted to "the register we're currently working in." Only
+one of the ten (`2.20`, which doesn't exist past 2.14 in the active
+register) would have failed loudly; the rest were quiet mis-attributions.
+**Always name the file** — `audit/feature-and-process-audit.md item 4.4`,
+not `register item 4.4` — and when the same number genuinely exists in
+both files with different meanings, say so explicitly in a parenthetical
+(see `ci_dev_workflow.yml`'s `persist_results_fallback` job comment, added
+2026-08-22, for the pattern). This applies anywhere in `scripts/` or the
+workflows that cites either register, not just new comments — pre-existing
+bare citations found but deliberately left alone during the 2026-08-22 pass
+(e.g. `.github/requirements.txt:34`'s "register item 4.10") are still real
+drift, just out of scope for whoever last touched them.

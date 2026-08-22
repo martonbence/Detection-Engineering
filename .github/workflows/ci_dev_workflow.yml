@@ -1598,27 +1598,32 @@ jobs:
     environment: dev
 
     steps:
-      # fetch-depth: 0 is vestigial here as of register item [dashboard-decoupling]:
-      # it used to be load-bearing because this job's own "Generate stats and
-      # update README" step called generate_stats.py's compute_rule_version(),
-      # which runs `git log --follow` per rule file and needs full history to
-      # get a rule's 1.x version right (a depth=1 checkout silently reported
-      # "1.0" for everything, no error, just wrong data). That step has since
-      # moved to the update_dashboard job below, which now carries its own
-      # fetch-depth: 0 for the same reason. Nothing that still runs in this
-      # job -- the git status/reset/commit sequence in "Commit verification
-      # results", pass_fail_eval.py, deployment_inventory.py, reconcile.py --
-      # touches history beyond the current tip, so this could be narrowed, but
-      # it is left as-is (cheap for this repo's size) rather than bundled into
-      # an unrelated change.
-      # id: the two always() steps at the end of this job need to know whether
-      # the working tree is actually here before they try to use it.
+      # audit/feature-and-process-audit.md item 4.4. Both `token:` and
+      # `fetch-depth: 0` were dropped here when this job stopped pushing to dev
+      # (see "Stage verification results for transport" below).
+      #
+      # fetch-depth: 0 had already been noted as vestigial under register item
+      # [dashboard-decoupling]: it was load-bearing only while this job ran
+      # generate_stats.py, whose compute_rule_version() shells out to `git log
+      # --follow` per rule and silently reports "1.0" for everything on a
+      # depth=1 checkout. That moved to update_dashboard, which carries its own
+      # fetch-depth: 0 for exactly that reason. Re-verified before removing it:
+      # lib/rule_version.py is imported only by convert/sigma_to_spl.py and
+      # docs/generate_stats.py, neither of which runs in this job -- the
+      # rule_version recorded in result.json comes from the SPL meta sidecar
+      # via check_saved_search_hits.py, not from git. Nothing left here
+      # (pass_fail_eval.py, reconcile.py, the `git status` in the staging step)
+      # looks past the current tip.
+      #
+      # token: dropping it is the point rather than a side effect. This is the
+      # self-hosted lab runner; it no longer needs a PAT that can write a
+      # protected branch, so it no longer holds one. The default GITHUB_TOKEN
+      # is enough for a read-only checkout.
+      # id: the always() steps at the end of this job need to know whether the
+      # working tree is actually here before they try to use it.
       - name: Checkout
         id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          token: ${{ secrets.GH_PAT_DEV_PUSH }}
-          fetch-depth: 0
 
       - name: Download pipeline bundle
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -2134,149 +2139,127 @@ jobs:
       # exactly what makes a new rule with no result.json render as
       # "Not Verified" / "Not deployed" instead of not appearing at all).
       #
-      # This step keeps committing outputs/results/ and
-      # outputs/reports/deployment_inventory.json -- the raw evidence this job
-      # itself produced -- so that update_dashboard, which needs() this job
-      # and therefore starts only after it (and its push, if any) completes,
-      # always finds this run's fresh results already on origin/dev.
-      - name: Commit verification results
+      # audit/feature-and-process-audit.md item 4.4. This step used to commit
+      # outputs/results/ and outputs/reports/deployment_inventory.json straight
+      # to dev, because a git push was the ONLY channel that could carry this
+      # run's evidence to update_dashboard: that job runs on a different runner,
+      # does its own `git reset --hard origin/dev`, and generate_stats.py only
+      # ever reads the working tree. That made three machine pushes per run
+      # (the item counted 256 [skip ci] commits out of 894) and forced a rebase
+      # before every local commit.
+      #
+      # The channel is now a run-scoped artifact instead, consumed by
+      # update_dashboard, which merges it and makes ONE commit covering both
+      # the verification evidence and the regenerated dashboard.
+      #
+      # WHY THIS DOES NOT REINTRODUCE THE STALE-VERDICT HAZARD the 2026-08-21
+      # investigation raised (audit/feature-and-process-audit.md:581-591): the
+      # objection there was to *deferring* the commit while leaving the
+      # dashboard job free to run anyway -- a re-measure that flipped PASS to
+      # FAIL could be dropped while update_dashboard still republished the
+      # older, not-yet-expired PASS as current. Under artifact transport the
+      # dashboard job is the *consumer* of these results, so a failure to
+      # ingest them means the dashboard is not regenerated at all, rather than
+      # regenerated from stale evidence. The failure inverted from "green and
+      # wrong" to "red and honest".
+      #
+      # What is uploaded is a DELTA, not a snapshot of outputs/results/:
+      #   results/<detect_id>/result.json         -- this run's verdict, overlaid
+      #   results/<detect_id>/history.jsonl.delta -- ONLY the line this run added
+      # Shipping whole history.jsonl files would force the consumer to redo the
+      # tail-compare against a base that has moved on, and this job's snapshot
+      # can be older than origin/dev's tip by the time the consumer resets to
+      # it. Shipping only the new line makes the append trivially correct
+      # wherever it lands.
+      #
+      # Staged under outputs/verify/ on purpose: every consumer commits with a
+      # `git add outputs/results/ ...`, so the .delta sidecars must never be
+      # written inside outputs/results/ itself or they would be committed.
+      #
+      # always(): a verdict that was measured must survive an unrelated later
+      # step failing (the anonymizer, the reconcile summary). Previously this
+      # step carried the default success() gate, so one such failure silently
+      # threw away the whole run's evidence.
+      - name: Stage verification results for transport
+        id: stage_results
+        if: always() && steps.checkout.outcome == 'success'
         shell: bash
-        env:
-          GIT_EDITOR: ":"
         run: |
           set -euo pipefail
 
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          stage="outputs/verify/results_upload"
+          rm -rf "$stage"
+          mkdir -p "$stage/results"
 
-          # Snapshot our freshly generated result files before any git resets
-          tmp=$(mktemp -d)
-          mkdir -p "$tmp/results"
-          cp -r outputs/results/. "$tmp/results/"
+          # audit/remediation-plan.md item 4.6 (the append-only history.jsonl;
+          # NOT this repo's active register's 4.6, which is about missing tests
+          # around the CI gates -- both files number independently and both
+          # define a 4.6).
+          #
+          # Which files did *this run's* pass_fail_eval.py
+          # actually touch? Not "everything under outputs/results" -- the
+          # checkout above has fetch-depth 0, so outputs/results/ holds one
+          # directory per rule ever verified in the repo's history, and
+          # pass_fail_eval.py only iterates the rules in this run's
+          # matched_events_dir / progress markers, a strict subset. No reset
+          # has happened in this job, so HEAD is still the commit it checked
+          # out and `git status` reports exactly the paths this run wrote --
+          # --untracked-files=all so a brand-new rule's files are listed
+          # individually rather than collapsed into one "??" line for its
+          # directory.
+          #
+          # Scoping the upload to touched paths (rather than the whole tree,
+          # as the snapshot-and-overlay this replaces did) is also strictly
+          # safer: overlaying an UNtouched rule's result.json from an older
+          # snapshot onto a newer origin/dev could revert a concurrent run's
+          # verdict for a rule this run never measured.
+          touched=$(git status --porcelain --untracked-files=all -- outputs/results \
+            | awk '{print $2}' || true)
 
-          # Register item 4.6. Which history.jsonl files did *this run's*
-          # pass_fail_eval.py actually append a line to? Not "every
-          # history.jsonl under outputs/results" -- the checkout above has
-          # fetch-depth 0, so outputs/results/ holds one directory per rule
-          # ever verified in the repo's history, and pass_fail_eval.py only
-          # iterates the rules in this run's matched_events_dir /
-          # progress markers, a strict subset. HEAD is still the commit this
-          # job checked out (no reset has happened yet), so `git status`
-          # here reports exactly the paths pass_fail_eval.py touched this
-          # run -- --untracked-files=all so a brand-new rule's files are
-          # listed individually rather than collapsed into one "??" line
-          # for its directory.
-          touched_histories=$(git status --porcelain --untracked-files=all -- outputs/results \
-            | awk '{print $2}' | grep -F '/history.jsonl' || true)
+          if [ -z "$touched" ]; then
+            echo "No verification results changed this run; nothing to transport."
+            echo "staged=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
-          for i in 1 2 3; do
-            # Reset to latest dev — eliminates all merge/rebase conflicts
-            echo "Resetting local checkout to origin/dev's tip and overlaying this run's fresh results (safe -- this is how concurrent pipeline runs avoid clobbering each other, not a discard of anything unpushed)..."
-            git fetch origin dev
-            git reset --hard origin/dev
-
-            # Overlay our result files (overwrite whatever dev already has).
-            # history.jsonl is excluded here and handled separately below --
-            # it is append-only, and a concurrent run may have pushed a line
-            # to it (for a rule this run never touched) after our snapshot
-            # was taken but before this reset, which a blind overwrite from
-            # our older snapshot would silently erase.
-            find "$tmp/results" -mindepth 1 -type f ! -name 'history.jsonl' -print0 |
-              while IFS= read -r -d '' src; do
-                rel="${src#"$tmp"/results/}"
-                dest="outputs/results/$rel"
-                mkdir -p "$(dirname "$dest")"
-                cp "$src" "$dest"
-              done
-
-            # history.jsonl: append-only, and only for the rules this run
-            # actually verified (touched_histories, computed once above --
-            # it does not change across retry attempts). pass_fail_eval.py
-            # calls append_entry() exactly once per rule it verifies, so
-            # "the line this run added" is the last line of that rule's
-            # history.jsonl in our snapshot. Append it to whatever's
-            # already on disk post-reset (which may already carry a line
-            # from a concurrent run) rather than overwriting the file.
-            #
-            # Guarded by a last-line comparison, not appended
-            # unconditionally: `git reset --hard` only touches *tracked*
-            # paths, so a rule that is brand new this run (never committed,
-            # still untracked at snapshot time) keeps its this-run line on
-            # disk straight through the reset untouched. Appending it again
-            # unconditionally would duplicate it. The same comparison is
-            # also what keeps a second loop iteration (retry after a
-            # rejected push) from re-appending a line it already added on a
-            # prior iteration.
-            if [ -n "$touched_histories" ]; then
-              printf '%s\n' "$touched_histories" | while IFS= read -r rel; do
-                [ -z "$rel" ] && continue
-                src="$tmp/results/${rel#outputs/results/}"
-                dest="$rel"
-                [ -f "$src" ] || continue
-                new_line="$(tail -n 1 "$src")"
+          printf '%s\n' "$touched" | while IFS= read -r rel; do
+            [ -z "$rel" ] && continue
+            [ -f "$rel" ] || continue
+            sub="${rel#outputs/results/}"
+            case "$rel" in
+              */history.jsonl)
+                # pass_fail_eval.py calls append_entry() exactly once per rule
+                # it verifies, so "the line this run added" is the last line.
+                new_line="$(tail -n 1 "$rel")"
                 [ -z "$new_line" ] && continue
-                mkdir -p "$(dirname "$dest")"
-                if [ -f "$dest" ]; then
-                  last_line="$(tail -n 1 "$dest")"
-                else
-                  last_line=""
-                fi
-                if [ "$last_line" != "$new_line" ]; then
-                  printf '%s\n' "$new_line" >> "$dest"
-                fi
-              done
-            fi
-
-            # Register item 4.7. Deliberately *after* the reset, not before it:
-            # this step resets the checkout to origin/dev's tip, and only
-            # outputs/results/ is snapshotted across that. The inventory is
-            # rebuilt here instead of preserved, which it can be because both of
-            # its inputs live in .gitignore'd directories -- git does not manage
-            # outputs/deploy/ or outputs/state/, so `git reset --hard` leaves
-            # them exactly where the earlier steps wrote them.
-            #
-            # Only the dev section is touched. Prod's is written by the prod
-            # audit workflow, which is the only thing that can see the prod app,
-            # and deployment_inventory.py merges rather than overwrites so the
-            # two never erase each other.
-            #
-            # Not fatal on failure: an inventory that missed one run is a far
-            # smaller loss than a verification run whose results never got
-            # committed because a bookkeeping step failed.
-            python scripts/state/deployment_inventory.py \
-              --env dev \
-              --deploy-report outputs/deploy/dev_deploy_report.json \
-              --reconcile outputs/state/reconcile.json \
-              --commit "${GITHUB_SHA}" \
-              --run-id "${GITHUB_RUN_ID}" \
-              --run-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-              || echo "::warning title=Inventory not updated::deployment_inventory.py failed; the dashboard will show the previous deployment state."
-
-            # Deliberately not outputs/reports/ wholesale: stats.json, README.md
-            # and docs/index.html are no longer generated in this job (see the
-            # comment on this step's name above) -- only deployment_inventory.json
-            # changes here, so this stays scoped to exactly the two things this
-            # job actually writes.
-            git add outputs/results/ outputs/reports/deployment_inventory.json
-
-            if git diff --cached --quiet; then
-              echo "No changes to commit."
-              exit 0
-            fi
-
-            git commit -m "chore(verify): update verification results [skip ci]"
-
-            if git push origin HEAD:dev; then
-              echo "Push succeeded."
-              exit 0
-            fi
-
-            echo "Push failed (attempt $i), retrying..."
-            sleep $((i * 2))
+                mkdir -p "$stage/results/$(dirname "$sub")"
+                printf '%s\n' "$new_line" > "$stage/results/${sub}.delta"
+                ;;
+              *)
+                mkdir -p "$stage/results/$(dirname "$sub")"
+                cp "$rel" "$stage/results/$sub"
+                ;;
+            esac
           done
 
-          echo "Push failed after 3 attempts."
-          exit 1
+          echo "staged=true" >> "$GITHUB_OUTPUT"
+          echo "Staged for transport:"
+          find "$stage" -type f | sort
+
+      # retention-days: 90 matches dev-deploy-report above. This is not a
+      # correctness mitigation -- persist_results_fallback below is -- it is a
+      # recovery window: if both the dashboard job and the fallback job somehow
+      # fail to land these, the evidence is still downloadable by hand for 90
+      # days rather than gone.
+      - name: Upload verification results
+        if: always() && steps.stage_results.outputs.staged == 'true'
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: verify-results-${{ github.run_id }}
+          path: outputs/verify/results_upload
+          retention-days: 90
+          if-no-files-found: warn
 
       - name: Report verification verdict
         shell: bash
@@ -2299,10 +2282,17 @@ jobs:
     # real ordering though -- GitHub Actions waits for a named job to
     # *complete* before starting one that needs() it, regardless of whether
     # that job ran, was skipped, or failed, and completion is what matters
-    # here: it is what guarantees this run's fresh outputs/results/ and
-    # outputs/reports/deployment_inventory.json (committed by splunk_verify's
-    # own "Commit verification results" step, if that job actually ran) are
-    # already on origin/dev by the time this job's checkout happens below.
+    # here: it is what guarantees splunk_verify's verify-results artifact has
+    # finished uploading before the download step below looks for it.
+    #
+    # audit/feature-and-process-audit.md item 4.4. That artifact -- not a
+    # commit on origin/dev -- is now the transport for this run's verification
+    # evidence. This job downloads
+    # it, merges it into the tree it just reset, regenerates the dashboard from
+    # the merged result, and makes ONE commit covering both. See splunk_verify's
+    # "Stage verification results for transport" step for the delta format and
+    # for why this ordering is safer than the deferred-commit design the
+    # 2026-08-21 investigation rejected.
     #
     # always() plus an explicit prepare_validate_convert check, for the same
     # reason open_promotion_pr and deploy_pages both need it: a bare needs:
@@ -2310,9 +2300,18 @@ jobs:
     # leave this job skipped whenever splunk_verify itself was (correctly)
     # skipped by LAB_ONLINE=false -- exactly the gap this job exists to close.
     # Not conditioned on splunk_verify's result at all: whether that job
-    # succeeded, failed (e.g. a FAIL verdict, which still commits its results
-    # before the job's last step re-exits non-zero) or was skipped, the
-    # dashboard should still be regenerated from whatever is actually on disk.
+    # succeeded, failed (e.g. a FAIL verdict, which still stages and uploads
+    # its results before the job's last step re-exits non-zero) or was skipped,
+    # the dashboard should still be regenerated from whatever is on disk.
+    #
+    # Worth stating explicitly, because it is what makes register 4.4's
+    # transport change safe: every clause below is upstream of splunk_verify,
+    # and splunk_verify's own `if:` already requires has_spl == 'true' and
+    # prepare_validate_convert success. So splunk_verify CANNOT run without
+    # this job's gate also being satisfied -- "results uploaded but the
+    # consumer was skipped" is unreachable by construction, not merely
+    # unlikely. The reachable gaps (this job fails; the run is cancelled by
+    # hand) are what persist_results_fallback below covers.
     if: |
       always() &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev' &&
@@ -2351,14 +2350,57 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pyyaml
 
-      # Retries by resetting to origin/dev's tip and re-running
-      # generate_stats.py against whatever is there, rather than the
-      # snapshot-and-overlay dance splunk_verify's own commit step uses --
-      # that dance exists to merge THIS run's in-memory results with a
-      # concurrent push; generate_stats.py has no such in-memory state, it
-      # only ever reads the working tree, so a fresh regenerate after each
-      # reset is both simpler and correct on every attempt.
-      - name: Generate stats and commit dashboard
+      # audit/feature-and-process-audit.md item 4.4. All three downloads are
+      # continue-on-error, and none of them may gate anything: on the
+      # LAB_ONLINE=false path splunk_verify
+      # and deploy_to_splunk never ran, so NONE of these artifacts exist, and
+      # this job must still regenerate the dashboard from the previously
+      # committed state -- that is the entire point of [dashboard-decoupling],
+      # and re-coupling it here would silently stop publishing new rules on
+      # every lab-offline run while everything stayed green.
+      #
+      # Downloaded to outputs/verify/results_download, NOT into
+      # outputs/results/: the artifact carries history.jsonl.delta sidecars,
+      # and the commit below runs `git add outputs/results/`, so unpacking it
+      # in place would commit the sidecars.
+      - name: Download verification results
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: verify-results-${{ github.run_id }}
+          path: outputs/verify/results_download
+
+      # The two inputs deployment_inventory.py needs, which moved here from
+      # splunk_verify along with the script call itself. Both already travelled
+      # as artifacts before this change (uploaded by deploy_to_splunk and by
+      # splunk_verify's reconcile step respectively) -- nothing new had to be
+      # produced for them, only downloaded on this side.
+      #
+      # Both land in .gitignore'd directories (outputs/deploy/, outputs/state/),
+      # which is what lets them survive the `git reset --hard` in the loop
+      # below untouched -- the same property the old in-splunk_verify version
+      # of this relied on.
+      - name: Download dev deploy report
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dev-deploy-report-${{ github.run_id }}
+          path: outputs/deploy
+
+      - name: Download reconciliation report
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: splunk-reconcile-${{ github.run_id }}
+          path: outputs/state
+
+      # Retries by resetting to origin/dev's tip, re-merging this run's
+      # verification delta and re-running generate_stats.py against the
+      # result. Note that everything in the loop body is re-derived on every
+      # attempt from inputs that live OUTSIDE the git tree (the downloaded
+      # artifacts, in .gitignore'd or untracked directories) -- which is why a
+      # reset can be this blunt and still be correct on attempt 2 and 3.
+      - name: Merge verification results, generate stats and commit
         shell: bash
         env:
           GIT_EDITOR: ":"
@@ -2368,21 +2410,276 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          dl="outputs/verify/results_download/results"
+
           for i in 1 2 3; do
             git fetch origin dev
             git reset --hard origin/dev
 
+            # audit/feature-and-process-audit.md item 4.4 (one write-back per
+            # run) + audit/remediation-plan.md item 4.6 (the append-only
+            # history.jsonl these deltas carry) -- two different files, which
+            # is why both are named.
+            #
+            # Merge this run's verification delta
+            # into the tree we just reset to. Absent (lab offline, or
+            # splunk_verify never got far enough to upload) is a normal state,
+            # not an error: the dashboard is then regenerated from the
+            # previously committed results, which is exactly what renders a
+            # new rule as "Not Verified" rather than omitting it.
+            if [ -d "$dl" ]; then
+              echo "Merging this run's verification results..."
+
+              # Plain overlay for result.json and anything else that is not an
+              # append-only log: this run's verdict replaces the previous one.
+              find "$dl" -mindepth 1 -type f ! -name '*.delta' -print0 |
+                while IFS= read -r -d '' src; do
+                  rel="${src#"$dl"/}"
+                  dest="outputs/results/$rel"
+                  mkdir -p "$(dirname "$dest")"
+                  cp "$src" "$dest"
+                done
+
+              # history.jsonl is append-only, so it is never overwritten. Each
+              # .delta holds exactly the one line this run's pass_fail_eval.py
+              # appended for that rule; it is appended to whatever is on disk
+              # after the reset, which may already carry lines a concurrent run
+              # pushed for rules this run never touched. Overwriting from a
+              # snapshot would silently erase those.
+              #
+              # The last-line guard is what makes a retry idempotent: if
+              # attempt 1 appended the line and then lost the push race, attempt
+              # 2 resets, re-reads, and finds either the line already there
+              # (concurrent run won and carried ours) or absent (normal case).
+              # Either way exactly one copy ends up in the file. It also covers
+              # the rarer case of the same delta being replayed by
+              # persist_results_fallback after a partial failure here.
+              find "$dl" -mindepth 1 -type f -name '*.delta' -print0 |
+                while IFS= read -r -d '' src; do
+                  rel="${src#"$dl"/}"
+                  dest="outputs/results/${rel%.delta}"
+                  new_line="$(tail -n 1 "$src")"
+                  [ -z "$new_line" ] && continue
+                  mkdir -p "$(dirname "$dest")"
+                  if [ -f "$dest" ]; then
+                    last_line="$(tail -n 1 "$dest")"
+                  else
+                    last_line=""
+                  fi
+                  if [ "$last_line" != "$new_line" ]; then
+                    printf '%s\n' "$new_line" >> "$dest"
+                  fi
+                done
+            else
+              echo "No verification results artifact for this run (lab offline, or verification did not reach the staging step). Regenerating from the previously committed state."
+            fi
+
+            # audit/remediation-plan.md item 4.7 (the deployment inventory;
+            # the active register's 4.7 is an unrelated UI-regression item),
+            # moved here from splunk_verify with the rest of the write-back.
+            # Deliberately *after* the reset: both of its inputs
+            # live in .gitignore'd directories, so `git reset --hard` leaves the
+            # downloaded artifacts exactly where they landed, and the inventory
+            # can simply be rebuilt on each attempt rather than preserved.
+            #
+            # Only the dev section is touched. Prod's is written by the prod
+            # audit workflow, which is the only thing that can see the prod app,
+            # and deployment_inventory.py merges rather than overwrites so the
+            # two never erase each other.
+            #
+            # Skipped rather than attempted when the deploy report is absent:
+            # naming a missing file makes the script warn, and if the reconcile
+            # were also unreadable it would refuse to write at all. Not fatal in
+            # any case -- an inventory that missed one run is a far smaller loss
+            # than a dashboard that never regenerated because a bookkeeping step
+            # failed. (ci_prod_audit.yml's record_inventory job guards the same
+            # way for the same reason.)
+            inv_args=()
+            if [ -f outputs/deploy/dev_deploy_report.json ]; then
+              inv_args+=(--deploy-report outputs/deploy/dev_deploy_report.json)
+            fi
+            if [ -f outputs/state/reconcile.json ]; then
+              inv_args+=(--reconcile outputs/state/reconcile.json)
+            fi
+            if [ "${#inv_args[@]}" -gt 0 ]; then
+              python scripts/state/deployment_inventory.py \
+                --env dev \
+                "${inv_args[@]}" \
+                --commit "${GITHUB_SHA}" \
+                --run-id "${GITHUB_RUN_ID}" \
+                --run-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+                || echo "::warning title=Inventory not updated::deployment_inventory.py failed; the dashboard will show the previous deployment state."
+            else
+              echo "No deploy or reconcile report for this run; leaving the deployment inventory as committed."
+            fi
+
             echo "Regenerating aggregate stats, MITRE coverage map, and rule browser content..."
             python scripts/docs/generate_stats.py
 
-            git add outputs/reports/ README.md docs/index.html
+            # outputs/results/ joins this `git add` as of
+            # audit/feature-and-process-audit.md item 4.4 -- it is what
+            # splunk_verify used to commit on its own. Still scoped
+            # rather than `git add -A`: outputs/verify/ holds the downloaded
+            # artifact (including the .delta sidecars) and must never be
+            # committed.
+            git add outputs/results/ outputs/reports/ README.md docs/index.html
 
             if git diff --cached --quiet; then
               echo "No changes to commit."
               exit 0
             fi
 
-            git commit -m "chore(docs): regenerate dashboard and stats [skip ci]"
+            git commit -m "chore(pipeline): verification results and dashboard [skip ci]"
+
+            if git push origin HEAD:dev; then
+              echo "Push succeeded."
+              exit 0
+            fi
+
+            echo "Push failed (attempt $i), retrying..."
+            sleep $((i * 2))
+          done
+
+          echo "Push failed after 3 attempts."
+          exit 1
+
+  # audit/feature-and-process-audit.md item 4.4. The safety net for the one
+  # thing artifact transport gives up: before this change, splunk_verify
+  # committed its own results, so
+  # the evidence was durable on dev before any downstream job could fail. Now
+  # update_dashboard is the only thing that lands them, and if it fails they
+  # exist solely as a 90-day artifact nobody is told to go look for.
+  #
+  # This job runs ONLY on that path -- normal runs skip it with zero steps, so
+  # the happy path keeps its single commit. When it does run it commits just
+  # the raw evidence (outputs/results/), not the dashboard: regenerating the
+  # dashboard is update_dashboard's job and it just failed, so the honest
+  # outcome is fresh results on the branch and a dashboard that visibly did not
+  # update, rather than a second job guessing at a render.
+  #
+  # It does NOT close every case: a run cancelled by hand between the two jobs
+  # runs no job at all, always() included. That window is the residual risk,
+  # and it is smaller than the one this replaces.
+  persist_results_fallback:
+    name: Persist Verification Results (fallback)
+    needs: [ splunk_verify, update_dashboard ]
+    # `needs.*.result`, never `needs.*.outputs`. splunk_verify's own `if:`
+    # starts with always(), and cross-job outputs from an always()-gated job
+    # have been observed not to propagate to a downstream job's `if:` -- run
+    # 30154222981: 5/5 PASS, splunk_verify result=success, open_promotion_pr
+    # still skipped with zero steps. The job *result* is reliable; its outputs
+    # are not. Same reason open_promotion_pr below reads .result.
+    #
+    # != 'skipped' rather than == 'success' on splunk_verify: a FAIL verdict
+    # makes that job's result 'failure' (its last step re-exits the verdict)
+    # while its results were still staged and uploaded -- a FAIL is evidence
+    # that must be preserved, arguably more than a PASS. Only a genuinely
+    # skipped verification (LAB_ONLINE=false) has nothing to persist.
+    #
+    # != 'success' rather than == 'failure' on update_dashboard: 'cancelled'
+    # and 'skipped' both need covering too, and Actions has no single value
+    # that catches all three -- the same trap [dashboard-decoupling] hit with
+    # `result == 'success' || 'failure'` silently missing 'skipped'.
+    if: |
+      always() &&
+      needs.splunk_verify.result != 'skipped' &&
+      needs.update_dashboard.result != 'success'
+    runs-on: ubuntu-latest
+    # Checkout, one download and up to 3 push attempts. No generate_stats.py,
+    # so this needs neither Python deps nor a deep checkout.
+    timeout-minutes: 10
+    # Required for secrets.GH_PAT_DEV_PUSH to resolve -- dev is protected and
+    # the default token cannot write to it. Deliberately NOT read in this
+    # job's `if:` above: environment-scoped values resolve after the job's own
+    # if: is evaluated and would read as empty there
+    # (audit/remediation-plan.md item 2.20 -- the active register's section 2
+    # stops at 2.14 and has no 2.20).
+    environment: dev
+
+    steps:
+      # Shallow is fine: nothing here runs generate_stats.py, so
+      # compute_rule_version()'s `git log --follow` requirement does not apply.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          token: ${{ secrets.GH_PAT_DEV_PUSH }}
+
+      - name: Download verification results
+        id: fetch
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: verify-results-${{ github.run_id }}
+          path: outputs/verify/results_download
+
+      # Byte-identical merge logic to update_dashboard's, minus the inventory
+      # and the stats regeneration. Kept as a duplicate rather than factored
+      # into a composite action on purpose: the two differ in what they commit
+      # and when they run, a shared action would have to be parameterised on
+      # both, and this repo has already paid for one indirection-hides-the-bug
+      # incident (the bundle's hand-maintained cp list, run #67). If this pair
+      # ever needs a third caller, factor it then.
+      - name: Commit verification results
+        if: steps.fetch.outcome == 'success'
+        shell: bash
+        env:
+          GIT_EDITOR: ":"
+        run: |
+          set -euo pipefail
+
+          dl="outputs/verify/results_download/results"
+          if [ ! -d "$dl" ]; then
+            echo "Artifact downloaded but carries no results/ directory; nothing to persist."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          echo "::warning title=Dashboard job did not land this run's results::Committing outputs/results/ from the verify-results artifact as a fallback. The dashboard was NOT regenerated -- it will catch up on the next run that regenerates it."
+
+          for i in 1 2 3; do
+            git fetch origin dev
+            git reset --hard origin/dev
+
+            find "$dl" -mindepth 1 -type f ! -name '*.delta' -print0 |
+              while IFS= read -r -d '' src; do
+                rel="${src#"$dl"/}"
+                dest="outputs/results/$rel"
+                mkdir -p "$(dirname "$dest")"
+                cp "$src" "$dest"
+              done
+
+            # Append-only, last-line guarded -- see update_dashboard's copy of
+            # this loop for the full reasoning. The guard is what makes it safe
+            # for this job to run after update_dashboard already appended some
+            # or all of these lines and then failed at the push: replaying the
+            # same delta cannot duplicate a line.
+            find "$dl" -mindepth 1 -type f -name '*.delta' -print0 |
+              while IFS= read -r -d '' src; do
+                rel="${src#"$dl"/}"
+                dest="outputs/results/${rel%.delta}"
+                new_line="$(tail -n 1 "$src")"
+                [ -z "$new_line" ] && continue
+                mkdir -p "$(dirname "$dest")"
+                if [ -f "$dest" ]; then
+                  last_line="$(tail -n 1 "$dest")"
+                else
+                  last_line=""
+                fi
+                if [ "$last_line" != "$new_line" ]; then
+                  printf '%s\n' "$new_line" >> "$dest"
+                fi
+              done
+
+            git add outputs/results/
+
+            if git diff --cached --quiet; then
+              echo "Results already on dev (update_dashboard landed them before failing). Nothing to commit."
+              exit 0
+            fi
+
+            git commit -m "chore(verify): persist verification results after dashboard failure [skip ci]"
 
             if git push origin HEAD:dev; then
               echo "Push succeeded."
