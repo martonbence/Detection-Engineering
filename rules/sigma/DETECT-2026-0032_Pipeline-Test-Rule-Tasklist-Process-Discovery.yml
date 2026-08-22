@@ -14,7 +14,7 @@ references:
   - https://attack.mitre.org/techniques/T1057/
 author: Bence Marton
 date: 2026-08-15
-modified: 2026-08-15
+modified: 2026-08-22
 version: "1.1"
 tags:
   - attack.discovery
