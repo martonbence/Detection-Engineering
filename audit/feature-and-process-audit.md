@@ -125,7 +125,7 @@ teljesíthető utasítással indul.
 - [x] **3.5** A rule browser egyetlen 674 KB-os fájl, mindent előre betöltve · `docs/index.html` (674 590 bájt), forrás: `page.js` 2 878 sor / 128 KB, `page.css` 4 036 sor / 98 KB · 28 szabálynál ez működik; a növekedés viszont lineáris, mert a teljes szabálytest, a MITRE-mátrix, két history-idősor és a deployment-panel is beágyazottan utazik. Nincs mérés arról, hol a fájdalomküszöb — egy Lighthouse-futás (a `chrome-devtools` MCP-eszközök Sienna készletében megvannak) megmondaná, hogy ez ma probléma-e vagy csak később az → **Sienna**
 - [x] **3.6** Nincs értesítés a pipeline eredményéről a GitHub felületén kívül · A PASS/FAIL verdikt ma a job exit-kódjában, a step summaryben és a promotion PR meglétében jelenik meg. Aki nem nézi az Actions fület, semmiről nem tud — arról sem, hogy 27 szabály hetek óta `NOT_VERIFIED` (1.5). Legolcsóbb forma: GitHub Issue automatikus nyitása/frissítése a lejárt+superseded halmazról, vagy bármilyen tartós felület a step summary helyett → **Jamal** (CI), **Kai** (ha issue/platform-oldali)
 - [x] **3.7** A lefedettségi cél nincs adatként jelen · `outputs/reports/stats.json`: `mitre_covered_techniques: 12`, `mitre_total_techniques: 222`, `mitre_coverage_pct: 5,4` · A dashboard megmutatja, mi van; nem mutatja, mi lenne a cél, és milyen ütemben haladunk felé. A `coverage_history.json` és a `rule_growth_history.json` már gyűjti az idősort — hiányzik a szándék (célhalmaz, prioritás, „következő 5 technika") rögzítése adatként, amihez a trend mérhető. Ez az a pont, ahol Yara és Masha kimenete tényleges repo-artefaktummá válhatna → **Yara** (tartalom), **Sienna** (megjelenítés) · **Elutasítva, lásd Napló 2026-08-22**
-- [ ] **3.8** A szabálykönyvtár két taktika-családra szűkül, hét taktikán nulla szabály · gépi számlálás a 28 szabály `attack.*` tactic-tagjein: `execution` 14, `credential_access` 13, `stealth` 8, `persistence` 2, `defense_impairment` 2, `command_and_control` 1, `initial_access` 1, `discovery` 1 · A felső ATT&CK enterprise-taxonómiához mérve **hét taktikán nulla szabály van**: Reconnaissance, Resource Development, Privilege Escalation, Lateral Movement, Collection, Exfiltration, Impact. Teljes technika-lefedettség 12/222 (5,4%). Ez nem hiba — tudatos mélységi fókusz lehet —, de sehol nincs kimondva, hogy az, és a hét üres taktika kész felvételi lista a következő körhöz. Yara javaslata a sorrendre, amivel egyetértek: a **Privilege Escalation** és a **Lateral Movement** az a kettő, amihez a meglévő victim + DC labor-hostokon reálisan van valódi Atomic-teszt — vagyis ezekre nemcsak szabály írható, hanem a repo lényegét adó *élő verifikáció* is elvégezhető rajtuk. (Pontosítás Yara briefjéhez: a repo saját taktika-szótára nem azonos az upstream ATT&CK-kal — `stealth` és `defense_impairment` itt valós taktika, lásd a `mitre-attack-mapping` skillt —, tehát nyolc taktikán *van* szabály, nem kettőn; a koncentráció állítása viszont változatlanul áll.) → **Masha** (külső megalapozás) → **Yara** (priorizálás) → **Yuki** (megvalósítás), dokumentálva **Chloe**
+- [x] **3.8** A szabálykönyvtár két taktika-családra szűkül, hét taktikán nulla szabály · gépi számlálás a 28 szabály `attack.*` tactic-tagjein: `execution` 14, `credential_access` 13, `stealth` 8, `persistence` 2, `defense_impairment` 2, `command_and_control` 1, `initial_access` 1, `discovery` 1 · A felső ATT&CK enterprise-taxonómiához mérve **hét taktikán nulla szabály van**: Reconnaissance, Resource Development, Privilege Escalation, Lateral Movement, Collection, Exfiltration, Impact. Teljes technika-lefedettség 12/222 (5,4%). Ez nem hiba — tudatos mélységi fókusz lehet —, de sehol nincs kimondva, hogy az, és a hét üres taktika kész felvételi lista a következő körhöz. Yara javaslata a sorrendre, amivel egyetértek: a **Privilege Escalation** és a **Lateral Movement** az a kettő, amihez a meglévő victim + DC labor-hostokon reálisan van valódi Atomic-teszt — vagyis ezekre nemcsak szabály írható, hanem a repo lényegét adó *élő verifikáció* is elvégezhető rajtuk. (Pontosítás Yara briefjéhez: a repo saját taktika-szótára nem azonos az upstream ATT&CK-kal — `stealth` és `defense_impairment` itt valós taktika, lásd a `mitre-attack-mapping` skillt —, tehát nyolc taktikán *van* szabály, nem kettőn; a koncentráció állítása viszont változatlanul áll.) → **Masha** (külső megalapozás) → **Yara** (priorizálás) → **Yuki** (megvalósítás), dokumentálva **Chloe** · **Elutasítva/hatókörön kívül, lásd Napló 2026-08-22** — a Privilegium-eszkaláció/Lateral Movement priorizálás mint háttér-tény változatlanul áll, ha a felhasználó egyszer maga felveszi, de a tétel nem register-követett feladat többé
 - [x] **3.9** A publikált szám mellett nincs ott, hogy mikor mértek utoljára élesben · `README.md` badge-sor, `docs/index.html` Verification-gyűrű · Ma a `stats.json` (generálva 2026-08-17) 4% pass rate-et és 27/28 `NOT_VERIFIED`-et mutat, három nappal azután, hogy a régi register naplója egy valódi `LAB_ONLINE=true` futást rögzített 26 szabály éles history-jával. Aki csak a badge-et látja, romlásnak olvassa. Hiányzik egy „utolsó éles verifikáció: `<dátum>`, N/M szabály" jelzés közvetlenül a Pass Rate badge és a gyűrű mellett, plusz a rule browserben egy önkiszolgáló szűrő/jelvény a „újramérésre vár" halmazra, ami megkülönbözteti a *szerkesztés miatt felülírt* és az *elévült* esetet (az adat mindkettőre megvan a `stats.json`-ben). Yara ezt priorizálta a legmagasabbra a briefjében, és egyetértek a *javaslattal* — a diagnózisával nem (lásd a Naplót és az 1.5-öt: a mai 4% nem elévülésből jön, `verified_stale = 0`) → **Sienna**
 - [x] **3.10** Nincs anonimizálás a publikusan letölthető diagnosztikai artifactban · `ci_dev_workflow.yml:1882` (`matched-events-sigma-<run_id>`, 14 napos retention, publikus repón bárki által letölthető) · A régi register **2.16**-a ezt a kockázatot megvizsgálta, és tudatosan a **rövidebb retenciót** választotta (90 → 14 nap) a mezőszűrés helyett — az indoklás jó volt (a nyers esemény maga a hibakeresési érték) —, de a tétel szövege maga nevezi meg, mi maradt kitéve: **a labor névtana** (gépnevek, domain, szolgáltatásfiókok). Egy verify és artifact-feltöltés közé illesztett eszköz, ami a labor-azonosítókat stabil, entitásonként konzisztens álnevekre cseréli (megőrizve az események közti korrelációt, tehát a debug-értéket is), pontosan azt a maradékot zárná le, amit a 2.16 nyitva hagyott. Yara javaslata, a register szövegével megerősítve. Önálló eszköz, nincs mai gazdája — a CI-ba **Jamal** kötné be → **Gaz** dönt gazdát
 - [x] **3.11** Nincs eszköz egy találatszám-eltérés kivizsgálására · verifikálva a `outputs/results/DETECT-2026-0019/history.jsonl`-ből: ugyanaz a szabály négy futás alatt **FAIL (11 esemény) → NOT_VERIFIED (1) → FAIL (0) → NOT_VERIFIED (kikapcsolva)** három nap alatt, közben a `rule_version` 1.6-ról 1.7-re mozdult · A régi register **2.7**-e a globális `--max-pass 10` ablakot vizsgálta, és elutasítással zárult: a felső korlát rossz eszköz, mert az *attack-ablak* számából elvből nem derül ki, hogy a szabály túl tág-e vagy a technika generál tényleg annyi eseményt. Ez a következtetés áll — de a gyakorlati rés megmaradt: ha egy szám 11 lesz 10 helyett, ma **semmi nem mondja meg, melyik esemény volt a plusz egy**. Egy script, ami betölti egy szabály illeszkedett eseményeit és megmutatja, mely mező(k) mentén válik szét a halmaz, a mai „ismert flakiness"-t vizsgálhatóvá tenné. Yara javaslata; a register 2.7-hez fűzött indoklása pontosítva (nem „not-a-bug flakiness"-ként lett lezárva, hanem a felső korlát elvi elutasításaként) → **Jamal** (a `scripts/verify/` kiterjesztéseként), vagy önálló eszköz, ha külön akarjuk tartani a CI-tól
@@ -1460,3 +1460,58 @@ grep-elni.
   nem hallgatva el. → **Jamal** (a tényleges, első éles futás megfigyelése,
   amikor a lab/pipeline legközelebb fut). **Modell:** ez a könyvelési kör
   Sonnet 5-ön futott.
+
+- **2026-08-22 — register-audit (Kwame): 2.10 leíró szövege elavult, a
+  checkbox marad `[x]`.** A teljes kört ellenőrizve: `remediation-plan.md`
+  változatlanul 54/54 (54 `[x]`, 0 `[ ]`), `register.html` és a `.md`
+  ugyanattól a commit-tól (`facae74`, 2026-08-15) datálódik, egyik sem
+  módosult azóta — nincs drift a lezárt register és a renderelt oldala
+  között. A jelen (aktív) register: **34/52 lezárva** (nem 21/51 —
+  a 2026-08-21-i állapot óta 13 tétel zárult, plusz retroaktívan felvett
+  **4.8**, súly 82→84, a fejléc `84 = 6×3+8×2+13×1,5+11×1,5+14×1` képlete
+  és a szekciófejlécek (6/14/13/8/11) `grep`-pel egyezik a tényleges
+  tételszámmal). Spot-check a friss lezárásokon, közvetlenül a kódból:
+  **2.11** (`dependabot.yml:4-8` valóban az új indoklást mutatja, a `2.11`
+  hivatkozással), **3.6** (`notify_pipeline_status` job létezik
+  `ci_dev_workflow.yml:2878`-tól, `SLACK_WEBHOOK_URL` fail-open logikával),
+  **5.10** (`CLAUDE.md` 7. pontja tartalmazza a „Leave a trace" alpontot,
+  `git log --grep=5.10` → `f5373e5`), **4.4 részleges** (`ci_dev_workflow.yml`
+  ma valóban egy összevont prune+SPL commitot ír, `6e29280`) — mind valós.
+  **Egy tétel szövege viszont elavult, magának a lezárt tételnek a
+  ellenőrzésén belül:** a **2.10** (lezárva, tartalma átvitt **4.8**-ba) azt
+  állítja, hogy a `[dashboard-decoupling]` placeholder-komment ma **5**
+  helyen fordul elő (`:1131,1601,2116,2295,2578`). Közvetlen `grep` a mai
+  `ci_dev_workflow.yml`-en: **8** előfordulás (`:1131,1606,2121,2278,2358,
+  2581,2901,3014`). `git blame` szerint a záró commit (`1a5b4c2`,
+  2026-08-22 17:02:45) már ekkor is tévedett — a 3 sorból álló **4.4**
+  munkarész (`28f47e7`, 17:02:18, 27 másodperccel korábban) már bekerült,
+  tehát a valós szám a zárás pillanatában **7** volt, nem 5; utána a
+  **3.6** Slack-munka (`67e6805`, 17:37:25) hozzáadott egy nyolcadikat.
+  A checkbox és a `→ Jamal (5 komment … → 4.8)` átnevezési feladat maga
+  helyes marad — csak a szám és a sorhivatkozás stale. Nem javítom a
+  tétel törzsszövegét (a mögöttes felület Jamalé), csak itt, a Naplóban
+  rögzítem a pontos mai számot a következő végrehajtónak. **Következő
+  valós, nem-docs tétel:** **3.8** (MITRE taktika-lefedettség, Privilege
+  Escalation + Lateral Movement előrevétele Yara/Masha javaslata szerint,
+  „Nincs végrehajtó" — lásd a 3.7 elutasítás Napló-bejegyzését fent) →
+  **Yuki** (megvalósítás), **Bjorn** (review). **Modell:** ez a könyvelési
+  kör Sonnet 5-ön futott.
+
+- **2026-08-22 — 3.8 elutasítva/hatókörön kívül.** A felhasználó döntött: az
+  új detekciós szabályokat mostantól személyesen írja, kifejezetten azért,
+  hogy a detection engineeringet gyakorlatban tanulja meg — ez **nem**
+  kerül átadásra Yukinak. Ez nem egyszeri kihagyás, hanem álló hatókör-
+  döntés: a register mostantól nem tart nyilván szabályfejlesztési/
+  lefedettségi-rés-írási tételt csapat-végrehajtandó „nincs végrehajtó"
+  sorként — ez a fajta munka strukturálisan kívül esik azon, amit ez a
+  register követ. A mögöttes megállapítás (a hét nulla-lefedettségű
+  taktika, Yara/Masha priorizálása a Privilege Escalation és a Lateral
+  Movement mellett) ettől még tényszerűen érvényes marad, és háttér-
+  kontextusként megáll, ha a felhasználó saját maga veszi fel később —
+  csak nem register-követett szállítandóként. Ezzel a nyitott halmaz
+  **34/52**-ről **35/52**-re zárva. **Következő valós, nem-docs tétel:**
+  a soron következő, ténylegesen csapat-végrehajtható tétel a listából
+  (lásd a fenti nyitott `[ ]` tételeket, pl. **3.3**, **3.4**, **4.1**,
+  **4.4** maradék fele) — Gaz dönt a sorrendről, miután ezt a hatókör-
+  változást figyelembe vette. **Modell:** ez a könyvelési kör Sonnet 5-ön
+  futott.
