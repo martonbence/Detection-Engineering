@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-21T08:40:58.456331+00:00",
+  "generated_at": "2026-08-22T15:50:42.803406+00:00",
   "total_rules": 28,
   "total_sigma_rules": 28,
   "total_compiled_sigma_rules": 27,
@@ -9,11 +9,11 @@
   "verified_fail": 0,
   "verified_not_verified": 27,
   "verified_testing_disabled": 27,
-  "verified_testing_disabled_current": 27,
+  "verified_testing_disabled_current": 26,
   "never_tested": 0,
   "not_verified": 27,
-  "verified_stale": 0,
-  "verified_superseded": 0,
+  "verified_stale": 1,
+  "verified_superseded": 1,
   "verified_expired": 0,
   "verified_pass_current": 1,
   "verified_fail_current": 0,
@@ -27,7 +27,7 @@
   "last_live_verification_count": 1,
   "mitre_covered_techniques": 12,
   "mitre_total_techniques": 222,
-  "mitre_total_fetched_at": "2026-08-15T15:35:02.369537+00:00",
+  "mitre_total_fetched_at": "2026-08-22T15:50:42.803406+00:00",
   "mitre_coverage_pct": 5.4,
   "by_level": {
     "critical": 14,
@@ -1569,7 +1569,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-08-15",
-      "modified": "2026-08-15",
+      "modified": "2026-08-22",
       "references": [
         "https://attack.mitre.org/techniques/T1057/"
       ],
@@ -1593,7 +1593,7 @@
       },
       "rule_body": "detection:\n  selection:\n    Image|endswith:\n    - \\tasklist.exe\n    - \\qwinsta.exe\n  condition: selection",
       "rule_body_lang": "yaml",
-      "rule_version": "1.3"
+      "rule_version": "1.4"
     }
   ]
 }
