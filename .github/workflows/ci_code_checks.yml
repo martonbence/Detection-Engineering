@@ -78,8 +78,25 @@ jobs:
     timeout-minutes: 20
 
     steps:
+      # Full history, not shallow: this job's own "Generate rule browser for
+      # smoke test" step below calls generate_stats.py, which derives each
+      # rule's version from `git log --follow` over its file. On a depth=1
+      # checkout every rule silently comes out "1.0" -- no error, just wrong
+      # data. That wrongness is not cosmetic here: it feeds
+      # isVerdictSuperseded() in page.js, which flags a verdict as superseded
+      # whenever this run's freshly (mis)computed ruleVersion disagrees with
+      # the verdictRuleVersion recorded at actual verification time.
+      # DETECT-2026-0007 is the repo's only rule with a real PASS verdict, so
+      # under a shallow checkout it alone gets wrongly marked superseded,
+      # verifyCount ends up all-zero across every rule, and the "Rule browser
+      # smoke test" step's chart-verify check fails with "dataset sums to 0"
+      # -- deterministically, on every run, not flakily. The
+      # regenerate_console job below carries the same note for the same
+      # reason; this checkout was missed when that fix was applied there.
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0

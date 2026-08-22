@@ -274,11 +274,32 @@ same normalize-then-diff locally.)
 
 **`fetch-depth: 0` is load-bearing wherever `generate_stats.py` runs.**
 Comment repeated at `ci_dev_workflow.yml:2330-2334` and
-`ci_code_checks.yml:529-533` (confirming this bit more than one job
+`ci_code_checks.yml:529-538` (confirming this bit more than one job
 independently). `compute_rule_version()` runs `git log --follow` per rule
 to derive its version from commit count; a shallow checkout makes every
 rule silently report version `1.0` — no error, just wrong dashboard data.
 Any new job that regenerates the dashboard needs the full checkout.
+
+**Third occurrence, found missing and fixed 2026-08-22:**
+`ci_code_checks.yml`'s `static_analysis` job also calls `generate_stats.py`
+(its "Generate rule browser for smoke test" step, feeding the Playwright
+smoke test) but its `Checkout` step had no `fetch-depth: 0` — missed when
+the fix landed on `regenerate_console`'s checkout elsewhere in the same
+file. This wasn't just "wrong dashboard data" here, it broke a real CI
+gate deterministically: the shallow-checkout "1.0" fed
+`isVerdictSuperseded()` in `page.js`, which flags a verdict superseded
+when this run's computed `ruleVersion` disagrees with the
+`verdictRuleVersion` recorded at actual verification time.
+DETECT-2026-0007 was (at the time) the repo's only rule with a real PASS
+verdict, so under the bug it alone got wrongly marked superseded,
+`verifyCount` went all-zero across every rule, and the smoke test's
+chart-verify ring check failed with "dataset sums to 0" on every run that
+reached it — not flaky, reproducible every time. Any *new* job added to
+this workflow (or `ci_prod_audit.yml`) that calls `generate_stats.py`
+needs this checked explicitly; grep for `generate_stats.py` across the
+workflows and confirm each caller's own `Checkout` step carries
+`fetch-depth: 0` rather than assuming the first two fixes covered every
+site.
 
 ## I — Register-item citations
 
