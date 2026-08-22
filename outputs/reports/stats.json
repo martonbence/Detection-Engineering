@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-22T15:50:42.803406+00:00",
+  "generated_at": "2026-08-22T15:57:24.118301+00:00",
   "total_rules": 28,
   "total_sigma_rules": 28,
   "total_compiled_sigma_rules": 27,
@@ -1569,7 +1569,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-08-15",
-      "modified": "2026-08-22",
+      "modified": "2026-08-21",
       "references": [
         "https://attack.mitre.org/techniques/T1057/"
       ],
@@ -1593,7 +1593,7 @@
       },
       "rule_body": "detection:\n  selection:\n    Image|endswith:\n    - \\tasklist.exe\n    - \\qwinsta.exe\n  condition: selection",
       "rule_body_lang": "yaml",
-      "rule_version": "1.4"
+      "rule_version": "1.5"
     }
   ]
 }
