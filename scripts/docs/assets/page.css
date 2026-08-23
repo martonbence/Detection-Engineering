@@ -83,8 +83,11 @@
       gap: 14px;
       /* Second enlargement pass (register: header logo, round 2) — the row
          itself now grows with the mark instead of the mark staying pinned
-         to a fixed 48px strip (72px = 48px mark + 12px of clear space
-         above/below, see .strip-logo below). */
+         to a fixed 48px strip. Kept at 72px through the 2026-08-23
+         branding-crop pass even though .strip-logo's own size dropped to
+         36px below -- this height is the approved layout, not derived from
+         the mark size, so it's left alone; only the mark shrank to keep
+         the same visual weight inside it. */
       height: 72px;
       padding: 0 18px;
       background: var(--bg2);
@@ -99,13 +102,20 @@
     }
 
     /* Decorative brand mark, not the page's identity (the title text still
-       carries that). Exported at 96x96 and displayed at 48px so it stays
+       carries that). Exported at 96x96 and displayed at 36px so it stays
        crisp at 2x device pixel ratio; sized to sit comfortably inside the
-       72px strip (48px mark + 12px of clear space above/below) alongside the
-       14px info-btn icon without dominating the row. */
+       72px strip alongside the 14px info-btn icon without dominating the
+       row. 36px, not the previous 48px: the 2026-08-23 branding pass moved
+       to a tightly-cropped source (docs/branding/logo.png went from a
+       2000x2000 file with large transparent margins to a 1233x1299 crop of
+       just the artwork), so the same 48px export now renders the shield
+       edge-to-edge instead of filling ~70% of the box -- keeping the CSS
+       size at 48px would have made the mark visibly heavier than the
+       48px/72px-strip layout the user last approved, even though no CSS
+       number changed. 36px was chosen by rendering both and comparing. */
     .strip-logo {
-      width: 48px;
-      height: 48px;
+      width: 36px;
+      height: 36px;
       flex-shrink: 0;
       display: block;
     }

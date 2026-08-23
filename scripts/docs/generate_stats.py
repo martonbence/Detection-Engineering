@@ -1616,16 +1616,33 @@ def _read_asset(name: str) -> str:
 # that can go stale.
 #
 # The five PNGs here are pre-resized exports of docs/branding/logo.png
-# (2000x2000 source), not resized at generation time. Favicons are
-# conventionally pre-exported at their target pixel sizes rather than
-# downscaled by the browser or a build step, and doing the resize once here
-# keeps this script on the stdlib (base64) instead of adding Pillow to the
-# CI toolchain in .github/requirements.txt for what is otherwise a one-time,
-# deterministic transform of a static source file. Re-export these files by
-# hand if logo.png itself is ever replaced:
+# (1233x1299 source, cropped tight to the shield artwork -- see the
+# 2026-08-23 branding pass: an earlier 2000x2000 version of this file had
+# large transparent margins around the same artwork, which wasted most of
+# the downscaled pixel budget on empty space instead of the visible logo),
+# not resized at generation time. Favicons are conventionally pre-exported
+# at their target pixel sizes rather than downscaled by the browser or a
+# build step, and doing the resize once here keeps this script on the
+# stdlib (base64) instead of adding Pillow to the CI toolchain in
+# .github/requirements.txt for what is otherwise a one-time, deterministic
+# transform of a static source file. Because the source is not square
+# (1233x1299), re-exporting means padding it to a square canvas first
+# (centered, only as much padding as the aspect ratio needs -- 1299x1299,
+# i.e. 33px either side of the 1233-wide artwork, not the old file's large
+# margins) and *then* resizing with a high-quality filter (e.g. Pillow's
+# LANCZOS). Re-export these files by hand if logo.png itself is ever
+# replaced:
 #   favicon-16.png / favicon-32.png / favicon-48.png  -- browser tab favicon
 #   apple-touch-icon.png (180x180)                     -- bookmarks/home-screen
-#   logo-header.png (96x96, displayed at 48px)          -- .strip-logo mark
+#   logo-header.png (96x96, displayed at 36px)          -- .strip-logo mark
+#
+# Because this source is cropped near full-bleed, these exports now carry
+# much more visible logo per pixel than the old padded source did at the
+# same target sizes -- if logo.png changes again, re-check the .strip-logo
+# display size in page.css against a screenshot rather than assuming the
+# old 48px/72px-strip sizing still gives the same visual weight (see the
+# 2026-08-23 branding pass, which dropped .strip-logo from 48px to 36px
+# for exactly this reason).
 _BRANDING_DIR = REPO_ROOT / "docs" / "branding"
 
 
