@@ -95,13 +95,13 @@
     }
 
     /* Decorative brand mark, not the page's identity (the title text still
-       carries that). Exported at 40x40 and displayed at 20px so it stays
+       carries that). Exported at 64x64 and displayed at 32px so it stays
        crisp at 2x device pixel ratio; sized to sit comfortably inside the
-       48px strip alongside the 14px info-btn icon without dominating the
-       row. */
+       48px strip (32px mark + 8px of clear space above/below) alongside the
+       14px info-btn icon without dominating the row. */
     .strip-logo {
-      width: 20px;
-      height: 20px;
+      width: 32px;
+      height: 32px;
       flex-shrink: 0;
       display: block;
     }

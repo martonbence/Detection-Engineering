@@ -11,12 +11,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Detection Engineer Console</title>
-  <!-- Both sizes point at the same source logo.png (a detailed shield
+  <!-- All sizes point at the same source logo.png (a detailed shield
        illustration), just pre-exported smaller -- see _read_image_b64() in
        generate_stats.py for why this is a base64 data URI rather than a
-       linked file: docs/index.html has to stay one self-contained page. -->
+       linked file: docs/index.html has to stay one self-contained page.
+       32/16 cover the browser tab; 48 and the apple-touch-icon are for
+       contexts that render the icon larger (bookmarks, history, OS
+       taskbar/home-screen pinning) where an upscaled 32px source would look
+       soft. -->
+  <link rel="icon" type="image/png" sizes="48x48" href="data:image/png;base64,@@FAVICON_XLARGE_DATA@@">
   <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,@@FAVICON_LARGE_DATA@@">
   <link rel="icon" type="image/png" sizes="16x16" href="data:image/png;base64,@@FAVICON_SMALL_DATA@@">
+  <link rel="apple-touch-icon" sizes="180x180" href="data:image/png;base64,@@FAVICON_TOUCH_DATA@@">
   <!-- Link previews: this page's whole job is to be shared with people who
        then decide whether to open it, and an unfurled card with no text is a
        worse pitch than one sentence of it. Counts are baked in at generation
@@ -39,7 +45,7 @@
 <body>
   <div class="stats-strip">
     <div class="strip-brand">
-      <img class="strip-logo" src="data:image/png;base64,@@HEADER_LOGO_DATA@@" width="20" height="20" alt="">
+      <img class="strip-logo" src="data:image/png;base64,@@HEADER_LOGO_DATA@@" width="32" height="32" alt="">
       <span class="strip-title">Detection Engineer Console</span>
       <span class="strip-sep"></span>
       <span class="strip-total" id="strip-total"></span>
