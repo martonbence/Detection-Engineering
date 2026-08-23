@@ -134,7 +134,7 @@ teljesíthető utasítással indul.
 
 ## 4 · Robusztusság és karbantarthatóság (8) · ×2
 
-- [ ] **4.1** 1 827 sor inline shell a workflow-kban, ebből 1 263 a dev workflow-ban · `ci_dev_workflow.yml` 2 572 sor (1 005 komment, 1 263 inline `run:` shell), `ci_code_checks.yml` 252, `ci_prod_audit.yml` 175, `ci_prod_workflow.yml` 137 · Ez a repo legnagyobb tesztelhetetlen kódfelülete: unit-teszt nem éri el, csak a shellcheck látja (actionlinten keresztül) — az pedig szintaxist ellenőriz, nem viselkedést. A pipeline logikájának jelentős része itt él (verify-ablak számítása, commit-visszaírás retryvel, bundle-kezelés, provenance-ellenőrzés). Nem az egész kiszervezése a cél, hanem a leghosszabb, legtöbb elágazást tartalmazó blokkoké `scripts/ci/*.sh` vagy Python alá, ahol a pytest is látja őket. (Helyi megjegyzés: az actionlint Windowson beragad nagy `run:` blokkokon — a méret már ma is fáj.) → **Jamal**
+- [ ] **4.1** 1 827 sor inline shell a workflow-kban, ebből 1 263 a dev workflow-ban (elavult alapszám — 2026-08-23-án újraszámolva **~1 954/1 394** volt a munka *előtt*, mert a `ci_dev_workflow.yml` időközben 2 572-ről 3 060 sorra nőtt; Kwame saját, YAML-`run:`-blokkokat ténylegesen parszoló újraszámolása ehhez közeli, de nem azonos tartományt ad — **2 017/1 433** a munka előtti állapotra —, a néhány százalékos eltérés számolási módszertani, nem valóságbeli különbség, ld. Napló 2026-08-23) · `ci_dev_workflow.yml` 2 572 sor (1 005 komment, 1 263 inline `run:` shell), `ci_code_checks.yml` 252, `ci_prod_audit.yml` 175, `ci_prod_workflow.yml` 137 · Ez a repo legnagyobb tesztelhetetlen kódfelülete: unit-teszt nem éri el, csak a shellcheck látja (actionlinten keresztül) — az pedig szintaxist ellenőriz, nem viselkedést. A pipeline logikájának jelentős része itt él (verify-ablak számítása, commit-visszaírás retryvel, bundle-kezelés, provenance-ellenőrzés). Nem az egész kiszervezése a cél, hanem a leghosszabb, legtöbb elágazást tartalmazó blokkoké `scripts/ci/*.sh` vagy Python alá, ahol a pytest is látja őket. (Helyi megjegyzés: az actionlint Windowson beragad nagy `run:` blokkokon — a méret már ma is fáj.) → **Jamal** ⟶ részlegesen lezárva (az öt legnagyobb/legelágazóbb `run:` blokk közül az első és legnagyobb — `prepare_validate_convert` job „Determine changed Sigma files" lépése, 206 sor — kiszervezve `scripts/state/determine_changed_rules.py`-ba, tesztekkel fedve; a másik négy (`update_dashboard` „Merge verification results, generate stats and commit" 137 sor, `open_promotion_pr` „Open promotion PR to main and mark it In review" 132 sor, `splunk_verify` „Reconcile Splunk state against the repo" 118 sor, `prepare_validate_convert` „Build pipeline bundle" 111 sor) és a kisebb blokkok hosszú farka érintetlen, ld. Napló 2026-08-23)
 - [x] **4.2** 7 500 sor front-end, nulla automatizált ellenőrzés · `scripts/docs/assets/page.js` (2 878), `page.css` (4 036), `page.template.html` (586) · A `ci_code_checks.yml` négy checkerje Pythont (ruff+pytest), PowerShellt (parser+PSScriptAnalyzer), workflow-YAML-t (actionlint+shellcheck) és függőséget (pip-audit) fed — JS/CSS/HTML-t **egyiket sem**. `grep eslint|stylelint|prettier|npm` a workflow-kban: 0 találat. Arányában: 3 400 sor Pythont 555 teszt véd, 7 500 sor front-endet semmi. Belépő szint: `eslint` minimál szabálykészlettel + HTML-validáció a generált oldalon, önálló jobként (hogy egy JS-hiba ne maszkolja a ruffot, a repo bevált mintája szerint) → **Sienna** (tartalom) + **Jamal** (job)
 - [x] **4.3** A teszt-suite bukik a fejlesztő saját gépén · `python -m pytest` → **3 failed, 552 passed**, mindhárom a `tests/test_meta_only.py`-ban, hibaüzenet: `'No time zone found with key Europe/Budapest'` · Ok: a `scripts/convert/sigma_to_spl.py:334` `ZoneInfo("Europe/Budapest")`-et használ, Windows alatt viszont nincs rendszerszintű tzdata, és a `.github/requirements-dev.txt` (pytest, ruff) nem tartalmazza a `tzdata` csomagot. CI-ban (ubuntu) zöld, helyben piros — ez a legrosszabb fajta eltérés, mert a fejlesztőt arra tanítja, hogy a piros suite normális. Javítás: `tzdata` a dev-requirementsbe (és/vagy a sidecar időbélyegének UTC-re váltása) → **Jamal**
 - [ ] **4.4** Hat különböző commit-visszaírási út, futásonként 3-4 gépi commit · `ci_dev_workflow.yml` (jelenleg 3 commit: összevont prune+SPL / verify results / dashboard — ld. Napló 2026-08-22), `ci_code_checks.yml` (1), `ci_prod_audit.yml` (1) · 894 commitból **256** (29%) `[skip ci]` gépi commit; a `docs/index.html`-t 185, az `outputs/`-ot 221 commit érinti. Következmény a napi munkára: a felhasználó minden helyi commit előtt rebase-elni kényszerül, mert a CI mindig elé ír (ez már rögzített projekt-tapasztalat). A történet ettől olvashatatlan is: egy valódi változtatás körül 3-4 zajcommit ül. Irány: egy futás = legfeljebb egy visszaírás (az `update_dashboard` amúgy is külön jobban fut, oda összevonható), vagy a generált artefaktumok kivezetése a branchről (Pages-artifact + release-asset), ami a 3.5-tel is összeér → **Jamal** ⟶ részlegesen lezárva (a biztonságos fele kész, a maradék nagyobb léptékű átalakítást igényel és nem közeli munka, ld. Napló 2026-08-22)
@@ -1571,3 +1571,83 @@ grep-elni.
   nyitott `[ ]` tételek közül a soron következő, ténylegesen
   csapat-végrehajtható (pl. **4.1**, **4.4** maradék fele) — Gaz dönt a
   sorrendről. **Modell:** ez a könyvelési kör Sonnet 5-ön futott.
+
+- **2026-08-23 — 4.1 részlegesen lezárva, Kwame verifikálta (nem csak
+  Jamal/Gaz jelentését könyvelte vissza).** `git log --oneline` →
+  `1596455` („refactor(ci): extract scope-decision step to testable
+  Python (4.1, slice 1)") és rögtön utána `2a99d7c` („docs(skills): fix
+  stale pipeline-ci-gotchas anchors after the 4.1 extraction"), mindkettő
+  ma, 2026-08-23 18:49/18:50-kor. `git show --stat 1596455` egyezik a
+  jelentéssel: `ci_dev_workflow.yml` −248/+... nettó, `scripts/state/
+  determine_changed_rules.py` új fájl (+550), `tests/
+  test_determine_changed_rules.py` új fájl (+366). A `ci_dev_workflow.yml`
+  a commit előtt (`1596455^`) ténylegesen **3060** sor volt, utána
+  **2890** — a fájlnövekedés (2 572 → 3 060) és a mostani csökkenés is
+  valós, nem csak állítás.
+  **Alapszám-újraszámolás, saját eszközzel:** a régi 2026-08-18-i
+  1 827/1 263 elavult volt már a mai munka *előtt* is. A jelentett friss
+  alapszám 1 954/1 394 (a munka előtti állapotra). Saját, a workflow-k
+  YAML-jét ténylegesen parszoló, `run:` blokkok soronkénti összegzésén
+  alapuló újraszámolásom a munka előtti állapotra (`1596455^`) **2 017
+  összesen / 1 433 a dev workflow-ban** — közeli, de nem azonos tartomány
+  (kb. 3–6% eltérés), ami a blokkon belüli üres sorok/kommentek
+  beszámításának módszertani különbségéből ered, nem valóságbeli
+  eltérésből: mindkét szám ugyanazt a nagyságrendi növekedést mutatja a
+  régi 1 827/1 263-hoz képest, és a saját mérésem a mostani (munka utáni)
+  állapotra **1 813 összesen / 1 229 a dev workflow-ban** — a
+  csökkenés (**204 sor**) szinte pontosan egyezik a jelentett 206 soros
+  kiszervezéssel.
+  **A tesztelést és a kódot közvetlenül futtatva, nem csak átolvasva
+  ellenőriztem:** friss venv-be telepítve a `.github/requirements-dev.txt`
+  + `.github/requirements.txt` függőségeit, `pytest
+  tests/test_determine_changed_rules.py` → **46 passed**; a teljes
+  `pytest` suite → **692 passed** (692−46=646, egyezik az „up from 646"
+  állítással); `ruff check scripts/state/determine_changed_rules.py
+  tests/test_determine_changed_rules.py` → „All checks passed!"; a
+  módosított `ci_dev_workflow.yml` `yaml.safe_load`-dal betöltve hiba
+  nélkül fut. A workflow „Determine changed Sigma files" lépése
+  (`ci_dev_workflow.yml:238` körül) valóban a `scripts/state/
+  determine_changed_rules.py`-t hívja, nem a régi inline shellt. **A 12
+  szcenáriós differenciál-harness futtatását magát nem futtattam újra**
+  (ehhez a régi bash-út rekonstruálása és élő GitHub Actions kontextus
+  kellene) — ezt a jelentés alapján, a fenti közvetett bizonyítékokkal
+  (tesztek, ruff, YAML-parse, a tényleges 204/206 soros csökkenés
+  egyezése) alátámasztva, ellentmondás nélkül elfogadom.
+  **A két, tudatosan nem javított, meglévő hiba valóban dokumentálva van
+  kódkommentben, nem csak a jelentésben:**
+  `scripts/state/determine_changed_rules.py:409` körül a `git fetch
+  --no-tags --prune --depth=0 origin` hívás kommentje szó szerint mondja,
+  hogy ez „Preserved verbatim from the shell, including `--depth=0`", és
+  `:427` körül a hibaelnyelésről (`has_rules=false` egy elérhetetlen
+  `BASE_SHA`-nál) is van megjegyzés — mindkettő a jelentés szerinti.
+  **A `pipeline-ci-gotchas` skillt a Skill-eszközzel betöltve** (a
+  CLAUDE.md 2. pontja szerinti eljárás) megerősítettem, hogy az A
+  szakasz első három bejegyzése ténylegesen frissült 2026-08-23-án, és a
+  fájl fejléce is jelzi, hogy csak ez a három lett újraellenőrizve, a
+  többi nem — ez maga a `2a99d7c` tartalmának pontos leírása.
+  **Regiszter-idézési konvenció (a skill I. szakasza) betartva:** a mai
+  kód/teszt-kommentek mindenhol `audit/feature-and-process-audit.md item
+  4.1`-et írnak, nem puszta „register item 4.1"-et — ez azért számít,
+  mert a lezárt `remediation-plan.md`-nek **saját, teljesen más tartalmú
+  4.1-es tétele is van** (noise-budget/csendes ablak, elutasítva
+  2026-08-15-ben) — pontosan az a fajta kétértelműség, amit a skill I.
+  szakasza már két korábbi valódi incidensként dokumentál.
+  **Miért „részlegesen" és nem „lezárva":** az öt legnagyobb/legelágazóbb
+  `run:` blokk közül egy (a legnagyobb, 206 sor) költözött át tesztelt
+  Pythonba; a másik négy (`update_dashboard` „Merge verification
+  results, generate stats and commit" 137 sor, `open_promotion_pr` „Open
+  promotion PR to main and mark it In review" 132 sor, `splunk_verify`
+  „Reconcile Splunk state against the repo" 118 sor,
+  `prepare_validate_convert` „Build pipeline bundle" 111 sor) és a
+  kisebb blokkok hosszú farka (kb. 1 229 megmaradt sor a dev
+  workflow-ban) érintetlen. **A megállás a felhasználó tudatos döntése
+  volt ma („mára ennyi elég"), nem elakadás** — a következő kör ennek a
+  négy blokknak bármelyikét felveheti, méret szerint csökkenő
+  sorrendben, ugyanazzal a mintával (pure `decide()`-szerű függvény +
+  differenciál-harness + pytest). Ezzel a nyitott halmaz **nem** mozdul —
+  a 4.1 részleges, ugyanúgy, mint a 4.4, tehát a lezárt tételszám marad
+  **37/52**. **Következő valós, nem-docs tétel:** a fenti nyitott `[ ]`
+  tételek közül a soron következő, ténylegesen csapat-végrehajtható —
+  **4.1** maradék négy blokkja (fent nevesítve) vagy **4.4** maradék fele
+  — Gaz dönt a sorrendről. **Modell:** ez a könyvelési kör Sonnet 5-ön
+  futott.
