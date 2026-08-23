@@ -7,7 +7,10 @@ Every entry below is backed by a real incident, a defensive-code comment, or
 both — not speculative "this could go wrong" material. Each gives: the trap,
 the evidence it's real, where to find it in the workflow, and the failure
 signature to recognize if it comes back. Anchors are line ranges as of
-2026-08-21 in `.github/workflows/*.yml` — they drift; if a cited range looks
+2026-08-21 in `.github/workflows/*.yml` (section A's three entries updated
+2026-08-23 after register item 4.1 moved the scope-decision step's logic
+into `scripts/state/determine_changed_rules.py` — the rest of the file
+wasn't re-verified at that pass) — they drift; if a cited range looks
 wrong, search the step name instead of trusting the number.
 
 This complements `docs/architecture/scripts_reference.md` (what each script
@@ -20,27 +23,38 @@ The pipeline's worst failure mode isn't a red X — it's a green run that did
 less than it looks like it did.
 
 **`has_rules=false` skip cascade.** Job `prepare_validate_convert`, step
-`changes` ("Determine changed Sigma files"), `ci_dev_workflow.yml:215-431`.
-It derives the changed-rule-file list; if empty, `has_rules=false` and every
-downstream job (deploy, all three attack jobs, verify, dashboard, promotion
-PR) is gated on it transitively. *Failure signature:* run starts, does
-nothing, reports green. Usually caused by adding a path to a workflow
-`paths:` trigger without teaching this step about it.
+`changes` ("Determine changed Sigma files"), `ci_dev_workflow.yml:215-247`ish
+(now a two-line call into `scripts/state/determine_changed_rules.py` —
+register item 4.1 moved the 206-line decision tree there 2026-08-23; the
+logic itself, `decide()`, is unchanged and now has direct pytest coverage in
+`tests/test_determine_changed_rules.py`). It derives the changed-rule-file
+list; if empty, `has_rules=false` and every downstream job (deploy, all
+three attack jobs, verify, dashboard, promotion PR) is gated on it
+transitively. *Failure signature:* run starts, does nothing, reports green.
+Usually caused by adding a path to a workflow `paths:` trigger without
+teaching this step about it.
 
-**`--diff-filter=AMRC` excludes deletions**, `ci_dev_workflow.yml:285`. A
-commit that only deletes a rule produces `has_rules=false` via this filter —
-which is why "Prune repo artefacts of deleted rules" (`477-489`) runs
-unconditionally on push/dispatch to `dev`, not gated on `has_rules`.
+**`--diff-filter=AMRC` excludes deletions**, now `git_diff_names()` in
+`scripts/state/determine_changed_rules.py` (was inline at
+`ci_dev_workflow.yml:285`). A commit that only deletes a rule produces
+`has_rules=false` via this filter — which is why "Prune repo artefacts of
+deleted rules" (`ci_dev_workflow.yml:307-319`) runs unconditionally on
+push/dispatch to `dev`, not gated on `has_rules`.
 
-**`rebuild_all_files` explicit list**, `ci_dev_workflow.yml:342-350`. Files
-like `rule_naming.py`, `sigma_to_spl.py`, `backend_config.py`,
+**`REBUILD_ALL_FILES` explicit list**, now a module-level constant in
+`scripts/state/determine_changed_rules.py` (was inline at
+`ci_dev_workflow.yml:342-350`, before the 4.1 extraction). Files like
+`rule_naming.py`, `sigma_to_spl.py`, `backend_config.py`,
 `config/backends.yml` can change every rule's SPL or Splunk saved-search
-name without touching a rule file — a real incident (comment at `314-341`)
-happened when `rule_naming.py` changed and only the diffed rules got
-renamed in Splunk, leaving the rest running under stale names. *If you add
-a new file under `scripts/convert/` or `scripts/lib/` that affects
-conversion/naming output, add it to this list* — otherwise: green run,
-majority of deployed rules silently keep running under old logic.
+name without touching a rule file — a real incident happened when
+`rule_naming.py` changed and only the diffed rules got renamed in Splunk,
+leaving the rest running under stale names. *If you add a new file under
+`scripts/convert/` or `scripts/lib/` that affects conversion/naming output,
+add it to this list* — otherwise: green run, majority of deployed rules
+silently keep running under old logic. The list is now parametrized-tested
+(`tests/test_determine_changed_rules.py` asserts every entry actually
+triggers `all` mode), so a future addition that doesn't wire the trigger
+correctly fails a test instead of failing silently in production.
 
 **`open_promotion_pr` and `needs.*.outputs` under `always()`.**
 `ci_dev_workflow.yml:2399-2430`. Reading `needs.splunk_verify.outputs.*` in
