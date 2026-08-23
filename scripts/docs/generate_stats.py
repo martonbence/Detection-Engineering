@@ -17,6 +17,7 @@ Writes:
   - docs/index.html            — GitHub Pages filterable/sortable rule table
 """
 
+import base64
 import html as _html
 import json
 import re
@@ -1609,6 +1610,37 @@ def _read_asset(name: str) -> str:
         ) from None
 
 
+# The logo is inlined as base64 data URIs for the same reason page.css/page.js
+# are inlined rather than linked (see _INLINE_ASSETS above): docs/index.html
+# has to stay one self-contained file for GitHub Pages, with no relative path
+# that can go stale.
+#
+# The three PNGs here are pre-resized exports of docs/branding/logo.png
+# (2000x2000 source), not resized at generation time. Favicons are
+# conventionally pre-exported at their target pixel sizes rather than
+# downscaled by the browser or a build step, and doing the resize once here
+# keeps this script on the stdlib (base64) instead of adding Pillow to the
+# CI toolchain in .github/requirements.txt for what is otherwise a one-time,
+# deterministic transform of a static source file. Re-export these three
+# files by hand if logo.png itself is ever replaced.
+_BRANDING_DIR = REPO_ROOT / "docs" / "branding"
+
+
+def _read_image_b64(name: str) -> str:
+    """Base64 (no newlines) of one pre-exported branding PNG, or fail loudly."""
+    path = _BRANDING_DIR / name
+    try:
+        data = path.read_bytes()
+    except FileNotFoundError:
+        raise SystemExit(
+            f"generate_stats.py: branding asset not found: {path}\n"
+            f"docs/index.html inlines the favicon and header mark from "
+            f"{_BRANDING_DIR}; without it the page would render with a "
+            f"literal placeholder instead of the logo, so nothing is written."
+        ) from None
+    return base64.b64encode(data).decode("ascii")
+
+
 DEPLOYMENT_INVENTORY_PATH = Path("outputs/reports/deployment_inventory.json")
 
 
@@ -2146,6 +2178,9 @@ def render_html_summary(stats: dict, repo: str) -> str:
         f"verified against their current version) and {mitre_covered} techniques covered."
     ).replace('"', "&quot;")
     html = html.replace("@@META_DESC@@", meta_desc)
+    html = html.replace("@@FAVICON_LARGE_DATA@@", _read_image_b64("favicon-32.png"))
+    html = html.replace("@@FAVICON_SMALL_DATA@@", _read_image_b64("favicon-16.png"))
+    html = html.replace("@@HEADER_LOGO_DATA@@", _read_image_b64("logo-header.png"))
 
     # A marker surviving every substitution above means one of the asset
     # files drifted from the placeholder name/spacing this function replaces

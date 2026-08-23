@@ -11,6 +11,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Detection Engineer Console</title>
+  <!-- Both sizes point at the same source logo.png (a detailed shield
+       illustration), just pre-exported smaller -- see _read_image_b64() in
+       generate_stats.py for why this is a base64 data URI rather than a
+       linked file: docs/index.html has to stay one self-contained page. -->
+  <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,@@FAVICON_LARGE_DATA@@">
+  <link rel="icon" type="image/png" sizes="16x16" href="data:image/png;base64,@@FAVICON_SMALL_DATA@@">
   <!-- Link previews: this page's whole job is to be shared with people who
        then decide whether to open it, and an unfurled card with no text is a
        worse pitch than one sentence of it. Counts are baked in at generation
@@ -33,6 +39,7 @@
 <body>
   <div class="stats-strip">
     <div class="strip-brand">
+      <img class="strip-logo" src="data:image/png;base64,@@HEADER_LOGO_DATA@@" width="20" height="20" alt="">
       <span class="strip-title">Detection Engineer Console</span>
       <span class="strip-sep"></span>
       <span class="strip-total" id="strip-total"></span>
