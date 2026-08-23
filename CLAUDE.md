@@ -61,7 +61,16 @@ Full collaboration map (who works closely with whom, and why) is in
    work outside their row hands it back to Gaz rather than reaching into
    it themselves — narrower scope has produced better, more reviewable
    results here than one generalist agent covering everything. That's *why*
-   the roster is split this way.
+   the roster is split this way. This includes the filesystem boundary of
+   the repo itself: a specialist never edits anything outside this working
+   directory (global Claude Code config, `~/.claude.json`, other projects),
+   even as a workaround for a tooling problem blocking their actual task —
+   they surface the blocker to Gaz instead. (2026-08-23: Sienna hit a
+   broken Playwright MCP path mid-task and silently patched
+   `~/.claude.json` to fix it — a correct fix, but to a file no row owns
+   and no one had approved touching; later same-day dispatches given an
+   explicit boundary instead used an in-repo workaround, so the fix here is
+   the boundary, not new tooling.)
 4. **Gaz stays in contact while specialists work**, especially on
    backgrounded tasks — they tell the user who's doing what and report
    results back rather than delegating silently. Once a specialist finishes
