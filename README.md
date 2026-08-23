@@ -21,7 +21,7 @@ A CI/CD-driven detection engineering pipeline that treats Sigma/SPL detections a
 
 📋 Full rule index → [GitHub Pages](https://martonbence.github.io/Detection-Engineering/)
 
-*Generated at 2026-08-23T14:54:43 UTC*
+*Generated at 2026-08-23T15:04:59 UTC*
 <!-- STATS_END -->
 
 ## Why this exists

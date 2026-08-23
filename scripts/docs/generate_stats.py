@@ -1625,7 +1625,7 @@ def _read_asset(name: str) -> str:
 # hand if logo.png itself is ever replaced:
 #   favicon-16.png / favicon-32.png / favicon-48.png  -- browser tab favicon
 #   apple-touch-icon.png (180x180)                     -- bookmarks/home-screen
-#   logo-header.png (64x64, displayed at 32px)          -- .strip-logo mark
+#   logo-header.png (96x96, displayed at 48px)          -- .strip-logo mark
 _BRANDING_DIR = REPO_ROOT / "docs" / "branding"
 
 

@@ -81,7 +81,11 @@
       align-items: center;
       justify-content: space-between;
       gap: 14px;
-      height: 48px;
+      /* Second enlargement pass (register: header logo, round 2) — the row
+         itself now grows with the mark instead of the mark staying pinned
+         to a fixed 48px strip (72px = 48px mark + 12px of clear space
+         above/below, see .strip-logo below). */
+      height: 72px;
       padding: 0 18px;
       background: var(--bg2);
       border-bottom: 1px solid var(--border);
@@ -90,18 +94,18 @@
     .strip-brand {
       display: flex;
       align-items: center;
-      gap: 9px;
+      gap: 11px;
       min-width: 0;
     }
 
     /* Decorative brand mark, not the page's identity (the title text still
-       carries that). Exported at 64x64 and displayed at 32px so it stays
+       carries that). Exported at 96x96 and displayed at 48px so it stays
        crisp at 2x device pixel ratio; sized to sit comfortably inside the
-       48px strip (32px mark + 8px of clear space above/below) alongside the
+       72px strip (48px mark + 12px of clear space above/below) alongside the
        14px info-btn icon without dominating the row. */
     .strip-logo {
-      width: 32px;
-      height: 32px;
+      width: 48px;
+      height: 48px;
       flex-shrink: 0;
       display: block;
     }
@@ -3611,7 +3615,7 @@
     @media (max-width: 900px) {
       .stats-strip {
         height: auto;
-        min-height: 48px;
+        min-height: 72px;
         padding: 8px 12px;
         flex-wrap: wrap;
       }
