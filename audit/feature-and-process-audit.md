@@ -120,7 +120,7 @@ teljesíthető utasítással indul.
 
 - [x] **3.1** Az elévülés mechanizmusa megvan, a visszamérésé nincs · nincs `schedule:` trigger egyetlen workflow-ban sem (`grep cron` → 0 találat; a `ci_prod_audit.yml:19` tudatosan indokolja a magáét) · A `REVIEW_INTERVAL_DAYS = 180` gondoskodik róla, hogy egy verdikt lejárjon, és a README büszkén állítja, hogy „a pipeline that stopped running would drive the pass rate to zero within 180 days" — de semmi nem méri újra automatikusan. A „Needs Re-run" halmaz csak nőhet, amíg valaki kézzel nem indít `workflow_dispatch`-et. A `select_unverified.py` + a dispatch `unverified` scope pontosan ehhez készült; hiányzik a heti/havi ütemezés `LAB_ONLINE`-tudatos kapuval (ami már létezik, és pont ezt a helyzetet kezeli offline lab esetén) → **Jamal**
 - [x] **3.2** A prod-audit csak kézzel indul · `.github/workflows/ci_prod_audit.yml:19-22` · A „nincs schedule" indoklás (offline lab) helytálló volt, de a `LAB_ONLINE` gate azóta pont ezt a helyzetet kezeli máshol. Egy ütemezett futás `LAB_ONLINE != 'false'` feltétellel offline labnál is csak kihagyja magát — cserébe a „prod még az, aminek hisszük?" kérdés nem attól függ, hogy valakinek eszébe jut-e megkérdezni. Ugyanaz a minta, mint a 3.1, ezért érdemes egyszerre → **Jamal** · **Elutasítva, lásd Napló 2026-08-21**
-- [ ] **3.3** Egyetlen backend, és a második létezését csak szintetikus teszt bizonyítja · `config/backends.yml`, `tests/test_backend_config.py:106-148` · A régi register 3.7 kivette a backend-döntést a kódból adatba — a fájl saját kommentje szerint „a new backend is a new block below, and the converter's code path is unchanged". Ezt ma **semmi valódi futás nem támasztja alá**: a `config/backends.yml`-ben egyetlen `splunk` blokk van, a „több backend is működik" állítást pedig kizárólag a tesztfájlban felépített, kitalált `esql` / `elastic` konfiguráció támasztja alá — ami a *betöltőt* teszteli, nem a konverziót. Yara ugyanide jutott, és egy konkrét eszközt javasolt hozzá: egy kis CLI, ami kap egy backend-konfigurációt + mintaszabályokat, és megmondja, mi fordul le és mi nem. Ez egyszerre lenne a 3.7 falszifikálása és egy jövőbeli „adjunk hozzá Elasticet" kör önellenőrző eszköze → **Gaz** dönt hatókört, **Jamal** hajtja végre (a `scripts/convert/` mellé)
+- [x] **3.3** Egyetlen backend, és a második létezését csak szintetikus teszt bizonyítja · `config/backends.yml`, `tests/test_backend_config.py:106-148` · A régi register 3.7 kivette a backend-döntést a kódból adatba — a fájl saját kommentje szerint „a new backend is a new block below, and the converter's code path is unchanged". Ezt ma **semmi valódi futás nem támasztja alá**: a `config/backends.yml`-ben egyetlen `splunk` blokk van, a „több backend is működik" állítást pedig kizárólag a tesztfájlban felépített, kitalált `esql` / `elastic` konfiguráció támasztja alá — ami a *betöltőt* teszteli, nem a konverziót. Yara ugyanide jutott, és egy konkrét eszközt javasolt hozzá: egy kis CLI, ami kap egy backend-konfigurációt + mintaszabályokat, és megmondja, mi fordul le és mi nem. Ez egyszerre lenne a 3.7 falszifikálása és egy jövőbeli „adjunk hozzá Elasticet" kör önellenőrző eszköze → **Gaz** dönt hatókört, **Jamal** hajtja végre (a `scripts/convert/` mellé) · **Elutasítva, lásd Napló 2026-08-23**
 - [ ] **3.4** A verdikt csak azt méri, hogy „tüzelt-e" — a zajszintről nincs adat · `scripts/verify/pass_fail_eval.py` (`1 ≤ events ≤ 10`) · A README maga nevezi meg a korlátot („A PASS still only proves the search fired once, on one synthetic execution"). A lezárt register **4.1**-e (csendes ablak mérése) jó okkal lett elutasítva: a laborban nincs háttérforgalom. De a maradék rés más alakban is megfogható: pl. a saved search futásidejének / `scanCount`-jának rögzítése a verify során, ami a szabály *költségét* méri, nem az FP-arányát, és háttérforgalom nélkül is értelmes szám → **Yara** (formálás) → **Jamal**
 - [x] **3.5** A rule browser egyetlen 674 KB-os fájl, mindent előre betöltve · `docs/index.html` (674 590 bájt), forrás: `page.js` 2 878 sor / 128 KB, `page.css` 4 036 sor / 98 KB · 28 szabálynál ez működik; a növekedés viszont lineáris, mert a teljes szabálytest, a MITRE-mátrix, két history-idősor és a deployment-panel is beágyazottan utazik. Nincs mérés arról, hol a fájdalomküszöb — egy Lighthouse-futás (a `chrome-devtools` MCP-eszközök Sienna készletében megvannak) megmondaná, hogy ez ma probléma-e vagy csak később az → **Sienna**
 - [x] **3.6** Nincs értesítés a pipeline eredményéről a GitHub felületén kívül · A PASS/FAIL verdikt ma a job exit-kódjában, a step summaryben és a promotion PR meglétében jelenik meg. Aki nem nézi az Actions fület, semmiről nem tud — arról sem, hogy 27 szabály hetek óta `NOT_VERIFIED` (1.5). Legolcsóbb forma: GitHub Issue automatikus nyitása/frissítése a lejárt+superseded halmazról, vagy bármilyen tartós felület a step summary helyett → **Jamal** (CI), **Kai** (ha issue/platform-oldali)
@@ -1515,3 +1515,28 @@ grep-elni.
   **4.4** maradék fele) — Gaz dönt a sorrendről, miután ezt a hatókör-
   változást figyelembe vette. **Modell:** ez a könyvelési kör Sonnet 5-ön
   futott.
+
+- **2026-08-23 — 3.3 elutasítva.** Gaz a lezárás előtt ellenőrizte a
+  mögöttes tényeket: `config/backends.yml`-ben ma is egyetlen `splunk`
+  blokk van; `.github/requirements.txt` kizárólag
+  `pysigma-backend-splunk==2.1.0`-t pineli, tehát a repo ma egy második
+  pySigma backend csomag nélkül fizikailag sem tudna másik célra
+  konvertálni; a „több backend is működik" állítást a tesztfájlban
+  felépített `TWO_BACKENDS` fixtúra (`tests/test_backend_config.py:106`
+  körül) hordozza, ami a betöltőt teszteli, nem valódi `sigma convert`
+  futást. A tétel javasolt megoldása (Yara ötlete) egy önálló CLI-próba
+  lett volna, ami valódi backend + mintaszabályok ellen futtatná a
+  konverziót és megmondaná, mi fordul le. A felhasználót közvetlenül
+  megkérdezték, és megerősítette: **nincs terv második SIEM/backend
+  bevezetésére** ebben a repóban. Terv nélkül a próba-eszköz megépítése
+  ma hipotetikus jövőre tervezés lenne, ami ütközik a repo saját rögzített
+  elvével („Don't design for hypothetical future requirements", CLAUDE.md)
+  — ha valaha felmerül egy második backend, a kérdés újranyitható, de
+  proaktívan nem épül rá eszköz addig. A `config/backends.yml` fejléc-
+  kommentje ma valóban enyhén túlígér („a new backend is a new block
+  below"), de ez önmagában dokumentációs pontatlanság, nem indokol
+  munkatételt. Ezzel a nyitott halmaz **35/52**-ről **36/52**-re zárva.
+  **Következő valós, nem-docs tétel:** a soron következő, ténylegesen
+  csapat-végrehajtható tétel a fenti nyitott `[ ]` tételek közül (pl.
+  **3.4**, **4.1**, **4.4** maradék fele) — Gaz dönt a sorrendről.
+  **Modell:** ez a könyvelési kör Sonnet 5-ön futott.
