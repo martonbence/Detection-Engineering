@@ -137,7 +137,7 @@ teljesíthető utasítással indul.
 - [x] **4.1** 1 827 sor inline shell a workflow-kban, ebből 1 263 a dev workflow-ban (elavult alapszám — a munka *előtti* valós alapállapot, mérve `1596455^`-nál: **3 060 sor** `ci_dev_workflow.yml`, mert a fájl időközben 2 572-ről nőtt idáig, ld. Napló 2026-08-23) · **Lezárva 2026-08-24, mind az öt azonosított inline-shell blokk kiszervezve, mindegyiket Kwame függetlenül verifikálta:** `determine_changed_rules.py` (206 sor, slice 1, `1596455`), `merge_verification_results.py` (137 sor, slice 2, `e0bd5c7`), `open_promotion_pr.py` (132 sor, slice 3, `8566f90`), `reconcile_step.py` (118 sor, slice 4, `1a104c0`), `build_pipeline_bundle.py` (111 sor, slice 5, `d02929c`) — mind az öt `scripts/state/` alatt, mind az öt saját tesztmodullal fedve. A `ci_dev_workflow.yml` ma (mérve) **2 518 sor**, a munka-előtti **3 060**-hoz képest **−542 sor nettó** öt szelet alatt. A cél sosem a teljes inline shell felszámolása volt, hanem a leghosszabb/legelágazóbb blokkoké — ez megtörtént; a fájlban maradó, kisebb `run:` blokkok hosszú farka tudatosan nyitva marad, nem e tétel hatóköre. → **Jamal**, Kwame verifikálta mind az öt szeletet
 - [x] **4.2** 7 500 sor front-end, nulla automatizált ellenőrzés · `scripts/docs/assets/page.js` (2 878), `page.css` (4 036), `page.template.html` (586) · A `ci_code_checks.yml` négy checkerje Pythont (ruff+pytest), PowerShellt (parser+PSScriptAnalyzer), workflow-YAML-t (actionlint+shellcheck) és függőséget (pip-audit) fed — JS/CSS/HTML-t **egyiket sem**. `grep eslint|stylelint|prettier|npm` a workflow-kban: 0 találat. Arányában: 3 400 sor Pythont 555 teszt véd, 7 500 sor front-endet semmi. Belépő szint: `eslint` minimál szabálykészlettel + HTML-validáció a generált oldalon, önálló jobként (hogy egy JS-hiba ne maszkolja a ruffot, a repo bevált mintája szerint) → **Sienna** (tartalom) + **Jamal** (job)
 - [x] **4.3** A teszt-suite bukik a fejlesztő saját gépén · `python -m pytest` → **3 failed, 552 passed**, mindhárom a `tests/test_meta_only.py`-ban, hibaüzenet: `'No time zone found with key Europe/Budapest'` · Ok: a `scripts/convert/sigma_to_spl.py:334` `ZoneInfo("Europe/Budapest")`-et használ, Windows alatt viszont nincs rendszerszintű tzdata, és a `.github/requirements-dev.txt` (pytest, ruff) nem tartalmazza a `tzdata` csomagot. CI-ban (ubuntu) zöld, helyben piros — ez a legrosszabb fajta eltérés, mert a fejlesztőt arra tanítja, hogy a piros suite normális. Javítás: `tzdata` a dev-requirementsbe (és/vagy a sidecar időbélyegének UTC-re váltása) → **Jamal**
-- [ ] **4.4** Hat különböző commit-visszaírási út, futásonként 3-4 gépi commit · `ci_dev_workflow.yml` (jelenleg 3 commit: összevont prune+SPL / verify results / dashboard — ld. Napló 2026-08-22), `ci_code_checks.yml` (1), `ci_prod_audit.yml` (1) · 894 commitból **256** (29%) `[skip ci]` gépi commit; a `docs/index.html`-t 185, az `outputs/`-ot 221 commit érinti. Következmény a napi munkára: a felhasználó minden helyi commit előtt rebase-elni kényszerül, mert a CI mindig elé ír (ez már rögzített projekt-tapasztalat). A történet ettől olvashatatlan is: egy valódi változtatás körül 3-4 zajcommit ül. Irány: egy futás = legfeljebb egy visszaírás (az `update_dashboard` amúgy is külön jobban fut, oda összevonható), vagy a generált artefaktumok kivezetése a branchről (Pages-artifact + release-asset), ami a 3.5-tel is összeér → **Jamal** ⟶ részlegesen lezárva (a biztonságos fele kész, a maradék nagyobb léptékű átalakítást igényel és nem közeli munka, ld. Napló 2026-08-22)
+- [ ] **4.4** Hat különböző commit-visszaírási út, futásonként 3-4 gépi commit · `ci_dev_workflow.yml`-ben ma **2** gépi commit egy normál (nem-fallback) futáson: `prepare_validate_convert` összevont prune+SPL commitja (`:715`), és `update_dashboard`-ban a letöltött verify-results artifact + a dashboard egyetlen összevont commitja (`scripts/state/merge_verification_results.py`, `git.commit(COMMIT_MESSAGE)`) — a cross-runner artifact-transport (`actions/upload-artifact`/`download-artifact`, `verify-results-${{ github.run_id }}`) `28f47e7`-ben, 2026-08-22 17:02:18-kor élesben megvalósult. A korábban „verify results" néven, önálló harmadik commitként nyilvántartott lépés ma a `persist_results_fallback` job commitja (`:2242`), ami `if: always() && needs.splunk_verify.result != 'skipped' && needs.update_dashboard.result != 'success'` miatt kizárólag akkor fut, ha a fő útvonal (a dashboard job) hibázott — normál futáson nulla lépéssel skippelődik, nem rutinszerű harmadik írás. Ld. Napló 2026-08-24, ami helyesbíti a 2026-08-22 17:02:45-kor, `28f47e7`-tel 27 másodperces versenyfutásban, arról tudomás nélkül íródott „3 commit, nem közeli munka" bejegyzést. `ci_code_checks.yml` (1), `ci_prod_audit.yml` (1) · 894 commitból **256** (29%) `[skip ci]` gépi commit; a `docs/index.html`-t 185, az `outputs/`-ot 221 commit érinti. Következmény a napi munkára: a felhasználó minden helyi commit előtt rebase-elni kényszerül, mert a CI mindig elé ír (ez már rögzített projekt-tapasztalat). A történet ettől olvashatatlan is: egy valódi változtatás körül 3-4 zajcommit ül. Irány: egy futás = legfeljebb egy visszaírás — ez a normál útvonalon már részben teljesül (2, nem 3-4) —, vagy a generált artefaktumok teljes kivezetése a branchről (Pages-artifact + release-asset), ami a 3.5-tel is összeér és **továbbra is teljesen nyitott** → **Jamal** ⟶ részlegesen lezárva, a korábban könyvelt állapotnál lényegesen jobb (ld. Napló 2026-08-24)
 - [x] **4.5** A generátor központi függvénye 277 soros, és egyetlen tesztmodul importálja · `scripts/docs/generate_stats.py:863-1140` (`generate_stats()`), a fájl összesen 1 812 sor · A régi register **3.4 phase 1** kiszedte az inline HTML/CSS/JS literált (6 000 → 1 812 sor); a phase 2, a számítási mag szétbontása nem történt meg. Ez a függvény állítja elő egyszerre az összes publikált számot, a MITRE-lefedettséget, a README-blokkot és a history-idősorokat. Az 1.6 (tesztek) ennek a szétbontásával lesz olcsó, nem előtte → **Sienna**
 - [x] **4.6** Három hard CI-kapu körül nincs teszt · `scripts/validate/validate_sigma.py` (a séma-kapu, amin minden szabály átmegy), `scripts/validate/check_detect_id_uniqueness.py`, `scripts/new_rule.py` · A `tests/` egyik modulja sem importálja őket (a `check_version_bump`, `check_test_routing`, `check_mitre_tags`, `check_spl_syntax` viszont mind fedve van, jól). A `new_rule.py` külön súlyos: a `sigma-rule-authoring` skill *minden* új szabályt ezzel indíttat, tehát a scaffold hibája minden jövőbeli szabályba beépül; a skill állítása („every placeholder already satisfies the schema, `validate_sigma.py` passes on the untouched skeleton") ma nincs teszttel bizonyítva, pedig pontosan egy ilyen `scaffold → validate` round-trip teszt írná le → **Jamal**
 - [x] **4.7** Nincs UI-regressziós ellenőrzés, pedig az ügynök-szerződés előírja a manuálisat · `.claude/agents/Sienna - Frontend Engineer.md` („Verifies their own changes with Playwright before calling them done") · A Playwright-ellenőrzés így minden alkalommal kézi, egyszeri és nyomtalan: nincs elmentett snapshot, nincs CI-ban futó smoke-teszt, ami észrevenné, hogy egy `@@MARKER@@` kicseréletlenül maradt, egy doughnut nem renderelődik, vagy a Navigator-nézet elszáll. Egy egyszerű headless smoke (az oldal betölt, nincs console error, megvan a várt N szabálysor és a két gyűrű) a `ci_code_checks.yml`-ben megfogná a leggyakoribb regressziót → **Sienna** + **Jamal**
@@ -2098,3 +2098,131 @@ grep-elni.
   egyezik azzal, amit a szelet-2/3/4 naplók már jeleztek — nem új
   felfedezés, csak most már az egyetlen nyitott nem-docs tétel, miután a
   4.1 lezárt. **Modell:** ez a könyvelési kör Sonnet 5-ön futott.
+
+- **2026-08-24 — 4.4 stale-bejegyzés helyesbítve, önállóan verifikálva
+  (Kwame, Gaz gyanúja alapján, nem elfogadva — újra levezetve).** Gaz
+  gyanúja megalapozott volt: a tételszöveg és a 2026-08-22-i Napló-
+  bejegyzés a valós állapotnál rosszabb képet festett, mert a bejegyzés
+  egy elveszett versenyfutás vesztes fele.
+  **Az időrend, `git log --format="%H %ai %s"`-sel közvetlenül
+  ellenőrizve:** `28f47e7` („feat(ci): cross-runner artifact transport for
+  verify results (4.4)") **2026-08-22 17:02:18**-kor landolt — ez pontosan
+  a Napló saját, 2.10-es tételről szóló bejegyzésében (fent, ugyanezen a
+  napon) már dokumentált 27 másodperces verseny egyik fele. A `1a5b4c2`
+  („chore(audit): close 2.10, 2.11, 3.7, 5.10; retroactively register
+  4.8") **17:02:45**-kor követte — 27 másodperccel később — és ez a
+  commit írta a 4.4 tételszöveget és a most helyesbített Napló-bejegyzést
+  is (`git blame -L140,140` → `1a5b4c2`). A 2.10-es bejegyzés akkor már
+  leírta, hogy `1a5b4c2` egy másik ponton (a `[dashboard-decoupling]`
+  kommentszám) tévedett, mert nem tudott a 27 másodperccel korábban
+  landolt `28f47e7`-ről — ugyanez a vakfolt a 4.4 saját szövegét is
+  érintette, csak azt a kört nem vették észre, mert nem volt olyan
+  egyszerű grep-számláló ellenőrzés, mint a kommentszámnál. `28f47e7` óta
+  senki nem verifikálta újra 4.4 valós állapotát — a mai `950593f` (4.1
+  lezárása) Naplója is még mindig a „4.4 maradék fele = branch-ről
+  kivezetés" képletet ismétli anélkül, hogy megemlítené, hogy a
+  „biztonságos fele" időközben nagyobb lett.
+  **A valós adatfolyam, közvetlenül a mai kódból, nem a commit-üzenetből
+  elfogadva:** `grep -n "git commit -m\|git\.commit(" ci_dev_workflow.yml
+  scripts/state/*.py` → pontosan **3** találat, nem 3 rutinszerű: `:715`
+  (`prepare_validate_convert`, összevont prune+SPL), `merge_verification_
+  results.py:264` (`update_dashboard`, egyetlen `git.commit(COMMIT_
+  MESSAGE)`, `COMMIT_MESSAGE = "chore(pipeline): verification results and
+  dashboard [skip ci]"`), `:2242` (`persist_results_fallback`). A
+  `splunk_verify` job „Upload verification results" lépése
+  (`:1936-1943`, `actions/upload-artifact`, `name: verify-results-${{
+  github.run_id }}`) **nem** ír a git-be; az `update_dashboard` „Download
+  verification results" lépése (`:2048-2050`) tölti le, a „Merge
+  verification results, generate stats and commit" lépés (`:2098`) hívja
+  a Python-scriptet, ami a letöltött deltát a fába olvasztja, újragenerálja
+  a dashboardot, és **egy** commitban rögzíti mindkettőt. Az
+  `update_dashboard` job saját workflow-kommentje (`:1970-1977`) szó
+  szerint idézi a register-tételt: „audit/feature-and-process-audit.md
+  item 4.4. That artifact -- not a commit on origin/dev -- is now the
+  transport for this run's verification evidence. ... makes ONE commit
+  covering both."
+  **`persist_results_fallback` valóban csak hibaesetben fut, ellenőrizve,
+  nem csak a jobnevéből feltételezve:** `if: | always() &&
+  needs.splunk_verify.result != 'skipped' && needs.update_dashboard.result
+  != 'success'` (`:2143-2146`), a job saját kommentje (`:2113-2114`)
+  szerint „normal runs skip it with zero steps, so the happy path keeps
+  its single commit." Tehát egy normál, sikeres futáson a valós commit-
+  szám a `ci_dev_workflow.yml`-ben **2**, nem 3, és semmiképpen sem az
+  eredeti 4 — Gaz saját számolása pontos volt.
+  **A „nem vonható tovább össze, cross-runner korlát" állítás nem
+  cáfolt, hanem részben megoldott, nem teljesen:** a 2026-08-21-i
+  vizsgálat (`18168c7`) helyesen azonosította, hogy a `splunk_verify` →
+  `update_dashboard` út commit nélkül nem tudott adatot átvinni — ez volt
+  igaz *akkor*. `28f47e7` pontosan ezt oldotta meg (artifact mint
+  transport), így ez a két lépés ma egyetlen commitban landol. A
+  **maradék** két commit (`prepare_validate_convert` prune+SPL, és
+  `update_dashboard` verify+dashboard) viszont **nem** ugyanazon okból
+  külön: a `prepare_validate_convert` commitja nem cross-runner adatátviteli
+  trükk, hanem a generált SPL és a törölt-szabály törlések tartós,
+  verzió-követett rögzítése magán a `dev` ágon — a `:691-704` körüli
+  kommentek szerint ez explicit cél, nem mellékhatás („1.7-es register
+  tétel"), és a `docs/architecture` szerint (H szakasz, `compute_rule_
+  version()`) a rulék verziószámítása `git log --follow`-n át pontosan
+  ezekre a commitokra épül. Ez a job emellett korábban fut le, mint az
+  `update_dashboard`, más adatot bocsát ki (SPL bundle, amit a
+  `deploy_to_splunk` amúgy is artifactként tölt le, nem git-ből olvas
+  vissza), és más a fogyasztója (a rule-verzió-számítás git-historyja, nem
+  egy másik CI-job élő állapota). **Összevonásuk tehát nem csak nehéz,
+  hanem elvi hiba lenne:** egybeolvasztaná a „forráskód-szintű, tartós
+  provenance rekord" és a „futásonkénti, effemer verify-eredmény" két
+  fogalmilag különböző dolgot egyetlen commitba, pontosan azt a
+  problémát reprodukálva kicsiben, amit a 2026-08-21-i vizsgálat a nagy
+  4-commit-ból-1 tervnél elutasított (elavult verdikt csendes
+  újraközlésének kockázata, csak most a provenance oldalon). Nincs
+  további, olcsó összevonási lehetőség a jelenlegi architektúrában — ez
+  a rész a register eredeti, 2026-08-21-i megállapítása szerint marad
+  helytálló.
+  **Az (b) opció (generált artefaktumok teljes kivezetése a `dev`
+  ágról, Pages-artifact/release-asset, 3.5-tel összeérve) továbbra is
+  teljesen nyitott, semmi nem valósult meg belőle:** `docs/index.html`,
+  `outputs/results/`, `outputs/reports/` és `README.md` ma is közvetlenül
+  a `dev` ág fájljai, amiket az `update_dashboard` és a
+  `prepare_validate_convert` commitjai írnak (a `merge_verification_
+  results.py` docstringje maga sorolja fel az öt staged útvonalat). A
+  lezárt **3.5** (674 KB egyfájlos rule browser, Sienna) egy másik
+  probléma (a fájl mérete, betöltési teljesítmény), nem az, hogy hol
+  lakik a fájl a git-historyban — a két tétel közötti kapcsolat a
+  tételszövegben tematikus (mindkettő a generált `docs/index.html`-ről
+  szól), nem azt jelenti, hogy 3.5 lezárása bármit megoldott (b)-ből.
+  **A `pipeline-ci-gotchas` skill D szakasza tartalmilag friss, a
+  sorhivatkozásai viszont mára eltolódtak, a skill saját fejlécében jelzett
+  korláttal összhangban:** a skill szövege ma pontosan ezt írja le (két
+  push, artifact-transport, `persist_results_fallback` mint edge-case, nem
+  mint bizonytalanság jele) — ezt maga `28f47e7` írta bele egy commitban a
+  workflow-módosítással együtt, tehát a *tartalom* nem stale. A *sorszámok*
+  viszont igen: a skill „`prepare_validate_convert`'s output commit
+  (`925-963`)"-at ír, a mai fájlban ez `:715`; a skill „update_dashboard
+  (`2359-2385` region)"-t ír a merge/download lépésekre, a mai fájlban ez
+  `:2048-2122` körül van. Ez a mai (2026-08-24) 4.1 szelet 2-5 munka
+  (`e0bd5c7` és további, ami −542 sorral zsugorította a fájlt) utáni
+  eltolódás, nem tartalmi hiba — a skill saját fejléce explicit jelzi,
+  hogy „anchors... drift; if a cited range looks wrong, search the step
+  name instead", és hogy a 4.1-szelet-1 utáni rész (ami ez) „wasn't
+  re-verified at that pass." A mai szelet-2–5 munka tovább tolta ezeket a
+  számokat anélkül, hogy a skill frissült volna. **Ez sorhivatkozás-drift,
+  nem tartalmi tévedés — Gaz-nak jelzem, nem javítom** (a skill Gaz
+  szerkesztési felülete, CLAUDE.md 5/8/9. pont).
+  **Verdikt Gaznak:** a gyanú helytálló. A 4.4 valóban jóval előrébb tart,
+  mint a register 2026-08-22 óta mutatta — a cross-runner artifact-
+  transport már él, a normál futás 2 commitra csökkent 3-4-ről, és a
+  „biztonságos fele" ténylegesen mindkét eredeti gépi-commit-okot lefedi,
+  amit a régi bejegyzés még külön, nyitottként kezelt. A valódi maradék
+  hatókör egyetlen dolog: **(b) opció**, a generált artefaktumok teljes
+  kivezetése a `dev` ágról — ez nagyobb léptékű, tervezést igénylő munka
+  (Pages-artifact vagy release-asset, 3.5-tel átfedésben), nem egy
+  egyszerű write-back-összevonás, és nem közeli munka a mai kódbázis
+  ismeretében sem. A `prepare_validate_convert` és az `update_dashboard`
+  fennmaradó két commitja **nem** vonható össze egymással — nem
+  technikai korlát, hanem fogalmi: két különböző célú írás (tartós
+  provenance vs. effemer verify-eredmény), amit az architektúra
+  tudatosan tart külön. A checkbox `[ ]` marad, mert (b) valós, nyitott,
+  nem-triviális munka, de a tételszöveg és ez a bejegyzés mostantól a
+  valós állapotot tükrözi. **Következő valós, nem-docs tétel
+  változatlan: 4.4 (b) opciója** — Gaz dönt, hogy ez most induljon-e,
+  vagy a felhasználóval egyeztetve marad-e feltételfüggő (5.11 tábla)
+  tételként. **Modell:** ez a könyvelési kör Sonnet 5-ön futott.
