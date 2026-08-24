@@ -134,7 +134,7 @@ teljesíthető utasítással indul.
 
 ## 4 · Robusztusság és karbantarthatóság (8) · ×2
 
-- [ ] **4.1** 1 827 sor inline shell a workflow-kban, ebből 1 263 a dev workflow-ban (elavult alapszám — 2026-08-23-án újraszámolva **~1 954/1 394** volt a munka *előtt*, mert a `ci_dev_workflow.yml` időközben 2 572-ről 3 060 sorra nőtt; Kwame saját, YAML-`run:`-blokkokat ténylegesen parszoló újraszámolása ehhez közeli, de nem azonos tartományt ad — **2 017/1 433** a munka előtti állapotra —, a néhány százalékos eltérés számolási módszertani, nem valóságbeli különbség, ld. Napló 2026-08-23) · `ci_dev_workflow.yml` 2 572 sor (1 005 komment, 1 263 inline `run:` shell), `ci_code_checks.yml` 252, `ci_prod_audit.yml` 175, `ci_prod_workflow.yml` 137 · Ez a repo legnagyobb tesztelhetetlen kódfelülete: unit-teszt nem éri el, csak a shellcheck látja (actionlinten keresztül) — az pedig szintaxist ellenőriz, nem viselkedést. A pipeline logikájának jelentős része itt él (verify-ablak számítása, commit-visszaírás retryvel, bundle-kezelés, provenance-ellenőrzés). Nem az egész kiszervezése a cél, hanem a leghosszabb, legtöbb elágazást tartalmazó blokkoké `scripts/ci/*.sh` vagy Python alá, ahol a pytest is látja őket. (Helyi megjegyzés: az actionlint Windowson beragad nagy `run:` blokkokon — a méret már ma is fáj.) → **Jamal** ⟶ részlegesen lezárva (az öt legnagyobb/legelágazóbb `run:` blokk közül az első kettő — `prepare_validate_convert` job „Determine changed Sigma files" lépése, 206 sor, és `update_dashboard` job „Merge verification results, generate stats and commit" lépése, 137 sor — kiszervezve `scripts/state/determine_changed_rules.py`-ba, illetve `scripts/state/merge_verification_results.py`-ba, mindkettő tesztekkel fedve; a másik három (`open_promotion_pr` „Open promotion PR to main and mark it In review" 132 sor, `splunk_verify` „Reconcile Splunk state against the repo" 118 sor, `prepare_validate_convert` „Build pipeline bundle" 111 sor) és a kisebb blokkok hosszú farka érintetlen, ld. Napló 2026-08-23 és 2026-08-24)
+- [ ] **4.1** 1 827 sor inline shell a workflow-kban, ebből 1 263 a dev workflow-ban (elavult alapszám — 2026-08-23-án újraszámolva **~1 954/1 394** volt a munka *előtt*, mert a `ci_dev_workflow.yml` időközben 2 572-ről 3 060 sorra nőtt; Kwame saját, YAML-`run:`-blokkokat ténylegesen parszoló újraszámolása ehhez közeli, de nem azonos tartományt ad — **2 017/1 433** a munka előtti állapotra —, a néhány százalékos eltérés számolási módszertani, nem valóságbeli különbség, ld. Napló 2026-08-23) · `ci_dev_workflow.yml` 2 572 sor (1 005 komment, 1 263 inline `run:` shell), `ci_code_checks.yml` 252, `ci_prod_audit.yml` 175, `ci_prod_workflow.yml` 137 · Ez a repo legnagyobb tesztelhetetlen kódfelülete: unit-teszt nem éri el, csak a shellcheck látja (actionlinten keresztül) — az pedig szintaxist ellenőriz, nem viselkedést. A pipeline logikájának jelentős része itt él (verify-ablak számítása, commit-visszaírás retryvel, bundle-kezelés, provenance-ellenőrzés). Nem az egész kiszervezése a cél, hanem a leghosszabb, legtöbb elágazást tartalmazó blokkoké `scripts/ci/*.sh` vagy Python alá, ahol a pytest is látja őket. (Helyi megjegyzés: az actionlint Windowson beragad nagy `run:` blokkokon — a méret már ma is fáj.) → **Jamal** ⟶ részlegesen lezárva (az öt legnagyobb/legelágazóbb `run:` blokk közül az első három — `prepare_validate_convert` job „Determine changed Sigma files" lépése, 206 sor, `update_dashboard` job „Merge verification results, generate stats and commit" lépése, 137 sor, és `open_promotion_pr` job „Open promotion PR to main and mark it In review" lépése, 132 sor — kiszervezve `scripts/state/determine_changed_rules.py`-ba, `scripts/state/merge_verification_results.py`-ba, illetve `scripts/state/open_promotion_pr.py`-ba, mindhárom tesztekkel fedve; a másik kettő, méret szerint csökkenő sorrendben (`splunk_verify` „Reconcile Splunk state against the repo" 118 sor, `prepare_validate_convert` „Build pipeline bundle" 111 sor) és a kisebb blokkok hosszú farka érintetlen, ld. Napló 2026-08-23 és 2026-08-24)
 - [x] **4.2** 7 500 sor front-end, nulla automatizált ellenőrzés · `scripts/docs/assets/page.js` (2 878), `page.css` (4 036), `page.template.html` (586) · A `ci_code_checks.yml` négy checkerje Pythont (ruff+pytest), PowerShellt (parser+PSScriptAnalyzer), workflow-YAML-t (actionlint+shellcheck) és függőséget (pip-audit) fed — JS/CSS/HTML-t **egyiket sem**. `grep eslint|stylelint|prettier|npm` a workflow-kban: 0 találat. Arányában: 3 400 sor Pythont 555 teszt véd, 7 500 sor front-endet semmi. Belépő szint: `eslint` minimál szabálykészlettel + HTML-validáció a generált oldalon, önálló jobként (hogy egy JS-hiba ne maszkolja a ruffot, a repo bevált mintája szerint) → **Sienna** (tartalom) + **Jamal** (job)
 - [x] **4.3** A teszt-suite bukik a fejlesztő saját gépén · `python -m pytest` → **3 failed, 552 passed**, mindhárom a `tests/test_meta_only.py`-ban, hibaüzenet: `'No time zone found with key Europe/Budapest'` · Ok: a `scripts/convert/sigma_to_spl.py:334` `ZoneInfo("Europe/Budapest")`-et használ, Windows alatt viszont nincs rendszerszintű tzdata, és a `.github/requirements-dev.txt` (pytest, ruff) nem tartalmazza a `tzdata` csomagot. CI-ban (ubuntu) zöld, helyben piros — ez a legrosszabb fajta eltérés, mert a fejlesztőt arra tanítja, hogy a piros suite normális. Javítás: `tzdata` a dev-requirementsbe (és/vagy a sidecar időbélyegének UTC-re váltása) → **Jamal**
 - [ ] **4.4** Hat különböző commit-visszaírási út, futásonként 3-4 gépi commit · `ci_dev_workflow.yml` (jelenleg 3 commit: összevont prune+SPL / verify results / dashboard — ld. Napló 2026-08-22), `ci_code_checks.yml` (1), `ci_prod_audit.yml` (1) · 894 commitból **256** (29%) `[skip ci]` gépi commit; a `docs/index.html`-t 185, az `outputs/`-ot 221 commit érinti. Következmény a napi munkára: a felhasználó minden helyi commit előtt rebase-elni kényszerül, mert a CI mindig elé ír (ez már rögzített projekt-tapasztalat). A történet ettől olvashatatlan is: egy valódi változtatás körül 3-4 zajcommit ül. Irány: egy futás = legfeljebb egy visszaírás (az `update_dashboard` amúgy is külön jobban fut, oda összevonható), vagy a generált artefaktumok kivezetése a branchről (Pages-artifact + release-asset), ami a 3.5-tel is összeér → **Jamal** ⟶ részlegesen lezárva (a biztonságos fele kész, a maradék nagyobb léptékű átalakítást igényel és nem közeli munka, ld. Napló 2026-08-22)
@@ -1721,3 +1721,103 @@ grep-elni.
   `prepare_validate_convert` „Build pipeline bundle" 111) vagy **4.4**
   maradék fele — Gaz dönt a sorrendről. **Modell:** ez a könyvelési kör
   Sonnet 5-ön futott.
+
+- **2026-08-24 (későbbi, önálló kör, ugyanazon a napon mint a fenti
+  2. szelet napló) — 4.1 negyedik napló, 3. szelet lezárva (3. az
+  5-ből), Kwame verifikálta.** `git log --oneline` → `8566f90`
+  („refactor(ci): extract promotion-PR step to testable Python (4.1,
+  slice 3)"), rögtön `10d30e3` után („chore(audit): book 4.1 slice 2,
+  Kwame-verified"), ma, 2026-08-24 18:01-kor. `git diff --numstat
+  8566f90^ 8566f90` egyezik a jelentéssel pontosan: `ci_dev_workflow.yml`
+  **+30/−132** (nettó −102), `scripts/state/open_promotion_pr.py` új
+  fájl **+525**, `tests/test_open_promotion_pr.py` új fájl **+449** —
+  összesen +1004/−132, ahogy a commit `--stat`-ja is mutatja.
+  **Viselkedés-egyezés a régi shell ellen, sorról sorra ellenőrizve:**
+  `git show 8566f90^:.github/workflows/ci_dev_workflow.yml` (`fe755d5`
+  is ugyanaz) vs. az új `open_promotion_pr.py` diffelve — a két nem
+  best-effort `gh` hívás (`gh pr list`, `gh pr create`, mindkettő
+  `check=True`, kivétel a `subprocess.CalledProcessError`-en keresztül
+  jut vissza `main()`-be és ugyanazzal a kilépési kóddal áll meg, mint a
+  régi shell `set -euo pipefail` alatt) helyesen különbözik a másik
+  négy best-effort hívástól (`fetch_stats_json`, `fetch_compare_filenames`,
+  `add_to_project`, `set_project_status`, mind `check=False`, hibára
+  csendben visszaesnek); a `stale_count = verified_expired +
+  verified_superseded` számítás nullára esik vissza minden hibaágon
+  (`compute_stale_count`); a `rule_table` építése (`DETECT-####-####`
+  kinyerés, dedup+sort `extract_changed_rule_ids`-ben, egy `stats.json`-
+  ból hiányzó id csendes eldobása `build_rule_table`-ben) ténylegesen
+  dokumentált, tesztelt viselkedés
+  (`test_rule_table_missing_id_silently_dropped_not_flagged`), nem
+  véletlen eltérés; a PR body / step-summary összeállítás mind a négy
+  stale_note/rule_table jelenlét-hiány kombinációra le van fedve
+  (`test_pr_body_no_stale_note_no_rule_table` … `_both`); a két
+  Project-board best-effort hibaág egymástól függetlenül tesztelt
+  (`test_run_step_project_add_failure_warns_and_does_not_call_edit`,
+  `test_run_step_project_edit_failure_warns_after_successful_add`).
+  Egyetlen apró, viselkedést nem érintő sorrendi eltérés: a régi shell a
+  `gh api compare` hívást akkor is megtette, ha a `stats_json` nem üres,
+  de érvénytelen JSON volt (csak `-n "$stats_json"`-t nézett); az új
+  Python ezt `stats is not None`-nal dönti el, tehát ilyen (valójában
+  soha elő nem forduló, mert a `gh api ... | jq -r`-en keresztül jövő
+  válasz vagy üres, vagy érvényes JSON) élen egy hívással kevesebbet
+  tenne — a végeredmény (üres tábla) mindkét esetben azonos, ezt a
+  `test_run_step_does_not_fetch_compare_when_stats_unavailable` teszt
+  rögzíti is, csak nem ezzel a magyarázattal — nem hibás, nem is
+  emeltem ki hibaként, csak a sorról sorra ellenőrzés miatt jegyzem meg.
+  **A tudatos, megjelölt eltérés (escape_cell) valós és pontosan
+  jellemzett:** `lib.summary.escape_cell()` ténylegesen létező,
+  már a `de6e440`/`5f34f94` commitokban (jóval e szelet előtt)
+  bevezetett, azóta öt másik scriptben (`pass_fail_eval.py`,
+  `check_mitre_tags.py`, `check_spl_syntax.py`,
+  `deploy_spl_to_splunk.py`, `check_version_bump.py`) is használt,
+  bevett konvenció ebben a repóban — nem kitalált függvény. A `|`,
+  newline escape-elése és trim. A mai 28 `rules/sigma/*.yml` cím
+  (`title:`) egyike sem tartalmaz `|`-t, backtick-et vagy egyéb
+  táblatörő karaktert (`grep -E '[|`]'` nulla találat), tehát a
+  jelentés „egyetlen mai cím sem renderelődne másképp" állítása pontos
+  a jelenlegi rule-készletre — a teszt (`STATS_WITH_RULES` fixture-je)
+  külön egy `"Odd|Pipe Title"` címmel is fedi az escape-elést, tehát a
+  viselkedés-változás maga is tesztelt, nem csak dokumentált.
+  **A regiszter-idézés javítása valós és helyesen attribuált:** a
+  workflow-kommentben (`ci_dev_workflow.yml:2462-2464` körül) és a
+  script docstringjében egyaránt `audit/remediation-plan.md item 4.9`
+  és `audit/remediation-plan.md item 4.11` szerepel, nem puszta
+  „register item 4.9/4.11" — mindkét szám valóban létező,
+  `remediation-plan.md`-beli, lezárt tétel (4.9: „A promotion PR
+  body-ja legyen érdemi", kész 2026-08-11; 4.11: „Az elévülés
+  riportálási korrekció, nem kapu", kész 2026-08-10), pontosan azzal a
+  tartalommal, amit a kommentek leírnak — a `pipeline-ci-gotchas` skill
+  I. szakaszának pontosan megfelelő javítás, nem téves attribúció.
+  **A checkout/setup-python akciók SHA-pinningje valóban a megjelölt
+  tagre mutat, GitHub API-n keresztül feloldva, nem a kommentből
+  átvéve:** `actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1`
+  → `refs/tags/v7.0.1` ugyanerre a SHA-ra mutat;
+  `actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97` →
+  `refs/tags/v7.0.0` ugyanerre a SHA-ra mutat — mindkettő pontosan
+  egyezik a workflow-kommentben álló tag-jelöléssel.
+  **A tesztelést és a kódot közvetlenül futtatva, nem csak átolvasva
+  ellenőriztem:** friss venv-be telepítve a `.github/requirements-dev.txt`
+  + `.github/requirements.txt` függőségeit, `pytest
+  tests/test_open_promotion_pr.py -q` → **46 passed**; a teljes `pytest`
+  suite → **767 passed**, 0 failed, kilépési kód 0 (767−46=721, egyezik
+  a jelentett „up from 721" állítással, ami maga is egyezik a
+  2026-08-24-i szelet-2 zárónapló saját mérésével); `ruff check .` a
+  teljes repón → „All checks passed!"; a módosított `ci_dev_workflow.yml`
+  `yaml.safe_load`-dal betöltve hiba nélkül fut. **`actionlint` v1.7.12
+  + `shellcheck` v0.10.0 saját letöltésű binárisokkal (a jelentett
+  verziószámokkal pontosan egyezően, `-version`/`--version`-nel
+  ellenőrizve) futtatva mind a négy workflow-fájl ellen**
+  (`ci_dev_workflow.yml`, `ci_prod_workflow.yml`, `ci_prod_audit.yml`,
+  `ci_code_checks.yml`) → nulla találat, kilépési kód 0.
+  **Regiszter-idézési konvenció (a `pipeline-ci-gotchas` skill I.
+  szakasza) betartva, a Skill-eszközzel előbb betöltve.**
+  **Miért csak a 3. szelet és nem lezárás:** a maradék két blokk, méret
+  szerint csökkenő sorrendben (`splunk_verify` „Reconcile Splunk state
+  against the repo" 118 sor, `prepare_validate_convert` „Build pipeline
+  bundle" 111 sor) és a kisebb blokkok hosszú farka érintetlen. A
+  nyitott halmaz **nem** mozdul — a 4.1 továbbra is részleges, a lezárt
+  tételszám marad **37/52**. **Következő valós, nem-docs tétel:** a
+  fenti két megnevezett blokk bármelyike (méret szerint: `splunk_verify`
+  118, `prepare_validate_convert` „Build pipeline bundle" 111) vagy
+  **4.4** maradék fele — Gaz dönt a sorrendről. **Modell:** ez a
+  könyvelési kör Sonnet 5-ön futott.
