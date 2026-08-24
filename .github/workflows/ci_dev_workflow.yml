@@ -2230,148 +2230,26 @@ jobs:
       # attempt from inputs that live OUTSIDE the git tree (the downloaded
       # artifacts, in .gitignore'd or untracked directories) -- which is why a
       # reset can be this blunt and still be correct on attempt 2 and 3.
+      #
+      # audit/feature-and-process-audit.md item 4.1, slice 2. This step used
+      # to be ~137 lines of inline bash implementing that reset/merge/commit/
+      # push retry loop directly; the logic now lives in
+      # scripts/state/merge_verification_results.py (tested by
+      # tests/test_merge_verification_results.py) for the same reason
+      # determine_changed_rules.py exists -- pytest can reach it,
+      # actionlint/shellcheck could only ever check the old shell's syntax.
+      # Behaviour is unchanged: same file paths
+      # (outputs/verify/results_download/results, outputs/results/,
+      # outputs/deploy/dev_deploy_report.json, outputs/state/reconcile.json),
+      # same delta-append idempotency, same `git add` scope, same 3-attempt
+      # reset/commit/push retry with the same backoff.
       - name: Merge verification results, generate stats and commit
         shell: bash
         env:
           GIT_EDITOR: ":"
         run: |
           set -euo pipefail
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          dl="outputs/verify/results_download/results"
-
-          for i in 1 2 3; do
-            git fetch origin dev
-            git reset --hard origin/dev
-
-            # audit/feature-and-process-audit.md item 4.4 (one write-back per
-            # run) + audit/remediation-plan.md item 4.6 (the append-only
-            # history.jsonl these deltas carry) -- two different files, which
-            # is why both are named.
-            #
-            # Merge this run's verification delta
-            # into the tree we just reset to. Absent (lab offline, or
-            # splunk_verify never got far enough to upload) is a normal state,
-            # not an error: the dashboard is then regenerated from the
-            # previously committed results, which is exactly what renders a
-            # new rule as "Not Verified" rather than omitting it.
-            if [ -d "$dl" ]; then
-              echo "Merging this run's verification results..."
-
-              # Plain overlay for result.json and anything else that is not an
-              # append-only log: this run's verdict replaces the previous one.
-              find "$dl" -mindepth 1 -type f ! -name '*.delta' -print0 |
-                while IFS= read -r -d '' src; do
-                  rel="${src#"$dl"/}"
-                  dest="outputs/results/$rel"
-                  mkdir -p "$(dirname "$dest")"
-                  cp "$src" "$dest"
-                done
-
-              # history.jsonl is append-only, so it is never overwritten. Each
-              # .delta holds exactly the one line this run's pass_fail_eval.py
-              # appended for that rule; it is appended to whatever is on disk
-              # after the reset, which may already carry lines a concurrent run
-              # pushed for rules this run never touched. Overwriting from a
-              # snapshot would silently erase those.
-              #
-              # The last-line guard is what makes a retry idempotent: if
-              # attempt 1 appended the line and then lost the push race, attempt
-              # 2 resets, re-reads, and finds either the line already there
-              # (concurrent run won and carried ours) or absent (normal case).
-              # Either way exactly one copy ends up in the file. It also covers
-              # the rarer case of the same delta being replayed by
-              # persist_results_fallback after a partial failure here.
-              find "$dl" -mindepth 1 -type f -name '*.delta' -print0 |
-                while IFS= read -r -d '' src; do
-                  rel="${src#"$dl"/}"
-                  dest="outputs/results/${rel%.delta}"
-                  new_line="$(tail -n 1 "$src")"
-                  [ -z "$new_line" ] && continue
-                  mkdir -p "$(dirname "$dest")"
-                  if [ -f "$dest" ]; then
-                    last_line="$(tail -n 1 "$dest")"
-                  else
-                    last_line=""
-                  fi
-                  if [ "$last_line" != "$new_line" ]; then
-                    printf '%s\n' "$new_line" >> "$dest"
-                  fi
-                done
-            else
-              echo "No verification results artifact for this run (lab offline, or verification did not reach the staging step). Regenerating from the previously committed state."
-            fi
-
-            # audit/remediation-plan.md item 4.7 (the deployment inventory;
-            # the active register's 4.7 is an unrelated UI-regression item),
-            # moved here from splunk_verify with the rest of the write-back.
-            # Deliberately *after* the reset: both of its inputs
-            # live in .gitignore'd directories, so `git reset --hard` leaves the
-            # downloaded artifacts exactly where they landed, and the inventory
-            # can simply be rebuilt on each attempt rather than preserved.
-            #
-            # Only the dev section is touched. Prod's is written by the prod
-            # audit workflow, which is the only thing that can see the prod app,
-            # and deployment_inventory.py merges rather than overwrites so the
-            # two never erase each other.
-            #
-            # Skipped rather than attempted when the deploy report is absent:
-            # naming a missing file makes the script warn, and if the reconcile
-            # were also unreadable it would refuse to write at all. Not fatal in
-            # any case -- an inventory that missed one run is a far smaller loss
-            # than a dashboard that never regenerated because a bookkeeping step
-            # failed. (ci_prod_audit.yml's record_inventory job guards the same
-            # way for the same reason.)
-            inv_args=()
-            if [ -f outputs/deploy/dev_deploy_report.json ]; then
-              inv_args+=(--deploy-report outputs/deploy/dev_deploy_report.json)
-            fi
-            if [ -f outputs/state/reconcile.json ]; then
-              inv_args+=(--reconcile outputs/state/reconcile.json)
-            fi
-            if [ "${#inv_args[@]}" -gt 0 ]; then
-              python scripts/state/deployment_inventory.py \
-                --env dev \
-                "${inv_args[@]}" \
-                --commit "${GITHUB_SHA}" \
-                --run-id "${GITHUB_RUN_ID}" \
-                --run-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-                || echo "::warning title=Inventory not updated::deployment_inventory.py failed; the dashboard will show the previous deployment state."
-            else
-              echo "No deploy or reconcile report for this run; leaving the deployment inventory as committed."
-            fi
-
-            echo "Regenerating aggregate stats, MITRE coverage map, and rule browser content..."
-            python scripts/docs/generate_stats.py
-
-            # outputs/results/ joins this `git add` as of
-            # audit/feature-and-process-audit.md item 4.4 -- it is what
-            # splunk_verify used to commit on its own. Still scoped
-            # rather than `git add -A`: outputs/verify/ holds the downloaded
-            # artifact (including the .delta sidecars) and must never be
-            # committed.
-            git add outputs/results/ outputs/reports/ README.md docs/index.html
-
-            if git diff --cached --quiet; then
-              echo "No changes to commit."
-              exit 0
-            fi
-
-            git commit -m "chore(pipeline): verification results and dashboard [skip ci]"
-
-            if git push origin HEAD:dev; then
-              echo "Push succeeded."
-              exit 0
-            fi
-
-            echo "Push failed (attempt $i), retrying..."
-            sleep $((i * 2))
-          done
-
-          echo "Push failed after 3 attempts."
-          exit 1
+          python scripts/state/merge_verification_results.py
 
   # audit/feature-and-process-audit.md item 4.4. The safety net for the one
   # thing artifact transport gives up: before this change, splunk_verify
