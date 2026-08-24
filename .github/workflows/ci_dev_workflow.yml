@@ -560,122 +560,58 @@ jobs:
           printf ' - %s\n' "${unchanged_rules[@]}"
           python scripts/convert/sigma_to_spl.py --outdir rules/splunk --meta-only "${unchanged_rules[@]}"
 
+      # audit/remediation-plan.md item 3.6 (not this repo's active register's
+      # own 3.6, which is the unrelated, already-implemented Slack-
+      # notification item), and the bug it caused. This step used to `cp` the
+      # scripts/lib/ files it needed by name, one line per file. A refactor
+      # moved the env helpers into scripts/lib/env.py and rewrote
+      # deploy_spl_to_splunk.py to import them -- and a copy list maintained
+      # by hand cannot know that, so the bundle shipped without env.py and the
+      # deploy died 0.1s in on the lab runner with `ModuleNotFoundError: No
+      # module named 'lib.env'` (run #67), long after this job had gone
+      # green. Fixed by copying scripts/lib/ wholesale instead of naming
+      # files: lib/ holds only small, non-secret, importable helpers shared
+      # by the bundled scripts, so copying all of it costs nothing and cannot
+      # leak anything the deploy script does not already carry -- see
+      # copy_lib_wholesale()'s own docstring in build_pipeline_bundle.py for
+      # the `scripts/lib/.` vs `scripts/lib` no-double-nesting detail and its
+      # shutil.copytree(dirs_exist_ok=True) equivalent.
+      #
+      # audit/remediation-plan.md item 3.2 (not this repo's active register's
+      # own 3.2, which is the unrelated, rejected prod-audit-schedule item):
+      # the sidecar-only copy for unchanged rules, and why those rules stay
+      # out of spl_files/has_spl -- see select_unchanged_rule_files()'s own
+      # docstring below for the reasoning, unchanged from the shell.
+      #
+      # audit/feature-and-process-audit.md item 4.1, slice 5 of 5 (slice 1 was
+      # determine_changed_rules.py, slice 2 was merge_verification_results.py,
+      # slice 3 was open_promotion_pr.py, slice 4 was reconcile_step.py). This
+      # step used to be ~116 lines of inline bash, including two
+      # `mapfile -t arr <<'EOF' ${{ steps.X.outputs.Y }} EOF` blocks that
+      # substituted a GitHub Actions expression directly into the script's own
+      # text before bash ever parsed it -- the same class of "untrusted text
+      # lands in a script body" pattern this repo's own CI gotchas already
+      # warn about elsewhere, even though here the values are constrained to
+      # rules/sigma/*.yml|yaml paths from a controlled upstream step, not
+      # attacker input. Both lists now arrive as plain environment variables
+      # (RULE_FILES, UNCHANGED_RULE_FILES) instead, same approach slice 4 used
+      # for RETIRE_ORPHANS, and the logic now lives in
+      # scripts/state/build_pipeline_bundle.py (tested by
+      # tests/test_build_pipeline_bundle.py), which documents in its own
+      # module docstring why this is not a behaviour change for any realistic
+      # input -- same set of rules processed, same two register-item-flagged
+      # design decisions preserved, same two $GITHUB_OUTPUT blocks byte for
+      # byte.
       - name: Build pipeline bundle
         id: bundle
         if: steps.changes.outputs.has_rules == 'true'
         shell: bash
+        env:
+          RULE_FILES: ${{ steps.changes.outputs.rule_files }}
+          UNCHANGED_RULE_FILES: ${{ steps.unchanged.outputs.unchanged_rules }}
         run: |
           set -euo pipefail
-
-          echo "Assembling pipeline bundle (SPL + meta sidecars + deploy/atomic scripts)..."
-
-          rm -rf pipeline_bundle
-          mkdir -p pipeline_bundle/scripts/atomic pipeline_bundle/scripts/deploy pipeline_bundle/scripts/lib
-
-          cp scripts/atomic/run_atomic.ps1 pipeline_bundle/scripts/atomic/run_atomic.ps1
-          cp scripts/deploy/deploy_spl_to_splunk.py pipeline_bundle/scripts/deploy/deploy_spl_to_splunk.py
-          cp scripts/deploy/check_spl_syntax.py pipeline_bundle/scripts/deploy/check_spl_syntax.py
-
-          # Register item 3.6, and the bug it caused. This was a single `cp` of
-          # rule_naming.py. That refactor moved the env helpers into
-          # scripts/lib/env.py and rewrote deploy_spl_to_splunk.py to import
-          # them -- and a copy list maintained by hand cannot know that, so the
-          # bundle shipped without env.py and the deploy died 0.1s in on the lab
-          # runner with `ModuleNotFoundError: No module named 'lib.env'`
-          # (run #67), long after this job had gone green.
-          #
-          # Wholesale rather than one more line: naming files by hand is the
-          # failure mode itself, and the next module under lib/ would reproduce
-          # it exactly. lib/ holds only small, non-secret, importable helpers
-          # shared by the bundled scripts, so copying all of it costs nothing
-          # and cannot leak anything the deploy script does not already carry.
-          #
-          # `scripts/lib/.` and not `scripts/lib`, which would nest the
-          # directory as pipeline_bundle/scripts/lib/lib.
-          cp -r scripts/lib/. pipeline_bundle/scripts/lib/
-
-          # Only reachable because the copy is wholesale: bytecode is not part
-          # of the bundle's contract, and it is not something to ship in a
-          # downloadable artifact just because it happened to be on disk.
-          find pipeline_bundle/scripts/lib -type d -name '__pycache__' -prune -exec rm -rf {} +
-
-          mapfile -t rules <<'EOF'
-          ${{ steps.changes.outputs.rule_files }}
-          EOF
-
-          spl_files=()
-          for rule in "${rules[@]}"; do
-            [[ -z "$rule" ]] && continue
-
-            name="$(basename "$rule")"
-            name="${name%.yml}"
-            name="${name%.yaml}"
-            name="${name%.sigma}"
-
-            spl_path="rules/splunk/${name}.spl"
-            if [[ ! -f "$spl_path" ]]; then
-              echo "Expected generated SPL file is missing: $spl_path"
-              exit 1
-            fi
-
-            meta_path="rules/splunk/${name}.meta.json"
-            if [[ ! -f "$meta_path" ]]; then
-              echo "Expected generated meta sidecar is missing: $meta_path"
-              exit 1
-            fi
-
-            spl_files+=("$spl_path")
-            mkdir -p "pipeline_bundle/$(dirname "$spl_path")"
-            cp "$spl_path" "pipeline_bundle/$spl_path"
-            cp "$meta_path" "pipeline_bundle/$meta_path"
-          done
-
-          # Register item 3.2. Sidecars only, for every rule the step above
-          # refreshed -- these rules are not part of spl_files/has_spl below
-          # (that stays scoped to what this run actually changed and tested),
-          # they just need their meta.json riding along in the same bundle so
-          # prod's download has full coverage, not only the .spl.
-          mapfile -t unchanged_rules <<'EOF'
-          ${{ steps.unchanged.outputs.unchanged_rules }}
-          EOF
-
-          for rule in "${unchanged_rules[@]}"; do
-            [[ -z "$rule" ]] && continue
-
-            name="$(basename "$rule")"
-            name="${name%.yml}"
-            name="${name%.yaml}"
-            name="${name%.sigma}"
-
-            meta_path="rules/splunk/${name}.meta.json"
-            if [[ ! -f "$meta_path" ]]; then
-              echo "Expected refreshed meta sidecar is missing: $meta_path"
-              exit 1
-            fi
-
-            mkdir -p "pipeline_bundle/$(dirname "$meta_path")"
-            cp "$meta_path" "pipeline_bundle/$meta_path"
-          done
-
-          if [[ "${#spl_files[@]}" -eq 0 ]]; then
-            echo "No generated SPL files found."
-            echo "has_spl=false" >> "$GITHUB_OUTPUT"
-            {
-              echo "spl_files<<EOF"
-              echo "EOF"
-            } >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "Generated SPL files selected for deploy + atomic verify:"
-          printf ' - %s\n' "${spl_files[@]}"
-
-          echo "has_spl=true" >> "$GITHUB_OUTPUT"
-          {
-            echo "spl_files<<EOF"
-            printf '%s\n' "${spl_files[@]}"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+          python scripts/state/build_pipeline_bundle.py
 
       # Register item 3.2, stage A. This is deliberately its own step, placed
       # before the commit below and with no continue-on-error: a failed
