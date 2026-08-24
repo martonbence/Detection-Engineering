@@ -158,7 +158,7 @@ Note: `ci_prod_workflow.yml`'s single job (`deploy_to_prod`) also runs on `self-
 | [`tests/`](tests/) | pytest suite over the Python scripts, with Splunk faked — run by `ci_code_checks.yml` |
 | [`docs/schemas/`](docs/schemas/) | JSON Schema that gates every rule (`sigma_schema.json`) |
 | [`scripts/docs/assets/`](scripts/docs/assets/) | The rule browser's source: `page.template.html`, `page.css`, `page.js`, inlined into `docs/index.html` by `generate_stats.py` |
-| [`docs/index.html`](docs/index.html) | The rule browser / MITRE Navigator published to GitHub Pages — generated, never hand-edited |
+| `docs/index.html` | The rule browser / MITRE Navigator — generated, never hand-edited, and (as of `audit/feature-and-process-audit.md` item 4.4) never committed to `dev` either; published straight from a same-run build artifact. See it live at [martonbence.github.io/Detection-Engineering](https://martonbence.github.io/Detection-Engineering/) |
 | [`docs/architecture/`](docs/architecture/) | Deeper technical references: pipeline overview, data flow and threat model with Mermaid diagrams, plus a per-file [scripts reference](docs/architecture/scripts_reference.md) |
 | [`outputs/reports/`](outputs/reports/) | Generated aggregate JSON (`stats.json`, `mitre_technique_map.json`, `navigator_layer.json`) |
 | [`outputs/results/`](outputs/results/) | Per-rule `DETECT-*` pass/fail verification results |

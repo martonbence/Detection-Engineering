@@ -19,6 +19,7 @@ tmp_path, never a git worktree.
 import pytest
 from merge_verification_results import (
     COMMIT_MESSAGE,
+    STAGE_PATHS,
     AttemptOutcome,
     GitOps,
     build_inventory_args,
@@ -187,6 +188,28 @@ def test_inventory_args_neither_present_is_a_skip(tmp_path):
     reconcile = tmp_path / "reconcile.json"
 
     assert build_inventory_args(deploy, reconcile) == []
+
+
+# --- STAGE_PATHS (pure data) --------------------------------------------------
+
+
+def test_stage_paths_still_covers_raw_verdicts_and_dashboard_json():
+    """outputs/results/ and outputs/reports/ are explicitly in scope (item
+    4.4 is about docs/index.html and README.md's generated block, not these):
+    other jobs read outputs/reports/stats.json back off dev via the GitHub
+    contents API (open_promotion_pr), so it must still land as a real commit."""
+    assert "outputs/results/" in STAGE_PATHS
+    assert "outputs/reports/" in STAGE_PATHS
+
+
+def test_stage_paths_no_longer_commits_the_generated_console():
+    """audit/feature-and-process-audit.md item 4.4: docs/index.html and
+    README.md's STATS block stop riding along in this commit. docs/index.html
+    now travels to deploy_pages as a same-run artifact instead (see the
+    workflow's "Upload console artifact for Pages" step); README.md's
+    generated block is not written back to dev by this step at all any more."""
+    assert "docs/index.html" not in STAGE_PATHS
+    assert "README.md" not in STAGE_PATHS
 
 
 # --- run_attempt: the loop body with git/subprocess fully injected -----------

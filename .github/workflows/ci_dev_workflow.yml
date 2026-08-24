@@ -1812,9 +1812,9 @@ jobs:
       # "Not Verified" -- until someone manually re-ran the pipeline once the
       # lab was back.
       #
-      # generate_stats.py and the README/docs/index.html commit now live in
-      # the update_dashboard job below, which `needs: [prepare_validate_convert,
-      # splunk_verify]` with `always()` -- so it runs whether this job ran,
+      # generate_stats.py now lives in the update_dashboard job below, which
+      # `needs: [prepare_validate_convert, splunk_verify]` with `always()` --
+      # so it runs whether this job ran,
       # was skipped, or failed, and always regenerates the dashboard from
       # whatever is actually on disk (this job's fresh verification evidence
       # if it landed, otherwise just the previously-committed state, which is
@@ -1994,6 +1994,26 @@ jobs:
     # consumer was skipped" is unreachable by construction, not merely
     # unlikely. The reachable gaps (this job fails; the run is cancelled by
     # hand) are what persist_results_fallback below covers.
+    #
+    # audit/feature-and-process-audit.md item 4.4, 2026-08-24 follow-up
+    # (moving docs/index.html and README's generated block off the branch
+    # entirely -- one slice of item 4.4's still-open "(b)" scope, the wider
+    # generated-artifacts-off-dev direction; moving outputs/results/ and
+    # outputs/reports/ the same way is a separate, NOT-done slice of that
+    # same direction, deliberately out of scope here -- see the 2026-08-24
+    # journal entry). This job's one commit used to also carry
+    # docs/index.html and README.md's generated STATS block -- 185 of ~894
+    # commits on this branch touched docs/index.html alone. Both are still
+    # regenerated on disk here (generate_stats.py itself did not change), but
+    # neither is staged/committed by merge_verification_results.py any more
+    # (see its STAGE_PATHS). Instead, this job's last step now uploads docs/
+    # as a same-run artifact, and deploy_pages below downloads it directly
+    # instead of checking out dev's tip -- Pages publishing no longer depends
+    # on a commit having landed at all. outputs/results/ and outputs/reports/
+    # (including stats.json, which open_promotion_pr reads back off dev via
+    # the GitHub contents API) are UNCHANGED by this and keep committing
+    # exactly as before. See merge_verification_results.py's module
+    # docstring for the full picture.
     if: |
       always() &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev' &&
@@ -2090,11 +2110,15 @@ jobs:
       # tests/test_merge_verification_results.py) for the same reason
       # determine_changed_rules.py exists -- pytest can reach it,
       # actionlint/shellcheck could only ever check the old shell's syntax.
-      # Behaviour is unchanged: same file paths
-      # (outputs/verify/results_download/results, outputs/results/,
-      # outputs/deploy/dev_deploy_report.json, outputs/state/reconcile.json),
-      # same delta-append idempotency, same `git add` scope, same 3-attempt
-      # reset/commit/push retry with the same backoff.
+      # Behaviour otherwise unchanged from the original slice-2 extraction:
+      # same file paths (outputs/verify/results_download/results,
+      # outputs/results/, outputs/deploy/dev_deploy_report.json,
+      # outputs/state/reconcile.json), same delta-append idempotency, same
+      # 3-attempt reset/commit/push retry with the same backoff. The `git add`
+      # scope itself DID change here, 2026-08-24: item 4.4's STAGE_PATHS no
+      # longer includes docs/index.html or README.md -- see this job's own
+      # top-level comment and merge_verification_results.py's module
+      # docstring.
       - name: Merge verification results, generate stats and commit
         shell: bash
         env:
@@ -2102,6 +2126,33 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/state/merge_verification_results.py
+
+      # audit/feature-and-process-audit.md item 4.4. docs/index.html and
+      # README.md's STATS block are still regenerated on disk by the step
+      # above (generate_stats.py itself is unchanged) but are no longer part
+      # of that step's commit -- this is the transport that replaces it for
+      # Pages. Default step sequencing does the right thing here without an
+      # explicit `if:`: if the step above failed (e.g. 3 failed push
+      # attempts), this step is skipped, the job's result is 'failure', and
+      # deploy_pages below (gated on this job's result being exactly
+      # 'success') never even attempts to download it -- there is no
+      # "artifact not found" failure mode to handle downstream, only a clean
+      # skip. Uploading unconditionally on push failure was considered and
+      # rejected: outputs/results/ would not have landed on dev in that case
+      # either, and publishing a dashboard describing evidence that exists
+      # nowhere durable would be incoherent, not just imperfect.
+      #
+      # retention-days: 1, matching atomic-progress-victim and
+      # splunk-reconcile above -- this is pure same-run transport to
+      # deploy_pages, consumed within the same workflow run, not evidence
+      # anyone needs to recover later the way verify-results or
+      # dev-deploy-report are.
+      - name: Upload console artifact for Pages
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: console-${{ github.run_id }}
+          path: docs/
+          retention-days: 1
 
   # audit/feature-and-process-audit.md item 4.4. The safety net for the one
   # thing artifact transport gives up: before this change, splunk_verify
@@ -2475,22 +2526,31 @@ jobs:
     # is neither 'success' nor 'failure', and this job never ran, so a
     # new/changed rule's SPL got committed but docs/index.html never
     # republished to show it -- not even as "Not Verified". update_dashboard
-    # is the job that actually regenerates and commits docs/index.html now,
-    # and it runs (via its own always()) whether or not LAB_ONLINE was true
-    # and whether splunk_verify ran, was skipped, or failed -- see
-    # update_dashboard's `if:` above.
+    # is the job that actually regenerates docs/index.html now, and it runs
+    # (via its own always()) whether or not LAB_ONLINE was true and whether
+    # splunk_verify ran, was skipped, or failed -- see update_dashboard's
+    # `if:` above.
     #
-    # success-or-failure (not always() alone) still matters here: a *skipped*
-    # update_dashboard means has_spl was false (a push that touched no rules)
-    # or prepare_validate_convert itself failed, so nothing was regenerated --
-    # publishing the unchanged tree again would just repeat the last real
-    # deploy for no reason.
+    # audit/feature-and-process-audit.md item 4.4, 2026-08-24 follow-up:
+    # dropped the 'failure' branch that used to sit alongside 'success' here.
+    # update_dashboard now has exactly one commit-relevant step ("Merge
+    # verification results, generate stats and commit"), so a 'failure'
+    # result means that step failed -- which also means its "Upload console
+    # artifact for Pages" step (the very next step) never ran, by default
+    # step-sequencing, so there is no artifact for this job to download in
+    # that case. Before this change that same failure mode still let this job
+    # run and re-publish dev's already-live docs/index.html via checkout --
+    # a harmless no-op (the checkout can only ever see what was already
+    # committed, i.e. unchanged), never the actually-failed-to-commit new
+    # content. Requiring 'success' here just stops paying for that no-op
+    # redeploy and the Pages concurrency-group hold it used to take.
     if: |
       always() &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev' &&
-      (needs.update_dashboard.result == 'success' || needs.update_dashboard.result == 'failure')
+      needs.update_dashboard.result == 'success'
     runs-on: ubuntu-latest
-    # Checkout plus two Pages actions. The cap also bounds how long this can
+    # No checkout any more -- see the download-artifact step below. Just the
+    # download plus two Pages actions. The cap also bounds how long this can
     # hold the repo-wide `pages` concurrency group, which ci_code_checks.yml's
     # publish job queues behind.
     timeout-minutes: 15
@@ -2504,9 +2564,19 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # audit/feature-and-process-audit.md item 4.4, 2026-08-24 follow-up.
+      # Used to be `actions/checkout` at `ref: dev`, reading docs/index.html
+      # off whatever update_dashboard's commit had just pushed -- which made
+      # this job's publish depend on that commit having landed first. Now
+      # downloads the same-run artifact update_dashboard's last step uploaded
+      # instead, so publishing no longer depends on a git write-back
+      # succeeding at all; a checkout is not needed for anything else here
+      # (configure-pages is a pure GitHub API call, not a repo read).
+      - name: Download console artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          ref: dev
+          name: console-${{ github.run_id }}
+          path: docs
 
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 

@@ -24,10 +24,22 @@
 #      neither exists, the script is not invoked at all (not fatal either
 #      way -- a failure here is a ::warning::, not a crash).
 #   4. Regenerate stats/docs/rule-browser content via generate_stats.py.
-#   5. Stage exactly outputs/results/, outputs/reports/, README.md,
-#      docs/index.html -- never `git add -A`: outputs/verify/ holds the
-#      downloaded artifact (including .delta sidecars) and must never be
-#      committed.
+#   5. Stage exactly outputs/results/, outputs/reports/ -- never `git add -A`:
+#      outputs/verify/ holds the downloaded artifact (including .delta
+#      sidecars) and must never be committed. README.md and docs/index.html
+#      are DELIBERATELY NOT staged here as of
+#      audit/feature-and-process-audit.md item 4.4 (2026-08-24): both are
+#      still regenerated on disk by run_generate_stats() below (generate_stats.py
+#      itself is unchanged), but the calling job now uploads docs/ as a
+#      same-run GitHub Actions artifact (see ci_dev_workflow.yml's
+#      update_dashboard job, "Upload console artifact for Pages" step) instead
+#      of committing it, and deploy_pages downloads that artifact rather than
+#      checking out dev's tip. Before this change docs/index.html alone
+#      accounted for 185 of ~894 commits on this branch. README.md's
+#      STATS_START/STATS_END block stops being auto-refreshed on dev entirely
+#      as part of the same change -- see that job's comment for why, and the
+#      tradeoff (the committed README can go stale between runs) that comes
+#      with it.
 #   6. Nothing staged -> exit 0 (no-op). Otherwise commit and push; on push
 #      failure, sleep and retry the whole loop, up to 3 attempts total.
 #
@@ -86,6 +98,15 @@ RECONCILE_PATH = "outputs/state/reconcile.json"
 
 COMMIT_MESSAGE = "chore(pipeline): verification results and dashboard [skip ci]"
 MAX_ATTEMPTS = 3
+
+# audit/feature-and-process-audit.md item 4.4. Used to also list README.md and
+# docs/index.html; both are still written to disk by run_generate_stats()
+# below (generate_stats.py's own behaviour is unchanged) but are no longer
+# committed to dev at all -- docs/index.html travels to deploy_pages as a
+# same-run artifact instead (see stage_paths() below and the workflow's
+# "Upload console artifact for Pages" step), and README.md's generated block
+# is not written back anywhere until a human refreshes it locally.
+STAGE_PATHS = ["outputs/results/", "outputs/reports/"]
 
 
 def eprint(msg: str) -> None:
@@ -349,8 +370,9 @@ def default_git_ops() -> GitOps:
 def stage_paths() -> None:
     # Deliberately scoped, never `git add -A`: outputs/verify/ holds the
     # downloaded artifact (including the .delta sidecars) and must never be
-    # committed.
-    _run(["git", "add", "outputs/results/", "outputs/reports/", "README.md", "docs/index.html"])
+    # committed. See STAGE_PATHS' own comment for why README.md and
+    # docs/index.html dropped out of this list (item 4.4).
+    _run(["git", "add", *STAGE_PATHS])
 
 
 def run_inventory(inv_args: list[str]) -> None:
