@@ -2434,148 +2434,46 @@ jobs:
       always() &&
       needs.splunk_verify.result == 'success'
     runs-on: ubuntu-latest
-    # A handful of gh CLI calls and nothing else.
+    # A checkout, a Python interpreter (stdlib only -- no pip install), and a
+    # handful of gh CLI calls.
     timeout-minutes: 15
     environment: dev
 
     steps:
+      # Shallow is fine: this job never calls generate_stats.py, so
+      # compute_rule_version()'s `git log --follow` requirement (the reason
+      # update_dashboard's own checkout, earlier in this file, needs
+      # `fetch-depth: 0`) does not apply here.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      # audit/feature-and-process-audit.md item 4.1, slice 3. This step used
+      # to be ~137 lines of inline, `gh`-CLI-heavy bash; the logic now lives
+      # in scripts/state/open_promotion_pr.py (tested by
+      # tests/test_open_promotion_pr.py) for the same reason
+      # determine_changed_rules.py (slice 1) and merge_verification_results.py
+      # (slice 2) exist -- pytest can reach it, actionlint/shellcheck could
+      # only ever check the old shell's syntax. Behaviour is unchanged: same
+      # existing-PR short circuit, same audit/remediation-plan.md item 4.11
+      # stale_count best-effort fetch/fallback, same audit/remediation-plan.md
+      # item 4.9 rule_table best-effort fetch/fallback, same PR body/step-
+      # summary shape, same Project #3 best-effort add/status-edit with the
+      # same known fine-grained-PAT gap. GITHUB_REPOSITORY/GITHUB_RUN_ID/
+      # GITHUB_STEP_SUMMARY are read straight from the runner's ambient
+      # environment (they are always present), so no extra `env:` mapping is
+      # needed beyond GH_TOKEN below.
       - name: Open promotion PR to main and mark it In review
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GH_PAT_DEV_PUSH }}
         run: |
           set -euo pipefail
-
-          existing_url=$(gh pr list --repo "${{ github.repository }}" --head dev --base main --state open --json url --jq '.[0].url // empty')
-
-          # Register item 4.11: pass_fail_eval.py only scores the rules this
-          # run touched, so a verdict that quietly expired (>REVIEW_INTERVAL_DAYS
-          # old) or was superseded (rule body changed since) on an UNTOUCHED
-          # rule never fails anything and could sit in prod unmeasured
-          # indefinitely -- the title of 4.11 says "a report, not a gate", so
-          # this surfaces the count instead of blocking on it. splunk_verify
-          # just regenerated stats.json over the WHOLE rule set on the current
-          # wall clock, so its counts are fresh as of this run, not a stale
-          # snapshot. Fetched via the contents API rather than a checkout, to
-          # keep this job at "a handful of gh CLI calls and nothing else" (see
-          # the timeout-minutes comment above). Best-effort: a failure here
-          # must never block opening the actual PR, so it falls back to 0
-          # rather than aborting under set -e.
-          stale_count=0
-          stats_json=""
-          if stats_json=$(gh api "repos/${{ github.repository }}/contents/outputs/reports/stats.json?ref=dev" -H "Accept: application/vnd.github.raw" 2>/dev/null); then
-            stale_count=$(jq -r '((.verified_expired // 0) + (.verified_superseded // 0))' <<<"$stats_json" 2>/dev/null || echo 0)
-          fi
-
-          # Mark and alert-kind kept in sync by hand with scripts/lib/summary.py
-          # (MARK_WARN / ALERT_WARN) -- bash cannot import it. That module is
-          # where they are explained.
-          stale_note=""
-          if [[ "$stale_count" -gt 0 ]]; then
-            stale_note="> [!WARNING]"$'\n'"> 🟡 ${stale_count} rule(s) already deployed to prod have an expired or superseded verification verdict -- no evidence they still work, through no fault of this run. See the Evidence card on the Console for which ones. This does not block promotion; schedule a manual re-run for them when convenient."
-            echo "::warning::${stale_count} rule(s) in prod have an expired or superseded verdict -- see the Console's Evidence card"
-          fi
-
-          # Register item 4.9: the body used to be one fixed sentence, telling a
-          # reviewer nothing about WHAT this PR actually promotes. This looks at
-          # the dev->main diff (not the whole rule set -- that would only get
-          # noisier as the rule count grows) for rule files touched, and lists
-          # each one's current verdict/level from the stats_json already fetched
-          # above. Best-effort like stale_count above: a failure here must never
-          # block opening the PR, so a missing/malformed compare response just
-          # yields an empty table rather than aborting under set -e. A rule
-          # removed in this diff will silently drop out of the table (it is no
-          # longer in stats.json's rules list) rather than being flagged as a
-          # removal -- an acceptable gap for how this repo uses promotion PRs
-          # today (adding/changing rules), not a claim that deletions never
-          # happen.
-          rule_table=""
-          if [[ -n "$stats_json" ]]; then
-            changed_ids=$(gh api "repos/${{ github.repository }}/compare/main...dev" --jq '.files[].filename' 2>/dev/null \
-              | grep -oE 'DETECT-[0-9]{4}-[0-9]{4}' | sort -u || true)
-            rows=""
-            while IFS= read -r did; do
-              [[ -z "$did" ]] && continue
-              row=$(jq -r --arg did "$did" '
-                (.rules[]? | select(.detect_id == $did)) as $r
-                | if $r then
-                    "| `" + $r.detect_id + "` | " + ($r.title // "") + " | " + ($r.level // "") + " | " +
-                    (if $r.verdict == "PASS" then "🟢 PASS"
-                     elif $r.verdict == "FAIL" then "🔴 FAIL"
-                     elif $r.verdict == "NOT_VERIFIED" then "🟡 NOT VERIFIED"
-                     else "⚪ " + ($r.verdict // "never tested")
-                     end) + " |"
-                  else empty end
-              ' <<<"$stats_json" 2>/dev/null || true)
-              [[ -n "$row" ]] && rows="${rows}${row}"$'\n'
-            done <<<"$changed_ids"
-            if [[ -n "$rows" ]]; then
-              rule_table="### Rules in this promotion"$'\n\n'"| Detect ID | Title | Level | Verdict |"$'\n'"|---|---|---|---|"$'\n'"${rows%$'\n'}"
-            fi
-          fi
-
-          if [[ -n "$existing_url" ]]; then
-            echo "A dev -> main promotion PR is already open: $existing_url"
-            # Marks kept in sync by hand with scripts/lib/summary.py -- bash
-            # cannot import it. That module is where they are explained.
-            {
-              echo "### Promotion PR"
-              echo ""
-              echo "⚪ Already open: $existing_url"
-              if [[ -n "$stale_note" ]]; then
-                echo ""
-                echo "$stale_note"
-              fi
-              if [[ -n "$rule_table" ]]; then
-                echo ""
-                echo "$rule_table"
-              fi
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-
-          body="Automatically opened because the dev pipeline run ${{ github.run_id }} reported PASS. This promotes the already-verified, already-compiled SPL to the prod Splunk App. Review and merge manually to deploy to production -- this PR does not auto-merge. If you edit any \`.spl\` content in this review, re-run the dev workflow before merging (push to \`dev\` again, or a manual \`workflow_dispatch\`): prod verifies the build-provenance signature recorded for the exact bytes that run produced, so a hand-edited file with no matching signature will stop the deploy."
-          if [[ -n "$stale_note" ]]; then
-            body="${body}"$'\n\n'"${stale_note}"
-          fi
-          if [[ -n "$rule_table" ]]; then
-            body="${body}"$'\n\n'"${rule_table}"
-          fi
-
-          pr_url=$(gh pr create --repo "${{ github.repository }}" \
-            --base main --head dev \
-            --title "Promote verified detections from dev to main" \
-            --label "automated-promotion" \
-            --body "$body")
-
-          echo "Opened promotion PR: $pr_url"
-          {
-            echo "### Promotion PR"
-            echo ""
-            echo "🟢 Opened: $pr_url"
-            if [[ -n "$stale_note" ]]; then
-              echo ""
-              echo "$stale_note"
-            fi
-            if [[ -n "$rule_table" ]]; then
-              echo ""
-              echo "$rule_table"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          if item_id=$(gh project item-add 3 --owner martonbence --url "$pr_url" --format json --jq '.id' 2>&1); then
-            if gh project item-edit \
-              --id "$item_id" \
-              --project-id "PVT_kwHOA_8eh84BeHTL" \
-              --field-id "PVTSSF_lAHOA_8eh84BeHTLzhYj6O0" \
-              --single-select-option-id "4fdb6324" 2>&1; then
-              echo "Set Project #3 Status=In review for $pr_url"
-            else
-              echo "::warning::Opened $pr_url but failed to set its Project #3 status to In review (GH_PAT_DEV_PUSH likely lacks Projects permission -- known gap for fine-grained PATs on user-owned projects)"
-            fi
-          else
-            echo "::warning::Opened $pr_url but failed to add it to Project #3 (GH_PAT_DEV_PUSH likely lacks Projects permission -- known gap for fine-grained PATs on user-owned projects): $item_id"
-          fi
+          python scripts/state/open_promotion_pr.py
 
   # audit/feature-and-process-audit.md item 3.6 (not remediation-plan.md's own
   # 3.6, which is the unrelated, already-closed bundle-smoke-test item -- both
