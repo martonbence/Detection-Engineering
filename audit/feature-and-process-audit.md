@@ -134,7 +134,7 @@ teljesíthető utasítással indul.
 
 ## 4 · Robusztusság és karbantarthatóság (8) · ×2
 
-- [ ] **4.1** 1 827 sor inline shell a workflow-kban, ebből 1 263 a dev workflow-ban (elavult alapszám — 2026-08-23-án újraszámolva **~1 954/1 394** volt a munka *előtt*, mert a `ci_dev_workflow.yml` időközben 2 572-ről 3 060 sorra nőtt; Kwame saját, YAML-`run:`-blokkokat ténylegesen parszoló újraszámolása ehhez közeli, de nem azonos tartományt ad — **2 017/1 433** a munka előtti állapotra —, a néhány százalékos eltérés számolási módszertani, nem valóságbeli különbség, ld. Napló 2026-08-23) · `ci_dev_workflow.yml` 2 572 sor (1 005 komment, 1 263 inline `run:` shell), `ci_code_checks.yml` 252, `ci_prod_audit.yml` 175, `ci_prod_workflow.yml` 137 · Ez a repo legnagyobb tesztelhetetlen kódfelülete: unit-teszt nem éri el, csak a shellcheck látja (actionlinten keresztül) — az pedig szintaxist ellenőriz, nem viselkedést. A pipeline logikájának jelentős része itt él (verify-ablak számítása, commit-visszaírás retryvel, bundle-kezelés, provenance-ellenőrzés). Nem az egész kiszervezése a cél, hanem a leghosszabb, legtöbb elágazást tartalmazó blokkoké `scripts/ci/*.sh` vagy Python alá, ahol a pytest is látja őket. (Helyi megjegyzés: az actionlint Windowson beragad nagy `run:` blokkokon — a méret már ma is fáj.) → **Jamal** ⟶ részlegesen lezárva (az öt legnagyobb/legelágazóbb `run:` blokk közül az első négy — `prepare_validate_convert` job „Determine changed Sigma files" lépése, 206 sor, `update_dashboard` job „Merge verification results, generate stats and commit" lépése, 137 sor, `open_promotion_pr` job „Open promotion PR to main and mark it In review" lépése, 132 sor, és `splunk_verify` job „Reconcile Splunk state against the repo" lépése, 118 sor — kiszervezve `scripts/state/determine_changed_rules.py`-ba, `scripts/state/merge_verification_results.py`-ba, `scripts/state/open_promotion_pr.py`-ba, illetve `scripts/state/reconcile_step.py`-ba, mind a négy tesztekkel fedve; az utolsó, ötödik blokk (`prepare_validate_convert` „Build pipeline bundle" lépése, 111 sor) és a kisebb blokkok hosszú farka érintetlen, ld. Napló 2026-08-23 és 2026-08-24 (négy bejegyzés))
+- [x] **4.1** 1 827 sor inline shell a workflow-kban, ebből 1 263 a dev workflow-ban (elavult alapszám — a munka *előtti* valós alapállapot, mérve `1596455^`-nál: **3 060 sor** `ci_dev_workflow.yml`, mert a fájl időközben 2 572-ről nőtt idáig, ld. Napló 2026-08-23) · **Lezárva 2026-08-24, mind az öt azonosított inline-shell blokk kiszervezve, mindegyiket Kwame függetlenül verifikálta:** `determine_changed_rules.py` (206 sor, slice 1, `1596455`), `merge_verification_results.py` (137 sor, slice 2, `e0bd5c7`), `open_promotion_pr.py` (132 sor, slice 3, `8566f90`), `reconcile_step.py` (118 sor, slice 4, `1a104c0`), `build_pipeline_bundle.py` (111 sor, slice 5, `d02929c`) — mind az öt `scripts/state/` alatt, mind az öt saját tesztmodullal fedve. A `ci_dev_workflow.yml` ma (mérve) **2 518 sor**, a munka-előtti **3 060**-hoz képest **−542 sor nettó** öt szelet alatt. A cél sosem a teljes inline shell felszámolása volt, hanem a leghosszabb/legelágazóbb blokkoké — ez megtörtént; a fájlban maradó, kisebb `run:` blokkok hosszú farka tudatosan nyitva marad, nem e tétel hatóköre. → **Jamal**, Kwame verifikálta mind az öt szeletet
 - [x] **4.2** 7 500 sor front-end, nulla automatizált ellenőrzés · `scripts/docs/assets/page.js` (2 878), `page.css` (4 036), `page.template.html` (586) · A `ci_code_checks.yml` négy checkerje Pythont (ruff+pytest), PowerShellt (parser+PSScriptAnalyzer), workflow-YAML-t (actionlint+shellcheck) és függőséget (pip-audit) fed — JS/CSS/HTML-t **egyiket sem**. `grep eslint|stylelint|prettier|npm` a workflow-kban: 0 találat. Arányában: 3 400 sor Pythont 555 teszt véd, 7 500 sor front-endet semmi. Belépő szint: `eslint` minimál szabálykészlettel + HTML-validáció a generált oldalon, önálló jobként (hogy egy JS-hiba ne maszkolja a ruffot, a repo bevált mintája szerint) → **Sienna** (tartalom) + **Jamal** (job)
 - [x] **4.3** A teszt-suite bukik a fejlesztő saját gépén · `python -m pytest` → **3 failed, 552 passed**, mindhárom a `tests/test_meta_only.py`-ban, hibaüzenet: `'No time zone found with key Europe/Budapest'` · Ok: a `scripts/convert/sigma_to_spl.py:334` `ZoneInfo("Europe/Budapest")`-et használ, Windows alatt viszont nincs rendszerszintű tzdata, és a `.github/requirements-dev.txt` (pytest, ruff) nem tartalmazza a `tzdata` csomagot. CI-ban (ubuntu) zöld, helyben piros — ez a legrosszabb fajta eltérés, mert a fejlesztőt arra tanítja, hogy a piros suite normális. Javítás: `tzdata` a dev-requirementsbe (és/vagy a sidecar időbélyegének UTC-re váltása) → **Jamal**
 - [ ] **4.4** Hat különböző commit-visszaírási út, futásonként 3-4 gépi commit · `ci_dev_workflow.yml` (jelenleg 3 commit: összevont prune+SPL / verify results / dashboard — ld. Napló 2026-08-22), `ci_code_checks.yml` (1), `ci_prod_audit.yml` (1) · 894 commitból **256** (29%) `[skip ci]` gépi commit; a `docs/index.html`-t 185, az `outputs/`-ot 221 commit érinti. Következmény a napi munkára: a felhasználó minden helyi commit előtt rebase-elni kényszerül, mert a CI mindig elé ír (ez már rögzített projekt-tapasztalat). A történet ettől olvashatatlan is: egy valódi változtatás körül 3-4 zajcommit ül. Irány: egy futás = legfeljebb egy visszaírás (az `update_dashboard` amúgy is külön jobban fut, oda összevonható), vagy a generált artefaktumok kivezetése a branchről (Pages-artifact + release-asset), ami a 3.5-tel is összeér → **Jamal** ⟶ részlegesen lezárva (a biztonságos fele kész, a maradék nagyobb léptékű átalakítást igényel és nem közeli munka, ld. Napló 2026-08-22)
@@ -1939,3 +1939,162 @@ grep-elni.
   „Build pipeline bundle" lépése (111 sor) — ezzel zárulna az 5/5 szelet
   és a teljes 4.1 tétel — vagy **4.4** maradék fele — Gaz dönt a
   sorrendről. **Modell:** ez a könyvelési kör Sonnet 5-ön futott.
+
+- **2026-08-24 (negyedik, önálló könyvelési kör ma — a szelet-2, szelet-3
+  és szelet-4 napló után — 4.1 hatodik napló, 5. szelet lezárva, a teljes
+  tétel LEZÁRVA (5/5)), Kwame verifikálta.** `git log --oneline` →
+  `d02929c` („refactor(ci): extract bundle-build step to testable Python
+  (4.1, slice 5/5)"), rögtön `09128af` után („chore(audit): book 4.1
+  slice 4, Kwame-verified"), ma. `git diff --numstat d02929c^ d02929c`
+  egyezik a jelentéssel pontosan: `ci_dev_workflow.yml` **+46/−110**,
+  `scripts/state/build_pipeline_bundle.py` új fájl **+438**,
+  `tests/test_build_pipeline_bundle.py` új fájl **+482** — a tesztfájlban
+  ténylegesen **38** `def test_` van, egyezik a jelentett darabszámmal.
+  **A wholesale `scripts/lib/` másolást magam is lefuttattam egy valódi
+  tesztfán, nem csak elolvastam az érvelést:** néhány fájlt és két szintnyi
+  alkönyvtárat (`sub/`), plusz két `__pycache__` könyvtárat (gyökér- és
+  beágyazott szinten) tartalmazó `src/scripts/lib/`-et
+  `shutil.copytree(src, dst, dirs_exist_ok=True)`-vel másoltam egy már
+  `mkdir -p`-vel üresen létrehozott `dst/scripts/lib/`-be, majd lefuttattam
+  a `prune_pycache()`-nek megfelelő takarítást — az eredmény tartalom-szintű
+  másolás, **nincs** `dst/scripts/lib/lib/` dupla-beágyazás, és mindkét
+  `__pycache__` eltűnt, a valódi fájlok (`env.py`, `rules.py`,
+  `sub/nested.py`) sértetlenül megmaradtak. A `copy_lib_wholesale()`
+  docstringjének érvelése (a `dirs_exist_ok=True` + előre üresen létrehozott
+  `dst` pontosan a bare `cp -r src/. dst/` viselkedését adja vissza) tehát
+  nem csak plauzibilis, hanem mérve is igaz.
+  **A `__pycache__`-takarítás hatóköre valóban csak a másolt `scripts/lib/`
+  fára korlátozódik**, nem az egész bundle-re — `prune_pycache()` a
+  `bundle_dir / "scripts" / "lib"` almappát kapja paraméterül
+  `run_step()`-ből, ugyanúgy, ahogy a régi `find pipeline_bundle/scripts/lib
+  -type d -name '__pycache__'` is csak oda nyúlt.
+  **A két hard-failure útvonal szövege és a két `$GITHUB_OUTPUT`-blokk
+  formátuma szó szerint egyezik a régivel** — `git show
+  d02929c^:.github/workflows/ci_dev_workflow.yml` és az új
+  `build_pipeline_bundle.py` egymás mellé téve: „Expected generated SPL
+  file is missing: {path}", „Expected generated meta sidecar is missing:
+  {path}" (változott rule ág) és „Expected refreshed meta sidecar is
+  missing: {path}" (változatlan rule ág) mindhárom karakterre azonos a régi
+  `echo`-kkal. A „nincs SPL" ág `render_multiline("spl_files", (),
+  blank_when_empty=False)` kimenete (`spl_files<<EOF\nEOF\n`, üres törzs)
+  és a populált ág (`"\n".join(values) + "\n"`, majd `EOF\n`) mindkettő
+  szintén byte-azonos a régi `{ echo "spl_files<<EOF"; echo "EOF"; }`
+  illetve `{ echo "spl_files<<EOF"; printf '%s\n' "${spl_files[@]}"; echo
+  "EOF"; }` blokkokkal — ezt is közvetlenül a két fájl egymás mellé
+  olvasásával, nem a jelentés állítását elfogadva ellenőriztem.
+  **A megjelölt, szándékos szekvencia-változás (validate-all-then-copy) nem
+  hoz létre gátolatlan olvasást egy félkész bundle-ből:** `grep -n
+  "steps.bundle.outputs\|pipeline_bundle"` és a job-szintű `if:`
+  feltételek átvizsgálva — a `prepare_validate_convert` jobon belül a
+  „Build pipeline bundle" lépésnek nincs `continue-on-error`-ja, és a
+  jobot fogyasztó minden downstream job (`deploy_to_splunk`,
+  `atomic_verify`, `atomic_verify_dc`, `emulation_verify`) implicit módon
+  megköveteli `prepare_validate_convert` sikerét (nincs `always()` a
+  job-szintű `if:`-jükben); a `splunk_verify` job kifejezetten `always()`
+  **és** `needs.prepare_validate_convert.result == 'success'`-t is
+  megköveteli egyszerre (a workflow saját kommentje, `:891-892`, pontosan
+  ezt a mintát nevezi meg). Nem találtam olyan lépést, ami `always()`-zel
+  vagy `continue-on-error`-ral hozzáférne egy sikertelen bundle-építés
+  után visszamaradt, félig kész `pipeline_bundle/`-hoz — a jelentés
+  állítása ellentmondás nélkül megáll.
+  **Az env-var keményítés valós, és a blank-line/`splitlines()` állítást
+  Python REPL-ben, szó szerint lefuttatva ellenőriztem, nem a docstringnek
+  hittem el:** a workflow YAML-ban a „Build pipeline bundle" lépés
+  `env:` blokkja ténylegesen tartalmazza `RULE_FILES:
+  ${{ steps.changes.outputs.rule_files }}` és `UNCHANGED_RULE_FILES:
+  ${{ steps.unchanged.outputs.unchanged_rules }}`-t, a `run:` törzs pedig
+  már csak `python scripts/state/build_pipeline_bundle.py`, semmilyen
+  GitHub Actions kifejezés nincs többé a script szövegébe interpolálva.
+  `"\n".splitlines()` → `['']` (egy üres string elem, nem nulla) —
+  pontosan azt a „nulla megváltozatlan szabály" esetet adja vissza, amit a
+  régi `mapfile` a heredoc fölött, és amit a `select_*_rule_files()`-ek
+  `if not rule: continue` ága ugyanúgy kiszűr, mint a régi shell `[[ -z
+  "$rule" ]] && continue`-ja.
+  **A regiszter-idézés javítása valós, helyesen attribuált és
+  disambiguált — a `pipeline-ci-gotchas` skill I. szakaszát a
+  Skill-eszközzel előbb betöltve ellenőriztem.** A workflow-kommentben
+  mindkét idézet a fájlnevet is megnevezi és zárójelben elhatárolja az
+  aktív register saját, más tartalmú azonos-számú tételétől: „audit/
+  remediation-plan.md item 3.6 (not this repo's active register's own
+  3.6, which is the unrelated, already-implemented Slack-notification
+  item)" és „audit/remediation-plan.md item 3.2 (not this repo's active
+  register's own 3.2, which is the unrelated, rejected prod-audit-
+  schedule item)". Tartalmilag mindkettő pontos: a `remediation-plan.md`
+  **3.6**-a (kész 2026-08-12) hozta létre a `scripts/lib/env.py`-t, aminek
+  hiánya a bundle-ből a régi, kézzel karbantartott `cp`-lista mellett a
+  #67-es futás `ModuleNotFoundError`-jét okozta (a `pipeline-ci-gotchas`
+  skill C szakasza ugyanezt az incidenst nevezi meg); a **3.2** Stage C
+  Naplója (`remediation-plan.md:989-991`, 2026-08-09) szó szerint leírja a
+  változatlan szabályok sidecar-jainak a bundle-ből való pótlását, ami
+  pontosan a `select_unchanged_rule_files()` mögötti mechanizmus. Az aktív
+  register saját 3.6-a (értesítés a pipeline eredményéről) és 3.2-je (a
+  prod-audit ütemezése, elutasítva) valóban más, ellenőrizve a fájl saját
+  102. és 122. sorában.
+  **A tesztelést és a kódot közvetlenül futtatva, nem csak átolvasva
+  ellenőriztem:** friss venv-be telepítve a `.github/requirements-dev.txt`
+  + `.github/requirements.txt` függőségeit, `pytest
+  tests/test_build_pipeline_bundle.py -q` → **38 passed**; a teljes
+  `pytest` suite → **861 passed**, 0 failed (861−38=823, egyezik a
+  jelentett „up from 823" állítással, ami maga is egyezik a szelet-4
+  zárónapló saját mérésével); `ruff check .` a teljes repón, majd külön
+  `ruff check scripts/state/build_pipeline_bundle.py
+  tests/test_build_pipeline_bundle.py` → mindkettő „All checks passed!";
+  a módosított `ci_dev_workflow.yml` `yaml.safe_load`-dal betöltve hiba
+  nélkül fut, mind a 11 job elérhető. **`actionlint` v1.7.12 + `shellcheck`
+  v0.10.0 saját letöltésű binárisokkal futtatva mind a négy workflow-fájl
+  ellen** (`ci_dev_workflow.yml`, `ci_prod_workflow.yml`,
+  `ci_prod_audit.yml`, `ci_code_checks.yml`) → nulla találat, kilépési
+  kód 0.
+  **A teljes 4.1-es tétel léptékű állítás is méréssel igazolva, nem csak
+  az öt szelet összegeként számolva:** `wc -l` a mai `ci_dev_workflow.yml`-en
+  → **2 518 sor**; `git show 1596455^:.github/workflows/ci_dev_workflow.yml
+  | wc -l` (a szelet-1 előtti állapot) → **3 060 sor**; a különbség
+  **pontosan 542 sor**, öt szelet alatt.
+  **Ez a mai negyedik önálló verifikációs körem** (a szelet-2, szelet-3 és
+  szelet-4 naplók után, ugyanezen a napon) — mind a négy, egymástól
+  független átfutás nulla eltérést talált a jelentett és a valós állapot
+  között.
+
+  **Az 5/5 szelet lezárja a teljes 4.1 tételt — a teljes ív összegzése:**
+  öt szelet, két nap (2026-08-23, 2026-08-24), kb. öt önálló munkamenet,
+  ugyanaz a minta mind az öt alkalommal (pure logika-függvény +
+  differenciál-ellenőrzés a régi shell ellen + pytest, változtatás nélkül
+  megőrzött kvirkök kódkommentben is dokumentálva, nem csak a jelentésben).
+  A `ci_dev_workflow.yml` **3 060 → 2 518 sor, nettó −542**, öt új,
+  tesztelt Python-modul (`determine_changed_rules.py`,
+  `merge_verification_results.py`, `open_promotion_pr.py`,
+  `reconcile_step.py`, `build_pipeline_bundle.py`) és öt új tesztfájl
+  született, a teljes suite 646-ról 861 tesztre nőtt (+215, ebből 46+29+
+  46+56+38=215, egyezik). Három, egymástól független, tudatosan
+  megjelölt és tesztelt keményítés bukkant fel útközben, nem csak egyszer:
+  a **szelet 3**-ban az `escape_cell()` (a PR-body táblák `|`/newline
+  escape-elése, meglévő, bevett repo-konvenció újrahasznosítva, nem
+  kitalálva), a **szelet 4**-ben a `bash -e`/`PIPESTATUS`-trükk strukturális
+  egyszerűsítése (a shell `if ... ; then rc=0; else rc="${PIPESTATUS[0]}";
+  fi` csomagolása feleslegessé vált, mert egy Python-függvény nemnulla
+  visszatérése nem szakítja meg az interpretert), és a **szelet 5**-ben az
+  env-var-alapú bemenet-átadás (GitHub Actions kifejezés soha nem
+  interpolálódik többé a script szövegébe) — mindhárom valós, a régi
+  shell egy-egy nevesíthető törékenységére válaszol, és mindhárom kapott
+  saját tesztet, nem csak dokumentációt. Ez a minta mind az öt szeleten
+  át tartott, nem csak egyszer működött.
+  **Tételszám-frissítés, a register saját számolási konvenciója szerint:**
+  a 4.1 eddig részlegesen lezártként (`[ ]` + „⟶ részlegesen lezárva”
+  jelöléssel) **nem** számított bele a 37/52-be — a konvenció (ld. a
+  szelet-1–4 naplók) szerint egy részleges tétel nyitva marad a
+  számlálóban, amíg teljesen le nem zár. Most **teljesen lezárt**
+  (`[x]`), tehát a számláló **37/52 → 38/52**-re nő.
+  **Következő tétel, a register saját nyitott-tétel-listája és a
+  Javasolt sorrend ellenőrizve, nem feltételezve:** a fájl jelenlegi
+  `- [ ]` tételei — `1.1`, `1.2`, `1.3`, `2.1`–`2.7`, `2.9`, `2.13`,
+  `2.14` — mind Chloe (dokumentáció) hatáskörébe tartoznak; a projekt
+  álló, rögzített preferenciája szerint (`feedback_deprioritize_docs`) a
+  dokumentációs tételek nem alapértelmezett következő lépések, rákérdezés
+  nélkül. Az egyetlen megmaradó, nem-docs, csapat-végrehajtható nyitott
+  tétel **4.4** maradék fele (a hat commit-visszaírási út
+  összevonásának nagyobb léptékű fele — a generált artefaktumok
+  branch-ről való kivezetése, Pages-artifact/release-asset formában,
+  ahogy a szelet-1–4 naplók is végig ezt nevezték meg következőként). Ez
+  egyezik azzal, amit a szelet-2/3/4 naplók már jeleztek — nem új
+  felfedezés, csak most már az egyetlen nyitott nem-docs tétel, miután a
+  4.1 lezárt. **Modell:** ez a könyvelési kör Sonnet 5-ön futott.
