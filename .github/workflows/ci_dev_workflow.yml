@@ -1774,7 +1774,10 @@ jobs:
       # Nothing else in this pipeline ever looks at Splunk and asks "is what is
       # in there still what we asked for?". Deletions and title renames both
       # leave objects behind that keep running and alerting, and no step
-      # notices. (Register items 1.7, 1.8; feeds 4.7.)
+      # notices. (audit/remediation-plan.md items 1.7, 1.8; feeds
+      # audit/remediation-plan.md item 4.7 -- not this repo's active register's
+      # own 4.7, which is the unrelated, already-closed UI-regression-testing
+      # item.)
       #
       # Non-blocking on purpose. It reports a *pre-existing* condition of the
       # Splunk instance, which has nothing to do with whether this particular
@@ -1783,12 +1786,13 @@ jobs:
       # verification itself failed, and continue-on-error so a Splunk hiccup in
       # this step cannot fail a run whose real work already succeeded.
       #
-      # --apply cleans up rename orphans only. Since register item 1.8 was
-      # closed on 2026-08-04 by keeping the human-readable object name, every
-      # title edit leaves one behind, so this is routine housekeeping rather
-      # than a migration -- and it is safe unattended because the script refuses
-      # to delete an old object whose replacement is not live in Splunk (a
-      # failed deploy must not end in a rule with no saved search).
+      # --apply cleans up rename orphans only. Since audit/remediation-plan.md
+      # item 1.8 was closed on 2026-08-04 by keeping the human-readable object
+      # name, every title edit leaves one behind, so this is routine
+      # housekeeping rather than a migration -- and it is safe unattended
+      # because the script refuses to delete an old object whose replacement is
+      # not live in Splunk (a failed deploy must not end in a rule with no
+      # saved search).
       # --apply-removals is deliberately NOT passed here: a rule vanishing from
       # the repo is not always intentional, so taking a detection out of service
       # stays a human decision. Run it by hand when the report shows one.
@@ -1800,6 +1804,30 @@ jobs:
       # exit 127 that read like a reconciliation failure rather than a skipped
       # setup. Gate on the deps step so a genuinely unavailable environment
       # shows as "skipped", not as a cleanup that may not have landed.
+      #
+      # audit/feature-and-process-audit.md item 4.1, slice 4 (slice 1 was
+      # determine_changed_rules.py, slice 2 was merge_verification_results.py,
+      # slice 3 was open_promotion_pr.py). This step used to be ~118 lines of
+      # inline bash, including the `if cmd; then rc=0; else
+      # rc="${PIPESTATUS[0]}"; fi` dance forced by GitHub always running
+      # `shell: bash` as `bash --noprofile --norc -e -o pipefail` regardless of
+      # this step's own `set -uo pipefail` line -- a command inside an `if` is
+      # exempt from `-e`, and this step depended on that exemption to reach its
+      # own diagnostics after reconcile.py failed. The logic now lives in
+      # scripts/state/reconcile_step.py (tested by tests/test_reconcile_step.py),
+      # which sidesteps the whole exemption dance: a Python function returning a
+      # nonzero exit code does not abort the interpreter the way a bash command
+      # does, so its write-summary/build-warnings/emit-failure-warning tail runs
+      # unconditionally regardless of reconcile.py's exit code, with no special
+      # framing needed. `bash -e` still applies to the one-line invocation
+      # below, but that is deliberately this step's last command, so dying on a
+      # nonzero exit there is exactly the intended `exit "$rc"`. Behaviour is
+      # unchanged: same `--apply-removals` double guard (event AND input, since
+      # `inputs.*` reads empty on a push), same tee-equivalent live-stream-plus-
+      # capture of reconcile.py's stdout with its real exit code (stderr stays
+      # connected to the job log, uncaptured, same as the old pipe), same
+      # pre-apply-state count correction, same four distinct remedy sentences,
+      # same two ::warning:: annotations.
       - name: Reconcile Splunk state against the repo
         if: always() && steps.deps.outcome == 'success'
         continue-on-error: true
@@ -1808,131 +1836,19 @@ jobs:
           SPLUNK_BASE_URL: ${{ secrets.SPLUNK_BASE_URL }}
           SPLUNK_USERNAME: ${{ secrets.SPLUNK_USERNAME }}
           SPLUNK_PASSWORD: ${{ secrets.SPLUNK_PASSWORD }}
-          # Register item 2.18: environment-scoped variable, not a secret.
-          # See the deploy_to_splunk step above for why.
+          # audit/remediation-plan.md item 2.18: environment-scoped variable,
+          # not a secret. See the deploy_to_splunk step above for why.
           SPLUNK_APP: ${{ vars.SPLUNK_APP }}
-          # Register item 2.14: no `|| 'false'` fallback -- an unset secret must
-          # not read as "skip verification". See deploy_to_splunk above for why.
+          # audit/remediation-plan.md item 2.14 (not this repo's active
+          # register's own 2.14, which is the unrelated CONTRIBUTING.md item):
+          # no `|| 'false'` fallback -- an unset secret must not read as "skip
+          # verification". See deploy_to_splunk above for why.
           SPLUNK_VERIFY_TLS: ${{ vars.SPLUNK_VERIFY_TLS }}
+          RETIRE_ORPHANS: ${{ inputs.retire_orphans }}
         run: |
-          set -uo pipefail
+          set -euo pipefail
 
-          # --apply-removals only on an explicit manual request. Guarded on the
-          # event as well as the input because `inputs.*` is empty on a push,
-          # and an empty string is not "false" in every bash comparison anyone
-          # might later write here -- being explicit costs one condition and
-          # removes the class of mistake that silently disables detections.
-          extra_args=()
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.retire_orphans }}" == "true" ]]; then
-            extra_args+=(--apply-removals)
-            echo "Retiring removal orphans as requested by the dispatch input."
-          fi
-
-          # Wrapped in `if` rather than run bare with `rc="${PIPESTATUS[0]}"` on
-          # the next line. GitHub runs `shell: bash` as `bash --noprofile --norc
-          # -e -o pipefail`, so -e applies regardless of the `set` line above:
-          # the moment reconcile.py exited non-zero the step would die right
-          # here, skipping the step summary and the warning below -- the very
-          # diagnostics that exist to make a failed cleanup visible. A command
-          # in an `if` condition is exempt from -e, and PIPESTATUS still refers
-          # to that pipeline inside the branch.
-          if python scripts/state/reconcile.py \
-            --rules-dir rules/sigma \
-            --json outputs/state/reconcile.json \
-            --apply \
-            "${extra_args[@]+"${extra_args[@]}"}" \
-            | tee reconcile_report.txt; then
-            rc=0
-          else
-            rc="${PIPESTATUS[0]}"
-          fi
-
-          {
-            echo "### Splunk state reconciliation"
-            echo
-            echo '```'
-            cat reconcile_report.txt
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          # Unresolved drift gets an annotation, not just a summary block.
-          #
-          # Deliberately NOT --fail-on-drift, which the script supports. That
-          # would turn an unrelated rule change red because of an orphan left by
-          # someone else months ago -- and a gate that fails for reasons outside
-          # the change under review is one people learn to click past, which is
-          # how this became invisible in the first place.
-          #
-          # An annotation lands at the top of the run page and on the PR, so it
-          # is seen every time without blocking anything. Read from the JSON
-          # rather than grepped out of the report prose: has_drift() already
-          # encodes the rule that an *already-retired* removal is the resolved
-          # state and not drift, and re-deriving that from text would drift from
-          # it. jq is present on ubuntu-latest and on the lab runner.
-          #
-          # The `applied` subtraction is not decoration. reconcile.py builds and
-          # prints the report *before* applying anything -- its own comment says
-          # "the report describes the state before the apply" -- so the per-item
-          # `retired` flags and the `counts` are the state at scan time. Reading
-          # them alone made the run that *did* the cleanup announce the very
-          # orphans it had just resolved, and tell the operator to re-run with
-          # the switch they had in fact just used. Verified against the real
-          # artifacts of two runs: #42 (retire_orphans on) now reports 0 where
-          # the naive expression said 3, and #41 (switch off) still reports 3.
-          if [[ -f outputs/state/reconcile.json ]]; then
-            unresolved="$(jq '
-              ([.orphan_removed[] | select(.retired | not) | .name]
-               - [((.applied.actions // [])[] | select(.action == "retire" and .ok) | .name)])
-              | length' outputs/state/reconcile.json)"
-            # Same correction for renames: --apply deletes those unattended, so
-            # at scan time they are still counted.
-            renamed="$(jq '
-              ([.orphan_renamed[] | .name]
-               - [((.applied.actions // [])[] | select(.action == "delete" and .ok) | .name)])
-              | length' outputs/state/reconcile.json)"
-            missing="$(jq '.counts.missing' outputs/state/reconcile.json)"
-            dupes="$(jq '.counts.duplicate_names // 0' outputs/state/reconcile.json)"
-
-            # One clause per condition, and only for conditions that occurred.
-            # The old single sentence was a template that named all three counts
-            # and then gave the remedy for exactly one of them: it told the
-            # operator that a *missing* object "keeps running and alerting until
-            # retired" and to re-run with retire_orphans -- for an object that
-            # does not exist, is not running, and needs deploying rather than
-            # retiring. It also mis-described `test3`, an enabled but unscheduled
-            # report that never fired anything.
-            #
-            # Plain `if` blocks rather than `[[ ... ]] && parts+=(...)`: the
-            # latter returns 1 when the test is false, and GitHub runs this with
-            # -e, so a false condition would kill the step.
-            parts=()
-            if [[ "$unresolved" -gt 0 ]]; then
-              parts+=("${unresolved} object(s) whose rule left the repo, still live -- re-run with 'retire_orphans' to disable and mark them (reversible)")
-            fi
-            if [[ "$renamed" -gt 0 ]]; then
-              parts+=("${renamed} left behind by a rename -- --apply deletes these unattended, so one surviving means the deletion did not land")
-            fi
-            if [[ "$missing" -gt 0 ]]; then
-              parts+=("${missing} rule(s) the repo defines but Splunk does not have -- these need a deploy, not a retirement")
-            fi
-            if [[ "$dupes" -gt 0 ]]; then
-              parts+=("${dupes} name(s) answered by more than one object -- every other line above describes only one of each, and --apply acts on only one too")
-            fi
-
-            if [[ "${#parts[@]}" -gt 0 ]]; then
-              message="$(printf '%s; ' "${parts[@]}")"
-              echo "::warning title=Splunk state drift::${message%; }"
-            fi
-          fi
-
-          # The summary block is the last command, so without this the step's
-          # exit status would be `echo`'s and a failed cleanup would read as a
-          # clean run. continue-on-error keeps it from failing the workflow --
-          # this only makes it visible.
-          if [ "$rc" -ne 0 ]; then
-            echo "::warning::Reconciliation exited $rc -- a cleanup action may not have landed. See the step summary."
-          fi
-          exit "$rc"
+          python scripts/state/reconcile_step.py
 
       # Not committed to the repo: this describes the Splunk instance at one
       # moment, not the repo's own state, so it would add a commit on every run
