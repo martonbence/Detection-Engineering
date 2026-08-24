@@ -9,9 +9,13 @@ the evidence it's real, where to find it in the workflow, and the failure
 signature to recognize if it comes back. Anchors are line ranges as of
 2026-08-21 in `.github/workflows/*.yml` (section A's three entries updated
 2026-08-23 after register item 4.1 moved the scope-decision step's logic
-into `scripts/state/determine_changed_rules.py` — the rest of the file
-wasn't re-verified at that pass) — they drift; if a cited range looks
-wrong, search the step name instead of trusting the number.
+into `scripts/state/determine_changed_rules.py`; section H's first entry
+rewritten 2026-08-24 after item 4.4 changed console publishing from a
+git-diff-gated commit to an unconditional artifact handoff — the rest of
+the file wasn't re-verified at either pass, and item 4.1's four other
+2026-08-24 slices moved plenty of other line numbers this file still
+cites) — they drift; if a cited range looks wrong, search the step name
+instead of trusting the number.
 
 This complements `docs/architecture/scripts_reference.md` (what each script
 does) rather than replacing it — this file is about what goes wrong at the
@@ -261,16 +265,28 @@ shares dev's full pin file is a real, already-observed source of doc drift
 
 ## H — Console/Pages publishing
 
-**Console publish only fires on an actual regen *commit*.**
-`ci_code_checks.yml:646-658`, comment at `55-61`. `publish_console` only
-runs when `regenerate_console` set `published=true`, or on manual
-`workflow_dispatch`. Landing a correct, already-regenerated `docs/index.html`
-by hand (not through the auto-regen step) means `regenerate_console` finds
-nothing to commit, `published` stays false, and Pages keeps serving the
-previous deploy — fully green CI, correct file on `dev`, stale live page.
-This exact gap shipped once, 2026-08-10. The `workflow_dispatch` trigger on
-`ci_code_checks.yml` exists specifically to force a republish without
-pulling in the full dev/Splunk/Atomic run.
+**Console publish used to only fire on an actual regen *commit* — fixed
+2026-08-24, but know the shape of the bug it replaced.** Historically
+(through 2026-08-23), `publish_console` only ran when `regenerate_console`
+set `published=true`, or on manual `workflow_dispatch`. Landing a correct,
+already-regenerated `docs/index.html` by hand (not through the auto-regen
+step) meant `regenerate_console` found nothing to commit, `published`
+stayed false, and Pages kept serving the previous deploy — fully green CI,
+correct file on `dev`, stale live page. This exact gap shipped once,
+2026-08-10.
+
+As of `audit/feature-and-process-audit.md` item 4.4 (2026-08-24, commit
+`da85f9c`), `docs/index.html` and README's generated STATS block are no
+longer committed to `dev` at all — `regenerate_console` (and
+`ci_dev_workflow.yml`'s `update_dashboard`) now upload `docs/` as a
+same-run `actions/upload-artifact`, and `publish_console`/`deploy_pages`
+`download-artifact` it directly instead of checking out `dev`. Publishing
+no longer reacts to a git diff at all: `publish_console`'s gate is now
+`needs.regenerate_console.result == 'success'`, full stop, so the
+"hand-fix commits nothing, Pages never learns" failure mode above is now
+structurally impossible, not just rarer. The `workflow_dispatch` trigger
+is kept for a different reason now: forcing a republish without the full
+dev/Splunk/Atomic run.
 
 **Change-detection must normalize timestamps/SHAs, never filter lines.**
 `ci_code_checks.yml:559-592`. `generate_stats.py` stamps the current time
