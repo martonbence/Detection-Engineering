@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # .claude/generate_dashboard.py
 #
-# Generates .claude/dashboard.html: an app-shell style overview of the
+# Generates .claude/team-ops.html: an app-shell style overview of the
 # custom subagent team -- sidebar nav, stat cards, team org chart, and a
 # real activity feed sourced from `git log` at generation time.
 #
@@ -48,9 +48,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent
 LOG_PATH = HERE / "agent_usage_log.jsonl"
-OUT_PATH = HERE / "dashboard.html"
+OUT_PATH = HERE / "team-ops.html"
 
-# Relative to this generated file's own location (.claude/dashboard.html),
+# Relative to this generated file's own location (.claude/team-ops.html),
 # so <img> tags resolve when the file is opened straight off disk.
 AVATAR_DIR_REL = "agents/avatars"
 LOGO_REL = "../docs/branding/logo.png"
