@@ -1465,45 +1465,45 @@ def render_readme_section(stats: dict, repo: str) -> str:
         f"[![Sigma Rules]({b}&query=%24.total_compiled_sigma_rules&label=Sigma%20Rules&color=00ACD7)](https://github.com/martonbence/Detection-Engineering/tree/main/rules/sigma)",
         f"[![Native SPL]({b}&query=%24.total_native_spl_rules&label=Native%20SPL&color=FF6600)](https://github.com/martonbence/Detection-Engineering/tree/main/rules/splunk)",
     ])
-    # Pass Rate and Verified Current ship as a pair, in that order and adjacent.
-    # Pass Rate is now measured only against rules whose verdict still matches
-    # their current version, so on its own it says nothing about how much of the
-    # library that covers -- and a lone badge is exactly what gets quoted. The
-    # second badge makes the coverage impossible to drop.
+    # 2026-08-25 (user's explicit ask): Pass, Fail, Pass Rate, Not Verified,
+    # MITRE Coverage. MITRE Coverage color reuses this repo's established
+    # green->blue->purple->coral phase palette (see the mermaid classDefs
+    # and header badges in README.md, outside this generated block) --
+    # #8f95d6 is the same purple already used for the pipeline status badge,
+    # kept here as a neutral/informational color rather than a pass/fail-style
+    # threshold color, since low MITRE coverage today is expected, not a
+    # failure state.
     row3 = " ".join([
         f"![Pass]({b}&query=%24.verified_pass_current&label=Pass&color=brightgreen)",
         f"![Fail]({b}&query=%24.verified_fail_current&label=Fail&color=red)",
         f"![Pass Rate]({b}&query=%24.pass_rate_pct&label=Pass%20Rate%20%25&color={stats['pass_rate_color']})",
-        f"![Verified Current]({b}&query=%24.verification_current_pct&label=Verified%20Current%20%25&color={stats['verification_current_color']})",
-        # verified_stale is the union of superseded and expired, and the page
-        # deliberately never coined an umbrella word for that pair -- it names
-        # both plainly instead. A badge has room for one word, so it takes the
-        # one thing the two cases share that a reader can act on: they need
-        # measuring again. Naming the remedy also beats naming the state here,
-        # where there is no space to explain which state it was.
-        f"![Needs Re-run]({b}&query=%24.verified_stale&label=Needs%20Re-run&color=BC8CFF)",
         f"![Not Verified]({b}&query=%24.not_verified&label=Not%20Verified&color=lightgrey)",
+        f"![MITRE Coverage]({b}&query=%24.mitre_coverage_pct&label=MITRE%20Coverage%20%25&color=8f95d6)",
     ])
     for row in [row1, "", row2, "", row3]:
         lines.append(row)
     lines.append("")
 
-    # Pass Rate and Verified Current are both measured over the rules the
-    # pipeline actually tries to test, so when a slice of the library is
-    # deliberately out of scope the badges alone leave a reader to work out why
-    # the second number is low -- and the likeliest guess ("the pipeline is
-    # broken") is the wrong one. Written as a line rather than a seventh badge:
-    # this needs a clause to be honest, and a badge has room for a word.
-    # Emitted only while such rules exist, so the row is silent in the normal
-    # case instead of carrying a permanent "0 rules" footnote.
+    # Pass Rate is measured over the rules the pipeline actually tries to
+    # test, so when a slice of the library is deliberately out of scope the
+    # badge alone leaves a reader to work out why measured coverage is low --
+    # and the likeliest guess ("the pipeline is broken") is the wrong one.
+    # Written as a line rather than another badge: this needs a clause to be
+    # honest, and a badge has room for a word. (2026-08-25: this paragraph
+    # used to also name a "Verified Current" badge in row3 -- that badge was
+    # dropped; the rendered clause below no longer references it, this
+    # comment now shouldn't either.) Emitted only while such rules exist, so
+    # the row is silent in the normal case instead of carrying a permanent
+    # "0 rules" footnote.
     scoped_out = stats.get("verified_testing_disabled", 0)
     if scoped_out:
         lines += [
             f"> **{scoped_out} of {stats['total_rules']} rules are currently out of testing "
             f"scope** — `custom.testing.enabled: false`, so the pipeline skips them rather "
             f"than failing to measure them. They are excluded from Pass Rate (which would "
-            f"otherwise read them as failures) and counted against Verified Current (which "
-            f"is what they actually cost: coverage, not correctness).",
+            f"otherwise read them as failures), but still count against how much of the "
+            f"library has actually been measured — what they cost is coverage, not "
+            f"correctness.",
             "",
         ]
 
@@ -1532,7 +1532,7 @@ def render_readme_section(stats: dict, repo: str) -> str:
         ]
 
     lines += [
-        f"🗺️ Interactive MITRE Navigator → [GitHub Pages]({gh_pages}#navigator)",
+        f"🗺️ Interactive MITRE Navigator → [GitHub Pages]({gh_pages}#tab=navigator)",
         "",
         f"📋 Full rule index → [GitHub Pages]({gh_pages})",
         "",
