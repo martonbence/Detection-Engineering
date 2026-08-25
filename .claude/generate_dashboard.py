@@ -7,14 +7,26 @@
 #
 # Not part of the detection-rule pipeline scripts/ generates -- this is an
 # internal ops dashboard for the team itself. Lives under .claude/ for that
-# reason, and is Gaz's own editing surface (CLAUDE.md point 8/9), same as
-# CLAUDE.md/TEAM.md/the agent files -- not a specialist's job.
+# reason. Ownership (2026-08-25): this is a data-driven HTML/CSS/JS generator,
+# same shape of problem as scripts/docs/generate_stats.py -- so the generator
+# code, HTML structure, CSS and layout are Sienna's (Frontend Engineer), not
+# Gaz's, per CLAUDE.md's roster table. The file's actual content/roster data
+# (WHO is on the team, the reporting tree, name/role text) stays Gaz's call
+# via CLAUDE.md/TEAM.md -- same split as the rule browser, where Sienna owns
+# the page and Kwame/Gaz own what rules exist.
 #
-# Only the "Attekintes" (Overview) tab has real content right now, per the
-# user's explicit ask (2026-08-24): the sidebar already lists Agents,
-# Activity, Group, Skills, MCP and Token Monitor as scaffolded nav entries,
-# but each renders a plain "not built yet" placeholder until a real need
+# "Attekintes" (Overview), "Aktivitas" (Activity) and "Token Monitor" have
+# real content; Agents, Group, Skills and MCP are still scaffolded nav
+# entries that render a plain "not built yet" placeholder until a real need
 # for that page shows up -- not a promise every one of them ships.
+#
+# 2026-08-25 redesign (user's explicit ask): the team chart moved from flat
+# per-area rows to an actual reporting tree (TREE below), colors now encode
+# leadership/strategic/engineering/compliance level rather than the
+# CLAUDE.md Strategic/Analytical/Operational Area column -- the two are
+# deliberately different groupings, this one is chart-only. Per-node token
+# badges were dropped from the chart (tokens live on the Token Monitor tab
+# instead), and the activity feed moved off the Overview tab onto its own.
 #
 # Two real, honest data sources, no fabricated numbers:
 #   - .claude/agent_usage_log.jsonl -- per-dispatch tokens/tool-uses, a line
@@ -43,60 +55,103 @@ OUT_PATH = HERE / "dashboard.html"
 AVATAR_DIR_REL = "agents/avatars"
 LOGO_REL = "../docs/branding/logo.png"
 
-ACTIVITY_LIMIT = 18
+ACTIVITY_LIMIT = 40
 
+# Chart-only grouping (2026-08-25, user's explicit ask) -- NOT the CLAUDE.md
+# Strategic/Analytical/Operational Area column. Purple = leadership, green =
+# strategic, blue = engineering/technology, yellow = compliance/docs.
 AREA_COLORS = {
-    "strategic": {"fill": "#2c2350", "stroke": "#a992eb", "text": "#eee6ff"},
-    "analytical": {"fill": "#3d2c07", "stroke": "#e0a94c", "text": "#fdecc9"},
-    "operational": {"fill": "#0d2e26", "stroke": "#59c9ab", "text": "#dcf7ee"},
+    "leadership": {"fill": "#2c1b4d", "stroke": "#b388ff", "text": "#f1e6ff"},
+    "strategic": {"fill": "#12351f", "stroke": "#4caf7d", "text": "#dcf7ee"},
+    "engineering": {"fill": "#0d2440", "stroke": "#58a6ff", "text": "#dceeff"},
+    "compliance": {"fill": "#3d2c07", "stroke": "#e0a94c", "text": "#fdecc9"},
+    # Bjorn is the engineering branch's coordinator, not a peer of the four
+    # specialists he sits above -- kept visually distinct (turquoise/teal)
+    # from the "engineering" blue group (2026-08-25, user's explicit ask).
+    "coordinator": {"fill": "#0d3b36", "stroke": "#2dd4bf", "text": "#d3fff5"},
 }
 
-# Kept in sync by hand with TEAM.md's table. name, role, area, agent slug
-# (None for Gaz -- reference file only, never dispatched via the Agent tool).
+# Kept in sync by hand with TEAM.md's table. name, role, chart-color group
+# (see AREA_COLORS above), agent slug (None for Gaz -- reference file only,
+# never dispatched via the Agent tool).
 ROSTER = [
-    ("Gaz", "Engineering Lead", "strategic", None),
+    ("Gaz", "Engineering Lead", "leadership", None),
     ("Yara", "Technology Strategist", "strategic", "yara-ideation"),
     ("Kwame", "Compliance Analyst", "strategic", "kwame-audit-compliance"),
-    ("Masha", "Threat Intelligence Analyst", "analytical", "masha-threat-intel"),
-    ("Yuki", "Detection Engineer", "operational", "yuki-detection-engineer"),
-    ("Bjorn", "Detection Quality Engineer", "operational", "bjorn-detection-content-reviewer"),
-    ("Chloe", "Technical Writer", "operational", "chloe-docs-maintainer"),
-    ("Jamal", "DevOps Engineer", "operational", "jamal-devops-engineer"),
-    ("Sienna", "Frontend Engineer", "operational", "sienna-frontend-engineer"),
-    ("Kai", "Platform Engineer", "operational", "kai-github-ops"),
-    ("Priya", "Application Security Engineer", "operational", "priya-security-scanner"),
+    ("Masha", "Threat Intelligence Analyst", "compliance", "masha-threat-intel"),
+    ("Yuki", "Detection Engineer", "engineering", "yuki-detection-engineer"),
+    ("Bjorn", "Detection Quality Engineer", "coordinator", "bjorn-detection-content-reviewer"),
+    ("Chloe", "Technical Writer", "compliance", "chloe-docs-maintainer"),
+    ("Jamal", "DevOps Engineer", "engineering", "jamal-devops-engineer"),
+    ("Sienna", "Frontend Engineer", "engineering", "sienna-frontend-engineer"),
+    ("Kai", "Platform Engineer", "engineering", "kai-github-ops"),
+    ("Priya", "Application Security Engineer", "compliance", "priya-security-scanner"),
 ]
 
-ROWS = [
-    ["Gaz"],
-    ["Yara", "Kwame"],
-    ["Masha"],
-    ["Yuki", "Bjorn", "Chloe", "Jamal", "Sienna", "Kai", "Priya"],
+# Direct-report tree (2026-08-25 redesign, user's explicit ask): parent ->
+# children. Bjorn sits under Yara as team coordinator/lead engineer for the
+# four engineering specialists; Masha, Priya and Chloe report directly under
+# Kwame. This is the single source of truth for RELATIONSHIPS (the SVG
+# connecting lines, drawn DOM-position-based via drawLines() in JS) --
+# who-works-closely-with-whom (cross-branch collaboration) is deliberately
+# left out for now, to be added once that's decided.
+TREE: dict[str, list[str]] = {
+    "Gaz": ["Yara", "Kwame"],
+    "Yara": ["Bjorn"],
+    "Kwame": ["Masha", "Priya", "Chloe"],
+    "Bjorn": ["Yuki", "Jamal", "Sienna", "Kai"],
+}
+
+def _build_relationships() -> list[tuple[str, str]]:
+    edges: list[tuple[str, str]] = []
+
+    def walk(parent: str) -> None:
+        for child in TREE.get(parent, []):
+            edges.append((parent, child))
+            walk(child)
+
+    walk("Gaz")
+    return edges
+
+
+RELATIONSHIPS = _build_relationships()
+
+# Chart *layout* (round 8, 2026-08-25 revert): back to the flexbox
+# staircase tree from rounds 3-5, which the user explicitly approved, after
+# a radial/polar composition was tried for two rounds (6-7) and rejected
+# outright ("keeps getting worse") in favor of a reference org-chart
+# graphic (circular photo + name/title box, right-angle connector lines).
+# TREE above stays the single source of truth for who reports to whom;
+# BRANCH_LAYOUT below is purely the *visual* grouping -- two independently
+# shaped columns, one per top-level branch off Gaz, each stair-stepping
+# inward from its own panel edge. Unlike round 6-7's fixed polar math,
+# node positions are NOT computed here in Python -- flexbox lays them out
+# live in the browser, so the connector lines are drawn by JS at render
+# time via getBoundingClientRect() (see drawOrgLines() in the page script),
+# same as the original round 3-5 tree.
+BRANCH_LAYOUT: list[tuple[str, list[list[str]]]] = [
+    ("Yara", [["Bjorn"], ["Jamal"], ["Kai"], ["Sienna"], ["Yuki"]]),
+    ("Kwame", [["Masha"], ["Priya"], ["Chloe"]]),
 ]
 
-# (from, to, label, dashed) -- kept in sync by hand with TEAM.md's mermaid
-# collaboration map. The "everyone reports to Gaz" link is omitted here for
-# the same reason TEAM.md omits it: true for all ten, would just clutter it.
-RELATIONSHIPS = [
-    ("Gaz", "Yara", "co-sets roadmap", False),
-    ("Gaz", "Kwame", "co-owns program health", False),
-    ("Yara", "Kwame", "strategic peers", False),
-    ("Yara", "Masha", "cross-checks gaps", False),
-    ("Masha", "Gaz", "delivers CTI briefs", False),
-    ("Masha", "Yuki", "hands off ready findings", False),
-    ("Yara", "Yuki", "ideas, routed by Gaz", True),
-    ("Yuki", "Bjorn", "every rule: author to review", False),
-    ("Kwame", "Jamal", "verifies pipeline items", False),
-    ("Kwame", "Sienna", "verifies browser items", False),
-    ("Jamal", "Sienna", "CI publishes generated browser", False),
-    ("Jamal", "Kai", "pipeline / platform boundary", False),
-    ("Sienna", "Kai", "PR and merge mechanics", False),
-    ("Chloe", "Kai", "PR and merge mechanics", False),
-    ("Chloe", "Jamal", "documents pipeline changes", False),
-    ("Chloe", "Yuki", "documents rule changes", False),
-    ("Priya", "Jamal", "flags pipeline findings", False),
-    ("Priya", "Kai", "flags secrets and config findings", False),
-]
+INDENT_STEP_REM = 3.25  # staircase indent per depth-step, in rem -- see _build_depth_map()
+
+
+def _build_depth_map() -> dict[str, int]:
+    """BFS distance from Gaz over TREE. Used to compute each branch node's
+    staircase indent: indent level = depth[name] - depth[branch_head]."""
+    depth: dict[str, int] = {"Gaz": 0}
+
+    def walk(parent: str) -> None:
+        for child in TREE.get(parent, []):
+            depth[child] = depth[parent] + 1
+            walk(child)
+
+    walk("Gaz")
+    return depth
+
+
+DEPTH = _build_depth_map()
 
 NAV_ITEMS = [
     ("overview", "Áttekintés", "grid", True),
@@ -155,7 +210,7 @@ def load_activity() -> list[dict]:
             ["git", "-C", str(REPO_ROOT), "log", f"-n{ACTIVITY_LIMIT}", "--pretty=format:%h|%ad|%s", "--date=format:%Y-%m-%d %H:%M"],
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
-            text=True,
+            encoding="utf-8",
             check=True,
         ).stdout
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -204,35 +259,76 @@ def fmt_duration(ms: int) -> str:
 # --- team panel --------------------------------------------------------------
 
 
-def node_html(name: str, role: str, area: str, usage: dict[str, dict]) -> str:
+ROSTER_BY_NAME: dict[str, tuple[str, str]] = {name: (role, area) for name, role, area, _ in ROSTER}
+
+
+def node_html(name: str, role: str, area: str) -> str:
+    """One org-chart card: circle avatar on the left, a colored
+    rounded-rectangle info-box overlapping it slightly on the right,
+    holding bold name + role -- unchanged from the round 1-5/7 side
+    info-box style. No left/right/top side switch anymore: that existed
+    only to dodge radial-geometry collisions, and a flexbox tree never
+    puts a parent on both sides of a node, so every card is simply
+    avatar-left, box-right, matching the reference org-chart graphic.
+    Connector lines anchor to #avatar-{name} specifically (not the whole
+    .node), so they stay correct regardless of the info-box's variable
+    width."""
     colors = AREA_COLORS[area]
-    stat = usage.get(name)
-    if stat and stat["dispatches"] > 0:
-        plural = "es" if stat["dispatches"] != 1 else ""
-        stat_html = (
-            f'<div class="stat">'
-            f'<span class="stat-num">{stat["dispatches"]}</span> dispatch{plural} · '
-            f'<span class="stat-num">{fmt_tokens(stat["tokens"])}</span> tok'
-            f"</div>"
-        )
-    else:
-        stat_html = '<div class="stat stat-empty">nincs naplózott munka</div>'
     avatar_file = f"{AVATAR_DIR_REL}/{name}_transparent.png"
-    return f"""        <div class="node" id="node-{name}" style="--fill:{colors["fill"]};--stroke:{colors["stroke"]};--text:{colors["text"]}">
-          <div class="avatar-ring"><img src="{avatar_file}" alt="{name}" class="avatar" loading="lazy"></div>
-          <div class="name">{name}</div>
-          <div class="role">{role}</div>
-          {stat_html}
-        </div>"""
+    return (
+        f'<div class="node" style="--fill:{colors["fill"]};--stroke:{colors["stroke"]};--text:{colors["text"]}">'
+        f'<div class="avatar-ring" id="avatar-{name}"><img src="{avatar_file}" alt="{name}" class="avatar" loading="lazy"></div>'
+        f'<div class="info-box"><div class="rname">{name}</div><div class="rrole">{role}</div></div>'
+        f"</div>"
+    )
 
 
-def build_team_rows(usage: dict[str, dict]) -> str:
-    roster_by_name = {n: (role, area) for n, role, area, _ in ROSTER}
+def build_branch_html(head: str, rows: list[list[str]], side: str) -> str:
+    """One .branch column: the branch head itself as the first row (at
+    indent 0), then a stack of .row divs for BRANCH_LAYOUT's explicit
+    report rows, each stair-stepped inward (toward the panel's middle) by
+    INDENT_STEP_REM per depth-step below the head, via inline margin-left
+    (left branch, indenting rightward) or margin-right (right branch,
+    indenting leftward). A row's indent is keyed off its first node's
+    depth -- today every row holds exactly one node, so that's just that
+    node's own depth. BRANCH_LAYOUT only lists the head's *reports* (e.g.
+    Yara's rows are [Bjorn], [Jamal], ... -- Yara herself isn't in that
+    list), so the head row is prepended here rather than expecting callers
+    to repeat it."""
+    prop = "margin-left" if side == "left" else "margin-right"
+    all_rows = [[head], *rows]
     rows_html = []
-    for row in ROWS:
-        nodes = "\n".join(node_html(name, *roster_by_name[name], usage) for name in row)
-        rows_html.append(f'      <div class="row">\n{nodes}\n      </div>')
+    for row in all_rows:
+        indent = DEPTH[row[0]] - DEPTH[head]
+        cells = "".join(node_html(name, *ROSTER_BY_NAME[name]) for name in row)
+        rows_html.append(f'      <div class="row" style="{prop}:{indent * INDENT_STEP_REM:.2f}rem">{cells}</div>')
     return "\n".join(rows_html)
+
+
+def build_org_chart_html() -> str:
+    """Gaz alone, centered, at top; below him a `.branches` flex row
+    (`justify-content: space-between`) holding the two independently
+    shaped branch columns, each anchored toward its own panel edge with an
+    open gutter between them (reserved for a future "who collaborates
+    closely with whom" feature -- not drawn yet). `#lines` is an empty SVG
+    overlay; JS fills it in at render time once flexbox has actually
+    placed the nodes (see drawOrgLines() in the page script) -- unlike
+    round 6-7's static generation-time SVG, real positions aren't known
+    until the browser lays the flex boxes out."""
+    root_html = node_html("Gaz", *ROSTER_BY_NAME["Gaz"])
+    branches = []
+    for (head, rows), side in zip(BRANCH_LAYOUT, ("left", "right")):
+        branches.append(f'    <div class="branch branch-{side}">\n{build_branch_html(head, rows, side)}\n    </div>')
+    branches_html = "\n".join(branches)
+    return f"""<div class="org-chart" id="org-chart">
+      <svg id="lines"></svg>
+      <div class="root-row">
+        {root_html}
+      </div>
+      <div class="branches">
+{branches_html}
+      </div>
+    </div>"""
 
 
 # --- activity panel ------------------------------------------------------------
@@ -254,15 +350,80 @@ def build_activity_html(items: list[dict]) -> str:
     return "\n".join(rows)
 
 
+def build_activity_tab_html(items: list[dict]) -> str:
+    return f"""    <section class="tab-panel" id="tab-activity">
+      <div class="page-head">
+        <h1>Aktivitás</h1>
+        <p>Commit-előzmény ehhez a repo-hoz, frissen a <code>git log</code>-ból generálva.</p>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Aktivitás</h2>
+          <span class="hint">git log, friss</span>
+        </div>
+        <div class="activity-list">
+{build_activity_html(items)}
+        </div>
+      </div>
+    </section>"""
+
+
+# --- token monitor panel --------------------------------------------------------
+
+
+def build_tokens_table_html(usage: dict[str, dict]) -> str:
+    rows = []
+    for name, role, _area, slug in ROSTER:
+        if slug is None:
+            continue
+        stat = usage.get(name)
+        if stat and stat["dispatches"] > 0:
+            rows.append(
+                f"      <tr>"
+                f"<td>{name}</td><td>{role}</td>"
+                f'<td>{stat["dispatches"]}</td>'
+                f'<td>{fmt_tokens(stat["tokens"])}</td>'
+                f'<td>{stat["tool_uses"]}</td>'
+                f'<td>{fmt_duration(stat["duration_ms"])}</td>'
+                f'<td>{stat["last_date"]}</td>'
+                f"</tr>"
+            )
+        else:
+            rows.append(
+                f'      <tr class="row-empty">'
+                f"<td>{name}</td><td>{role}</td>"
+                f'<td colspan="5">nincs naplózott munka</td>'
+                f"</tr>"
+            )
+    return "\n".join(rows)
+
+
+def build_tokens_tab_html(usage: dict[str, dict]) -> str:
+    return f"""    <section class="tab-panel" id="tab-tokens">
+      <div class="page-head">
+        <h1>Token Monitor</h1>
+        <p>Naplózott dispatch-ek tagonként, a <code>.claude/agent_usage_log.jsonl</code> naplóból. A vizualizáció designja később készül el.</p>
+      </div>
+      <div class="panel">
+        <table class="token-table">
+          <thead>
+            <tr><th>Tag</th><th>Szerep</th><th>Dispatch</th><th>Token</th><th>Tool use</th><th>Idő</th><th>Utolsó</th></tr>
+          </thead>
+          <tbody>
+{build_tokens_table_html(usage)}
+          </tbody>
+        </table>
+      </div>
+    </section>"""
+
+
 # --- nav / placeholders --------------------------------------------------------
 
 PLACEHOLDER_COPY = {
     "agents": "Részletes ügynök-lista és állapotfigyelés -- ha lesz rá valós igény.",
-    "activity": "Teljes, szűrhető aktivitás-napló -- egyelőre az áttekintő oldal feed-je adja ezt.",
     "group": "Mélyebb csapat-nézet -- egyelőre az áttekintő oldal Csapat panelje adja ezt.",
     "skills": "A .claude/skills/ tartalmának áttekintése.",
     "mcp": "A konfigurált MCP szerverek állapota.",
-    "tokens": "Részletes, időbeli token-fogyasztás tag/feladat szerint.",
 }
 
 
@@ -277,7 +438,7 @@ def build_nav_html() -> str:
 def build_placeholder_tabs() -> str:
     panels = []
     for key, label, _icon, active in NAV_ITEMS:
-        if active:
+        if active or key in ("activity", "tokens"):
             continue
         copy = PLACEHOLDER_COPY.get(key, "Hamarosan.")
         panels.append(f"""    <section class="tab-panel" id="tab-{key}">
@@ -379,38 +540,80 @@ TEMPLATE = """<!doctype html>
   .stat-card .value {{ font-size: 1.65rem; font-weight: 700; }}
   .stat-card .context {{ font-size: .7rem; color: var(--text-dim); margin-top: .35rem; }}
 
-  /* --- content grid --- */
-  .content-grid {{ display: grid; grid-template-columns: 1.55fr 1fr; gap: 1.15rem; align-items: start; }}
-  @media (max-width: 1000px) {{ .content-grid {{ grid-template-columns: 1fr; }} }}
+  /* --- panel --- */
   .panel {{ background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem 1.35rem; }}
   .panel-header {{ display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1.1rem; }}
   .panel-header h2 {{ font-size: .92rem; margin: 0; }}
   .panel-header .hint {{ font-size: .68rem; color: var(--text-dim); }}
 
-  /* --- team tree --- */
-  .canvas {{ position: relative; }}
-  svg#lines {{ position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible; }}
-  .edge {{ fill: none; stroke: var(--border); stroke-width: 1.4; }}
-  .edge.dashed {{ stroke-dasharray: 4 4; stroke: var(--text-dim); }}
-  .row {{ display: flex; justify-content: center; gap: 1.3rem; margin-bottom: 1.9rem; flex-wrap: wrap; position: relative; z-index: 1; }}
-  .node {{ display: flex; flex-direction: column; align-items: center; width: 96px; text-align: center; }}
+  /* --- team chart: flexbox staircase tree (round 8 revert of the round
+     6-7 radial/polar experiment -- see the comment above BRANCH_LAYOUT in
+     the Python source for the full history). --- */
+  .canvas-scroll {{ overflow-x: auto; padding-bottom: .25rem; }}
+  /* Horizontal padding here isn't just breathing room -- it's load-bearing
+     for drawOrgLines(): a branch head at indent 0 (Yara, Kwame) sits flush
+     against the container's edge, so its child edges' trunk (avatar edge
+     -+ ~16px gutter) needs at least that much clearance or it routes to a
+     negative/overflowing X and gets clipped by .canvas-scroll's
+     overflow-x. 28px comfortably clears the 16px gutter on both sides. */
+  .org-chart {{ position: relative; padding: .5rem 28px .25rem; }}
+  .root-row {{ display: flex; justify-content: center; margin-bottom: 2.25rem; }}
+  .branches {{ display: flex; justify-content: space-between; gap: 3rem; }}
+  .branch {{ display: flex; flex-direction: column; flex: 0 0 auto; }}
+  .branch-left {{ align-items: flex-start; }}
+  .branch-right {{ align-items: flex-end; }}
+  .row {{ margin-bottom: 2.25rem; }}
+  .row:last-child {{ margin-bottom: 0; }}
+  svg#lines {{ position: absolute; inset: 0; pointer-events: none; overflow: visible; z-index: 0; }}
+  .edge {{ fill: none; stroke: var(--border); stroke-width: 1.5; }}
+  .node {{
+    position: relative; z-index: 1;
+    display: flex; flex-direction: row; align-items: center;
+    width: max-content;
+  }}
   .avatar-ring {{
-    width: 60px; height: 60px; border-radius: 50%;
-    background: var(--fill); border: 2px solid var(--stroke);
+    width: 140px; height: 140px; border-radius: 50%; flex-shrink: 0;
+    background: var(--fill); border: 3px solid var(--stroke);
     display: flex; align-items: center; justify-content: center; overflow: hidden;
-    box-shadow: 0 0 0 4px var(--card-bg), 0 4px 12px rgba(0,0,0,.35);
+    box-shadow: 0 0 0 5px var(--card-bg), 0 4px 14px rgba(0,0,0,.35);
+    position: relative; z-index: 2;
   }}
   .avatar {{ width: 100%; height: 100%; object-fit: cover; object-position: top center; }}
-  .name {{ margin-top: .45rem; font-weight: 700; font-size: .8rem; }}
-  .role {{ font-size: .63rem; color: var(--text-dim); margin-top: .05rem; line-height: 1.2; }}
-  .stat {{ margin-top: .35rem; font-size: .6rem; color: var(--text-dim); background: var(--bg); border: 1px solid var(--border); border-radius: 999px; padding: .12rem .5rem; }}
-  .stat-num {{ color: var(--text); font-weight: 700; }}
-  .stat-empty {{ opacity: .55; font-style: italic; }}
+  /* Overlap amount (16px) must match TRUNK_GUTTER in the page script's
+     drawOrgLines() -- keep the two in sync by hand. The near side (the
+     side tucking under the avatar) gets extra padding so the 16px overlap
+     only ever eats into background/border, never the actual name/role
+     text -- the avatar renders above the box (z-index 2 vs 1). */
+  /* Fixed width (not shrink-to-fit) is load-bearing, not cosmetic: the
+     right branch (.branch-right, align-items: flex-end) right-aligns each
+     whole .node (avatar+box) as one unit, so if the box's width tracked
+     its own text length, siblings with different role-text lengths (e.g.
+     "Threat Intelligence Analyst" vs "Application Security Engineer")
+     would each shift their avatar to a different X -- breaking the
+     "siblings share a trunk-X" property drawOrgLines() relies on. A fixed
+     width makes every node's total footprint identical, so the avatar
+     lands at the same X regardless of which branch/text it's paired with.
+     280px comfortably fits the longest current role text
+     ("Application Security Engineer") on one line; re-check this by eye
+     if a much longer role string is ever added. */
+  .info-box {{
+    background: var(--fill); border: 2px solid var(--stroke); border-radius: 10px;
+    padding: .45rem .85rem; z-index: 1;
+    margin-left: -16px; padding-left: 28px; width: 280px;
+  }}
+  .rname {{ font-weight: 700; font-size: 1rem; line-height: 1.25; color: var(--text); white-space: nowrap; }}
+  .rrole {{ font-size: .76rem; opacity: .92; margin-top: .2rem; line-height: 1.3; color: var(--stroke); white-space: nowrap; }}
   .legend {{ display: flex; justify-content: center; gap: 1.4rem; flex-wrap: wrap; font-size: .68rem; color: var(--text-dim); margin-top: .4rem; }}
   .legend-item {{ display: flex; align-items: center; gap: .35rem; }}
   .legend-swatch {{ width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--stroke-color); background: var(--fill-color); }}
   .legend-line {{ width: 18px; height: 0; border-top: 1.4px solid var(--text-dim); }}
-  .legend-line.dashed {{ border-top-style: dashed; }}
+
+  /* --- token table --- */
+  .token-table {{ width: 100%; border-collapse: collapse; font-size: .78rem; }}
+  .token-table th {{ text-align: left; font-size: .68rem; color: var(--text-dim); font-weight: 600; padding: .5rem .6rem; border-bottom: 1px solid var(--border); }}
+  .token-table td {{ padding: .55rem .6rem; border-bottom: 1px solid var(--border); }}
+  .token-table tr:last-child td {{ border-bottom: none; }}
+  .token-table tr.row-empty td {{ color: var(--text-dim); font-style: italic; }}
 
   /* --- activity feed --- */
   .activity-list {{ display: flex; flex-direction: column; max-height: 560px; overflow-y: auto; }}
@@ -479,36 +682,28 @@ TEMPLATE = """<!doctype html>
       </div>
     </div>
 
-    <div class="content-grid">
-      <div class="panel">
-        <div class="panel-header">
-          <h2>Csapat</h2>
-          <span class="hint">hierarchia és munkakapcsolatok</span>
-        </div>
-        <div class="canvas" id="canvas">
-          <svg id="lines"></svg>
-{team_rows}
-        </div>
-        <div class="legend">
-          <div class="legend-item"><span class="legend-swatch" style="--fill-color:#2c2350;--stroke-color:#a992eb"></span>Stratégiai</div>
-          <div class="legend-item"><span class="legend-swatch" style="--fill-color:#3d2c07;--stroke-color:#e0a94c"></span>Analitikai</div>
-          <div class="legend-item"><span class="legend-swatch" style="--fill-color:#0d2e26;--stroke-color:#59c9ab"></span>Operátív</div>
-          <div class="legend-item"><span class="legend-line"></span>közvetlen kapcsolat</div>
-          <div class="legend-item"><span class="legend-line dashed"></span>Gaz-on át érkező</div>
-        </div>
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Csapat</h2>
+        <span class="hint">jelentési hierarchia</span>
       </div>
-
-      <div class="panel">
-        <div class="panel-header">
-          <h2>Aktivitás</h2>
-          <span class="hint">git log, friss</span>
-        </div>
-        <div class="activity-list">
-{activity_html}
-        </div>
+      <div class="canvas-scroll">
+{org_chart}
+      </div>
+      <div class="legend">
+        <div class="legend-item"><span class="legend-swatch" style="--fill-color:#2c1b4d;--stroke-color:#b388ff"></span>Stratégiai/vezetői szint</div>
+        <div class="legend-item"><span class="legend-swatch" style="--fill-color:#12351f;--stroke-color:#4caf7d"></span>Stratégiai szint</div>
+        <div class="legend-item"><span class="legend-swatch" style="--fill-color:#0d2440;--stroke-color:#58a6ff"></span>Mérnöki/technológiai szint</div>
+        <div class="legend-item"><span class="legend-swatch" style="--fill-color:#0d3b36;--stroke-color:#2dd4bf"></span>Csoportkoordinátor</div>
+        <div class="legend-item"><span class="legend-swatch" style="--fill-color:#3d2c07;--stroke-color:#e0a94c"></span>Compliance/dokumentációs szint</div>
+        <div class="legend-item"><span class="legend-line"></span>jelentési vonal</div>
       </div>
     </div>
   </section>
+
+{activity_tab}
+
+{tokens_tab}
 
 {placeholder_tabs}
 
@@ -520,56 +715,70 @@ TEMPLATE = """<!doctype html>
 </main>
 
 <script>
-  const RELATIONSHIPS = {relationships_json};
+  // Round 8 revert: back to the flexbox staircase tree (rounds 3-5), after
+  // a radial/polar layout was tried for two rounds (6-7) and rejected
+  // outright. Node positions are real flexbox layout, not fixed math
+  // computed at generation time, so -- like the original round 3-5 tree --
+  // the connector lines have to be drawn here in JS, re-measuring the DOM
+  // via getBoundingClientRect() on load/resize/tab-switch rather than
+  // being embedded as a static SVG.
+  var EDGES = {edges_json};
+  var TRUNK_GUTTER = 16; // must match .info-box's -16px overlap margin in the CSS
 
-  function drawLines() {{
-    const canvas = document.getElementById('canvas');
-    const svg = document.getElementById('lines');
-    if (!canvas || !svg || canvas.offsetParent === null) return;
-    const rect = canvas.getBoundingClientRect();
-    svg.setAttribute('width', rect.width);
-    svg.setAttribute('height', rect.height);
-    svg.innerHTML = '';
-    RELATIONSHIPS.forEach(function (rel) {{
-      const a = document.getElementById('node-' + rel.from);
-      const b = document.getElementById('node-' + rel.to);
-      if (!a || !b) return;
-      const ar = a.getBoundingClientRect();
-      const br = b.getBoundingClientRect();
-      const x1 = ar.left + ar.width / 2 - rect.left;
-      const y1 = ar.top + ar.height / 2 - rect.top;
-      const x2 = br.left + br.width / 2 - rect.left;
-      const y2 = br.top + br.height / 2 - rect.top;
-      const dx = x2 - x1, dy = y2 - y1;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-      const curve = Math.min(dist * 0.16, 46);
-      const nx = -dy / dist, ny = dx / dist;
-      const cx = mx + nx * curve, cy = my + ny * curve;
-      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      path.setAttribute('d', 'M ' + x1 + ' ' + y1 + ' Q ' + cx + ' ' + cy + ' ' + x2 + ' ' + y2);
-      path.setAttribute('class', 'edge' + (rel.dashed ? ' dashed' : ''));
-      const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-      title.textContent = rel.from + ' \\u2194 ' + rel.to + ': ' + rel.label;
-      path.appendChild(title);
-      svg.appendChild(path);
+  function drawOrgLines() {{
+    var container = document.getElementById('org-chart');
+    var svg = document.getElementById('lines');
+    if (!container || !svg) return;
+    var containerRect = container.getBoundingClientRect();
+    if (containerRect.width === 0 && containerRect.height === 0) return; // tab hidden, nothing to measure
+    var paths = [];
+    EDGES.forEach(function (edge) {{
+      var parentEl = document.getElementById('avatar-' + edge[0]);
+      var childEl = document.getElementById('avatar-' + edge[1]);
+      if (!parentEl || !childEl) return;
+      var pr = parentEl.getBoundingClientRect();
+      var cr = childEl.getBoundingClientRect();
+      var px = (pr.left + pr.width / 2) - containerRect.left;
+      var py = pr.bottom - containerRect.top;
+      var childCenterX = (cr.left + cr.width / 2) - containerRect.left;
+      var cy = (cr.top + cr.height / 2) - containerRect.top;
+      // Trunk sits on whichever side of the child's avatar faces the
+      // parent -- computed per edge from actual measured positions, not
+      // hardcoded per branch, so the same logic works uniformly for both
+      // the root->branch-head edges and every within-branch edge. Siblings
+      // sharing a parent and a side naturally land on the same trunk X
+      // (same indent = same avatar edge), producing one continuous trunk
+      // with stubs peeling off, with no extra grouping logic needed here.
+      var side = px >= childCenterX ? 'right' : 'left';
+      var childLeft = cr.left - containerRect.left;
+      var childRight = cr.right - containerRect.left;
+      var nearX = side === 'left' ? childLeft : childRight;
+      var trunkX = side === 'left' ? childLeft - TRUNK_GUTTER : childRight + TRUNK_GUTTER;
+      var dropY = py + 14;
+      var d = 'M ' + px.toFixed(1) + ' ' + py.toFixed(1) +
+        ' V ' + dropY.toFixed(1) +
+        ' H ' + trunkX.toFixed(1) +
+        ' V ' + cy.toFixed(1) +
+        ' H ' + nearX.toFixed(1);
+      paths.push('<path d="' + d + '" class="edge"></path>');
     }});
+    svg.innerHTML = paths.join('');
   }}
 
   document.querySelectorAll('.nav-item').forEach(function (btn) {{
     btn.addEventListener('click', function () {{
       document.querySelectorAll('.nav-item').forEach(function (b) {{ b.classList.remove('active'); }});
       btn.classList.add('active');
-      const tab = btn.dataset.tab;
+      var tab = btn.dataset.tab;
       document.querySelectorAll('.tab-panel').forEach(function (p) {{ p.classList.remove('active'); }});
-      const target = document.getElementById('tab-' + tab);
+      var target = document.getElementById('tab-' + tab);
       if (target) target.classList.add('active');
-      requestAnimationFrame(drawLines);
+      if (tab === 'overview') drawOrgLines();
     }});
   }});
 
-  window.addEventListener('load', drawLines);
-  window.addEventListener('resize', drawLines);
+  window.addEventListener('load', drawOrgLines);
+  window.addEventListener('resize', drawOrgLines);
 </script>
 </body>
 </html>
@@ -592,10 +801,11 @@ def build_html() -> str:
     return TEMPLATE.format(
         logo_rel=LOGO_REL,
         nav_html=build_nav_html(),
-        team_rows=build_team_rows(usage),
-        activity_html=build_activity_html(activity),
+        org_chart=build_org_chart_html(),
+        edges_json=json.dumps(RELATIONSHIPS),
+        activity_tab=build_activity_tab_html(activity),
+        tokens_tab=build_tokens_tab_html(usage),
         placeholder_tabs=build_placeholder_tabs(),
-        relationships_json=json.dumps([{"from": f, "to": t, "label": lbl, "dashed": d} for f, t, lbl, d in RELATIONSHIPS]),
         active_today=active_today,
         specialist_count=specialist_count,
         dispatches_today=dispatches_today,
