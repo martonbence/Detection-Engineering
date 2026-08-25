@@ -12,20 +12,10 @@
 
 ![Pass](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.verified_pass_current&label=Pass&color=brightgreen) ![Fail](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.verified_fail_current&label=Fail&color=red) ![Pass Rate](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.pass_rate_pct&label=Pass%20Rate%20%25&color=brightgreen) ![Not Verified](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.not_verified&label=Not%20Verified&color=lightgrey) ![MITRE Coverage](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.mitre_coverage_pct&label=MITRE%20Coverage%20%25&color=8f95d6)
 
-> **27 of 28 rules are currently out of testing scope** — `custom.testing.enabled: false`, so the pipeline skips them rather than failing to measure them. They are excluded from Pass Rate (which would otherwise read them as failures), but still count against how much of the library has actually been measured — what they cost is coverage, not correctness.
-
-> **Last live verification: 2026-08-17 20:08:36 UTC** — 1 of 28 rules were actually measured in that run. `stats.json` and the badges above are a build-time snapshot; a verdict's standing can change simply because time passed, so the rule browser itself ([GitHub Pages](https://martonbence.github.io/Detection-Engineering/)) recomputes Pass Rate and coverage against the current date on every load.
-
-🗺️ Interactive MITRE Navigator → [GitHub Pages](https://martonbence.github.io/Detection-Engineering/#tab=navigator)
-
-📋 Full rule index → [GitHub Pages](https://martonbence.github.io/Detection-Engineering/)
-
 *Generated at 2026-08-25T17:46:39 UTC*
 <!-- STATS_END -->
 
 <p align="center">
-  🧭 <a href=".claude/team-ops.html"><b>Team Ops</b></a>
-  &nbsp;·&nbsp;
   🔍 <a href="https://martonbence.github.io/Detection-Engineering/"><b>Rule Browser</b></a>
   &nbsp;·&nbsp;
   🛡️ <a href="https://martonbence.github.io/Detection-Engineering/#tab=navigator"><b>MITRE Navigator</b></a>
