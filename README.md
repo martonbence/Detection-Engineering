@@ -3,21 +3,37 @@
 </p>
 
 <h1 align="center">Detection-Engineering</h1>
-<p align="center"><i>Detection rules that have to prove themselves before they count.</i></p>
+<p align="center"><i>What isn't proven is assumption.</i></p>
+
+<!-- STATS_START -->
+[![Total Rules](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.total_rules&label=Total%20Rules&color=informational)](https://github.com/martonbence/Detection-Engineering/tree/main/rules)
+
+[![Sigma Rules](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.total_compiled_sigma_rules&label=Sigma%20Rules&color=00ACD7)](https://github.com/martonbence/Detection-Engineering/tree/main/rules/sigma) [![Native SPL](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.total_native_spl_rules&label=Native%20SPL&color=FF6600)](https://github.com/martonbence/Detection-Engineering/tree/main/rules/splunk)
+
+![Pass](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.verified_pass_current&label=Pass&color=brightgreen) ![Fail](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.verified_fail_current&label=Fail&color=red) ![Pass Rate](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.pass_rate_pct&label=Pass%20Rate%20%25&color=brightgreen) ![Not Verified](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.not_verified&label=Not%20Verified&color=lightgrey) ![MITRE Coverage](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.mitre_coverage_pct&label=MITRE%20Coverage%20%25&color=8f95d6)
+
+> **27 of 28 rules are currently out of testing scope** — `custom.testing.enabled: false`, so the pipeline skips them rather than failing to measure them. They are excluded from Pass Rate (which would otherwise read them as failures), but still count against how much of the library has actually been measured — what they cost is coverage, not correctness.
+
+> **Last live verification: 2026-08-17 20:08:36 UTC** — 1 of 28 rules were actually measured in that run. `stats.json` and the badges above are a build-time snapshot; a verdict's standing can change simply because time passed, so the rule browser itself ([GitHub Pages](https://martonbence.github.io/Detection-Engineering/)) recomputes Pass Rate and coverage against the current date on every load.
+
+🗺️ Interactive MITRE Navigator → [GitHub Pages](https://martonbence.github.io/Detection-Engineering/#tab=navigator)
+
+📋 Full rule index → [GitHub Pages](https://martonbence.github.io/Detection-Engineering/)
+
+*Generated at 2026-08-25T17:46:39 UTC*
+<!-- STATS_END -->
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square" alt="MIT License"></a>
-  <a href="https://martonbence.github.io/Detection-Engineering/"><img src="https://img.shields.io/badge/live-rule%20browser-1f6feb?style=flat-square&logo=githubpages&logoColor=white" alt="Live rule browser"></a>
-  <a href="https://github.com/martonbence/Detection-Engineering/actions/workflows/ci_dev_workflow.yml"><img src="https://img.shields.io/github/actions/workflow/status/martonbence/Detection-Engineering/ci_dev_workflow.yml?branch=dev&style=flat-square&label=pipeline&color=8f95d6" alt="Pipeline status"></a>
-  <a href="https://github.com/martonbence/Detection-Engineering/actions/workflows/ci_code_checks.yml"><img src="https://img.shields.io/github/actions/workflow/status/martonbence/Detection-Engineering/ci_code_checks.yml?style=flat-square&label=code%20checks&color=d9695a" alt="Code checks status"></a>
-  <img src="https://img.shields.io/badge/python-3.11-informational?style=flat-square&logo=python&logoColor=white" alt="Python 3.11">
+  🧭 <a href=".claude/team-ops.html"><b>Team Ops</b></a>
+  &nbsp;·&nbsp;
+  🔍 <a href="https://martonbence.github.io/Detection-Engineering/"><b>Rule Browser</b></a>
+  &nbsp;·&nbsp;
+  🛡️ <a href="https://martonbence.github.io/Detection-Engineering/#tab=navigator"><b>MITRE Navigator</b></a>
+  &nbsp;·&nbsp;
+  📊 <a href="https://martonbence.github.io/Detection-Engineering/#tab=dashboards"><b>Dashboards</b></a>
 </p>
 
 <p align="center">
-  🔍 <a href="https://martonbence.github.io/Detection-Engineering/"><b>Rule Browser</b></a>
-  &nbsp;·&nbsp;
-  🛡️ <a href="https://martonbence.github.io/Detection-Engineering/#navigator"><b>MITRE Navigator</b></a>
-  &nbsp;·&nbsp;
   📚 <a href="docs/architecture/"><b>Architecture docs</b></a>
   &nbsp;·&nbsp;
   📖 <a href="../../wiki">Wiki</a>
@@ -75,27 +91,9 @@ flowchart LR
 | | |
 |---|---|
 | 🔍 **[Rule Browser](https://martonbence.github.io/Detection-Engineering/)** | Every rule in the repo, searchable and filterable, with its ATT&CK mapping and its current pass/fail verdict — generated straight from the pipeline's own output, published on GitHub Pages. |
-| 🛡️ **[MITRE ATT&CK Navigator](https://martonbence.github.io/Detection-Engineering/#navigator)** | The same coverage plotted against the full ATT&CK matrix, exportable as a Navigator layer for use in the official MITRE tool. |
+| 🛡️ **[MITRE ATT&CK Navigator](https://martonbence.github.io/Detection-Engineering/#tab=navigator)** | The same coverage plotted against the full ATT&CK matrix, exportable as a Navigator layer for use in the official MITRE tool. |
 
-<!-- STATS_START -->
-[![Total Rules](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.total_rules&label=Total%20Rules&color=informational)](https://github.com/martonbence/Detection-Engineering/tree/main/rules)
-
-[![Sigma Rules](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.total_compiled_sigma_rules&label=Sigma%20Rules&color=00ACD7)](https://github.com/martonbence/Detection-Engineering/tree/main/rules/sigma) [![Native SPL](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.total_native_spl_rules&label=Native%20SPL&color=FF6600)](https://github.com/martonbence/Detection-Engineering/tree/main/rules/splunk)
-
-![Pass](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.verified_pass_current&label=Pass&color=brightgreen) ![Fail](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.verified_fail_current&label=Fail&color=red) ![Pass Rate](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.pass_rate_pct&label=Pass%20Rate%20%25&color=brightgreen) ![Verified Current](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.verification_current_pct&label=Verified%20Current%20%25&color=red) ![Needs Re-run](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.verified_stale&label=Needs%20Re-run&color=BC8CFF) ![Not Verified](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.not_verified&label=Not%20Verified&color=lightgrey)
-
-> **27 of 28 rules are currently out of testing scope** — `custom.testing.enabled: false`, so the pipeline skips them rather than failing to measure them. They are excluded from Pass Rate (which would otherwise read them as failures) and counted against Verified Current (which is what they actually cost: coverage, not correctness).
-
-> **Last live verification: 2026-08-17 20:08:36 UTC** — 1 of 28 rules were actually measured in that run. `stats.json` and the badges above are a build-time snapshot; a verdict's standing can change simply because time passed, so the rule browser itself ([GitHub Pages](https://martonbence.github.io/Detection-Engineering/)) recomputes Pass Rate and coverage against the current date on every load.
-
-🗺️ Interactive MITRE Navigator → [GitHub Pages](https://martonbence.github.io/Detection-Engineering/#navigator)
-
-📋 Full rule index → [GitHub Pages](https://martonbence.github.io/Detection-Engineering/)
-
-*Generated at 2026-08-23T15:18:19 UTC*
-<!-- STATS_END -->
-
-*Those numbers above are a live, regenerated snapshot, not something typed by hand — treat them, not any number written into the prose on this page, as current.*
+*The badges near the top of this page are a live, regenerated snapshot, not something typed by hand — treat them, not any number written into the prose on this page, as current.*
 
 ## What "pass" actually means here
 
@@ -115,7 +113,7 @@ The full step-by-step version of this — exact filenames, workflow names, job g
 
 One thing worth knowing about how this repo itself gets maintained: a chunk of the day-to-day work on it — pipeline changes, rule authoring, quality review, documentation, security auditing — is carried out by a small team of scoped AI agents working under a human lead, each responsible for one surface of the repo rather than one generalist touching everything. That division of labor, and how work moves between agents, is itself documented in the repo (`CLAUDE.md`, `TEAM.md`) — treated as a real engineering practice worth being transparent about, not a hidden implementation detail.
 
-The team even tracks its own activity: an internal dashboard (`.claude/dashboard.html`, viewable after cloning the repo) shows what each agent has been doing. It's deliberately *not* published alongside the public rule browser — it's an internal working tool, not something meant for outside visitors.
+The team even tracks its own activity: an internal dashboard (`.claude/team-ops.html`, viewable after cloning the repo) shows what each agent has been doing. It's deliberately *not* published alongside the public rule browser — it's an internal working tool, not something meant for outside visitors.
 
 ## Repository layout
 
