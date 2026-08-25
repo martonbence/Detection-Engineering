@@ -97,17 +97,38 @@
      the Python source for the full history). --- */
   .canvas-scroll { overflow-x: auto; padding-bottom: .25rem; }
   /* Horizontal padding here isn't just breathing room -- it's load-bearing
-     for drawOrgLines(): a branch head at indent 0 (Yara, Kwame) sits flush
-     against the container's edge, so its child edges' trunk (avatar edge
-     -+ ~16px gutter) needs at least that much clearance or it routes to a
-     negative/overflowing X and gets clipped by .canvas-scroll's
-     overflow-x. 28px comfortably clears the 16px gutter on both sides. */
+     for drawOrgLines(). Every trunk now runs on the LEFT of the avatars it
+     serves, at (leftmost avatar edge - 16px gutter). The left branch's head
+     (Yara) sits flush against the container's content edge, so without this
+     padding her sub-tree's trunk would land at a negative X and be clipped
+     by .canvas-scroll's overflow-x. 28px comfortably clears the 16px
+     gutter. */
   .org-chart { position: relative; padding: .5rem 28px .25rem; }
   .root-row { display: flex; justify-content: center; margin-bottom: 2.25rem; }
   .branches { display: flex; justify-content: space-between; gap: 3rem; }
   .branch { display: flex; flex-direction: column; flex: 0 0 auto; }
+  /* Both branches are align-items: flex-start now (2026-08-25, round 9).
+     Kwame's branch used to be align-items: flex-end with margin-right
+     stairs -- a mirror image of Yara's branch that anchored Kwame himself
+     flush against the panel's right edge and stepped his reports INWARD,
+     toward center, away from him (build_branch_html() used margin-right
+     for the right branch, margin-left for the left). User feedback: that
+     read less clearly than Yara's side, where the parent sits at the outer
+     edge and children step visibly inward/rightward beneath them.
+     Flipping Kwame's branch to the same flex-start + margin-left grammar
+     (see build_branch_html() in the Python source) doesn't change this
+     branch's own outer box width at all -- shrink-to-fit sizing is
+     symmetric either way, so .branches' justify-content: space-between
+     still pins that box's right edge to the panel's right edge exactly
+     where it always was. What moves is only the content *inside* the box:
+     Kwame's own row (indent 0) now sits at the box's LEFT edge instead of
+     its right, freeing the width of one indent step to his right for
+     Masha/Priya/Chloe to stair-step into -- same "parent, then child
+     stepping right" grammar as Yara's branch, just living in the right
+     half of the chart. No .branches/column-width change needed; verified
+     with the same collision-check script at 1024-1920px (see report). */
   .branch-left { align-items: flex-start; }
-  .branch-right { align-items: flex-end; }
+  .branch-right { align-items: flex-start; }
   .row { margin-bottom: 2.25rem; }
   .row:last-child { margin-bottom: 0; }
   svg#lines { position: absolute; inset: 0; pointer-events: none; overflow: visible; z-index: 0; }
@@ -125,30 +146,56 @@
     position: relative; z-index: 2;
   }
   .avatar { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
-  /* Overlap amount (16px) must match TRUNK_GUTTER in the page script's
-     drawOrgLines() -- keep the two in sync by hand. The near side (the
-     side tucking under the avatar) gets extra padding so the 16px overlap
-     only ever eats into background/border, never the actual name/role
-     text -- the avatar renders above the box (z-index 2 vs 1). */
-  /* Fixed width (not shrink-to-fit) is load-bearing, not cosmetic: the
-     right branch (.branch-right, align-items: flex-end) right-aligns each
-     whole .node (avatar+box) as one unit, so if the box's width tracked
-     its own text length, siblings with different role-text lengths (e.g.
-     "Threat Intelligence Analyst" vs "Application Security Engineer")
-     would each shift their avatar to a different X -- breaking the
-     "siblings share a trunk-X" property drawOrgLines() relies on. A fixed
-     width makes every node's total footprint identical, so the avatar
-     lands at the same X regardless of which branch/text it's paired with.
-     280px comfortably fits the longest current role text
-     ("Application Security Engineer") on one line; re-check this by eye
-     if a much longer role string is ever added. */
+  /* The 16px negative margin tucks the box under the avatar; the near side
+     gets extra padding to match, so the overlap only ever eats into
+     background/border, never the name/role text (the avatar renders above
+     the box, z-index 2 vs 1). This is NOT related to the connector-line
+     gutter -- lines leave from the avatar's LEFT side now, nowhere near
+     this overlap. */
+  /* BOTH dimensions are pinned, in px, and flex-shrink is off. All three
+     parts of that matter:
+       - Fixed WIDTH keeps every .node's total footprint identical. Both
+         branches align their rows via align-items: flex-start (see the
+         .branch-right comment above for the 2026-08-25 change that made
+         this true of the right branch too), positioning each whole node
+         (avatar+box) as one unit at its row's indent offset, so a
+         content-sized box would put siblings' avatars at different X
+         values -- breaking the "siblings share one trunk X" property
+         drawOrgLines() relies on.
+       - Fixed HEIGHT + flex centering replaces the old implicit height
+         (rem padding + two line boxes + a rem margin = a fractional
+         57.36px). That height was emergent, so it moved with the reader's
+         font metrics and root font-size instead of being a contract.
+       - px, not rem, throughout this card. The box width/padding were px
+         while the text and padding were rem, so a reader whose browser
+         default font size isn't 16px got a box that did NOT grow with its
+         own text: at a 24px root the text column shrinks to 227px while
+         "Application Security Engineer" grows to 238px and spills past the
+         border, while the other ten roles still fit. That is the
+         "boxes aren't the same size" failure -- one node visibly wider
+         than its plate. px on both sides makes the card invariant.
+     Sizing headroom, measured in-browser (fallback sans-serif, the widest
+     of the realistic stacks): longest name "Kwame" = 56px, longest role
+     "Application Security Engineer" = 159px, against a 252px text column
+     -- ~1.6x headroom, so a noticeably wider font still fits on one line.
+     Height 64px holds a 20px name line + 3px gap + 16px role line (39px)
+     with ~10px of air above and below. Re-measure both if a much longer
+     name/role string is ever added. */
   .info-box {
     background: var(--fill); border: 2px solid var(--stroke); border-radius: 10px;
-    padding: .45rem .85rem; z-index: 1;
-    margin-left: -16px; padding-left: 28px; width: 280px;
+    z-index: 1;
+    flex: 0 0 300px; width: 300px; height: 64px;
+    margin-left: -16px;
+    padding: 0 16px 0 28px;
+    display: flex; flex-direction: column; justify-content: center;
   }
-  .rname { font-weight: 700; font-size: 1rem; line-height: 1.25; color: var(--text); white-space: nowrap; }
-  .rrole { font-size: .76rem; opacity: .92; margin-top: .2rem; line-height: 1.3; color: var(--stroke); white-space: nowrap; }
+  .rname { font-weight: 700; font-size: 16px; line-height: 20px; color: var(--text); white-space: nowrap; }
+  /* No opacity here (2026-08-25): at .92 the green "strategic" nodes'
+     role text (Yara, Kwame) measured 4.44:1 against var(--stroke),
+     just under WCAG AA's 4.5:1 for normal text. Full-opacity text at
+     the same color measures 4.99:1 -- passes, and changes no color
+     value, so it's compatible with "don't touch the colors". */
+  .rrole { font-size: 12px; margin-top: 3px; line-height: 16px; color: var(--stroke); white-space: nowrap; }
   .legend { display: flex; justify-content: center; gap: 1.4rem; flex-wrap: wrap; font-size: .68rem; color: var(--text-dim); margin-top: .4rem; }
   .legend-item { display: flex; align-items: center; gap: .35rem; }
   .legend-swatch { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--stroke-color); background: var(--fill-color); }
@@ -214,18 +261,18 @@
     <div class="stat-cards">
       <div class="stat-card">
         <div class="label">Aktív ügynökök ma</div>
-        <div class="value">1</div>
+        <div class="value">5</div>
         <div class="context">10 specialista összesen</div>
       </div>
       <div class="stat-card">
         <div class="label">Ma futott dispatch</div>
-        <div class="value">7</div>
-        <div class="context">18 naplózott dispatch összesen</div>
+        <div class="value">14</div>
+        <div class="context">25 naplózott dispatch összesen</div>
       </div>
       <div class="stat-card">
         <div class="label">Token napló</div>
-        <div class="value">2.32M</div>
-        <div class="context">3/10 tagnál van adat</div>
+        <div class="value">2.97M</div>
+        <div class="context">6/10 tagnál van adat</div>
       </div>
       <div class="stat-card">
         <div class="label">Audit register</div>
@@ -255,10 +302,10 @@
       <div class="row" style="margin-left:6.50rem"><div class="node" style="--fill:#0d2440;--stroke:#58a6ff;--text:#dceeff"><div class="avatar-ring" id="avatar-Yuki"><img src="agents/avatars/Yuki_transparent.png" alt="Yuki" class="avatar" loading="lazy"></div><div class="info-box"><div class="rname">Yuki</div><div class="rrole">Detection Engineer</div></div></div></div>
     </div>
     <div class="branch branch-right">
-      <div class="row" style="margin-right:0.00rem"><div class="node" style="--fill:#12351f;--stroke:#4caf7d;--text:#dcf7ee"><div class="avatar-ring" id="avatar-Kwame"><img src="agents/avatars/Kwame_transparent.png" alt="Kwame" class="avatar" loading="lazy"></div><div class="info-box"><div class="rname">Kwame</div><div class="rrole">Compliance Analyst</div></div></div></div>
-      <div class="row" style="margin-right:3.25rem"><div class="node" style="--fill:#3d2c07;--stroke:#e0a94c;--text:#fdecc9"><div class="avatar-ring" id="avatar-Masha"><img src="agents/avatars/Masha_transparent.png" alt="Masha" class="avatar" loading="lazy"></div><div class="info-box"><div class="rname">Masha</div><div class="rrole">Threat Intelligence Analyst</div></div></div></div>
-      <div class="row" style="margin-right:3.25rem"><div class="node" style="--fill:#3d2c07;--stroke:#e0a94c;--text:#fdecc9"><div class="avatar-ring" id="avatar-Priya"><img src="agents/avatars/Priya_transparent.png" alt="Priya" class="avatar" loading="lazy"></div><div class="info-box"><div class="rname">Priya</div><div class="rrole">Application Security Engineer</div></div></div></div>
-      <div class="row" style="margin-right:3.25rem"><div class="node" style="--fill:#3d2c07;--stroke:#e0a94c;--text:#fdecc9"><div class="avatar-ring" id="avatar-Chloe"><img src="agents/avatars/Chloe_transparent.png" alt="Chloe" class="avatar" loading="lazy"></div><div class="info-box"><div class="rname">Chloe</div><div class="rrole">Technical Writer</div></div></div></div>
+      <div class="row" style="margin-left:0.00rem"><div class="node" style="--fill:#12351f;--stroke:#4caf7d;--text:#dcf7ee"><div class="avatar-ring" id="avatar-Kwame"><img src="agents/avatars/Kwame_transparent.png" alt="Kwame" class="avatar" loading="lazy"></div><div class="info-box"><div class="rname">Kwame</div><div class="rrole">Compliance Analyst</div></div></div></div>
+      <div class="row" style="margin-left:3.25rem"><div class="node" style="--fill:#3d2c07;--stroke:#e0a94c;--text:#fdecc9"><div class="avatar-ring" id="avatar-Masha"><img src="agents/avatars/Masha_transparent.png" alt="Masha" class="avatar" loading="lazy"></div><div class="info-box"><div class="rname">Masha</div><div class="rrole">Threat Intelligence Analyst</div></div></div></div>
+      <div class="row" style="margin-left:3.25rem"><div class="node" style="--fill:#3d2c07;--stroke:#e0a94c;--text:#fdecc9"><div class="avatar-ring" id="avatar-Priya"><img src="agents/avatars/Priya_transparent.png" alt="Priya" class="avatar" loading="lazy"></div><div class="info-box"><div class="rname">Priya</div><div class="rrole">Application Security Engineer</div></div></div></div>
+      <div class="row" style="margin-left:3.25rem"><div class="node" style="--fill:#3d2c07;--stroke:#e0a94c;--text:#fdecc9"><div class="avatar-ring" id="avatar-Chloe"><img src="agents/avatars/Chloe_transparent.png" alt="Chloe" class="avatar" loading="lazy"></div><div class="info-box"><div class="rname">Chloe</div><div class="rrole">Technical Writer</div></div></div></div>
     </div>
       </div>
     </div>
@@ -285,6 +332,7 @@
           <span class="hint">git log, friss</span>
         </div>
         <div class="activity-list">
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">Refactor internal team dashboard: redesign org chart layout, update team roles, and enhance activity monitoring</span><span class="activity-meta"><span class="activity-hash">ae7440a</span> · 2026-08-25 16:20</span></div></div>
       <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">feat(ops): add team dashboard (Áttekintés) under .claude/</span><span class="activity-meta"><span class="activity-hash">1460030</span> · 2026-08-24 22:04</span></div></div>
       <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(audit): book 4.4(A) verification, Kwame-verified</span><span class="activity-meta"><span class="activity-hash">7a2d552</span> · 2026-08-24 21:05</span></div></div>
       <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(skills): fix stale pipeline-ci-gotchas after item 4.4's Pages change</span><span class="activity-meta"><span class="activity-hash">644669f</span> · 2026-08-24 21:00</span></div></div>
@@ -324,7 +372,6 @@
       <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(audit): close 5.4, 5.11</span><span class="activity-meta"><span class="activity-hash">b0e2178</span> · 2026-08-21 21:22</span></div></div>
       <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(process): trace which model ran a dispatch, where it's already logged</span><span class="activity-meta"><span class="activity-hash">f5373e5</span> · 2026-08-21 21:22</span></div></div>
       <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">feat(mcp): add project-level .mcp.json and setup docs</span><span class="activity-meta"><span class="activity-hash">3a43fbb</span> · 2026-08-21 21:22</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">feat(process): specialists flag skill gaps, Gaz reviews and builds</span><span class="activity-meta"><span class="activity-hash">611ca61</span> · 2026-08-21 20:47</span></div></div>
         </div>
       </div>
     </section>
@@ -344,11 +391,11 @@
       <tr><td>Kwame</td><td>Compliance Analyst</td><td>6</td><td>651.9K</td><td>256</td><td>30m</td><td>2026-08-24</td></tr>
       <tr class="row-empty"><td>Masha</td><td>Threat Intelligence Analyst</td><td colspan="5">nincs naplózott munka</td></tr>
       <tr class="row-empty"><td>Yuki</td><td>Detection Engineer</td><td colspan="5">nincs naplózott munka</td></tr>
-      <tr class="row-empty"><td>Bjorn</td><td>Detection Quality Engineer</td><td colspan="5">nincs naplózott munka</td></tr>
-      <tr class="row-empty"><td>Chloe</td><td>Technical Writer</td><td colspan="5">nincs naplózott munka</td></tr>
-      <tr><td>Jamal</td><td>DevOps Engineer</td><td>5</td><td>805.7K</td><td>341</td><td>57m</td><td>2026-08-24</td></tr>
-      <tr><td>Sienna</td><td>Frontend Engineer</td><td>7</td><td>865.2K</td><td>188</td><td>54m</td><td>2026-08-25</td></tr>
-      <tr class="row-empty"><td>Kai</td><td>Platform Engineer</td><td colspan="5">nincs naplózott munka</td></tr>
+      <tr><td>Bjorn</td><td>Detection Quality Engineer</td><td>1</td><td>91.1K</td><td>20</td><td>7m</td><td>2026-08-25</td></tr>
+      <tr><td>Chloe</td><td>Technical Writer</td><td>1</td><td>63.0K</td><td>13</td><td>3m</td><td>2026-08-25</td></tr>
+      <tr><td>Jamal</td><td>DevOps Engineer</td><td>6</td><td>949.4K</td><td>355</td><td>59m</td><td>2026-08-25</td></tr>
+      <tr><td>Sienna</td><td>Frontend Engineer</td><td>9</td><td>1.13M</td><td>290</td><td>1.3h</td><td>2026-08-25</td></tr>
+      <tr><td>Kai</td><td>Platform Engineer</td><td>2</td><td>81.2K</td><td>11</td><td>1m</td><td>2026-08-25</td></tr>
       <tr class="row-empty"><td>Priya</td><td>Application Security Engineer</td><td colspan="5">nincs naplózott munka</td></tr>
           </tbody>
         </table>
@@ -389,7 +436,7 @@
     </section>
 
   <footer>
-    Generálva 2026-08-25 14:03 UTC &middot; <code>.claude/generate_dashboard.py</code>-vel,
+    Generálva 2026-08-25 16:16 UTC &middot; <code>.claude/generate_dashboard.py</code>-vel,
     a <code>.claude/agent_usage_log.jsonl</code> naplóból és a repo <code>git log</code>-jából.
     A napló frissítése után futtasd újra a scriptet.
   </footer>
@@ -404,44 +451,89 @@
   // via getBoundingClientRect() on load/resize/tab-switch rather than
   // being embedded as a static SVG.
   var EDGES = [["Gaz", "Yara"], ["Yara", "Bjorn"], ["Bjorn", "Yuki"], ["Bjorn", "Jamal"], ["Bjorn", "Sienna"], ["Bjorn", "Kai"], ["Gaz", "Kwame"], ["Kwame", "Masha"], ["Kwame", "Priya"], ["Kwame", "Chloe"]];
-  var TRUNK_GUTTER = 16; // must match .info-box's -16px overlap margin in the CSS
+  var ROOT = "Gaz";
+  // Clearance between a trunk and the nearest avatar edge it runs past.
+  // Must stay > the .avatar-ring box-shadow ring (5px), or the first part
+  // of a line disappears under the ring that's painted in card-bg.
+  var TRUNK_GUTTER = 16;
 
+  // Edge routing (2026-08-25). Two rules, two bends each -- down from the
+  // previous three-bend "drop, across, down, in" path:
+  //
+  //  * Every non-root node's outgoing lines LEAVE FROM ITS OWN 9 o'clock
+  //    point (left edge, vertically centered) and ARRIVE at the child's
+  //    9 o'clock point. The left side of a circle is that node's single
+  //    connection hub -- one line in, all lines out -- which is what makes
+  //    the hierarchy readable at a glance despite the mirrored branches.
+  //    Path: H out to a shared trunk, V down, H in. The old code picked a
+  //    side per edge by comparing parent/child centre X; that produced
+  //    right-side entries on the mirrored branch, which ran the line
+  //    straight through the gap between an avatar and its own info-box.
+  //    Side is no longer derived -- it is always left, on both ends.
+  //  * The ROOT is the one exception: its children sit far apart on
+  //    opposite sides, so it uses the classic top-down bus instead --
+  //    bottom-centre, V down to a bus line, H across, V down into the
+  //    child's 12 o'clock. Routing those two edges left-side-first would
+  //    drag a long horizontal across the whole chart for no gain.
+  //
+  // Siblings are drawn as a group so they genuinely share one trunk X.
+  // The trunk clears BOTH ends on the left: min(parent.left, children's
+  // leftmost) - gutter. That single expression covers both mirrored
+  // branches without a per-branch special case -- on the left branch the
+  // parent is the leftmost thing (children stair-step right), on the right
+  // branch the children are (they stair-step left). Anchoring on just one
+  // of the two would put the trunk straight through the other's circles.
   function drawOrgLines() {
     var container = document.getElementById('org-chart');
     var svg = document.getElementById('lines');
     if (!container || !svg) return;
     var containerRect = container.getBoundingClientRect();
     if (containerRect.width === 0 && containerRect.height === 0) return; // tab hidden, nothing to measure
-    var paths = [];
+
+    function box(name) {
+      var el = document.getElementById('avatar-' + name);
+      if (!el) return null;
+      var r = el.getBoundingClientRect();
+      return {
+        left: r.left - containerRect.left,
+        top: r.top - containerRect.top,
+        bottom: r.bottom - containerRect.top,
+        cx: r.left + r.width / 2 - containerRect.left,
+        cy: r.top + r.height / 2 - containerRect.top
+      };
+    }
+    function n(v) { return v.toFixed(1); }
+
+    var byParent = {};
+    var order = [];
     EDGES.forEach(function (edge) {
-      var parentEl = document.getElementById('avatar-' + edge[0]);
-      var childEl = document.getElementById('avatar-' + edge[1]);
-      if (!parentEl || !childEl) return;
-      var pr = parentEl.getBoundingClientRect();
-      var cr = childEl.getBoundingClientRect();
-      var px = (pr.left + pr.width / 2) - containerRect.left;
-      var py = pr.bottom - containerRect.top;
-      var childCenterX = (cr.left + cr.width / 2) - containerRect.left;
-      var cy = (cr.top + cr.height / 2) - containerRect.top;
-      // Trunk sits on whichever side of the child's avatar faces the
-      // parent -- computed per edge from actual measured positions, not
-      // hardcoded per branch, so the same logic works uniformly for both
-      // the root->branch-head edges and every within-branch edge. Siblings
-      // sharing a parent and a side naturally land on the same trunk X
-      // (same indent = same avatar edge), producing one continuous trunk
-      // with stubs peeling off, with no extra grouping logic needed here.
-      var side = px >= childCenterX ? 'right' : 'left';
-      var childLeft = cr.left - containerRect.left;
-      var childRight = cr.right - containerRect.left;
-      var nearX = side === 'left' ? childLeft : childRight;
-      var trunkX = side === 'left' ? childLeft - TRUNK_GUTTER : childRight + TRUNK_GUTTER;
-      var dropY = py + 14;
-      var d = 'M ' + px.toFixed(1) + ' ' + py.toFixed(1) +
-        ' V ' + dropY.toFixed(1) +
-        ' H ' + trunkX.toFixed(1) +
-        ' V ' + cy.toFixed(1) +
-        ' H ' + nearX.toFixed(1);
-      paths.push('<path d="' + d + '" class="edge"></path>');
+      if (!byParent[edge[0]]) { byParent[edge[0]] = []; order.push(edge[0]); }
+      byParent[edge[0]].push(edge[1]);
+    });
+
+    var paths = [];
+    order.forEach(function (parent) {
+      var p = box(parent);
+      if (!p) return;
+      var kids = byParent[parent].map(box).filter(Boolean);
+      if (!kids.length) return;
+
+      if (parent === ROOT) {
+        var topMost = Math.min.apply(null, kids.map(function (k) { return k.top; }));
+        var busY = (p.bottom + topMost) / 2;
+        kids.forEach(function (k) {
+          paths.push('<path class="edge" d="M ' + n(p.cx) + ' ' + n(p.bottom) +
+            ' V ' + n(busY) + ' H ' + n(k.cx) + ' V ' + n(k.top) + '"></path>');
+        });
+        return;
+      }
+
+      var leftMost = Math.min.apply(null, kids.map(function (k) { return k.left; }));
+      var trunkX = Math.min(p.left, leftMost) - TRUNK_GUTTER;
+      kids.forEach(function (k) {
+        paths.push('<path class="edge" d="M ' + n(p.left) + ' ' + n(p.cy) +
+          ' H ' + n(trunkX) + ' V ' + n(k.cy) + ' H ' + n(k.left) + '"></path>');
+      });
     });
     svg.innerHTML = paths.join('');
   }

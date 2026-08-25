@@ -102,6 +102,14 @@ TREE: dict[str, list[str]] = {
     "Bjorn": ["Yuki", "Jamal", "Sienna", "Kai"],
 }
 
+# The tree's root. Named once here rather than spelled "Gaz" inline, because
+# the connector-line routing treats it as an explicit special case (see
+# drawOrgLines() in the page script: every other node's edges leave from its
+# own 9 o'clock point, the root's use a top-down bus) and both sides have to
+# agree on who that is.
+ROOT = "Gaz"
+
+
 def _build_relationships() -> list[tuple[str, str]]:
     edges: list[tuple[str, str]] = []
 
@@ -110,7 +118,7 @@ def _build_relationships() -> list[tuple[str, str]]:
             edges.append((parent, child))
             walk(child)
 
-    walk("Gaz")
+    walk(ROOT)
     return edges
 
 
@@ -123,12 +131,19 @@ RELATIONSHIPS = _build_relationships()
 # graphic (circular photo + name/title box, right-angle connector lines).
 # TREE above stays the single source of truth for who reports to whom;
 # BRANCH_LAYOUT below is purely the *visual* grouping -- two independently
-# shaped columns, one per top-level branch off Gaz, each stair-stepping
-# inward from its own panel edge. Unlike round 6-7's fixed polar math,
-# node positions are NOT computed here in Python -- flexbox lays them out
-# live in the browser, so the connector lines are drawn by JS at render
-# time via getBoundingClientRect() (see drawOrgLines() in the page script),
-# same as the original round 3-5 tree.
+# shaped columns, one per top-level branch off Gaz. Through round 8, Kwame's
+# column (branch-right) mirrored Yara's: his own row pinned to the panel's
+# right edge, reports stair-stepping INWARD, toward center, away from him.
+# Round 9 (2026-08-25, user's explicit ask) dropped that mirroring -- both
+# columns now stair-step the same left-to-right direction (parent, then
+# child indenting further right beneath it); only each column's own
+# bounding box still anchors toward its respective panel edge, via
+# .branches' justify-content: space-between (see build_org_chart_html()
+# and the .branch-right CSS comment for the mechanics). Unlike round 6-7's
+# fixed polar math, node positions are NOT computed here in Python --
+# flexbox lays them out live in the browser, so the connector lines are
+# drawn by JS at render time via getBoundingClientRect() (see
+# drawOrgLines() in the page script), same as the original round 3-5 tree.
 BRANCH_LAYOUT: list[tuple[str, list[list[str]]]] = [
     ("Yara", [["Bjorn"], ["Jamal"], ["Kai"], ["Sienna"], ["Yuki"]]),
     ("Kwame", [["Masha"], ["Priya"], ["Chloe"]]),
@@ -140,14 +155,14 @@ INDENT_STEP_REM = 3.25  # staircase indent per depth-step, in rem -- see _build_
 def _build_depth_map() -> dict[str, int]:
     """BFS distance from Gaz over TREE. Used to compute each branch node's
     staircase indent: indent level = depth[name] - depth[branch_head]."""
-    depth: dict[str, int] = {"Gaz": 0}
+    depth: dict[str, int] = {ROOT: 0}
 
     def walk(parent: str) -> None:
         for child in TREE.get(parent, []):
             depth[child] = depth[parent] + 1
             walk(child)
 
-    walk("Gaz")
+    walk(ROOT)
     return depth
 
 
@@ -270,9 +285,10 @@ def node_html(name: str, role: str, area: str) -> str:
     only to dodge radial-geometry collisions, and a flexbox tree never
     puts a parent on both sides of a node, so every card is simply
     avatar-left, box-right, matching the reference org-chart graphic.
-    Connector lines anchor to #avatar-{name} specifically (not the whole
-    .node), so they stay correct regardless of the info-box's variable
-    width."""
+    Connector lines anchor to #avatar-{name} specifically, never the whole
+    .node -- every routing anchor (9 o'clock, 12 o'clock, bottom-centre) is
+    a point on the circle, so the info-box's size never enters the line
+    math."""
     colors = AREA_COLORS[area]
     avatar_file = f"{AVATAR_DIR_REL}/{name}_transparent.png"
     return (
@@ -283,42 +299,55 @@ def node_html(name: str, role: str, area: str) -> str:
     )
 
 
-def build_branch_html(head: str, rows: list[list[str]], side: str) -> str:
+def build_branch_html(head: str, rows: list[list[str]]) -> str:
     """One .branch column: the branch head itself as the first row (at
     indent 0), then a stack of .row divs for BRANCH_LAYOUT's explicit
-    report rows, each stair-stepped inward (toward the panel's middle) by
-    INDENT_STEP_REM per depth-step below the head, via inline margin-left
-    (left branch, indenting rightward) or margin-right (right branch,
-    indenting leftward). A row's indent is keyed off its first node's
-    depth -- today every row holds exactly one node, so that's just that
-    node's own depth. BRANCH_LAYOUT only lists the head's *reports* (e.g.
-    Yara's rows are [Bjorn], [Jamal], ... -- Yara herself isn't in that
-    list), so the head row is prepended here rather than expecting callers
-    to repeat it."""
-    prop = "margin-left" if side == "left" else "margin-right"
+    report rows, each stair-stepped rightward, beneath the head, by
+    INDENT_STEP_REM per depth-step, via inline margin-left. Both branches
+    use the same left-to-right grammar now (2026-08-25, round 9) -- this
+    used to take a `side` param that switched to margin-right for the
+    right branch (Kwame), mirroring his reports inward toward the panel's
+    centre instead of out beneath him; see the .branch-right CSS comment
+    for why dropping that mirroring, with no box-width or .branches layout
+    change, is enough to move Kwame's own row left and his reports' rows
+    right without overflowing the panel. A row's indent is keyed off its
+    first node's depth -- today every row holds exactly one node, so
+    that's just that node's own depth. BRANCH_LAYOUT only lists the head's
+    *reports* (e.g. Yara's rows are [Bjorn], [Jamal], ... -- Yara herself
+    isn't in that list), so the head row is prepended here rather than
+    expecting callers to repeat it."""
     all_rows = [[head], *rows]
     rows_html = []
     for row in all_rows:
         indent = DEPTH[row[0]] - DEPTH[head]
         cells = "".join(node_html(name, *ROSTER_BY_NAME[name]) for name in row)
-        rows_html.append(f'      <div class="row" style="{prop}:{indent * INDENT_STEP_REM:.2f}rem">{cells}</div>')
+        rows_html.append(f'      <div class="row" style="margin-left:{indent * INDENT_STEP_REM:.2f}rem">{cells}</div>')
     return "\n".join(rows_html)
 
 
 def build_org_chart_html() -> str:
     """Gaz alone, centered, at top; below him a `.branches` flex row
     (`justify-content: space-between`) holding the two independently
-    shaped branch columns, each anchored toward its own panel edge with an
-    open gutter between them (reserved for a future "who collaborates
-    closely with whom" feature -- not drawn yet). `#lines` is an empty SVG
-    overlay; JS fills it in at render time once flexbox has actually
-    placed the nodes (see drawOrgLines() in the page script) -- unlike
-    round 6-7's static generation-time SVG, real positions aren't known
-    until the browser lays the flex boxes out."""
+    shaped branch columns. Each branch's own bounding box is still
+    anchored toward its own panel edge by space-between (branch-left's box
+    starts at the panel's left edge, branch-right's box ends at its right
+    edge) with an open gutter between them (reserved for a future "who
+    collaborates closely with whom" feature -- not drawn yet) -- but as of
+    2026-08-25 (round 9) that's the only thing left/right still controls.
+    Both branches lay their own rows out left-to-right inside that box now
+    (see build_branch_html()), so on the right branch the head (Kwame)
+    sits at his box's own left edge -- inset from the panel edge -- while
+    his reports stair-step out toward it, the same "parent then child
+    stepping right" reading as the left branch just relocated into the
+    right half of the chart. `#lines` is an empty SVG overlay; JS fills it
+    in at render time once flexbox has actually placed the nodes (see
+    drawOrgLines() in the page script) -- unlike round 6-7's static
+    generation-time SVG, real positions aren't known until the browser
+    lays the flex boxes out."""
     root_html = node_html("Gaz", *ROSTER_BY_NAME["Gaz"])
     branches = []
     for (head, rows), side in zip(BRANCH_LAYOUT, ("left", "right")):
-        branches.append(f'    <div class="branch branch-{side}">\n{build_branch_html(head, rows, side)}\n    </div>')
+        branches.append(f'    <div class="branch branch-{side}">\n{build_branch_html(head, rows)}\n    </div>')
     branches_html = "\n".join(branches)
     return f"""<div class="org-chart" id="org-chart">
       <svg id="lines"></svg>
@@ -551,17 +580,38 @@ TEMPLATE = """<!doctype html>
      the Python source for the full history). --- */
   .canvas-scroll {{ overflow-x: auto; padding-bottom: .25rem; }}
   /* Horizontal padding here isn't just breathing room -- it's load-bearing
-     for drawOrgLines(): a branch head at indent 0 (Yara, Kwame) sits flush
-     against the container's edge, so its child edges' trunk (avatar edge
-     -+ ~16px gutter) needs at least that much clearance or it routes to a
-     negative/overflowing X and gets clipped by .canvas-scroll's
-     overflow-x. 28px comfortably clears the 16px gutter on both sides. */
+     for drawOrgLines(). Every trunk now runs on the LEFT of the avatars it
+     serves, at (leftmost avatar edge - 16px gutter). The left branch's head
+     (Yara) sits flush against the container's content edge, so without this
+     padding her sub-tree's trunk would land at a negative X and be clipped
+     by .canvas-scroll's overflow-x. 28px comfortably clears the 16px
+     gutter. */
   .org-chart {{ position: relative; padding: .5rem 28px .25rem; }}
   .root-row {{ display: flex; justify-content: center; margin-bottom: 2.25rem; }}
   .branches {{ display: flex; justify-content: space-between; gap: 3rem; }}
   .branch {{ display: flex; flex-direction: column; flex: 0 0 auto; }}
+  /* Both branches are align-items: flex-start now (2026-08-25, round 9).
+     Kwame's branch used to be align-items: flex-end with margin-right
+     stairs -- a mirror image of Yara's branch that anchored Kwame himself
+     flush against the panel's right edge and stepped his reports INWARD,
+     toward center, away from him (build_branch_html() used margin-right
+     for the right branch, margin-left for the left). User feedback: that
+     read less clearly than Yara's side, where the parent sits at the outer
+     edge and children step visibly inward/rightward beneath them.
+     Flipping Kwame's branch to the same flex-start + margin-left grammar
+     (see build_branch_html() in the Python source) doesn't change this
+     branch's own outer box width at all -- shrink-to-fit sizing is
+     symmetric either way, so .branches' justify-content: space-between
+     still pins that box's right edge to the panel's right edge exactly
+     where it always was. What moves is only the content *inside* the box:
+     Kwame's own row (indent 0) now sits at the box's LEFT edge instead of
+     its right, freeing the width of one indent step to his right for
+     Masha/Priya/Chloe to stair-step into -- same "parent, then child
+     stepping right" grammar as Yara's branch, just living in the right
+     half of the chart. No .branches/column-width change needed; verified
+     with the same collision-check script at 1024-1920px (see report). */
   .branch-left {{ align-items: flex-start; }}
-  .branch-right {{ align-items: flex-end; }}
+  .branch-right {{ align-items: flex-start; }}
   .row {{ margin-bottom: 2.25rem; }}
   .row:last-child {{ margin-bottom: 0; }}
   svg#lines {{ position: absolute; inset: 0; pointer-events: none; overflow: visible; z-index: 0; }}
@@ -579,30 +629,56 @@ TEMPLATE = """<!doctype html>
     position: relative; z-index: 2;
   }}
   .avatar {{ width: 100%; height: 100%; object-fit: cover; object-position: top center; }}
-  /* Overlap amount (16px) must match TRUNK_GUTTER in the page script's
-     drawOrgLines() -- keep the two in sync by hand. The near side (the
-     side tucking under the avatar) gets extra padding so the 16px overlap
-     only ever eats into background/border, never the actual name/role
-     text -- the avatar renders above the box (z-index 2 vs 1). */
-  /* Fixed width (not shrink-to-fit) is load-bearing, not cosmetic: the
-     right branch (.branch-right, align-items: flex-end) right-aligns each
-     whole .node (avatar+box) as one unit, so if the box's width tracked
-     its own text length, siblings with different role-text lengths (e.g.
-     "Threat Intelligence Analyst" vs "Application Security Engineer")
-     would each shift their avatar to a different X -- breaking the
-     "siblings share a trunk-X" property drawOrgLines() relies on. A fixed
-     width makes every node's total footprint identical, so the avatar
-     lands at the same X regardless of which branch/text it's paired with.
-     280px comfortably fits the longest current role text
-     ("Application Security Engineer") on one line; re-check this by eye
-     if a much longer role string is ever added. */
+  /* The 16px negative margin tucks the box under the avatar; the near side
+     gets extra padding to match, so the overlap only ever eats into
+     background/border, never the name/role text (the avatar renders above
+     the box, z-index 2 vs 1). This is NOT related to the connector-line
+     gutter -- lines leave from the avatar's LEFT side now, nowhere near
+     this overlap. */
+  /* BOTH dimensions are pinned, in px, and flex-shrink is off. All three
+     parts of that matter:
+       - Fixed WIDTH keeps every .node's total footprint identical. Both
+         branches align their rows via align-items: flex-start (see the
+         .branch-right comment above for the 2026-08-25 change that made
+         this true of the right branch too), positioning each whole node
+         (avatar+box) as one unit at its row's indent offset, so a
+         content-sized box would put siblings' avatars at different X
+         values -- breaking the "siblings share one trunk X" property
+         drawOrgLines() relies on.
+       - Fixed HEIGHT + flex centering replaces the old implicit height
+         (rem padding + two line boxes + a rem margin = a fractional
+         57.36px). That height was emergent, so it moved with the reader's
+         font metrics and root font-size instead of being a contract.
+       - px, not rem, throughout this card. The box width/padding were px
+         while the text and padding were rem, so a reader whose browser
+         default font size isn't 16px got a box that did NOT grow with its
+         own text: at a 24px root the text column shrinks to 227px while
+         "Application Security Engineer" grows to 238px and spills past the
+         border, while the other ten roles still fit. That is the
+         "boxes aren't the same size" failure -- one node visibly wider
+         than its plate. px on both sides makes the card invariant.
+     Sizing headroom, measured in-browser (fallback sans-serif, the widest
+     of the realistic stacks): longest name "Kwame" = 56px, longest role
+     "Application Security Engineer" = 159px, against a 252px text column
+     -- ~1.6x headroom, so a noticeably wider font still fits on one line.
+     Height 64px holds a 20px name line + 3px gap + 16px role line (39px)
+     with ~10px of air above and below. Re-measure both if a much longer
+     name/role string is ever added. */
   .info-box {{
     background: var(--fill); border: 2px solid var(--stroke); border-radius: 10px;
-    padding: .45rem .85rem; z-index: 1;
-    margin-left: -16px; padding-left: 28px; width: 280px;
+    z-index: 1;
+    flex: 0 0 300px; width: 300px; height: 64px;
+    margin-left: -16px;
+    padding: 0 16px 0 28px;
+    display: flex; flex-direction: column; justify-content: center;
   }}
-  .rname {{ font-weight: 700; font-size: 1rem; line-height: 1.25; color: var(--text); white-space: nowrap; }}
-  .rrole {{ font-size: .76rem; opacity: .92; margin-top: .2rem; line-height: 1.3; color: var(--stroke); white-space: nowrap; }}
+  .rname {{ font-weight: 700; font-size: 16px; line-height: 20px; color: var(--text); white-space: nowrap; }}
+  /* No opacity here (2026-08-25): at .92 the green "strategic" nodes'
+     role text (Yara, Kwame) measured 4.44:1 against var(--stroke),
+     just under WCAG AA's 4.5:1 for normal text. Full-opacity text at
+     the same color measures 4.99:1 -- passes, and changes no color
+     value, so it's compatible with "don't touch the colors". */
+  .rrole {{ font-size: 12px; margin-top: 3px; line-height: 16px; color: var(--stroke); white-space: nowrap; }}
   .legend {{ display: flex; justify-content: center; gap: 1.4rem; flex-wrap: wrap; font-size: .68rem; color: var(--text-dim); margin-top: .4rem; }}
   .legend-item {{ display: flex; align-items: center; gap: .35rem; }}
   .legend-swatch {{ width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--stroke-color); background: var(--fill-color); }}
@@ -723,44 +799,89 @@ TEMPLATE = """<!doctype html>
   // via getBoundingClientRect() on load/resize/tab-switch rather than
   // being embedded as a static SVG.
   var EDGES = {edges_json};
-  var TRUNK_GUTTER = 16; // must match .info-box's -16px overlap margin in the CSS
+  var ROOT = {root_json};
+  // Clearance between a trunk and the nearest avatar edge it runs past.
+  // Must stay > the .avatar-ring box-shadow ring (5px), or the first part
+  // of a line disappears under the ring that's painted in card-bg.
+  var TRUNK_GUTTER = 16;
 
+  // Edge routing (2026-08-25). Two rules, two bends each -- down from the
+  // previous three-bend "drop, across, down, in" path:
+  //
+  //  * Every non-root node's outgoing lines LEAVE FROM ITS OWN 9 o'clock
+  //    point (left edge, vertically centered) and ARRIVE at the child's
+  //    9 o'clock point. The left side of a circle is that node's single
+  //    connection hub -- one line in, all lines out -- which is what makes
+  //    the hierarchy readable at a glance despite the mirrored branches.
+  //    Path: H out to a shared trunk, V down, H in. The old code picked a
+  //    side per edge by comparing parent/child centre X; that produced
+  //    right-side entries on the mirrored branch, which ran the line
+  //    straight through the gap between an avatar and its own info-box.
+  //    Side is no longer derived -- it is always left, on both ends.
+  //  * The ROOT is the one exception: its children sit far apart on
+  //    opposite sides, so it uses the classic top-down bus instead --
+  //    bottom-centre, V down to a bus line, H across, V down into the
+  //    child's 12 o'clock. Routing those two edges left-side-first would
+  //    drag a long horizontal across the whole chart for no gain.
+  //
+  // Siblings are drawn as a group so they genuinely share one trunk X.
+  // The trunk clears BOTH ends on the left: min(parent.left, children's
+  // leftmost) - gutter. That single expression covers both mirrored
+  // branches without a per-branch special case -- on the left branch the
+  // parent is the leftmost thing (children stair-step right), on the right
+  // branch the children are (they stair-step left). Anchoring on just one
+  // of the two would put the trunk straight through the other's circles.
   function drawOrgLines() {{
     var container = document.getElementById('org-chart');
     var svg = document.getElementById('lines');
     if (!container || !svg) return;
     var containerRect = container.getBoundingClientRect();
     if (containerRect.width === 0 && containerRect.height === 0) return; // tab hidden, nothing to measure
-    var paths = [];
+
+    function box(name) {{
+      var el = document.getElementById('avatar-' + name);
+      if (!el) return null;
+      var r = el.getBoundingClientRect();
+      return {{
+        left: r.left - containerRect.left,
+        top: r.top - containerRect.top,
+        bottom: r.bottom - containerRect.top,
+        cx: r.left + r.width / 2 - containerRect.left,
+        cy: r.top + r.height / 2 - containerRect.top
+      }};
+    }}
+    function n(v) {{ return v.toFixed(1); }}
+
+    var byParent = {{}};
+    var order = [];
     EDGES.forEach(function (edge) {{
-      var parentEl = document.getElementById('avatar-' + edge[0]);
-      var childEl = document.getElementById('avatar-' + edge[1]);
-      if (!parentEl || !childEl) return;
-      var pr = parentEl.getBoundingClientRect();
-      var cr = childEl.getBoundingClientRect();
-      var px = (pr.left + pr.width / 2) - containerRect.left;
-      var py = pr.bottom - containerRect.top;
-      var childCenterX = (cr.left + cr.width / 2) - containerRect.left;
-      var cy = (cr.top + cr.height / 2) - containerRect.top;
-      // Trunk sits on whichever side of the child's avatar faces the
-      // parent -- computed per edge from actual measured positions, not
-      // hardcoded per branch, so the same logic works uniformly for both
-      // the root->branch-head edges and every within-branch edge. Siblings
-      // sharing a parent and a side naturally land on the same trunk X
-      // (same indent = same avatar edge), producing one continuous trunk
-      // with stubs peeling off, with no extra grouping logic needed here.
-      var side = px >= childCenterX ? 'right' : 'left';
-      var childLeft = cr.left - containerRect.left;
-      var childRight = cr.right - containerRect.left;
-      var nearX = side === 'left' ? childLeft : childRight;
-      var trunkX = side === 'left' ? childLeft - TRUNK_GUTTER : childRight + TRUNK_GUTTER;
-      var dropY = py + 14;
-      var d = 'M ' + px.toFixed(1) + ' ' + py.toFixed(1) +
-        ' V ' + dropY.toFixed(1) +
-        ' H ' + trunkX.toFixed(1) +
-        ' V ' + cy.toFixed(1) +
-        ' H ' + nearX.toFixed(1);
-      paths.push('<path d="' + d + '" class="edge"></path>');
+      if (!byParent[edge[0]]) {{ byParent[edge[0]] = []; order.push(edge[0]); }}
+      byParent[edge[0]].push(edge[1]);
+    }});
+
+    var paths = [];
+    order.forEach(function (parent) {{
+      var p = box(parent);
+      if (!p) return;
+      var kids = byParent[parent].map(box).filter(Boolean);
+      if (!kids.length) return;
+
+      if (parent === ROOT) {{
+        var topMost = Math.min.apply(null, kids.map(function (k) {{ return k.top; }}));
+        var busY = (p.bottom + topMost) / 2;
+        kids.forEach(function (k) {{
+          paths.push('<path class="edge" d="M ' + n(p.cx) + ' ' + n(p.bottom) +
+            ' V ' + n(busY) + ' H ' + n(k.cx) + ' V ' + n(k.top) + '"></path>');
+        }});
+        return;
+      }}
+
+      var leftMost = Math.min.apply(null, kids.map(function (k) {{ return k.left; }}));
+      var trunkX = Math.min(p.left, leftMost) - TRUNK_GUTTER;
+      kids.forEach(function (k) {{
+        paths.push('<path class="edge" d="M ' + n(p.left) + ' ' + n(p.cy) +
+          ' H ' + n(trunkX) + ' V ' + n(k.cy) + ' H ' + n(k.left) + '"></path>');
+      }});
     }});
     svg.innerHTML = paths.join('');
   }}
@@ -803,6 +924,7 @@ def build_html() -> str:
         nav_html=build_nav_html(),
         org_chart=build_org_chart_html(),
         edges_json=json.dumps(RELATIONSHIPS),
+        root_json=json.dumps(ROOT),
         activity_tab=build_activity_tab_html(activity),
         tokens_tab=build_tokens_tab_html(usage),
         placeholder_tabs=build_placeholder_tabs(),
