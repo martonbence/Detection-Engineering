@@ -15,19 +15,20 @@
 *Generated at 2026-08-25T17:46:39 UTC*
 <!-- STATS_END -->
 
-<p align="center">
-  🔍 <a href="https://martonbence.github.io/Detection-Engineering/"><b>Rule Browser</b></a>
-  &nbsp;·&nbsp;
-  🛡️ <a href="https://martonbence.github.io/Detection-Engineering/#tab=navigator"><b>MITRE Navigator</b></a>
-  &nbsp;·&nbsp;
-  📊 <a href="https://martonbence.github.io/Detection-Engineering/#tab=dashboards"><b>Dashboards</b></a>
-</p>
+**Live views** — the published rule browser, generated straight from the pipeline's own output:
 
-<p align="center">
-  📚 <a href="docs/architecture/"><b>Architecture docs</b></a>
-  &nbsp;·&nbsp;
-  📖 <a href="../../wiki">Wiki</a>
-</p>
+| | |
+|---|---|
+| 🔍 **[Rule Browser](https://martonbence.github.io/Detection-Engineering/)** | Every rule in the repo, searchable and filterable, with its ATT&CK mapping and its current pass/fail verdict. |
+| 🛡️ **[MITRE Navigator](https://martonbence.github.io/Detection-Engineering/#tab=navigator)** | The same coverage plotted against the full ATT&CK matrix, exportable as a Navigator layer for the official MITRE tool. |
+| 📊 **[Dashboards](https://martonbence.github.io/Detection-Engineering/#tab=dashboards)** | Rule-library breakdowns by type, severity, status and verification outcome, MITRE tactic spread, and coverage/rule-count trends over the repo's own history. |
+
+**Reference docs** — deeper technical background, for after the live views raise a question:
+
+| | |
+|---|---|
+| 📚 **[Architecture docs](docs/architecture/)** | Pipeline overview, data flow, threat model, and a per-file scripts reference — all with Mermaid diagrams. |
+| 📖 **[Wiki](../../wiki)** | Planned newcomer-facing walkthrough — not yet initialized. |
 
 ## The problem this repo solves
 
@@ -47,33 +48,69 @@ Nothing about "does this detection work" is self-reported here. It's a measureme
 
 ```mermaid
 flowchart LR
-    A["✍️ Author<br/>Sigma rule"] --> B["✅ Validate<br/>schema check"]
-    B --> C["🔄 Convert<br/>Sigma → SPL"]
-    C --> D["🚀 Deploy<br/>to Splunk"]
-    D --> E["💥 Attack<br/>Atomic Red Team"]
-    E --> F["🔎 Verify<br/>did it fire?"]
-    F --> G["📊 Report<br/>stats & MITRE coverage"]
-    G --> H["🌐 Publish<br/>rule browser"]
+    A(["Prepare, Validate, Convert"])
+    B(["Deploy to Splunk"])
 
-    classDef phase1 fill:#2ea44f,stroke:#238636,color:#fff,font-weight:bold;
-    classDef phase2 fill:#1f6feb,stroke:#0d419d,color:#fff,font-weight:bold;
-    classDef phase3 fill:#8f95d6,stroke:#6a70b8,color:#fff,font-weight:bold;
-    classDef phase4 fill:#d9695a,stroke:#b8503f,color:#fff,font-weight:bold;
+    subgraph tests["Attack &amp; Emulation Tests"]
+        direction TB
+        C(["Atomic Red Team Test"])
+        D(["Atomic Red Team Test (DC)"])
+        E(["Script Emulation Test"])
+    end
 
-    class A,B phase1
-    class C,D phase2
-    class E,F phase3
-    class G,H phase4
+    F(["Splunk Verification"])
+    G(["Update Dashboard &amp; Docs"])
+    H(["Persist Verification Results (fallback)"])
+
+    subgraph fanout["After Dashboard Update"]
+        direction TB
+        I(["Open Promotion PR"])
+        J(["Deploy GitHub Pages"])
+        K(["Notify Pipeline Status (Slack)"])
+    end
+
+    A --> B
+    A --> C
+    B --> C
+    A --> D
+    B --> D
+    A --> E
+    B --> E
+    A --> F
+    B --> F
+    C --> F
+    D --> F
+    E --> F
+    A --> G
+    F --> G
+    F --> H
+    G --> H
+    F --> I
+    G --> I
+    G --> J
+    F --> K
+    G --> K
+    H --> K
+
+    classDef stage fill:#f0a341,stroke:#8a5a1a,color:#1a1200,font-weight:bold;
+    classDef fallback fill:#f0a341,stroke:#8a5a1a,color:#1a1200,font-weight:bold,stroke-dasharray: 5 5;
+    class A,B,C,D,E,F,G,I,J,K stage
+    class H fallback
 ```
 
-Every one of those arrows is a real, automated step — not a diagram of an aspiration. A push to the repo runs validation, deployment, a live attack, and verification in sequence, without a human clicking through any of it.
+This is the real job graph of `ci_dev_workflow.yml` — every node is an actual GitHub Actions job, every arrow an actual `needs:` dependency, including ones that look transitively redundant (e.g. the attack-test jobs each depend on both "Prepare, Validate, Convert" *and* "Deploy to Splunk" even though the latter already depends on the former) — that's how GitHub's own UI draws it, so this does too. "Persist Verification Results (fallback)" has a dashed border because it's conditional: it only does anything if verification ran but the dashboard update didn't succeed, so on a normal green run it executes zero steps. A push to the repo runs this whole graph without a human clicking through any of it.
 
 That whole loop first runs in a low-stakes proving-ground environment. Only once a batch of rules has actually survived it does the repo open a pull request offering to promote them to the environment that matters — a human still has to look at that PR and merge it; nothing ships to production purely because a script said so.
 
 ```mermaid
 flowchart LR
-    dev(("proving ground<br/>branch")) -- "verified by the pipeline" --> pr{{promotion PR}}
+    dev(("proving ground<br/>branch")) -- "verified by the pipeline" --> pr{{"promotion PR"}}
     pr -- "human review & merge" --> main(("production<br/>branch"))
+
+    classDef auto fill:#f0a341,stroke:#8a5a1a,color:#1a1200,font-weight:bold;
+    classDef human fill:#7a4a12,stroke:#4d2e0a,color:#ffffff,font-weight:bold;
+    class dev,main auto
+    class pr human
 ```
 
 ## See it live
