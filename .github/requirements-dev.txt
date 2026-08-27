@@ -8,7 +8,7 @@
 # Bumping these is a deliberate act with its own diff.
 
 pytest==9.1.1
-ruff==0.16.3
+ruff==0.16.4
 
 # zoneinfo (used by scripts/convert/sigma_to_spl.py for Europe/Budapest)
 # relies on the IANA tzdata being available somewhere. Linux distros and CI
