@@ -49,11 +49,11 @@ Nothing about "does this detection work" is self-reported here. It's a measureme
 The five-phase shape of the pipeline, end to end — Strategic phase through Development, Continuous Integration (with its nested Testing phase), and Measurement & Reporting, plus the "Tune" feedback loop that runs verification results back into Development:
 
 <p align="center">
-  <a href="docs/architecture/Workflow.drawio.svg">
+  <a href="docs/architecture/Workflow.drawio.svg?raw=true" target="_blank" rel="noopener">
     <img src="docs/architecture/Workflow.drawio.svg" alt="Detection-Engineering pipeline diagram: Strategic Phase feeds the Development Phase (write Sigma/SPL rule, validate syntax, convert), which feeds the Continuous Integration Phase (deploy to dev Splunk, then a nested Testing Phase running Atomic Red Team and script emulation, then a pass/fail verification), which feeds the Measurement &amp; Reporting Phase (update docs and stats, deploy GitHub Pages, open a promotion PR, deploy to dev Splunk, notify Slack) — with a Tune feedback loop running from Verification back into Development." width="900">
   </a>
 </p>
-<p align="center"><sub>Click the diagram to view the full-size vector (browser zoom works cleanly on it).</sub></p>
+<p align="center"><sub>Click the diagram to open the full-size vector in a new tab (browser zoom works cleanly on it).</sub></p>
 
 The exact job graph below is the same pipeline drawn from `ci_dev_workflow.yml`'s own dependency structure:
 
