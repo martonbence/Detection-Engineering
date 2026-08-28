@@ -1,9 +1,12 @@
-<p align="center">
-  <img src="docs/branding/logo.png" alt="Detection-Engineering logo" width="160">
-</p>
-
-<h1 align="center">Detection-Engineering</h1>
-<p align="center"><i>What isn't proven is assumption.</i></p>
+<table>
+  <tr>
+    <td><img src="docs/branding/logo.png" alt="Detection-Engineering logo" width="120"></td>
+    <td>
+      <h1>Detection-Engineering</h1>
+      <i>What isn't proven is assumption.</i>
+    </td>
+  </tr>
+</table>
 
 <!-- STATS_START -->
 [![Total Rules](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.total_rules&label=Total%20Rules&color=informational)](https://github.com/martonbence/Detection-Engineering/tree/main/rules)
