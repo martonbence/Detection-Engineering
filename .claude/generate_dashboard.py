@@ -36,10 +36,34 @@
 #     feed is never a hardcoded snapshot.
 #
 # Run: python3 .claude/generate_dashboard.py
+#
+# 2026-08-28 (user's explicit ask, reversing an earlier decision): this now
+# also produces a Pages-safe copy at docs/team-ops.html, so the dashboard
+# can be published live on GitHub Pages alongside the rule browser. Per-agent
+# token/activity data was previously kept off Pages deliberately; that's no
+# longer a constraint. docs/ is the entire Pages artifact (see path: docs/ in
+# ci_code_checks.yml and ci_dev_workflow.yml) -- nothing outside it is ever
+# published -- so a straight copy of the .claude/ file would ship with dead
+# <img> src paths (agents/avatars/*.png, ../docs/branding/logo.png both
+# resolve only from .claude/'s own location). Instead the same template is
+# rendered twice, once per output location, each with asset paths relative
+# to *that* location:
+#   - .claude/team-ops.html  (unchanged): agents/avatars/, ../docs/branding/
+#   - docs/team-ops.html     (new, Pages): assets/team-ops/avatars/, branding/
+# The avatar PNGs themselves have to physically exist under docs/ too --
+# Pages serves only what's in that folder -- so this script also copies just
+# the "_transparent" variants actually referenced (not the whole avatars/
+# directory) into docs/assets/team-ops/avatars/ on every run. docs/branding/
+# logo.png is already in place for the rule browser, so no copy needed there.
+# CI wiring (Jamal's follow-up, not done here): whichever job regenerates
+# docs/ before the actions/upload-pages-artifact step should call this
+# script exactly as today (`python3 .claude/generate_dashboard.py`, no new
+# flags) -- both outputs are written unconditionally, no --pages switch.
 
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from collections import defaultdict
 from datetime import UTC, datetime
@@ -50,10 +74,22 @@ REPO_ROOT = HERE.parent
 LOG_PATH = HERE / "agent_usage_log.jsonl"
 OUT_PATH = HERE / "team-ops.html"
 
+# Pages-safe copy: same content, rendered with asset paths relative to
+# docs/ instead of .claude/. See the module docstring above for why this
+# exists and why the avatar PNGs have to be physically copied, not just
+# re-pathed.
+PAGES_OUT_PATH = REPO_ROOT / "docs" / "team-ops.html"
+PAGES_AVATAR_SRC_DIR = HERE / "agents" / "avatars"
+PAGES_AVATAR_OUT_DIR = REPO_ROOT / "docs" / "assets" / "team-ops" / "avatars"
+
 # Relative to this generated file's own location (.claude/team-ops.html),
 # so <img> tags resolve when the file is opened straight off disk.
-AVATAR_DIR_REL = "agents/avatars"
-LOGO_REL = "../docs/branding/logo.png"
+LOCAL_AVATAR_DIR_REL = "agents/avatars"
+LOCAL_LOGO_REL = "../docs/branding/logo.png"
+
+# Relative to docs/team-ops.html's own location once published on Pages.
+PAGES_AVATAR_DIR_REL = "assets/team-ops/avatars"
+PAGES_LOGO_REL = "branding/logo.png"
 
 ACTIVITY_LIMIT = 40
 
@@ -277,7 +313,7 @@ def fmt_duration(ms: int) -> str:
 ROSTER_BY_NAME: dict[str, tuple[str, str]] = {name: (role, area) for name, role, area, _ in ROSTER}
 
 
-def node_html(name: str, role: str, area: str) -> str:
+def node_html(name: str, role: str, area: str, avatar_dir_rel: str) -> str:
     """One org-chart card: circle avatar on the left, a colored
     rounded-rectangle info-box overlapping it slightly on the right,
     holding bold name + role -- unchanged from the round 1-5/7 side
@@ -288,9 +324,13 @@ def node_html(name: str, role: str, area: str) -> str:
     Connector lines anchor to #avatar-{name} specifically, never the whole
     .node -- every routing anchor (9 o'clock, 12 o'clock, bottom-centre) is
     a point on the circle, so the info-box's size never enters the line
-    math."""
+    math.
+
+    avatar_dir_rel is threaded in rather than read off a module global so
+    the same builder can render both the .claude/ and docs/ (Pages) output
+    locations, whose <img> paths differ (see PAGES_AVATAR_DIR_REL above)."""
     colors = AREA_COLORS[area]
-    avatar_file = f"{AVATAR_DIR_REL}/{name}_transparent.png"
+    avatar_file = f"{avatar_dir_rel}/{name}_transparent.png"
     return (
         f'<div class="node" style="--fill:{colors["fill"]};--stroke:{colors["stroke"]};--text:{colors["text"]}">'
         f'<div class="avatar-ring" id="avatar-{name}"><img src="{avatar_file}" alt="{name}" class="avatar" loading="lazy"></div>'
@@ -299,7 +339,7 @@ def node_html(name: str, role: str, area: str) -> str:
     )
 
 
-def build_branch_html(head: str, rows: list[list[str]]) -> str:
+def build_branch_html(head: str, rows: list[list[str]], avatar_dir_rel: str) -> str:
     """One .branch column: the branch head itself as the first row (at
     indent 0), then a stack of .row divs for BRANCH_LAYOUT's explicit
     report rows, each stair-stepped rightward, beneath the head, by
@@ -320,12 +360,12 @@ def build_branch_html(head: str, rows: list[list[str]]) -> str:
     rows_html = []
     for row in all_rows:
         indent = DEPTH[row[0]] - DEPTH[head]
-        cells = "".join(node_html(name, *ROSTER_BY_NAME[name]) for name in row)
+        cells = "".join(node_html(name, *ROSTER_BY_NAME[name], avatar_dir_rel) for name in row)
         rows_html.append(f'      <div class="row" style="margin-left:{indent * INDENT_STEP_REM:.2f}rem">{cells}</div>')
     return "\n".join(rows_html)
 
 
-def build_org_chart_html() -> str:
+def build_org_chart_html(avatar_dir_rel: str) -> str:
     """Gaz alone, centered, at top; below him a `.branches` flex row
     (`justify-content: space-between`) holding the two independently
     shaped branch columns. Each branch's own bounding box is still
@@ -344,10 +384,10 @@ def build_org_chart_html() -> str:
     drawOrgLines() in the page script) -- unlike round 6-7's static
     generation-time SVG, real positions aren't known until the browser
     lays the flex boxes out."""
-    root_html = node_html("Gaz", *ROSTER_BY_NAME["Gaz"])
+    root_html = node_html("Gaz", *ROSTER_BY_NAME["Gaz"], avatar_dir_rel)
     branches = []
     for (head, rows), side in zip(BRANCH_LAYOUT, ("left", "right"), strict=True):
-        branches.append(f'    <div class="branch branch-{side}">\n{build_branch_html(head, rows)}\n    </div>')
+        branches.append(f'    <div class="branch branch-{side}">\n{build_branch_html(head, rows, avatar_dir_rel)}\n    </div>')
     branches_html = "\n".join(branches)
     return f"""<div class="org-chart" id="org-chart">
       <svg id="lines"></svg>
@@ -906,7 +946,11 @@ TEMPLATE = """<!doctype html>
 """
 
 
-def build_html() -> str:
+def build_html(avatar_dir_rel: str, logo_rel: str) -> str:
+    """Render the full page for one output location. Called once per
+    location (.claude/ and docs/) with that location's own relative asset
+    paths -- see the module docstring for why a straight file copy of one
+    rendering doesn't work for the other."""
     usage = load_usage()
     activity = load_activity()
     register = load_register_progress()
@@ -920,9 +964,9 @@ def build_html() -> str:
     register_progress = f"{register[0]}/{register[1]}" if register else "n/a"
 
     return TEMPLATE.format(
-        logo_rel=LOGO_REL,
+        logo_rel=logo_rel,
         nav_html=build_nav_html(),
-        org_chart=build_org_chart_html(),
+        org_chart=build_org_chart_html(avatar_dir_rel),
         edges_json=json.dumps(RELATIONSHIPS),
         root_json=json.dumps(ROOT),
         activity_tab=build_activity_tab_html(activity),
@@ -939,9 +983,49 @@ def build_html() -> str:
     )
 
 
+def copy_pages_avatars() -> int:
+    """Copy just the "_transparent" avatar PNGs actually referenced by
+    node_html() into docs/assets/team-ops/avatars/, so docs/team-ops.html's
+    <img> tags have something to resolve on Pages (nothing outside docs/ is
+    ever published -- see the module docstring). Only ever adds/overwrites
+    files under that one subpath; never touches the rest of docs/. Returns
+    the number of files copied, for the CLI summary."""
+    PAGES_AVATAR_OUT_DIR.mkdir(parents=True, exist_ok=True)
+    count = 0
+    for name, *_rest in ROSTER:
+        filename = f"{name}_transparent.png"
+        src = PAGES_AVATAR_SRC_DIR / filename
+        if not src.is_file():
+            print(f"warning: missing avatar source {src}, docs/team-ops.html will show a broken image for {name}")
+            continue
+        shutil.copy2(src, PAGES_AVATAR_OUT_DIR / filename)
+        count += 1
+    return count
+
+
 def main() -> int:
-    OUT_PATH.write_text(build_html(), encoding="utf-8")
+    OUT_PATH.write_text(build_html(LOCAL_AVATAR_DIR_REL, LOCAL_LOGO_REL), encoding="utf-8")
     print(f"Wrote {OUT_PATH}")
+
+    copied = copy_pages_avatars()
+    print(f"Copied {copied} avatar(s) to {PAGES_AVATAR_OUT_DIR}")
+
+    PAGES_OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    PAGES_OUT_PATH.write_text(build_html(PAGES_AVATAR_DIR_REL, PAGES_LOGO_REL), encoding="utf-8")
+    print(f"Wrote {PAGES_OUT_PATH}")
+
+    # Hard failure, not just a logged warning (2026-08-28): this script is
+    # now wired into the CI Pages-publish job, so a missing avatar source
+    # must fail the run loudly instead of silently shipping docs/team-ops.html
+    # with a broken <img> on the live public org chart. copy_pages_avatars()
+    # already prints one "warning: missing avatar source ..." line per miss
+    # (kept as-is, still legible in CI logs) -- this just makes the overall
+    # exit code reflect that instead of returning 0 regardless.
+    if copied < len(ROSTER):
+        missing = len(ROSTER) - copied
+        print(f"error: {missing} avatar(s) missing out of {len(ROSTER)} roster members -- docs/team-ops.html would ship broken <img> tags, failing")
+        return 1
+
     return 0
 
 
