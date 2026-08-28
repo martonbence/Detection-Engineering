@@ -1055,8 +1055,17 @@
       width: 120px;
     }
 
+    /* 110px fit the "NOT VERIFIED" badge alone (the longest verdict word) but
+       not the badge plus one of the review-due/drift/out-of-scope markers
+       verdictBadge() appends beside it (~16px each for icon + margin) -- the
+       combination silently overflowed the nowrap/ellipsis cell (register:
+       Verdict column badge+scope-icon overflow). 160px gives the worst case
+       (badge + one marker; only one of due/drift/scoped ever renders at once)
+       comfortable room without changing the table's existing fixed-layout +
+       horizontal-scroll pattern (.table-wrap already scrolls when column
+       widths exceed the viewport, so widening this one is inert elsewhere). */
     th:nth-child(10) {
-      width: 110px;
+      width: 160px;
     }
 
     th:nth-child(8),
