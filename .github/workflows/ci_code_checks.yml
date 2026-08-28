@@ -685,18 +685,42 @@ jobs:
           echo "Push failed after 3 attempts."
           exit 1
 
+      # 2026-08-28, Jamal's follow-up to Sienna's generate_dashboard.py
+      # change: same invocation as the manual/local-only usage
+      # (`python3 .claude/generate_dashboard.py`, no new flags), now wired
+      # into CI for the first time. Writes .claude/team-ops.html (unused
+      # here) AND docs/team-ops.html + docs/assets/team-ops/avatars/*.png --
+      # the second pair is what needs to reach the "Upload console artifact
+      # for Pages" step below, alongside docs/index.html, so this runs
+      # after the regen-and-commit step above (stable working tree, no more
+      # `git reset --hard` retries to wipe an untracked file) and before the
+      # upload. Stdlib-only (json/shutil/subprocess/pathlib) plus the `git`
+      # binary for its `git log` activity feed -- no install step needed,
+      # and this checkout's `fetch-depth: 0` above (originally for
+      # generate_stats.py's compute_rule_version()) already gives it enough
+      # history for `git log -n40`. Not gated on regen's own `published`
+      # outcome: the dashboard's content doesn't depend on outputs/reports/
+      # at all, so it should regenerate (and get bundled into the Pages
+      # artifact) on every run that reaches this point, not just runs that
+      # found a stats diff.
+      - name: Generate team-ops dashboard for Pages
+        run: python3 .claude/generate_dashboard.py
+
       # audit/feature-and-process-audit.md item 4.4, 2026-08-24 follow-up.
-      # docs/index.html is regenerated on disk by the step above regardless
-      # of whether outputs/reports/ had anything new to commit -- this
-      # uploads it as a same-run artifact for publish_console to consume
-      # instead of that job checking out dev's tip. No explicit `if:` here on
-      # purpose: default step sequencing already does the right thing --
-      # this step only runs if the step above succeeded (all three of its
-      # exit-0 paths, not just the "pushed" one), and is skipped along with
-      # everything else in the job if that step failed (e.g. 3 failed push
-      # attempts), which is also when publish_console's own `if:` (below)
-      # keeps it from trying to download an artifact that was never
-      # uploaded.
+      # docs/index.html is regenerated on disk by the "Regenerate and commit
+      # if changed" step above regardless of whether outputs/reports/ had
+      # anything new to commit -- this uploads it (and, as of 2026-08-28,
+      # docs/team-ops.html + docs/assets/team-ops/ from the dashboard step
+      # directly above) as a same-run artifact for publish_console to
+      # consume instead of that job checking out dev's tip. No explicit
+      # `if:` here on purpose: default step sequencing already does the
+      # right thing -- this step only runs if "Regenerate and commit if
+      # changed" succeeded (all three of its exit-0 paths, not just the
+      # "pushed" one) and the dashboard step after it also succeeded, and is
+      # skipped along with everything else in the job if either failed
+      # (e.g. 3 failed push attempts), which is also when publish_console's
+      # own `if:` (below) keeps it from trying to download an artifact that
+      # was never uploaded.
       #
       # retention-days: 1 -- pure same-run transport to publish_console,
       # never consumed after this run, no reason to keep it longer (matches

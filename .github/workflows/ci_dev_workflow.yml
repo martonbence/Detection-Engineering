@@ -2127,15 +2127,40 @@ jobs:
           set -euo pipefail
           python scripts/state/merge_verification_results.py
 
+      # 2026-08-28, Jamal's follow-up to Sienna's generate_dashboard.py
+      # change -- same wiring as ci_code_checks.yml's regenerate_console
+      # job, same reasoning (see that file's "Generate team-ops dashboard
+      # for Pages" step comment for the full version, not repeated twice).
+      # Short version: same unchanged invocation
+      # (`python3 .claude/generate_dashboard.py`) now also writes
+      # docs/team-ops.html + docs/assets/team-ops/avatars/*.png alongside
+      # its existing .claude/team-ops.html output; placed after "Merge
+      # verification results, generate stats and commit" (stable tree, no
+      # more `git reset --hard` retries ahead to wipe an untracked file) and
+      # before this job's own "Upload console artifact for Pages" so the
+      # extra files ride along in the same docs/ artifact as
+      # docs/index.html. Stdlib + `git` only, no install step; this
+      # checkout's `fetch-depth: 0` (needed for generate_stats.py's
+      # compute_rule_version()) already covers the `git log -n40` the
+      # dashboard's activity feed reads. Not gated on this job's LAB_ONLINE/
+      # verification-result branching -- the dashboard's content is
+      # independent of Splunk verify state, so it regenerates the same way
+      # whether or not the lab ran this time.
+      - name: Generate team-ops dashboard for Pages
+        run: python3 .claude/generate_dashboard.py
+
       # audit/feature-and-process-audit.md item 4.4. docs/index.html and
-      # README.md's STATS block are still regenerated on disk by the step
-      # above (generate_stats.py itself is unchanged) but are no longer part
-      # of that step's commit -- this is the transport that replaces it for
-      # Pages. Default step sequencing does the right thing here without an
-      # explicit `if:`: if the step above failed (e.g. 3 failed push
-      # attempts), this step is skipped, the job's result is 'failure', and
-      # deploy_pages below (gated on this job's result being exactly
-      # 'success') never even attempts to download it -- there is no
+      # README.md's STATS block are still regenerated on disk by the "Merge
+      # verification results, generate stats and commit" step above
+      # (generate_stats.py itself is unchanged) but are no longer part of
+      # that step's commit -- this is the transport that replaces it for
+      # Pages, now also carrying docs/team-ops.html + docs/assets/team-ops/
+      # from the dashboard step directly above (2026-08-28). Default step
+      # sequencing does the right thing here without an explicit `if:`: if
+      # the merge/commit step failed (e.g. 3 failed push attempts), the
+      # dashboard step and this one are both skipped, the job's result is
+      # 'failure', and deploy_pages below (gated on this job's result being
+      # exactly 'success') never even attempts to download it -- there is no
       # "artifact not found" failure mode to handle downstream, only a clean
       # skip. Uploading unconditionally on push failure was considered and
       # rejected: outputs/results/ would not have landed on dev in that case
