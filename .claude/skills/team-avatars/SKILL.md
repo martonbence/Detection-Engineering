@@ -79,13 +79,13 @@ pose the camera lock allows.
 ## Where the finished image goes
 
 ```
-.claude/agents/avatars/<Name>.png
+docs/pictures/avatars/<Name>.png
 ```
 
 Capitalized first name, directly in `avatars/`, no subdirectory — this is
 the convention all current files follow. Once generated, wire it into
 that person's `*Avatar: pending*` line in `TEAM.md` as
-`![Name](.claude/agents/avatars/Name.png)`.
+`![Name](docs/pictures/avatars/Name.png)`.
 
 Save the finished prompt text itself as a new entry in this skill file
 (a short addition to or replacement of the worked example above), not as

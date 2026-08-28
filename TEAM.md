@@ -59,7 +59,7 @@ strategic input mediated through Gaz rather than a direct tie.
 ---
 
 ### Gaz - Engineering Lead
-<img src=".claude/agents/avatars/Gaz.png" width="64" alt="Gaz"> · **Area:** Strategic · reference file: `.claude/agents/Gaz - Engineering Lead.md` (documentation only — never dispatched via the Agent tool)
+<img src="docs/pictures/avatars/Gaz.png" width="64" alt="Gaz"> · **Area:** Strategic · reference file: `.claude/agents/Gaz - Engineering Lead.md` (documentation only — never dispatched via the Agent tool)
 
 The one point of contact. Gaz is the top-level session itself — they're who
 you're talking to, always already running. Gaz turns a request into a task,
@@ -76,7 +76,7 @@ trio); routes work to and takes reports from all ten specialists.
 ---
 
 ### Bjorn - Detection Quality Engineer
-<img src=".claude/agents/avatars/Bjorn.png" width="64" alt="Bjorn"> · **Area:** Operational · agent slug: `bjorn-detection-content-reviewer`
+<img src="docs/pictures/avatars/Bjorn.png" width="64" alt="Bjorn"> · **Area:** Operational · agent slug: `bjorn-detection-content-reviewer`
 
 Reviews rule *quality*, never authors: whether a Sigma rule's `detection:`
 block actually implements what its title and description claim, whether the
@@ -92,7 +92,7 @@ author, one reviewer, every rule.
 ---
 
 ### Yuki - Detection Engineer
-<img src=".claude/agents/avatars/Yuki.png" width="64" alt="Yuki"> · **Area:** Operational · agent slug: `yuki-detection-engineer`
+<img src="docs/pictures/avatars/Yuki.png" width="64" alt="Yuki"> · **Area:** Operational · agent slug: `yuki-detection-engineer`
 
 Writes new detections. Starts every rule from `scripts/new_rule.py`'s
 scaffold, fills in the real `detection:` logic (or the
@@ -109,7 +109,7 @@ what to build next; Chloe, who documents the results.
 ---
 
 ### Jamal - DevOps Engineer
-<img src=".claude/agents/avatars/Jamal.png" width="64" alt="Jamal"> · **Area:** Operational · agent slug: `jamal-devops-engineer`
+<img src="docs/pictures/avatars/Jamal.png" width="64" alt="Jamal"> · **Area:** Operational · agent slug: `jamal-devops-engineer`
 
 Owns the CI/CD pipeline as code: the three GitHub Actions workflows and
 every script along the Sigma → validate → convert → deploy → Atomic Red
@@ -124,7 +124,7 @@ verify and audit their surface respectively.
 ---
 
 ### Chloe - Technical Writer
-<img src=".claude/agents/avatars/Chloe.png" width="64" alt="Chloe"> · **Area:** Operational · agent slug: `chloe-docs-maintainer`
+<img src="docs/pictures/avatars/Chloe.png" width="64" alt="Chloe"> · **Area:** Operational · agent slug: `chloe-docs-maintainer`
 
 Keeps README.md, the four `docs/architecture/*.md` deep-reference pages, and
 the GitHub Wiki consistent with the actual state of the pipeline. Triggered
@@ -137,7 +137,7 @@ surfaces; Kai on PR mechanics for doc changes.
 ---
 
 ### Sienna - Frontend Engineer
-<img src=".claude/agents/avatars/Sienna.png" width="64" alt="Sienna"> · **Area:** Operational · agent slug: `sienna-frontend-engineer`
+<img src="docs/pictures/avatars/Sienna.png" width="64" alt="Sienna"> · **Area:** Operational · agent slug: `sienna-frontend-engineer`
 
 Owns the rule browser: `docs/index.html` (generated, never hand-edited),
 `scripts/docs/generate_stats.py`, and its `assets/` (template, CSS, JS), plus
@@ -151,7 +151,7 @@ PR/merge mechanics; Kwame, who verifies their register items for drift.
 ---
 
 ### Kai - Platform Engineer
-<img src=".claude/agents/avatars/Kai.png" width="64" alt="Kai"> · **Area:** Operational · agent slug: `kai-github-ops`
+<img src="docs/pictures/avatars/Kai.png" width="64" alt="Kai"> · **Area:** Operational · agent slug: `kai-github-ops`
 
 Handles the GitHub *platform* side — branches, PRs, merge conflicts (walked
 through with the user, never resolved unilaterally), releases/tags, repo
@@ -164,7 +164,7 @@ their content; Priya on secrets and repo-settings exposure findings.
 ---
 
 ### Yara - Technology Strategist
-<img src=".claude/agents/avatars/Yara.png" width="64" alt="Yara"> · **Area:** Strategic · agent slug: `yara-ideation`
+<img src="docs/pictures/avatars/Yara.png" width="64" alt="Yara"> · **Area:** Strategic · agent slug: `yara-ideation`
 
 Not a detection-only role: Yara's strategic ideation covers the whole
 repo — pipeline and tooling direction, rule-browser and dashboard features,
@@ -183,7 +183,7 @@ whichever specialist owns the relevant surface, via Gaz.
 ---
 
 ### Masha - Threat Intelligence Analyst
-<img src=".claude/agents/avatars/Masha.png" width="64" alt="Masha"> · **Area:** Analytical · agent slug: `masha-threat-intel`
+<img src="docs/pictures/avatars/Masha.png" width="64" alt="Masha"> · **Area:** Analytical · agent slug: `masha-threat-intel`
 
 Looks outward instead of inward. Where Yara mines this repo's own coverage
 gaps, Masha researches what attackers are actually doing right now — CTI
@@ -199,7 +199,7 @@ prioritized briefs; Yuki, direct handoff when a finding is ready to build.
 ---
 
 ### Priya - Application Security Engineer
-<img src=".claude/agents/avatars/Priya.png" width="64" alt="Priya"> · **Area:** Operational · agent slug: `priya-security-scanner`
+<img src="docs/pictures/avatars/Priya.png" width="64" alt="Priya"> · **Area:** Operational · agent slug: `priya-security-scanner`
 
 Audits the repo's own code and configuration — Python scripts, GitHub
 Actions workflows, config/schemas — for vulnerabilities, secrets, and risky
@@ -213,7 +213,7 @@ config; Kai, on secrets and repo-settings exposure.
 ---
 
 ### Kwame - Compliance Analyst
-<img src=".claude/agents/avatars/Kwame.png" width="64" alt="Kwame"> · **Area:** Strategic · agent slug: `kwame-audit-compliance`
+<img src="docs/pictures/avatars/Kwame.png" width="64" alt="Kwame"> · **Area:** Strategic · agent slug: `kwame-audit-compliance`
 
 Keeps the pipeline remediation register honest. `audit/remediation-plan.md`
 is maintained by hand, which means it drifts — an item can be marked done

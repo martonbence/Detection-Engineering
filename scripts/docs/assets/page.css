@@ -106,7 +106,7 @@
        crisp at 2x device pixel ratio; sized to sit comfortably inside the
        72px strip alongside the 14px info-btn icon without dominating the
        row. 36px, not the previous 48px: the 2026-08-23 branding pass moved
-       to a tightly-cropped source (docs/branding/logo.png went from a
+       to a tightly-cropped source (docs/pictures/branding/logo.png went from a
        2000x2000 file with large transparent margins to a 1233x1299 crop of
        just the artwork), so the same 48px export now renders the shield
        edge-to-edge instead of filling ~70% of the box -- keeping the CSS

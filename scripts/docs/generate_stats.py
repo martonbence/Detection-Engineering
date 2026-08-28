@@ -1615,7 +1615,7 @@ def _read_asset(name: str) -> str:
 # has to stay one self-contained file for GitHub Pages, with no relative path
 # that can go stale.
 #
-# The five PNGs here are pre-resized exports of docs/branding/logo.png
+# The five PNGs here are pre-resized exports of docs/pictures/branding/logo.png
 # (1233x1299 source, cropped tight to the shield artwork -- see the
 # 2026-08-23 branding pass: an earlier 2000x2000 version of this file had
 # large transparent margins around the same artwork, which wasted most of
@@ -1643,7 +1643,11 @@ def _read_asset(name: str) -> str:
 # old 48px/72px-strip sizing still gives the same visual weight (see the
 # 2026-08-23 branding pass, which dropped .strip-logo from 48px to 36px
 # for exactly this reason).
-_BRANDING_DIR = REPO_ROOT / "docs" / "branding"
+# 2026-08-28 image consolidation: moved from docs/branding/ to
+# docs/pictures/branding/, alongside the team avatars under docs/pictures/
+# (Sienna's surface, per CLAUDE.md), so all image assets live under one
+# discoverable folder.
+_BRANDING_DIR = REPO_ROOT / "docs" / "pictures" / "branding"
 
 
 def _read_image_b64(name: str) -> str:

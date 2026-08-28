@@ -48,22 +48,24 @@
 # resolve only from .claude/'s own location). Instead the same template is
 # rendered twice, once per output location, each with asset paths relative
 # to *that* location:
-#   - .claude/team-ops.html  (unchanged): agents/avatars/, ../docs/branding/
-#   - docs/team-ops.html     (new, Pages): assets/team-ops/avatars/, branding/
-# The avatar PNGs themselves have to physically exist under docs/ too --
-# Pages serves only what's in that folder -- so this script also copies just
-# the "_transparent" variants actually referenced (not the whole avatars/
-# directory) into docs/assets/team-ops/avatars/ on every run. docs/branding/
-# logo.png is already in place for the rule browser, so no copy needed there.
-# CI wiring (Jamal's follow-up, not done here): whichever job regenerates
-# docs/ before the actions/upload-pages-artifact step should call this
-# script exactly as today (`python3 .claude/generate_dashboard.py`, no new
-# flags) -- both outputs are written unconditionally, no --pages switch.
+#   - .claude/team-ops.html  (unchanged): ../docs/pictures/avatars/, ../docs/pictures/branding/
+#   - docs/team-ops.html     (Pages):     pictures/avatars/, pictures/branding/
+#
+# Same-day image consolidation (2026-08-28, later that day): avatars and
+# branding PNGs moved from .claude/agents/avatars/ and docs/branding/ to a
+# single docs/pictures/{avatars,branding}/ tree (Sienna's surface, per
+# CLAUDE.md). Because docs/pictures/avatars/ is now already inside the
+# Pages-published docs/ tree, the copy-avatars-into-docs step this module
+# used to need (copy_pages_avatars(), writing to
+# docs/assets/team-ops/avatars/) is no longer necessary -- both rendered
+# outputs can reference the *same* physical avatar files, just via different
+# relative paths, exactly like the branding logo already did before this
+# move. That copy step and its generated output directory have been removed
+# accordingly; there is now exactly one copy of each avatar PNG in the repo.
 
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 from collections import defaultdict
 from datetime import UTC, datetime
@@ -76,20 +78,19 @@ OUT_PATH = HERE / "team-ops.html"
 
 # Pages-safe copy: same content, rendered with asset paths relative to
 # docs/ instead of .claude/. See the module docstring above for why this
-# exists and why the avatar PNGs have to be physically copied, not just
-# re-pathed.
+# exists. Since the 2026-08-28 image consolidation, both outputs read the
+# very same avatar/branding PNGs under docs/pictures/ -- no copy step
+# needed, just a different relative path per output location.
 PAGES_OUT_PATH = REPO_ROOT / "docs" / "team-ops.html"
-PAGES_AVATAR_SRC_DIR = HERE / "agents" / "avatars"
-PAGES_AVATAR_OUT_DIR = REPO_ROOT / "docs" / "assets" / "team-ops" / "avatars"
 
 # Relative to this generated file's own location (.claude/team-ops.html),
 # so <img> tags resolve when the file is opened straight off disk.
-LOCAL_AVATAR_DIR_REL = "agents/avatars"
-LOCAL_LOGO_REL = "../docs/branding/logo.png"
+LOCAL_AVATAR_DIR_REL = "../docs/pictures/avatars"
+LOCAL_LOGO_REL = "../docs/pictures/branding/logo.png"
 
 # Relative to docs/team-ops.html's own location once published on Pages.
-PAGES_AVATAR_DIR_REL = "assets/team-ops/avatars"
-PAGES_LOGO_REL = "branding/logo.png"
+PAGES_AVATAR_DIR_REL = "pictures/avatars"
+PAGES_LOGO_REL = "pictures/branding/logo.png"
 
 ACTIVITY_LIMIT = 40
 
@@ -983,47 +984,39 @@ def build_html(avatar_dir_rel: str, logo_rel: str) -> str:
     )
 
 
-def copy_pages_avatars() -> int:
-    """Copy just the "_transparent" avatar PNGs actually referenced by
-    node_html() into docs/assets/team-ops/avatars/, so docs/team-ops.html's
-    <img> tags have something to resolve on Pages (nothing outside docs/ is
-    ever published -- see the module docstring). Only ever adds/overwrites
-    files under that one subpath; never touches the rest of docs/. Returns
-    the number of files copied, for the CLI summary."""
-    PAGES_AVATAR_OUT_DIR.mkdir(parents=True, exist_ok=True)
-    count = 0
+def _check_avatars_present() -> int:
+    """Verify every roster member's "_transparent" avatar PNG actually
+    exists under docs/pictures/avatars/ before either output is written.
+    Both .claude/team-ops.html and docs/team-ops.html now read that same
+    physical directory (2026-08-28 image consolidation removed the old
+    copy-into-docs step -- see the module docstring), so one check covers
+    both outputs. Returns the count of missing files."""
+    avatar_dir = REPO_ROOT / "docs" / "pictures" / "avatars"
+    missing = 0
     for name, *_rest in ROSTER:
-        filename = f"{name}_transparent.png"
-        src = PAGES_AVATAR_SRC_DIR / filename
-        if not src.is_file():
-            print(f"warning: missing avatar source {src}, docs/team-ops.html will show a broken image for {name}")
-            continue
-        shutil.copy2(src, PAGES_AVATAR_OUT_DIR / filename)
-        count += 1
-    return count
+        path = avatar_dir / f"{name}_transparent.png"
+        if not path.is_file():
+            print(f"warning: missing avatar source {path}, team-ops.html will show a broken image for {name}")
+            missing += 1
+    return missing
 
 
 def main() -> int:
+    missing = _check_avatars_present()
+
     OUT_PATH.write_text(build_html(LOCAL_AVATAR_DIR_REL, LOCAL_LOGO_REL), encoding="utf-8")
     print(f"Wrote {OUT_PATH}")
-
-    copied = copy_pages_avatars()
-    print(f"Copied {copied} avatar(s) to {PAGES_AVATAR_OUT_DIR}")
 
     PAGES_OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     PAGES_OUT_PATH.write_text(build_html(PAGES_AVATAR_DIR_REL, PAGES_LOGO_REL), encoding="utf-8")
     print(f"Wrote {PAGES_OUT_PATH}")
 
     # Hard failure, not just a logged warning (2026-08-28): this script is
-    # now wired into the CI Pages-publish job, so a missing avatar source
-    # must fail the run loudly instead of silently shipping docs/team-ops.html
-    # with a broken <img> on the live public org chart. copy_pages_avatars()
-    # already prints one "warning: missing avatar source ..." line per miss
-    # (kept as-is, still legible in CI logs) -- this just makes the overall
-    # exit code reflect that instead of returning 0 regardless.
-    if copied < len(ROSTER):
-        missing = len(ROSTER) - copied
-        print(f"error: {missing} avatar(s) missing out of {len(ROSTER)} roster members -- docs/team-ops.html would ship broken <img> tags, failing")
+    # wired into the CI Pages-publish job, so a missing avatar source must
+    # fail the run loudly instead of silently shipping team-ops.html with a
+    # broken <img> on the live public org chart.
+    if missing:
+        print(f"error: {missing} avatar(s) missing out of {len(ROSTER)} roster members -- team-ops.html would ship broken <img> tags, failing")
         return 1
 
     return 0
