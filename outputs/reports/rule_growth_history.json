@@ -319,6 +319,14 @@
       "total_rules": 28,
       "total_sigma_rules": 28,
       "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-08-28",
+      "timestamp": "2026-08-28T13:51:58.834865+00:00",
+      "git_sha": "22cc4821c460e9dcb0487852d61ab27042ff20df",
+      "total_rules": 28,
+      "total_sigma_rules": 28,
+      "total_native_spl_rules": 1
     }
   ]
 }
