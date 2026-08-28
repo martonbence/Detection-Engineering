@@ -36,8 +36,8 @@
 
 | | |
 |---|---|
-| <img src="docs/pictures/branding/architecture.png" width="100" alt="Architecture docs icon"> | **[Architecture docs](docs/architecture/)**<br>Pipeline overview, data flow, threat model, and a per-file scripts reference — all with Mermaid diagrams. |
-| <img src="docs/pictures/branding/wiki.png" width="100" alt="Wiki icon"> | **[Wiki](../../wiki)**<br>Planned newcomer-facing walkthrough — not yet initialized. |
+| <img src="docs/pictures/branding/architecture.png" width="90" alt="Architecture icon"> | **[Architecture](docs/architecture/)**<br>Pipeline overview, data flow, threat model, and a per-file scripts reference — all with Mermaid diagrams. |
+| <img src="docs/pictures/branding/wiki.png" width="90" alt="Wiki icon"> | **[Wiki](../../wiki)**<br>Planned newcomer-facing walkthrough — not yet initialized. |
 
 ## The problem this repo solves
 
