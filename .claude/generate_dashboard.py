@@ -42,7 +42,7 @@ from __future__ import annotations
 import json
 import subprocess
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -201,7 +201,7 @@ def load_usage() -> dict[str, dict]:
     stats: dict[str, dict] = defaultdict(lambda: {"dispatches": 0, "tokens": 0, "tool_uses": 0, "duration_ms": 0, "last_date": None, "dispatches_today": 0})
     if not LOG_PATH.exists():
         return stats
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
     for raw in LOG_PATH.read_text(encoding="utf-8").splitlines():
         raw = raw.strip()
         if not raw:
@@ -346,7 +346,7 @@ def build_org_chart_html() -> str:
     lays the flex boxes out."""
     root_html = node_html("Gaz", *ROSTER_BY_NAME["Gaz"])
     branches = []
-    for (head, rows), side in zip(BRANCH_LAYOUT, ("left", "right")):
+    for (head, rows), side in zip(BRANCH_LAYOUT, ("left", "right"), strict=True):
         branches.append(f'    <div class="branch branch-{side}">\n{build_branch_html(head, rows)}\n    </div>')
     branches_html = "\n".join(branches)
     return f"""<div class="org-chart" id="org-chart">
@@ -935,7 +935,7 @@ def build_html() -> str:
         total_tokens=fmt_tokens(total_tokens),
         active_count=active_count,
         register_progress=register_progress,
-        generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+        generated_at=datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC"),
     )
 
 
