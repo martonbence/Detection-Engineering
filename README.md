@@ -1,4 +1,4 @@
-<img src="docs/pictures/branding/logo.png" alt="Detection-Engineering logo" align="left" width="120">
+<img src="docs/pictures/branding/logo.png" alt="Detection-Engineering logo" align="left" width="200">
 
 <big><big><big><big><big>**Detection-Engineering**</big></big></big></big></big><br>
 *What isn't proven is assumption.*
