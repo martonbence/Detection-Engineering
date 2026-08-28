@@ -1,6 +1,6 @@
 <img src="docs/pictures/branding/logo.png" alt="Detection-Engineering logo" align="left" width="120">
 
-<big><big><big>**Detection-Engineering**</big></big></big><br>
+<big><big><big><big><big>**Detection-Engineering**</big></big></big></big></big><br>
 *What isn't proven is assumption.*
 
 <br clear="left"/>
@@ -29,9 +29,9 @@
 
 | | |
 |---|---|
-| <img src="docs/pictures/branding/rule_browser.png" width="60" alt="Rule Browser icon"> **[Rule Browser](https://martonbence.github.io/Detection-Engineering/)** | Every rule in the repo, searchable and filterable, with its ATT&CK mapping and its current pass/fail verdict. |
-| <img src="docs/pictures/branding/mitre_navigator.png" width="60" alt="MITRE Navigator icon"> **[MITRE Navigator](https://martonbence.github.io/Detection-Engineering/#tab=navigator)** | The same coverage plotted against the full ATT&CK matrix, exportable as a Navigator layer for the official MITRE tool. |
-| <img src="docs/pictures/branding/dashboards.png" width="60" alt="Dashboards icon"> **[Dashboards](https://martonbence.github.io/Detection-Engineering/#tab=dashboards)** | Rule-library breakdowns by type, severity, status and verification outcome, MITRE tactic spread, and coverage/rule-count trends over the repo's own history. |
+| <img src="docs/pictures/branding/rule_browser.png" width="180" alt="Rule Browser icon"> | **[Rule Browser](https://martonbence.github.io/Detection-Engineering/)**<br>Every rule in the repo, searchable and filterable, with its ATT&CK mapping and its current pass/fail verdict. |
+| <img src="docs/pictures/branding/mitre_navigator.png" width="180" alt="MITRE Navigator icon"> | **[MITRE Navigator](https://martonbence.github.io/Detection-Engineering/#tab=navigator)**<br>The same coverage plotted against the full ATT&CK matrix, exportable as a Navigator layer for the official MITRE tool. |
+| <img src="docs/pictures/branding/dashboards.png" width="180" alt="Dashboards icon"> | **[Dashboards](https://martonbence.github.io/Detection-Engineering/#tab=dashboards)**<br>Rule-library breakdowns by type, severity, status and verification outcome, MITRE tactic spread, and coverage/rule-count trends over the repo's own history. |
 
 **Reference docs** — deeper technical background, for after the live views raise a question:
 
