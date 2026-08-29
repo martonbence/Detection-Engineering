@@ -20,7 +20,7 @@ The manual entry points are called out explicitly where they exist.
 |---|---|---|
 | **Workflows** | | |
 | [`.github/workflows/ci_dev_workflow.yml`](../../.github/workflows/ci_dev_workflow.yml) | The whole dev loop: validate → convert → deploy → attack → verify → report | push/PR to any branch but `main` |
-| [`.github/workflows/ci_prod_workflow.yml`](../../.github/workflows/ci_prod_workflow.yml) | Deploys already-verified rules to the prod Splunk app (same server as dev, different app) | push to `main` |
+| [`.github/workflows/ci_prod_workflow.yml`](../../.github/workflows/ci_prod_workflow.yml) | Deploys already-verified rules to the prod Splunk app (same server as dev, different app), then folds that run's own deploy report into the dashboard and republishes it — 4 jobs: `announce_lab_offline`, `deploy_to_prod`, `update_dashboard`, `deploy_pages` | push to `main` |
 | [`.github/workflows/ci_code_checks.yml`](../../.github/workflows/ci_code_checks.yml) | CI for the pipeline's *own* code: ruff, pytest, PowerShell analysis, actionlint, `pip-audit`, Console republish | push/PR touching `scripts/`, `tests/`, `pyproject.toml`, the requirements files, `.github/workflows/**`, `.github/PSScriptAnalyzerSettings.psd1`, `.github/actionlint.yaml` |
 | **Pipeline stages** | | |
 | [`scripts/validate/validate_sigma.ps1`](../../scripts/validate/validate_sigma.ps1) | Thin wrapper that feeds the rule list to the Python validator in one process | dev workflow |
@@ -86,29 +86,77 @@ Two things worth knowing before editing it:
 
 ### `ci_prod_workflow.yml` — production deploy
 
-One real job, on `main`. It re-converts from Sigma (which is how the `.meta.json` sidecars, gitignored
-and never committed, come to exist on the prod runner), then runs a **drift gate** — `git diff
---exit-code -- rules/splunk` — before deploying. If the re-conversion produced a different `.spl`
-than the one reviewed and merged, the deploy stops. Both workflows install from the same pinned
-[`.github/requirements.txt`](../../.github/requirements.txt), which is what makes that
-reproducibility claim mean anything.
+Four jobs, on `main`: `announce_lab_offline` (a conditional lab-offline notice), `deploy_to_prod`
+(the actual deploy), and two appended after it — `update_dashboard` and `deploy_pages` — that fold
+that run's own deploy report into the dashboard and republish it. Before the last two existed,
+nothing updated `outputs/reports/deployment_inventory.json`'s `prod` section after a prod deploy
+succeeded — the only writer of that section was `ci_prod_audit.yml`, a `workflow_dispatch`-only,
+live-reconcile workflow that has to be triggered by hand — so the dashboard kept showing prod on its
+previous rule version right after a deploy that had already succeeded, until someone remembered to
+run that audit *and* a later `dev` push happened to regenerate `docs/index.html` as a side effect.
+
+**`deploy_to_prod` no longer re-converts Sigma and diffs the result** (register item 3.2, stage C).
+It downloads the `.meta.json` sidecars from the exact dev-workflow run recorded in
+`rules/splunk/.bundle-provenance.json` — a pointer file `dev` commits alongside the `.spl` it
+describes, naming the `spl-pipeline-bundle` artifact and the run that built it — then runs
+`gh attestation verify` against every committed `.spl` file, pinned to
+`--signer-workflow .../ci_dev_workflow.yml`: a Sigstore build-provenance check that the file about to
+be deployed was actually produced by the dev workflow with a matching digest, not hand-edited or
+converted outside it. A failure here stops the deploy exactly as hard as the old
+`git diff --exit-code -- rules/splunk` drift gate did — this step replaced that gate, because it
+proves provenance more strongly (a tampered, mismatched-signer, or mismatched-repo file is rejected)
+and lets prod skip installing the whole Sigma conversion toolchain: `deploy_to_prod` now installs
+only [`.github/requirements-deploy.txt`](../../.github/requirements-deploy.txt) (`requests` alone,
+pinned separately), not the full `.github/requirements.txt` dev needs for conversion reproducibility.
+The verification calls run with bounded parallelism (`max_parallel=8`) since each is a real network
+round-trip plus a Sigstore signature check (~5s/file observed).
+
+The deploy itself runs with `--report`, which writes the per-rule outcome — created / updated /
+skipped (deprecated) / failed, with the rule version — to `outputs/deploy/prod_deploy_report.json`,
+uploaded as an artifact (`prod-deploy-report-${{ github.run_id }}`, 90 days) and rendered into the
+step summary. The upload runs under `always() && steps.deploy.outcome != 'skipped'`, because a
+*failed* deploy is when the record matters most: it names which rules reached production before the
+run stopped, which the exit code alone cannot say. The report carries repo-side facts only — no
+Splunk URL, app name or account — since the artifact is downloadable from a public repository.
+
+**`update_dashboard`** (`needs: [deploy_to_prod]`, `if: always() && needs.deploy_to_prod.result !=
+'skipped'`, `ubuntu-latest`, `environment: dev`) downloads that same-run deploy report and folds it
+into `outputs/reports/deployment_inventory.json`'s `prod` section via
+`scripts/state/deployment_inventory.py --env prod --deploy-report ...` — deliberately no
+`--reconcile`: it trusts the deploy that triggered it rather than duplicating `ci_prod_audit.yml`'s
+live-Splunk reconcile, which stays `workflow_dispatch`-only for its own `LAB_ONLINE`-drift reasons
+(see that workflow's own header comment). It then regenerates `docs/index.html`/`stats.json`
+(`generate_stats.py`) and `docs/team-ops.html` (`.claude/generate_dashboard.py` — both are
+regenerated fresh on disk every run and never committed, so skipping either would republish a stale
+copy) and commits the report data to `dev` — checked out with `GH_PAT_DEV_PUSH`, retried up to 3
+times against `origin/dev` on push conflict, the same shape `ci_prod_audit.yml`'s own
+`record_inventory` job and `ci_dev_workflow.yml`'s `update_dashboard` job both use. The `always()`
+plus the explicit `!= 'skipped'` check (rather than a bare `needs:`, which implies `success()`) is
+deliberate for two reasons: it must still run when `deploy_to_prod` itself was skipped by
+`LAB_ONLINE=false`, and it must still run on a *partial* deploy failure —
+`deploy_spl_to_splunk.py` only returns non-zero at the very end if *any one* file failed, so a run
+that deployed 26 of 27 rules still makes `deploy_to_prod` report `failure`, and that run's successes
+are exactly what the dashboard most needs to pick up.
+
+**`deploy_pages`** (`needs: [update_dashboard]`, `if: always() && needs.update_dashboard.result ==
+'success'`) publishes the regenerated `docs/` to GitHub Pages from the same-run
+`console-${{ github.run_id }}` artifact `update_dashboard` uploads. It shares the repo-wide `pages`
+concurrency group with `ci_dev_workflow.yml`'s own `deploy_pages` and `ci_code_checks.yml`'s
+`publish_console`, so all three queue rather than race to publish different snapshots — Pages now has
+three publishers, not one; see [`pipeline_overview.md`](pipeline_overview.md).
 
 `main` never attacks anything or verifies anything; it trusts what `dev` proved.
 
-It leaves a record of what it did. The deploy runs with `--report`, which writes the per-rule
-outcome — created / updated / skipped (deprecated) / failed, with the rule version — to
-`outputs/deploy/prod_deploy_report.json`, uploaded as an artifact for 90 days, and renders the same
-table into the step summary. The upload runs under `always()`, because a *failed* deploy is when the
-record matters most: it names which rules reached production before the run stopped, which the exit
-code alone cannot say. The report carries repo-side facts only — no Splunk URL, app name or account
-— since the artifact is downloadable from a public repository.
+It also honours the `LAB_ONLINE` repository variable, because `deploy_to_prod` runs on the same
+`de-lab` machine dev uses and would otherwise queue against an offline runner rather than fail.
+`announce_lab_offline`, on `ubuntu-latest`, runs under the exactly complementary condition and is the
+only job that reports anything on a lab-offline run: `deploy_to_prod` is skipped, which cascades —
+`update_dashboard` skips too (its `!= 'skipped'` guard fails), and so does `deploy_pages` behind it.
+See the `LAB_ONLINE` section in [`pipeline_overview.md`](pipeline_overview.md).
 
-It also honours the `LAB_ONLINE` repository variable, because its deploy job runs on the same
-`de-lab` machine dev uses and would otherwise queue against an offline runner rather than fail. A
-second job, `announce_lab_offline` on `ubuntu-latest`, runs under the exactly complementary
-condition — prod's only real job is the one being skipped, so without it nothing would be left to
-report that production was not updated. See the `LAB_ONLINE` section in
-[`pipeline_overview.md`](pipeline_overview.md).
+**`ci_prod_workflow.yml` still makes no commits to `main`** — only `update_dashboard`'s commit, which
+lands on `dev`, not `main`. The `.spl` files `deploy_to_prod` deploys are exactly what `dev` already
+committed and what the promotion PR carried; `main` itself is never pushed to by this workflow.
 
 ### `ci_code_checks.yml` — CI for the pipeline itself
 
@@ -257,12 +305,16 @@ hatch for detections too sophisticated to express as a Sigma `detection:` block.
 `--backend` selects a backend by name; `--backends-config` points at a different config file. Both
 workflows invoke the converter with neither, so both use `config/backends.yml`'s `default_backend`.
 The config is loaded **before the conversion loop**, and a problem with it exits `2` before the
-first file is written: a half-converted `rules/splunk/` is what the prod drift gate compares byte
-for byte.
+first file is written: a half-converted `rules/splunk/` is exactly what a promotion-PR reviewer
+would see diffed against `main`, and exactly what `deploy_to_prod`'s build-provenance attestation
+would end up vouching for if it slipped through.
 
 The **sidecar is the important output**: it carries `detect_id`, title, description, deploy mode,
 cron, severity, status and the testing block forward to the deploy and the runners, and it is
-gitignored — it exists only during a run, which is why prod re-converts before deploying.
+gitignored — it exists only during a run. Prod no longer re-converts to obtain its own copy
+(register item 3.2, stage C): `deploy_to_prod` downloads the sidecar the dev run already produced
+from the attested `spl-pipeline-bundle` artifact instead — see `ci_prod_workflow.yml`'s own entry
+below.
 
 ### `scripts/convert/backend_config.py`
 
@@ -273,9 +325,12 @@ the `logsource.service` → pipeline map and the default for everything unmapped
 
 **Nothing falls back to a built-in default**, and that is the design rather than an omission. A
 converter that shrugs off a missing or misspelled config and converts with some remembered setting
-emits SPL that looks fine, passes the prod drift gate on the next run because prod misreads the same
-file the same way, and reaches Splunk before anyone can say which pipeline produced it. Unknown keys
-are rejected for the same reason: `by_services:` instead of `by_service:` is valid YAML and would
+emits SPL that looks fine, gets committed, reviewed and merged by a human who has no way to see the
+misconfiguration in a diff of query text, then reaches prod exactly as-is — `deploy_to_prod`'s
+build-provenance attestation only proves *dev built this file*, not that dev's config was right, so
+it would happily vouch for a wrongly-routed rule and deploy it before anyone can say which pipeline
+actually produced it. Unknown keys are rejected for the same reason: `by_services:` instead of
+`by_service:` is valid YAML and would
 route every rule to the default pipeline, silently.
 
 The config path resolves against `__file__`, not the working directory, so "which config did it
