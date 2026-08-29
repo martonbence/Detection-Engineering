@@ -15,7 +15,7 @@ references:
 author: Bence Marton
 date: 2026-08-15
 modified: 2026-08-21
-version: "1.1"
+version: "1.2"
 tags:
   - attack.discovery
   - attack.t1057
@@ -31,6 +31,7 @@ detection:
     Image|endswith:
       - "\\tasklist.exe"
       - "\\qwinsta.exe"
+      - "\\pslist.exe"
   condition: selection
 
 fields:
@@ -61,7 +62,7 @@ custom:
     severity: low
 
   testing:
-    enabled: false
+    enabled: true
     runner: windows-victim
     type: atomic
     atomics:

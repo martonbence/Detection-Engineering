@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-08-29T12:32:13 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
+  "description": "Auto-generated detection coverage. 2026-08-29T12:41:11 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
   "filters": {
     "platforms": [
       "Windows",
@@ -188,10 +188,10 @@
     },
     {
       "techniqueID": "T1057",
-      "color": "#d29922",
-      "comment": "DETECT-2026-0032: Pipeline Test Rule - Tasklist Process Discovery (NOT_VERIFIED)",
+      "color": "#2EA44F",
+      "comment": "DETECT-2026-0032: Pipeline Test Rule - Tasklist Process Discovery (PASS)",
       "enabled": true,
-      "score": 75,
+      "score": 100,
       "showSubtechniques": true
     }
   ],

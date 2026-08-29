@@ -1,29 +1,29 @@
 {
-  "generated_at": "2026-08-29T12:32:13.579989+00:00",
+  "generated_at": "2026-08-29T12:41:11.268885+00:00",
   "total_rules": 28,
   "total_sigma_rules": 28,
   "total_compiled_sigma_rules": 27,
   "total_splunk_rules": 28,
   "total_native_spl_rules": 1,
-  "verified_pass": 4,
+  "verified_pass": 5,
   "verified_fail": 0,
-  "verified_not_verified": 24,
-  "verified_testing_disabled": 24,
-  "verified_testing_disabled_current": 24,
+  "verified_not_verified": 23,
+  "verified_testing_disabled": 23,
+  "verified_testing_disabled_current": 23,
   "never_tested": 0,
-  "not_verified": 24,
+  "not_verified": 23,
   "verified_stale": 0,
   "verified_superseded": 0,
   "verified_expired": 0,
-  "verified_pass_current": 4,
+  "verified_pass_current": 5,
   "verified_fail_current": 0,
-  "verified_current": 4,
+  "verified_current": 5,
   "pass_rate_pct": 100,
   "pass_rate_color": "brightgreen",
-  "verification_current_pct": 14,
+  "verification_current_pct": 18,
   "verification_current_color": "red",
-  "confirmed_working_pct": 14,
-  "last_live_verification_at": "2026-08-29T12:31:47.238228+00:00",
+  "confirmed_working_pct": 18,
+  "last_live_verification_at": "2026-08-29T12:40:39.354758+00:00",
   "last_live_verification_count": 1,
   "mitre_covered_techniques": 12,
   "mitre_total_techniques": 222,
@@ -1549,11 +1549,11 @@
       "level": "low",
       "status": "test",
       "source": "sigma",
-      "verdict": "NOT_VERIFIED",
-      "run_id": "33251116121",
-      "verdict_at": "2026-08-29T11:54:09.559750+00:00",
-      "verdict_rule_version": "1.1",
-      "verdict_testing_disabled": true,
+      "verdict": "PASS",
+      "run_id": "33253039788",
+      "verdict_at": "2026-08-29T12:40:39.354758+00:00",
+      "verdict_rule_version": "1.2",
+      "verdict_testing_disabled": false,
       "tactics": [
         "Discovery"
       ],
@@ -1578,7 +1578,7 @@
         "This is a disposable pipeline-test rule and is not intended to be tuned for production FP suppression"
       ],
       "testing": {
-        "enabled": false,
+        "enabled": true,
         "runner": "windows-victim",
         "type": "atomic",
         "atomics": [
@@ -1591,9 +1591,9 @@
           }
         ]
       },
-      "rule_body": "detection:\n  selection:\n    Image|endswith:\n    - \\tasklist.exe\n    - \\qwinsta.exe\n  condition: selection",
+      "rule_body": "detection:\n  selection:\n    Image|endswith:\n    - \\tasklist.exe\n    - \\qwinsta.exe\n    - \\pslist.exe\n  condition: selection",
       "rule_body_lang": "yaml",
-      "rule_version": "1.1"
+      "rule_version": "1.2"
     }
   ]
 }
