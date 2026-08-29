@@ -10,7 +10,6 @@ flowchart LR
         sigma["rules/sigma/DETECT-*.yml\n(source of truth: detection logic OR\ncustom.splunk.raw_query, MITRE tags,\nseverity, custom.testing config)"]
         spl["rules/splunk/DETECT-*.spl\n(pure SPL query text,\nno embedded metadata,\ncommitted)"]
         results["outputs/results/DETECT-*/result.json\n(per-rule PASS / FAIL / NOT_VERIFIED verdict\n+ the rule_version it was measured on,\ncommitted)"]
-        gitlog["git history of rules/sigma/*.yml\n(git log --follow -> current rule_version)"]
         reports["outputs/reports/{stats,mitre_technique_map,navigator_layer}.json\n(committed)"]
         pages["docs/index.html\n(generated rule browser + Navigator)"]
         backends["config/backends.yml\n(which pySigma backend + which pipeline\nper logsource.service)"]
@@ -44,7 +43,7 @@ flowchart LR
     matched -->|pass_fail_eval.py| results
     progress -->|ground truth for\nNOT_VERIFIED gate\n(atomic testers only)| results
     results -->|generate_stats.py| reports
-    gitlog -->|generate_stats.py\ncurrent version vs. the version in result.json\n= Superseded; run_timestamp vs. now\n= Expired -- both derived at render time| reports
+    sigma -->|generate_stats.py\nrule's own version: field vs. the version stored\nin result.json = Superseded; run_timestamp vs. now\n= Expired -- both derived at render time| reports
     reports -->|generate_stats.py| pages
 ```
 
@@ -62,18 +61,21 @@ Most of the diagram above flows left to right, rule to verdict to report. Three 
 
 ## `rule_version`: the one field that travels the whole chain
 
-Most metadata is read once, used by one stage, and dropped. `rule_version` is the exception — it is copied verbatim through four files so that a verdict recorded today can be checked against the rule tomorrow. (Its companion for the *other* lapse condition is `run_timestamp`, stamped by `pass_fail_eval.py` into the same `result.json` and compared against the clock by `_verdict_age_days()` at render time; the version answers "is this still the same rule?", the timestamp answers "is this still recent?")
+Most metadata is read once, used by one stage, and dropped. `rule_version` is the exception — it is copied verbatim through five destinations so that a verdict recorded today can be checked against the rule tomorrow. (Its companion for the *other* lapse condition is `run_timestamp`, stamped by `pass_fail_eval.py` into the same `result.json` and compared against the clock by `_verdict_age_days()` at render time; the version answers "is this still the same rule?", the timestamp answers "is this still recent?")
+
+**The source is the Sigma YAML's own `version:` field, and it is the only number in the chain (register item 3.5, closed).** There used to be two disconnected versions: a hand-typed `version:` field nothing downstream read, and a separately-computed `1.<commit-count-1>` derived from `git log --follow` (via the now-deleted `scripts/lib/rule_version.py::compute_rule_version()`, called independently from both `sigma_to_spl.py` and `generate_stats.py`). Now there is one: `version:` is auto-bumped at commit time by `.githooks/pre-commit` whenever `detection:`, `logsource:`, or `custom.splunk.raw_query` actually changes versus HEAD (reusing `scripts/validate/check_version_bump.py`'s own `logic_diff()`/`version_of()` functions rather than reimplementing them), and `check_version_bump.py` remains the CI-side backstop for the cases the local hook can't reach — `--no-verify`, a fresh clone before the one-time `git config core.hooksPath .githooks` step, or a rule edited via the GitHub web UI. Every downstream reader now reads this same field directly; nothing recomputes it from git history.
 
 | Step | File | What happens to `rule_version` |
 |---|---|---|
-| Convert | `rules/splunk/DETECT-*.meta.json` (CI-runtime only) | `sigma_to_spl.py::_compute_rule_version()` counts commits touching the rule's YAML with `git log --follow` and writes `1.<count-1>` (plus `git_sha`) into the sidecar. |
+| Convert | `rules/splunk/DETECT-*.meta.json` (CI-runtime only) | `sigma_to_spl.py::build_meta_dict()` pops the Sigma YAML's own `version:` field straight into `meta["rule_version"]` (plus `git_sha`) — no computation, just a direct read. |
+| Deploy | Splunk saved-search description | `deploy_spl_to_splunk.py::build_savedsearch_description()` appends a `Rule version: <rule_version>` line to the saved-search description, sourced from that same `meta["rule_version"]`. An empty/missing value omits the line rather than writing a blank one. |
 | Verify (query) | `outputs/verify/matched_events/<detect_id>/hits.json` | `check_saved_search_hits.py` copies `rule_version`/`git_sha` straight out of the sidecar into the hits summary (`""` when there's no sidecar to read). |
 | Verify (score) | `outputs/results/<detect_id>/result.json` | `pass_fail_eval.py` copies them again into the committed result, alongside `verdict`, `reason`, `event_count`, `run_timestamp`, `run_id`. This is the durable record of *which version of the rule the verdict is about*. |
-| Report | `outputs/reports/stats.json`, `docs/index.html` | `generate_stats.py::compute_rule_version()` recomputes the version **from git at render time** and compares it with the one stored in `result.json`. A mismatch = the verdict is **superseded**. The rule browser exports both values per rule (`ruleVersion`, `verdictRuleVersion`) so `isVerdictSuperseded()` can make the identical comparison client-side. |
+| Report | `outputs/reports/stats.json`, `docs/index.html` | `generate_stats.py::_build_rule_detail()` reads `rule.get("version", "")` directly from the rule's current YAML and compares it with the one stored in `result.json`. A mismatch = the verdict is **superseded**. The rule browser exports both values per rule (`ruleVersion`, `verdictRuleVersion`) so `isVerdictSuperseded()` can make the identical comparison client-side. |
 
-Note the asymmetry: the version in `result.json` is frozen at measurement time, while the version it is compared against is recomputed on every stats run. That's what makes superseding a *render-time* derivation rather than a stored flag — a verdict doesn't change when it lapses, the repo around it does. The age check works the same way against a moving clock instead of a moving repo. `pass_fail_eval.py` implements neither, by design.
+Note the asymmetry: the version in `result.json` is frozen at measurement time, while the version it is compared against is read fresh from the rule's current YAML file on every stats run. That's what makes superseding a *render-time* derivation rather than a stored flag — a verdict doesn't change when it lapses, the repo around it does. The age check works the same way against a moving clock instead of a moving repo. `pass_fail_eval.py` implements neither, by design.
 
-Because both implementations count commits rather than reading a declared field, any commit touching a rule's YAML bumps its version — a typo fix supersedes a verdict exactly like a logic rewrite. `pipeline_overview.md` covers the consequences; the fix (an explicit `version:` in the Sigma YAML) is audit item 3.5.
+Because the field only moves on a real `detection:`/`logsource:`/`custom.splunk.raw_query` change now (enforced at commit time by the hook and backstopped in CI), a typo fix or a reworded `falsepositives:` note no longer supersedes a verdict the way a logic rewrite does — that was exactly the imprecision audit item 3.5 set out to close, and it now is. A one-time migration (`scripts/migrate_backfill_rule_version.py --apply`, already run) recomputed every existing rule's version from a real replay of its logic-change history rather than raw commit count; 27 of 28 rules' numbers changed as a result.
 
 ## Aggregate verdict fields in `outputs/reports/stats.json`
 
