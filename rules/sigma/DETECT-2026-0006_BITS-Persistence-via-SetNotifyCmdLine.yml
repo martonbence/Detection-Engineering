@@ -10,7 +10,7 @@ description: Detects use of bitsadmin.exe /setnotifycmdline, which registers an
 author: Bence Marton
 date: 2026-05-01
 modified: 2026-07-25
-version: "1.8"
+version: "1.1"
 references:
   - https://attack.mitre.org/techniques/T1197/
   - https://lolbas-project.github.io/lolbas/Binaries/Bitsadmin/

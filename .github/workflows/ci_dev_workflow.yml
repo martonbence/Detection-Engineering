@@ -2030,9 +2030,16 @@ jobs:
     steps:
       # NOT shallow, on purpose -- same reason splunk_verify's own checkout
       # used to need fetch-depth 0 before this step moved here:
-      # generate_stats.py's compute_rule_version() runs `git log --follow` per
-      # rule file to derive its 1.x version from commit count, which a
-      # depth=1 checkout cannot see.
+      # generate_stats.py's update_trend_history() (via _backfill_stats_history())
+      # walks up to 500 commits touching outputs/reports/stats.json to seed
+      # the coverage/growth trend caches the first time they are missing, and
+      # .claude/generate_dashboard.py's activity feed separately reads the
+      # last 40 commits -- both need history a depth=1 checkout cannot see.
+      # (This used to also be justified by generate_stats.py's
+      # compute_rule_version(), which ran `git log --follow` per rule file to
+      # derive a version from commit count; that function is gone as of
+      # register item 3.5's closure -- a rule's version is read straight from
+      # its own YAML `version:` field now, no git shelling required.)
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -2141,7 +2148,8 @@ jobs:
       # extra files ride along in the same docs/ artifact as
       # docs/index.html. Stdlib + `git` only, no install step; this
       # checkout's `fetch-depth: 0` (needed for generate_stats.py's
-      # compute_rule_version()) already covers the `git log -n40` the
+      # update_trend_history() trend-cache backfill -- see this job's
+      # Checkout step comment) already covers the `git log -n40` the
       # dashboard's activity feed reads. Not gated on this job's LAB_ONLINE/
       # verification-result branching -- the dashboard's content is
       # independent of Splunk verify state, so it regenerates the same way
@@ -2233,8 +2241,9 @@ jobs:
     environment: dev
 
     steps:
-      # Shallow is fine: nothing here runs generate_stats.py, so
-      # compute_rule_version()'s `git log --follow` requirement does not apply.
+      # Shallow is fine: nothing here runs generate_stats.py, so its
+      # update_trend_history() git-history walk (see update_dashboard's
+      # Checkout step comment) does not apply.
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -2368,10 +2377,10 @@ jobs:
     environment: dev
 
     steps:
-      # Shallow is fine: this job never calls generate_stats.py, so
-      # compute_rule_version()'s `git log --follow` requirement (the reason
-      # update_dashboard's own checkout, earlier in this file, needs
-      # `fetch-depth: 0`) does not apply here.
+      # Shallow is fine: this job never calls generate_stats.py, so its
+      # update_trend_history() git-history walk (the reason update_dashboard's
+      # own checkout, earlier in this file, needs `fetch-depth: 0`) does not
+      # apply here.
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

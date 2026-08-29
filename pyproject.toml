@@ -6,6 +6,13 @@
 [tool.ruff]
 line-length = 120
 target-version = "py311"
+# ruff's default `include` is *.py/*.pyi/*.ipynb/pyproject.toml -- a filename
+# ruff never sees on its own. .githooks/pre-commit is a python3 script but,
+# per git's hook-naming contract, cannot carry a .py suffix. Without this
+# line, `ruff check .` in ci_code_checks.yml silently never lints it: a
+# linter's default file glob is a policy choice, not something guaranteed to
+# cover every real Python file in the repo.
+extend-include = [".githooks/pre-commit"]
 
 [tool.ruff.lint]
 # Register item 2.12 widened this from ["F", "E9"]. The selection is curated

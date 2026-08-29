@@ -43,22 +43,18 @@ class _FrozenDatetime(datetime):
         return FROZEN_NOW if tz is not None else FROZEN_NOW.replace(tzinfo=None)
 
 
-def _patch_common(monkeypatch, rules, verdicts, rule_versions=None):
+def _patch_common(monkeypatch, rules, verdicts):
     """Wires generate_stats() to synthetic data only: no disk, no git, no network.
 
-    rule_versions: optional {file_path: version} map, consulted by the
-    compute_rule_version() stand-in so a test can force a rule's "current"
-    version to differ from a verdict's recorded verdict_rule_version
-    (simulating a superseded verdict) without needing a real git history.
+    A rule's "current" version now comes straight from its own `version:`
+    field (register item 3.5, closed) -- generate_stats.py no longer shells
+    out to git for it, so there is nothing left to monkeypatch for that; a
+    test that wants a superseded verdict sets `version` directly via
+    make_rule(..., version=...) instead of steering a compute_rule_version()
+    stand-in through a {file_path: version} map.
     """
-    rule_versions = rule_versions or {}
-
     monkeypatch.setattr(gs, "load_sigma_rules", lambda: rules)
     monkeypatch.setattr(gs, "load_verdicts", lambda: verdicts)
-    monkeypatch.setattr(
-        gs, "compute_rule_version",
-        lambda file_path, repo_root=None, default="": rule_versions.get(file_path, "1.0"),
-    )
     # Network call -- fixed return so a test never depends on MITRE's live feed.
     monkeypatch.setattr(gs, "fetch_mitre_techniques", lambda *a, **kw: (200, [], False))
     # git-history-backed trend cache -- writes to real outputs/reports/*.json
@@ -67,13 +63,14 @@ def _patch_common(monkeypatch, rules, verdicts, rule_versions=None):
     monkeypatch.setattr(gs, "datetime", _FrozenDatetime)
 
 
-def make_rule(detect_id, *, level="medium", status="stable", testing_enabled=True):
+def make_rule(detect_id, *, level="medium", status="stable", testing_enabled=True, version="1.0"):
     return {
         "detect_id": detect_id,
         "title": f"Title for {detect_id}",
         "description": "",
         "level": level,
         "status": status,
+        "version": version,
         "tags": [],
         "logsource": {},
         "author": "test",
@@ -107,7 +104,9 @@ def test_full_aggregate_across_every_verdict_state(monkeypatch):
     rules = [
         make_rule("A"),  # PASS, current
         make_rule("B"),  # PASS, expired -> stale
-        make_rule("C"),  # PASS, superseded -> stale
+        # C's *current* rule version disagrees with its verdict's recorded
+        # version -- a superseded verdict, not merely an old one.
+        make_rule("C", version="2.0"),  # PASS, superseded -> stale
         make_rule("D"),  # FAIL, current
         make_rule("E"),  # FAIL, expired -> stale
         make_rule("F"),  # NOT_VERIFIED, not disabled, current
@@ -127,11 +126,7 @@ def test_full_aggregate_across_every_verdict_state(monkeypatch):
         "H": make_verdict("NOT_VERIFIED", age_days=200, disabled=True, rule_version="1.0"),
         # I, J: no verdict at all -> never_tested
     }
-    # C's *current* rule version disagrees with its verdict's recorded
-    # version -- a superseded verdict, not merely an old one.
-    rule_versions = {"rules/sigma/c.yml": "2.0"}
-
-    _patch_common(monkeypatch, rules, verdicts, rule_versions)
+    _patch_common(monkeypatch, rules, verdicts)
     stats = gs.generate_stats()
 
     assert stats["total_rules"] == 10

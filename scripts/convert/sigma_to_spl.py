@@ -12,9 +12,6 @@ from zoneinfo import ZoneInfo
 import yaml
 from backend_config import BackendConfig, BackendConfigError, load_backend
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from lib.rule_version import compute_rule_version
-
 
 def _normalize_service(rule: dict) -> str:
     ls = rule.get("logsource") or {}
@@ -325,11 +322,6 @@ def build_meta_dict(rule_path: Path, rule: dict, deploy_mode: str, pipeline: str
     something that belongs in the query file itself.
     """
 
-    # Rule version derived from git commit count (1.0, 1.1, 1.2, ...). Shared
-    # with generate_stats.py via lib.rule_version (register item 3.5) -- see
-    # that module for why the "git failed" default is "1.0" here specifically.
-    rule_version = compute_rule_version(rule_path)
-
     # Convert time in Hungary (Europe/Budapest) with offset (CET/CEST)
     convert_time = datetime.datetime.now(ZoneInfo("Europe/Budapest")).replace(microsecond=0).isoformat()
 
@@ -378,7 +370,34 @@ def build_meta_dict(rule_path: Path, rule: dict, deploy_mode: str, pipeline: str
 
     # Enrichment fields
     meta["convert_time"] = convert_time
-    meta["rule_version"] = rule_version
+
+    # Rule version: the hand-maintained Sigma YAML `version:` field, popped
+    # here (not left to the catch-all pass-through loop below) so it flows
+    # into meta["rule_version"] under its established key name instead of
+    # also surviving as a redundant bare "version" entry. Every existing
+    # reader of meta["rule_version"] -- the deploy report, the Splunk
+    # saved-search description (deploy_spl_to_splunk.py), deployment
+    # inventory -- needed no changes for this: it was already reading this
+    # key, only what fed it changed.
+    #
+    # Register item 3.5, closed for real. Before this, `rule_version` here
+    # was compute_rule_version(rule_path) -- scripts/lib/rule_version.py's
+    # git-commit-count-derived number, which bumped identically on a typo
+    # fix and a rewritten condition:. That module (and its "1.0" default for
+    # a file git couldn't measure) is gone; see
+    # scripts/validate/check_version_bump.py's header for why the
+    # author-set `version:` field is the number worth trusting instead, and
+    # docs/architecture or the register for the .githooks/pre-commit hook
+    # that now bumps it automatically on a real logic change.
+    #
+    # Default "" (not "1.0") on a missing field: docs/schemas/sigma_schema.json
+    # makes `version` required, so an empty result here means
+    # validate_sigma.py should already have failed this rule earlier in the
+    # pipeline -- there is no steady state where this default is expected to
+    # be seen, so it should read as "something upstream let this through",
+    # not get papered over with a plausible-looking placeholder.
+    meta["rule_version"] = _safe_str(sigma_meta.pop("version", ""))
+
     meta["git_sha"] = git_sha_value
 
     # CI/conversion context

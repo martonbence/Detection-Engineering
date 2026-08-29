@@ -63,3 +63,6 @@
 {"date": "2026-08-29", "name": "Jamal", "slug": "jamal-devops-engineer", "task": "Add prod-deploy dashboard regen job", "tokens": 120202, "tool_uses": 40, "duration_ms": 384955, "model": "inherited (sonnet-5)"}
 {"date": "2026-08-29", "name": "Bjorn", "slug": "bjorn-detection-content-reviewer", "task": "Review new prod-workflow dashboard regen jobs", "tokens": 95338, "tool_uses": 27, "duration_ms": 271029, "model": "inherited (sonnet-5)"}
 {"date": "2026-08-29", "name": "Chloe", "slug": "chloe-docs-maintainer", "task": "Fix scripts_reference.md prod workflow drift", "tokens": 150541, "tool_uses": 37, "duration_ms": 326637, "model": "inherited (sonnet-5)"}
+{"date": "2026-08-29", "name": "Jamal", "slug": "jamal-devops-engineer", "task": "Add rule version to Splunk savedsearch description", "tokens": 62279, "tool_uses": 29, "duration_ms": 115068, "model": "inherited (sonnet-5)"}
+{"date": "2026-08-29", "name": "Jamal", "slug": "jamal-devops-engineer", "task": "Build auto-computed, hook-enforced rule version scheme", "tokens": 221754, "tool_uses": 169, "duration_ms": 1143986, "model": "inherited (sonnet-5)"}
+{"date": "2026-08-29", "name": "Bjorn", "slug": "bjorn-detection-content-reviewer", "task": "Review new rule-version scheme and hook", "tokens": 116346, "tool_uses": 57, "duration_ms": 301571, "model": "inherited (sonnet-5)"}

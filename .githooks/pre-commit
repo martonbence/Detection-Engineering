@@ -1,0 +1,316 @@
+#!/usr/bin/env python3
+# .githooks/pre-commit
+#
+# Register item 3.5, closed for real. Auto-bumps a Sigma rule's hand-maintained
+# `version:` field the moment a commit actually changes what the rule detects,
+# so the human never has to remember to type it -- while keeping the field
+# semantically meaningful (it only moves on a real logic change, not a typo
+# fix or a reworded falsepositives: note).
+#
+# ONE-TIME SETUP, not part of this file's own behaviour:
+#
+#     git config core.hooksPath .githooks
+#
+# Until that is run once (per clone), git never looks in this directory and
+# this file is inert -- same as any other script sitting in the repo. Gaz
+# runs this once after this change is reviewed and merged; it is
+# deliberately NOT auto-installed by any script here (a hook that installs
+# itself is a hook that can silently start running code nobody asked for).
+#
+# --- What triggers a bump -----------------------------------------------
+#
+# For every file staged (`git diff --cached --name-only --diff-filter=ACMR`,
+# so a deleted file is never a candidate -- there is nothing left to bump)
+# under rules/sigma/**/*.yml or *.yaml:
+#
+#   1. Load the about-to-be-committed (staged/index) version of the rule and
+#      the version the same path carried at HEAD. A brand-new file (nothing
+#      at HEAD to compare against) or a rule that fails to parse either side
+#      is skipped -- there is no "before" to diff against, and guessing here
+#      is exactly the failure mode scripts/lib/rules.py's docstring warns
+#      against (acting on a file this script could not actually read).
+#   2. Run the *same* logic-diff check scripts/validate/check_version_bump.py
+#      uses -- imported from there directly, not reimplemented, so the two
+#      can never quietly drift onto different definitions of "logic changed":
+#      does `detection:`, `logsource:`, or `custom.splunk.raw_query` differ
+#      between HEAD's copy and the staged copy? See that module's header for
+#      the full reasoning on why those three fields and not, say,
+#      description or falsepositives.
+#   3. If logic changed AND the staged file's `version:` is still identical
+#      to HEAD's (i.e. the author did not already bump it by hand -- the
+#      expected case now that this is automatic): compute the next version
+#      and rewrite the staged file's `version:` line in place, then
+#      `git add` it back so the bump rides along in the commit about to be
+#      made, not a follow-up one.
+#   4. If logic did NOT change, or the file is new, or the author *did*
+#      already set a version different from HEAD's: do nothing. Case 4's
+#      second half matters -- a deliberate manual bump (e.g. someone jumping
+#      straight to 2.0 for a rewrite) is respected, never overwritten.
+#
+# "Compute the next version": parse the current `version:` value as the
+# `MAJOR.MINOR` shape every rule in this repo already uses (enforced by
+# docs/schemas/sigma_schema.json's `^\d+\.\d+$` pattern) and increment MINOR
+# by one. A missing or unparseable value is treated as "1.0" before bumping
+# (so the result is "1.1") rather than raising -- see the next section for
+# why this file never raises regardless.
+#
+# --- What this file will NOT do -----------------------------------------
+#
+# It never fails or blocks the commit. This hook only *rewrites* files that
+# are about to be committed anyway; it is not a gate. Gating stays
+# check_version_bump.py's job in CI -- the backstop for exactly the cases
+# where this hook did not run: `--no-verify`, a fresh clone before the
+# one-time `git config` above, or a rule edited through the GitHub web UI,
+# none of which ever invoke a local hook. Every exception this file can hit
+# (a missing PyYAML, a git plumbing failure, a rule that fails to parse) is
+# caught, logged to stderr, and treated as "skip this file" -- never a
+# non-zero exit.
+#
+# It also refuses to touch a file whose *worktree* content does not match
+# what is actually staged (`git show :path` vs. the file on disk). Rewriting
+# the staged blob's content and writing that over the worktree file is safe
+# when the two already agree; if they disagree, some further unstaged edit
+# exists that never got `git add`-ed, and overwriting the file would discard
+# it silently. That is a narrower promise than "always bump on a real logic
+# change" -- it trades a rare missed auto-bump (author has to bump by hand
+# that one time, and check_version_bump.py will remind them if they forget)
+# for never losing an edit they had not chosen to stage yet.
+#
+# Prints what it did, or that it did nothing, for every candidate file --
+# silently rewriting a file a human is about to commit is exactly the kind
+# of surprise this repo's other CI scripts (see the pipeline-ci-gotchas
+# skill) have already paid to learn not to do.
+
+from __future__ import annotations
+
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+
+def eprint(msg: str) -> None:
+    print(msg, file=sys.stderr)
+
+
+def _repo_root() -> Path | None:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, timeout=30,
+        )
+    except Exception as ex:
+        eprint(f"[pre-commit] Could not locate repo root, skipping version-bump hook: {ex}")
+        return None
+    if result.returncode != 0:
+        eprint("[pre-commit] 'git rev-parse --show-toplevel' failed, skipping version-bump hook.")
+        return None
+    return Path(result.stdout.strip())
+
+
+REPO_ROOT = _repo_root()
+
+RULES_PREFIX = ("rules", "sigma")
+RULE_SUFFIXES = (".yml", ".yaml")
+
+VERSION_RE = re.compile(r"^(\d+)\.(\d+)$")
+VERSION_LINE_RE = re.compile(r'^version:\s*.*$', re.MULTILINE)
+
+
+def is_candidate(rel_path: str) -> bool:
+    p = Path(rel_path)
+    return p.parts[:2] == RULES_PREFIX and p.suffix in RULE_SUFFIXES
+
+
+def staged_rule_paths(repo_root: Path) -> list[str]:
+    """Staged rule files that still exist post-commit (added/copied/modified/
+    renamed) -- --diff-filter=ACMR deliberately excludes D. Unlike the
+    ci_dev_workflow.yml `changes` step (pipeline-ci-gotchas: excluding
+    deletions there hides a rule removal from downstream reconcile), a
+    deleted file has no post-commit content for this hook to bump a version
+    *in*, so exclusion here is the correct behaviour, not the same trap.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
+            cwd=str(repo_root), capture_output=True, text=True, timeout=30,
+        )
+    except Exception as ex:
+        eprint(f"[pre-commit] 'git diff --cached' failed, skipping version-bump hook: {ex}")
+        return []
+    if result.returncode != 0:
+        eprint("[pre-commit] 'git diff --cached' returned non-zero, skipping version-bump hook.")
+        return []
+    return [
+        line.strip() for line in result.stdout.splitlines()
+        if line.strip() and is_candidate(line.strip())
+    ]
+
+
+def git_show(repo_root: Path, ref_and_path: str) -> str | None:
+    """`git show <ref_and_path>` (e.g. ':rules/sigma/x.yml' or
+    'HEAD:rules/sigma/x.yml'), or None on any failure -- missing path at that
+    ref, bad ref, git error. None always means "cannot compare", never
+    "treat as empty"."""
+    try:
+        result = subprocess.run(
+            ["git", "show", ref_and_path],
+            cwd=str(repo_root), capture_output=True, text=True, timeout=30,
+        )
+    except Exception:
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
+def bump_version(current: str) -> str:
+    """MAJOR.MINOR -> MAJOR.(MINOR+1). A missing/unparseable value is treated
+    as "1.0" before bumping (so the result is "1.1"), matching the rest of
+    this repo's `1.N` convention rather than inventing a new one."""
+    m = VERSION_RE.match((current or "").strip())
+    if not m:
+        return "1.1"
+    major, minor = m.groups()
+    return f"{major}.{int(minor) + 1}"
+
+
+def rewrite_version_line(content: str, new_version: str) -> str | None:
+    """Surgical replacement of only the `version:` line's value, leaving
+    every other line -- comments, key order, quoting elsewhere in the file --
+    untouched. A full yaml.safe_load()+dump() round-trip was considered and
+    rejected: this repo's rule files are hand-formatted (comments, a blank
+    line between logsource: and detection:, deliberate key ordering) and a
+    dump() would reformat all of that, turning a one-line semantic change
+    into a large, noisy diff. Returns None if no `version:` line is found at
+    all (distinct from an empty/unparseable *value*, which bump_version()
+    already handles) -- that would mean the field is missing outright, which
+    docs/schemas/sigma_schema.json requires and validate_sigma.py would
+    already reject; safer to leave the file alone and let that gate catch it
+    than to guess where to insert a new key.
+    """
+    if not VERSION_LINE_RE.search(content):
+        return None
+    return VERSION_LINE_RE.sub(f'version: "{new_version}"', content, count=1)
+
+
+def process_file(repo_root: Path, rel_path: str, logic_diff, version_of) -> None:
+    staged = git_show(repo_root, f":{rel_path}")
+    if staged is None:
+        eprint(f"[pre-commit] {rel_path}: could not read staged content, skipping.")
+        return
+
+    head = git_show(repo_root, f"HEAD:{rel_path}")
+    if head is None:
+        print(f"[pre-commit] [NEW] {rel_path} (no prior committed version to compare)")
+        return
+
+    worktree_path = repo_root / rel_path
+    try:
+        worktree = worktree_path.read_text(encoding="utf-8")
+    except OSError as ex:
+        eprint(f"[pre-commit] {rel_path}: could not read worktree file, skipping: {ex}")
+        return
+
+    if worktree != staged:
+        # Some further edit to this file was never `git add`-ed. Rewriting
+        # the worktree file from the staged blob would silently discard
+        # that edit -- see the header comment. Leave it for
+        # check_version_bump.py in CI to catch if a bump really was needed.
+        print(
+            f"[pre-commit] [SKIP] {rel_path}: worktree differs from staged content "
+            f"(partial staging) -- not auto-bumping, leaving to check_version_bump.py."
+        )
+        return
+
+    try:
+        import yaml  # deferred: a missing PyYAML should skip this hook, not crash the commit
+    except Exception as ex:
+        eprint(f"[pre-commit] Missing dependency pyyaml, skipping version-bump hook: {ex}")
+        return
+
+    try:
+        new_data = yaml.safe_load(staged)
+        old_data = yaml.safe_load(head)
+    except yaml.YAMLError as ex:
+        eprint(f"[pre-commit] {rel_path}: could not parse YAML, skipping: {ex}")
+        return
+
+    if not isinstance(new_data, dict) or not isinstance(old_data, dict):
+        eprint(f"[pre-commit] {rel_path}: not a YAML mapping on one side, skipping.")
+        return
+
+    changed = logic_diff(old_data, new_data)
+    if not changed:
+        print(f"[pre-commit] [OK] {rel_path} (no logic-relevant change)")
+        return
+
+    old_version = version_of(old_data)
+    new_version = version_of(new_data)
+
+    if new_version != old_version:
+        print(
+            f"[pre-commit] [OK] {rel_path} (version already bumped by hand: "
+            f"{old_version!r} -> {new_version!r})"
+        )
+        return
+
+    bumped = bump_version(new_version)
+    rewritten = rewrite_version_line(staged, bumped)
+    if rewritten is None:
+        eprint(
+            f"[pre-commit] [SKIP] {rel_path}: {', '.join(changed)} changed but no `version:` "
+            f"line found to rewrite -- check_version_bump.py will flag this in CI."
+        )
+        return
+
+    try:
+        worktree_path.write_text(rewritten, encoding="utf-8")
+    except OSError as ex:
+        eprint(f"[pre-commit] {rel_path}: could not write rewritten file, skipping: {ex}")
+        return
+
+    try:
+        subprocess.run(["git", "add", "--", rel_path], cwd=str(repo_root), check=True, timeout=30)
+    except Exception as ex:
+        eprint(
+            f"[pre-commit] {rel_path}: rewrote version to {bumped!r} on disk but "
+            f"'git add' failed ({ex}) -- stage it manually before committing."
+        )
+        return
+
+    print(
+        f"[pre-commit] [BUMPED] {rel_path}: {', '.join(changed)} changed, "
+        f"version {old_version!r} -> {bumped!r}"
+    )
+
+
+def main() -> int:
+    if REPO_ROOT is None:
+        return 0
+
+    sys.path.insert(0, str(REPO_ROOT / "scripts" / "validate"))
+    try:
+        from check_version_bump import logic_diff, version_of
+    except Exception as ex:
+        eprint(f"[pre-commit] Could not import check_version_bump.py's logic-diff check: {ex}")
+        eprint("[pre-commit] Skipping the version-bump hook for this commit.")
+        return 0
+
+    paths = staged_rule_paths(REPO_ROOT)
+    if not paths:
+        return 0
+
+    print(f"[pre-commit] Version-bump check: {len(paths)} staged Sigma rule file(s).")
+    for rel_path in paths:
+        try:
+            process_file(REPO_ROOT, rel_path, logic_diff, version_of)
+        except Exception as ex:
+            # Never let one bad file abort the commit or the rest of the loop.
+            eprint(f"[pre-commit] {rel_path}: unexpected error, skipping ({ex}).")
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

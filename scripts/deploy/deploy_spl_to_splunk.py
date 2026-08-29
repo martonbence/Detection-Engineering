@@ -132,22 +132,53 @@ def build_splunk_runtime_payload_from_header(path: Path) -> dict:
 
 
 
-def build_savedsearch_description(ci_constant: str, sigma_description: str, max_len: int = 800) -> str:
+def build_savedsearch_description(
+    ci_constant: str, sigma_description: str, rule_version: str = "", max_len: int = 800
+) -> str:
     """
-    Combine constant CI description + Sigma rule description into a single Splunk savedsearch description.
+    Combine constant CI description + rule version + Sigma rule description into
+    a single Splunk savedsearch description.
+
+    `rule_version` is meta["rule_version"]. Register item 3.5, closed for
+    real: this used to be the git-commit-count-derived value from
+    lib/rule_version.py's compute_rule_version() (1.0, 1.1, ...) -- the same
+    number generate_stats.py's staleness/superseded-verdict check used --
+    which bumped on any edit to the rule file, including a non-semantic one
+    (a typo fix), not only when detection logic changed.
+
+    An earlier version of this function sourced this parameter from the
+    hand-maintained Sigma `version:` field (meta["version"], gated by
+    check_version_bump.py) instead, specifically to avoid surfacing that
+    edit-count number in Splunk, and was deliberately swapped back to
+    meta["rule_version"] at the source's request -- see git history/PR
+    discussion around this line for that reasoning. That tension is now
+    moot: sigma_to_spl.py's build_meta_dict() populates meta["rule_version"]
+    *from* the YAML `version:` field directly (compute_rule_version() and
+    lib/rule_version.py are gone), auto-bumped by .githooks/pre-commit on a
+    real detection-logic change and gated as a backstop by
+    check_version_bump.py. There is only the one number now; this
+    parameter's name is what it is for call-site continuity, not because it
+    still means something different from meta["version"].
+
+    An empty/missing value (a rule somehow missing the now-required
+    `version:` field) omits the line entirely -- never a blank line.
     """
     base = (ci_constant or "").strip()
     sigma = (sigma_description or "").strip()
+    rule_version = (rule_version or "").strip()
 
     # Flatten multi-line sigma descriptions for Splunk UI
     sigma = " ".join(sigma.split())
 
+    lines = [base]
+    if rule_version:
+        lines.append(f"Rule version: {rule_version}")
     if sigma:
         if len(sigma) > max_len:
             sigma = sigma[:max_len] + "..."
-        return f"{base}\n{sigma}"
+        lines.append(sigma)
 
-    return base
+    return "\n".join(lines)
 
 def splunk_post(session: requests.Session, url: str, data: dict) -> requests.Response:
     # Splunkd REST expects form-encoded by default; requests does this with data=
@@ -462,6 +493,7 @@ def main(argv: list[str]) -> int:
         final_desc = build_savedsearch_description(
             "Managed by CI/CD (Detection-Engineering repo)",
             str(meta.get("description") or ""),
+            rule_version=str(meta.get("rule_version") or ""),
             max_len=800,
         )
 
