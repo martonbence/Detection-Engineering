@@ -6,17 +6,19 @@
 # A push knows what changed. A manual run does not -- so it used to widen to
 # every rule, which meant re-attacking all 27 on the lab VMs to catch up two.
 # The baseline that does exist is in the committed results: every result.json
-# records the rule_version it was measured against, and a rule's version is its
-# commit count. A rule therefore needs a run when it has no result at all, or
-# when its result belongs to an older version of itself.
+# records the rule_version it was measured against, and a rule's version is
+# its hand-set Sigma YAML `version:` field, bumped by the pre-commit hook
+# whenever detection-relevant content actually changes (register item 3.5).
+# A rule therefore needs a run when it has no result at all, or when its
+# result belongs to an older version of itself.
 #
 # That is the same "drift" the rule browser already displays; this just makes it
 # something you can *start* a run from.
 #
 # Fails towards selecting. Whenever the current version cannot be established --
-# no git history, a shallow clone, an unreadable rule -- the rule is selected
-# rather than skipped: the cost of a needless re-run is lab time, the cost of a
-# wrong skip is a rule everyone believes was verified and was not.
+# no `version:` field, an unreadable rule -- the rule is selected rather than
+# skipped: the cost of a needless re-run is lab time, the cost of a wrong skip
+# is a rule everyone believes was verified and was not.
 #
 # Exit codes:
 # 0 = selection written to stdout (possibly empty)
@@ -26,7 +28,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 import sys
 from pathlib import Path
 
@@ -48,32 +49,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--results-dir", default=DEFAULT_RESULTS_DIR)
     p.add_argument("--json", dest="json_out", help="Also write the full reasoning to this JSON file")
     return p.parse_args(argv)
-
-
-def git_version(rule_path: Path) -> str:
-    """The rule's version: 1.0 on its first commit, 1.1 on the second, ...
-
-    Same scheme as sigma_to_spl.py and generate_stats.py -- commit count on the
-    Sigma source, via --follow so a rename does not reset it. Returns "" when it
-    cannot be determined, which the caller treats as "must run".
-    """
-    try:
-        out = subprocess.run(
-            ["git", "log", "--follow", "--format=%H", "--", str(rule_path)],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except OSError:
-        return ""
-
-    if out.returncode != 0:
-        return ""
-
-    count = len([line for line in out.stdout.splitlines() if line.strip()])
-    if count <= 0:
-        return ""
-    return f"1.{max(0, count - 1)}"
 
 
 def verified_version(results_dir: Path, detect_id: str) -> str | None:
@@ -120,13 +95,17 @@ def classify(rule_path: Path, data: object, results_dir: Path) -> dict:
         entry["reason"] = "no detect_id, cannot match a result"
         return entry
 
-    current = git_version(rule_path)
+    # The rule's own YAML `version:` field, read directly -- register item
+    # 3.5, closed. docs/schemas/sigma_schema.json makes the field required,
+    # so an empty result here means something upstream (validate_sigma.py)
+    # already should have failed this rule; it is not a steady state.
+    current = str(data.get("version") or "")
     entry["current_version"] = current
     verified = verified_version(results_dir, detect_id)
     entry["verified_version"] = verified
 
     if not current:
-        entry["reason"] = "version unknown (no git history?), selecting to be safe"
+        entry["reason"] = "version unknown (no version: field?), selecting to be safe"
         return entry
 
     if verified is None:
