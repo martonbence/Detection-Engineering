@@ -339,3 +339,220 @@ jobs:
           # matched-events artifacts it holds no raw Splunk data, only facts
           # already public in the repo.
           retention-days: 90
+
+  # Closes a real gap: before this job existed, nothing updated
+  # outputs/reports/deployment_inventory.json's `prod` section after a prod
+  # deploy. The only writer of that section was ci_prod_audit.yml -- a
+  # workflow_dispatch-only, live-reconcile job that has to be run by hand --
+  # so the dashboard kept showing prod on its previous rule version right
+  # after a deploy that just succeeded, until someone remembered to trigger
+  # the audit AND a later dev push happened to regenerate docs/index.html.
+  #
+  # This job does the narrow, cheap half of that: fold this run's own
+  # prod_deploy_report.json into the inventory (--deploy-report only, no
+  # --reconcile) and republish the dashboard from it. It deliberately does
+  # NOT replace ci_prod_audit.yml's live-Splunk reconcile -- see that
+  # workflow's own header comment (lines 3-22) for why that stays
+  # workflow_dispatch-only (LAB_ONLINE drift risk on a schedule). This job
+  # only records what we just told Splunk to do, not what is actually
+  # running there; `splunk_state` in the inventory (the reconcile-derived
+  # half) is left exactly as the last prod audit set it.
+  #
+  # Split into two jobs (this one, and deploy_pages below) rather than one,
+  # mirroring ci_dev_workflow.yml's update_dashboard/deploy_pages split: the
+  # two need genuinely different permission scopes (a repo-write PAT here vs
+  # `pages: write`/`id-token: write` there) and different `environment:`
+  # blocks (`dev` vs `github-pages`), not just tidiness.
+  update_dashboard:
+    name: Update Dashboard (Prod)
+    needs: [deploy_to_prod]
+    # always() plus an explicit deploy_to_prod check, same reason
+    # ci_dev_workflow.yml's update_dashboard needs it: a bare `needs:`
+    # applies GitHub's implicit success() to every job it names, which would
+    # skip this job whenever deploy_to_prod was itself (correctly) skipped
+    # by LAB_ONLINE=false. More importantly, it would also skip this job on
+    # a PARTIAL deploy failure -- deploy_spl_to_splunk.py loops every file
+    # and only returns non-zero at the very end if *any* one of them failed
+    # (`return 2 if failed else 0`), so a run that deployed 26 of 27 rules
+    # still makes deploy_to_prod report 'failure'. That run's successes are
+    # exactly what the dashboard most needs to pick up, and its own "Upload
+    # prod deploy report" step already uploads on
+    # `always() && steps.deploy.outcome != 'skipped'` for the same reason.
+    # Mirrors persist_results_fallback's reasoning in ci_dev_workflow.yml: a
+    # failed deploy is exactly when the record matters most. `!= 'skipped'`
+    # (not `== 'success'`) is what lets that partial-failure case still run.
+    if: always() && needs.deploy_to_prod.result != 'skipped'
+    runs-on: ubuntu-latest
+    # No self-hosted runner needed: this job never talks to Splunk, only to
+    # the repo and to the already-uploaded deploy report from the job above.
+    timeout-minutes: 15
+    environment: dev
+
+    steps:
+      # dev, not main: deployment_inventory.json, stats.json, docs/index.html
+      # and the whole dashboard machinery live on dev -- main only carries
+      # rule source + deployed SPL. Same GH_PAT_DEV_PUSH ci_dev_workflow.yml's
+      # update_dashboard and ci_prod_audit.yml's record_inventory use to push
+      # to the protected dev branch.
+      #
+      # fetch-depth: 0, same reason as everywhere else generate_stats.py runs:
+      # compute_rule_version() shells out to `git log --follow` per rule, and
+      # a shallow checkout makes every rule silently report version 1.0.
+      - name: Checkout dev
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev
+          token: ${{ secrets.GH_PAT_DEV_PUSH }}
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install pyyaml
+
+      # Same-run artifact, uploaded by the job above regardless of whether
+      # deploy_to_prod fully succeeded (see that step's own always() note).
+      # continue-on-error: a run where deploy_to_prod failed before ever
+      # reaching its deploy step (e.g. the provenance-verify step failed)
+      # never uploads this artifact at all; the commit step below treats a
+      # missing report as "nothing new to fold in", not as a hard failure.
+      - name: Download prod deploy report
+        id: fetch_report
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: prod-deploy-report-${{ github.run_id }}
+          path: outputs/deploy
+
+      # Same reset/commit/push retry shape as ci_prod_audit.yml's "Update
+      # deployment inventory" step (lines ~312-356) -- deliberately reused
+      # rather than reinvented. Retried against origin/dev because
+      # ci_prod_audit.yml's own record_inventory job, or a concurrent dev
+      # push, can land a commit here between this job's checkout and its
+      # push.
+      - name: Update deployment inventory, regenerate dashboard, and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          for i in 1 2 3; do
+            git fetch origin dev
+            git reset --hard origin/dev
+
+            # --deploy-report only when it actually arrived (the download
+            # step above is continue-on-error). No --reconcile: this job
+            # trusts the deploy it was triggered by, and deliberately does
+            # not duplicate ci_prod_audit.yml's live-Splunk reconcile.
+            report_args=()
+            if [[ -f outputs/deploy/prod_deploy_report.json ]]; then
+              report_args+=(--deploy-report outputs/deploy/prod_deploy_report.json)
+            fi
+
+            if [[ "${#report_args[@]}" -gt 0 ]]; then
+              python scripts/state/deployment_inventory.py \
+                --env prod \
+                "${report_args[@]}" \
+                --commit "${{ github.sha }}" \
+                --run-id "${{ github.run_id }}" \
+                --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            else
+              echo "No prod deploy report available for this run; leaving the deployment inventory as committed."
+            fi
+
+            # Same two generation steps ci_dev_workflow.yml's update_dashboard
+            # runs, in the same order, for the same reason: docs/index.html
+            # and docs/team-ops.html are no longer committed to dev at all
+            # (audit/feature-and-process-audit.md item 4.4) -- they are
+            # regenerated fresh on disk every run and shipped to Pages as a
+            # same-run artifact. Skipping generate_dashboard.py here would
+            # publish docs/team-ops.html frozen at whatever stale, long-since
+            # regenerated copy `git checkout` happened to find, reverting the
+            # live team-ops page every time a prod deploy republishes Pages.
+            python scripts/docs/generate_stats.py
+            python3 .claude/generate_dashboard.py
+
+            git add outputs/reports/
+
+            if git diff --cached --quiet; then
+              echo "Prod state unchanged since the last deploy -- nothing to commit."
+              exit 0
+            fi
+
+            git commit -m "chore(inventory): prod state as deployed [skip ci]"
+
+            if git push origin HEAD:dev; then
+              echo "Push succeeded."
+              exit 0
+            fi
+
+            echo "Push failed (attempt $i), retrying..."
+            sleep $((i * 3))
+          done
+
+          echo "Push failed after 3 attempts."
+          exit 1
+
+      # Regenerated on disk unconditionally by the step above (even on the
+      # "nothing to commit" exit-0 path), so this uploads regardless of
+      # whether a commit landed -- same reasoning as
+      # ci_dev_workflow.yml's identically-named step. Default step
+      # sequencing does the right thing on a real failure: if the step above
+      # exits 1 (3 failed pushes), this step and deploy_pages below both skip.
+      #
+      # retention-days: 1 -- same-run transport to deploy_pages only, not
+      # evidence anyone needs to recover later.
+      - name: Upload console artifact for Pages
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: console-${{ github.run_id }}
+          path: docs/
+          retention-days: 1
+
+  deploy_pages:
+    name: Deploy GitHub Pages (Prod)
+    needs: [update_dashboard]
+    if: always() && needs.update_dashboard.result == 'success'
+    runs-on: ubuntu-latest
+    # No checkout, no self-hosted runner -- just the download plus two Pages
+    # actions, same as ci_dev_workflow.yml's deploy_pages and
+    # ci_code_checks.yml's publish_console. The cap also bounds how long this
+    # can hold the repo-wide `pages` concurrency group those two queue
+    # behind.
+    timeout-minutes: 15
+    permissions:
+      pages: write
+      id-token: write
+    # Same group name as the other two Pages publishers on purpose:
+    # concurrency groups are shared repo-wide, so all three queue instead of
+    # racing each other to publish different snapshots.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download console artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: console-${{ github.run_id }}
+          path: docs
+
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: docs/
+
+      - id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0

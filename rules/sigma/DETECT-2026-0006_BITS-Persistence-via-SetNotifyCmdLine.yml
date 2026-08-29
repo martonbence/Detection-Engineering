@@ -68,9 +68,9 @@ custom:
     latest: "now"
     severity: critical
   testing:
-    enabled: false
+    enabled: true
     runner: windows-victim
     type: atomic
     atomics:
       - technique: T1197
-        test_numbers: [ 3 ]
+        test_numbers: [3]
