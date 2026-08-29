@@ -305,10 +305,24 @@ same normalize-then-diff locally.)
 **`fetch-depth: 0` is load-bearing wherever `generate_stats.py` runs.**
 Comment repeated at `ci_dev_workflow.yml:2330-2334` and
 `ci_code_checks.yml:529-538` (confirming this bit more than one job
-independently). `compute_rule_version()` runs `git log --follow` per rule
-to derive its version from commit count; a shallow checkout makes every
-rule silently report version `1.0` — no error, just wrong dashboard data.
-Any new job that regenerates the dashboard needs the full checkout.
+independently). As of 2026-08-29 the reason is `generate_stats.py`'s
+`update_trend_history()`/`_backfill_stats_history()` (lines ~866-903),
+which runs `git log -n 500` against `outputs/reports/stats.json` for the
+trend-history backfill, plus `.claude/generate_dashboard.py`'s activity
+feed (`ACTIVITY_LIMIT = 40`) — a shallow checkout starves both silently, no
+error, just truncated/wrong history. Any new job that regenerates the
+dashboard needs the full checkout.
+
+**Original reason, now retired (kept for the incident it caused, below):**
+until 2026-08-29 this comment was load-bearing because `compute_rule_version()`
+(`scripts/lib/rule_version.py`, deleted when the version scheme changed to
+a hand-set, `.githooks/pre-commit`-auto-bumped `version:` field — register
+item 3.5) ran `git log --follow` per rule to derive its version from raw
+commit count; a shallow checkout made every rule silently report version
+`1.0`. That specific mechanism is gone, but the failure mode it caused is
+exactly why this gotcha is documented at all — still worth reading if a
+future job adds its own `generate_stats.py` call with a shallow checkout,
+since a *different* silent-1.0-shaped bug is just as reachable today.
 
 **Third occurrence, found missing and fixed 2026-08-22:**
 `ci_code_checks.yml`'s `static_analysis` job also calls `generate_stats.py`

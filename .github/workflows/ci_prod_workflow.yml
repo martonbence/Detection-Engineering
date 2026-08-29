@@ -396,8 +396,13 @@ jobs:
       # to the protected dev branch.
       #
       # fetch-depth: 0, same reason as everywhere else generate_stats.py runs:
-      # compute_rule_version() shells out to `git log --follow` per rule, and
-      # a shallow checkout makes every rule silently report version 1.0.
+      # its update_trend_history() (_backfill_stats_history()) walks git
+      # history to seed the coverage/growth trend caches on their first run.
+      # (Register item 3.5, closed: this used to also be justified by
+      # compute_rule_version() shelling out to `git log --follow` per rule to
+      # avoid every rule silently reporting version 1.0 on a shallow
+      # checkout; that function is gone -- a rule's version is read straight
+      # from its own YAML `version:` field now, no git required.)
       - name: Checkout dev
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

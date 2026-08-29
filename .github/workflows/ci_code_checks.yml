@@ -85,21 +85,25 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      # Full history, not shallow: this job's own "Generate rule browser for
-      # smoke test" step below calls generate_stats.py, which derives each
-      # rule's version from `git log --follow` over its file. On a depth=1
-      # checkout every rule silently comes out "1.0" -- no error, just wrong
-      # data. That wrongness is not cosmetic here: it feeds
-      # isVerdictSuperseded() in page.js, which flags a verdict as superseded
-      # whenever this run's freshly (mis)computed ruleVersion disagrees with
-      # the verdictRuleVersion recorded at actual verification time.
-      # DETECT-2026-0007 is the repo's only rule with a real PASS verdict, so
-      # under a shallow checkout it alone gets wrongly marked superseded,
-      # verifyCount ends up all-zero across every rule, and the "Rule browser
-      # smoke test" step's chart-verify check fails with "dataset sums to 0"
-      # -- deterministically, on every run, not flakily. The
-      # regenerate_console job below carries the same note for the same
-      # reason; this checkout was missed when that fix was applied there.
+      # Full history, not shallow -- though the *original* reason this was
+      # added no longer applies. Register item 3.5, closed: this job's own
+      # "Generate rule browser for smoke test" step below calls
+      # generate_stats.py, which used to derive each rule's version via
+      # compute_rule_version()'s `git log --follow` over its file; on a
+      # depth=1 checkout every rule silently came out "1.0" -- no error, just
+      # wrong data, which fed isVerdictSuperseded() in page.js and made
+      # DETECT-2026-0007 (the repo's only rule with a real PASS verdict) get
+      # wrongly marked superseded, driving verifyCount to all-zero and
+      # failing the "Rule browser smoke test" step's chart-verify check with
+      # "dataset sums to 0" -- deterministically, on every run. That
+      # mechanism is gone: a rule's version is read straight from its own
+      # YAML `version:` field now, present at any checkout depth. What still
+      # needs full history here is generate_stats.py's update_trend_history()
+      # (_backfill_stats_history()), which walks git for a first-time
+      # coverage/growth trend-cache backfill if those cache files are ever
+      # missing -- a much rarer path than the old per-run version lookup, but
+      # still real, so fetch-depth: 0 stays. The regenerate_console job below
+      # carries the same updated note for the same reason.
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -559,10 +563,17 @@ jobs:
       published: ${{ steps.regen.outputs.published }}
 
     steps:
-      # Full history, not shallow: generate_stats.py derives each rule's
-      # version from `git log --follow` over its file. On a depth=1 checkout
-      # every rule silently comes out "1.0" -- no error, just wrong data. The
-      # dev workflow's splunk_verify job carries the same note for the same
+      # Full history, not shallow: generate_stats.py's update_trend_history()
+      # (via _backfill_stats_history()) walks up to 500 commits touching
+      # outputs/reports/stats.json to seed the coverage/growth trend caches
+      # the first time they are missing -- best-effort and silent on a
+      # shallow checkout (scripts/docs/generate_stats.py's `_git()` swallows
+      # git failures on purpose), so the failure mode is quietly incomplete
+      # trend data, not an error. (Register item 3.5, closed: this used to
+      # also be justified by generate_stats.py deriving each rule's version
+      # from `git log --follow` over its file; that git-shelling is gone --
+      # a rule's version is read straight from its own YAML now.) The dev
+      # workflow's update_dashboard job carries the same note for the same
       # reason.
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -696,9 +707,11 @@ jobs:
       # `git reset --hard` retries to wipe an untracked file) and before the
       # upload. Stdlib-only (json/shutil/subprocess/pathlib) plus the `git`
       # binary for its `git log` activity feed -- no install step needed,
-      # and this checkout's `fetch-depth: 0` above (originally for
-      # generate_stats.py's compute_rule_version()) already gives it enough
-      # history for `git log -n40`. Not gated on regen's own `published`
+      # and this checkout's `fetch-depth: 0` above (needed regardless for
+      # generate_stats.py's update_trend_history() trend-cache backfill,
+      # register item 3.5's now-retired compute_rule_version() no longer
+      # being a reason) already gives it enough history for `git log -n40`.
+      # Not gated on regen's own `published`
       # outcome: the dashboard's content doesn't depend on outputs/reports/
       # at all, so it should regenerate (and get bundled into the Pages
       # artifact) on every run that reaches this point, not just runs that

@@ -31,7 +31,6 @@ from typing import NamedTuple
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from lib.rule_version import compute_rule_version
 from lib.rules import RuleLoadError, discover, load_rule
 from lib.verdict_history import read_history
 
@@ -972,10 +971,14 @@ def _verdict_standing(
 ) -> _VerdictStanding:
     """Classifies one verdict as superseded / expired / still current.
 
-    Known limitation: compute_rule_version() derives the version from git
-    history, so a typo fix bumps it exactly like a logic change does. That is
-    why staleness costs a rule its segment in the chart but is NOT counted as a
-    failure -- see _compute_rate_stats()'s denominator.
+    `rule_version` is read straight from the rule's own YAML `version:` field
+    now (register item 3.5, closed) rather than derived from git history, so
+    a version mismatch here means the detection logic actually changed since
+    the verdict was recorded -- not merely that some commit, possibly a typo
+    fix, touched the file. Staleness still costs a rule its segment in the
+    chart but is NOT counted as a failure -- see _compute_rate_stats()'s
+    denominator -- because a superseded verdict says nothing about whether
+    the *new* logic passes, only that the old evidence no longer applies.
     """
     is_superseded = bool(
         verdict not in ("N/A", "")
@@ -1024,7 +1027,15 @@ def _build_rule_detail(rule: dict, verdicts: dict[str, dict]) -> tuple[dict, _Ve
     # pass_fail_eval.py produces for a skipped rule -- but read here for
     # every rule so the page's row data carries it unconditionally.
     verdict_testing_disabled = bool(v_data.get("disabled", False))
-    rule_version = compute_rule_version(rule.get("_file_path", ""), repo_root=REPO_ROOT, default="")
+    # The rule's own YAML `version:` field, read directly -- register item
+    # 3.5, closed. Was compute_rule_version(rule.get("_file_path", ""), ...),
+    # a git-log shell-out that counted every commit touching the file; that
+    # module is gone. "" default matches the old policy for this call site
+    # (an empty string, not a fabricated "1.0") for a rule that somehow has
+    # no version -- docs/schemas/sigma_schema.json requires the field, so
+    # this default is only ever seen if something upstream let a
+    # schema-invalid rule through.
+    rule_version = str(rule.get("version") or "")
 
     standing = _verdict_standing(verdict, verdict_at, verdict_rule_version, rule_version)
 

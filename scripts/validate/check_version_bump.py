@@ -57,6 +57,18 @@
 # is no reason to let it through as a warning the way a debatable tag is let
 # through.
 #
+# As of the .githooks/pre-commit hook (register item 3.5, closed for real),
+# this check should rarely have anything to report: that hook runs the exact
+# same logic-diff (imported from here, not reimplemented) at commit time and
+# bumps the version automatically before the commit is even made. This file
+# stays as the CI-side backstop for the cases the hook cannot cover -- it was
+# never installed (`git config core.hooksPath .githooks` is a one-time,
+# per-clone step, not something a fresh checkout has by default), it was
+# bypassed (`git commit --no-verify`), or the rule was edited somewhere a
+# local hook never runs at all (the GitHub web UI). A finding here now more
+# likely means one of those than an author who forgot to type a version by
+# hand.
+#
 # Exit codes:
 # 0 = every logic-changing edit bumped its version (or nothing changed logic,
 #     or no rule files were given -- an empty selection is not a failure)
