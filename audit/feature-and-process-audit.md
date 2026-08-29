@@ -103,7 +103,7 @@ teljesíthető utasítással indul.
 
 - [x] **2.1** A „per-file map" 13 scriptet nem ír le a 30-ból · `docs/architecture/scripts_reference.md` · Hiányzik a teljes `scripts/lib/` a `rule_naming.py` kivételével (`env.py`, `meta_sidecar.py`, `rule_version.py`, `rules.py`, `splunk_client.py`, `splunk_ns.py`, `summary.py`, `verdict_history.py`), továbbá `check_detect_id_uniqueness.py`, `check_spl_syntax.py`, `check_version_bump.py`, `deployment_inventory.py`, `new_rule.py`. Ebből három **hard CI-kapu** (`check_detect_id_uniqueness`, `check_version_bump`, `check_spl_syntax`), egy pedig az a script, amivel a `sigma-rule-authoring` skill szerint minden új szabály indul (`new_rule.py`). Chloe saját ügynökfájlja ezt a dokumentumot nevezi meg úgy, mint „the first thing to drift" — igaza lett → **Chloe**
 - [ ] **2.2** A `LAB_ONLINE` kapcsoló nincs a README-ben · `README.md` (0 előfordulás) vs. `ci_dev_workflow.yml` (14), `ci_prod_workflow.yml` (6), `pipeline_overview.md` (5) · Ez az a repository-variable, ami eldönti, hogy a pipeline lab-függő fele egyáltalán fut-e. Aki csak a README-t olvassa, nem tudja megmagyarázni, miért zöld egy futás, ami semmit nem mért → **Chloe**
-- [ ] **2.3** A `pipeline_overview.md` ügynök-listája 7 ügynököt sorol a 11-ből · `docs/architecture/pipeline_overview.md:438-448` · Hiányzik a `detection-engineer` (Yuki), a `threat-intel` (Masha), az `audit-compliance` (Kwame) és a Gaz-referencia. A lista csak slugokat használ, a `TEAM.md`-re (a névvel ellátott, hivatalos roster) nem hivatkozik, pedig az a fájl azóta létrejött. A szakasz saját maga kéri, hogy „re-read that directory if this list looks stale" — elavult → **Chloe**
+- [x] **2.3** A `pipeline_overview.md` ügynök-listája 7 ügynököt sorol a 11-ből · `docs/architecture/pipeline_overview.md:438-448` · Hiányzik a `detection-engineer` (Yuki), a `threat-intel` (Masha), az `audit-compliance` (Kwame) és a Gaz-referencia. A lista csak slugokat használ, a `TEAM.md`-re (a névvel ellátott, hivatalos roster) nem hivatkozik, pedig az a fájl azóta létrejött. A szakasz saját maga kéri, hogy „re-read that directory if this list looks stale" — elavult → **Chloe**
 - [x] **2.4** A `repo-terkep.hu.md` számai elavultak · `docs/architecture/repo-terkep.hu.md:80,97,111` · „`ci_dev_workflow.yml` — 1 695 sor, 8 job" (valójában **2 572 sor, 9 job**), „`ci_prod_workflow.yml` — 232 sor" (valójában **341**), „`ci_code_checks.yml` — 559 sor" (valójában **571**). A `:106` és `:130` sorok ráadásul a drift gate-et magyarázzák mint élő indoklást (lásd 1.1) → **Chloe**
 - [ ] **2.5** 19 helyen kézzel bedrótozott „27 szabály" / „12 of 27" / „92%" · `README.md:48,50,52,56,57,59`, `docs/architecture/*.md` · A könyvtár ma **28** szabály, a mai adatokon 1 PASS / 27 NOT_VERIFIED / 4%. A próza számai a `<!-- STATS_START -->` blokkon *kívül* élnek, tehát a generátor sosem frissíti őket. Két megoldás közül kell választani: vagy a próza ne idézzen élő számot (csak fogalmat magyarázzon, példát „pl."-lel jelölve), vagy a generátor kapjon több behelyettesíthető markert. A jelenlegi állapot a rosszabbik: konkrét, hitelesnek *látszó* és hamis → **Chloe**, generált markerek esetén **Sienna**
 - [ ] **2.6** Nincs „hogyan futtasd le helyben" dokumentum · sem `README.md`, sem `docs/architecture/` · Nincs leírva, mit kell telepíteni ahhoz, hogy a `pytest`, a `ruff`, a `validate_sigma.py` vagy a `generate_stats.py` helyben fusson; a `.github/requirements*.txt` fejléce kifejezetten azt mondja, hogy „nothing here is needed to work on the rules locally" — ami a tesztekre nem igaz. Lásd a 4.3-at: a suite ma bukik a fejlesztő saját gépén, és nincs hova utánanézni → **Chloe**, a tényleges függőséglista **Jamal**
@@ -113,8 +113,8 @@ teljesíthető utasítással indul.
 - [x] **2.10** Feloldatlan register-hivatkozás a kódban: `[dashboard-decoupling]` · `.github/workflows/ci_dev_workflow.yml:1131,1601,2116,2295,2578` (öt komment, nem három — a szám a v1.0 kiadás óta nőtt) · A lezárt `audit/remediation-plan.md`-ben **nulla** előfordulása van; a repo minden más ilyen kommentje valódi számozott tételre mutat (38 azonosító). A mögöttes döntés (`cb99a97`) valós és jó volt, csak sosem lett regisztrálva. **Utólag felvéve és lezárva mint 4.8** (ld. ott a teljes tartalom) — ez a tétel saját maga kínálta (a) opció. A (b) opció (a kódkommentek szövege a placeholder helyett `4.8`-ra hivatkozzon) **nem történt meg**: a register-könyvelés kész, a kommentcsere Jamal külön hatásköre (`ci_dev_workflow.yml` tartalma), Kwame nem szerkesztheti → **Jamal** (5 komment `[dashboard-decoupling]` → `4.8`)
 - [x] **2.11** A `dependabot.yml` indoklása a 3.2 előtti világot írja le · `.github/dependabot.yml:5-8` · „The pins exist because prod re-runs the converter over the same Sigma source dev already converted…" — a prod ezt már nem teszi (a `.github/requirements-deploy.txt` fejléce ezt helyesen le is írja). A pineknek ma is van értelme (a dev saját reprodukálhatósága), csak nem ez az. Konfigurációs komment, de a repo szerkesztési kultúrájában ezek dokumentumértékűek → **Jamal** · **Javítva, lásd Napló 2026-08-22.**
 - [x] **2.12** Élő hivatkozás egy nem létező skillre · `.claude/agents/Sienna - Frontend Engineer.md:48`: „when adding or redesigning any chart, graph, stat tile, or dashboard element, **invoke the `dataviz` skill first** … before writing chart code" · A `.claude/skills/` alatt három skill van: `mitre-attack-mapping`, `sigma-rule-authoring`, `team-avatars`. `dataviz` **nincs**. Ez nem elavulás, hanem működő hiba: kötelező érvényű utasítás egy nem teljesíthető lépésre, ami minden front-end diagram-munka elejére be van építve. Két út: megírni a skillt (a repo diagram-konvenciói ma a `page.css` 4 036 sorában és a `page.js` chart-kódjában élnek, tehát lenne mit rögzíteni), vagy törölni a sort. Yara találata, `grep`-pel megerősítve → **Gaz** dönt (skill-gazda kijelölése az 5.1-gyel együtt), tartalom **Sienna**
-- [ ] **2.13** Nincs architektúra-dokumentum magáról a `.claude/` ökoszisztémáról · `docs/architecture/` négy mély referenciát ad a pipeline-ról, a csapatmodellről egyet sem · A `CLAUDE.md` előíró (ki mit birtokol, hogyan megy a delegálás), a `TEAM.md` roster — egyik sem „hogyan folyik a munka a gyakorlatban" referencia valódi példákkal. Egy `docs/architecture/agent_workflow.md` (Yuki→Bjorn átadás, egy Kwame-féle drift-elkapás, egy Gaz-féle feladatszétvágás, mindegyik valós esettel) egyszerre lenne onboarding-anyag és annak a dokumentálása, ami ebben a repóban ténylegesen újszerű. Yara javaslata; a jelen audit 5. szakasza pont azt bizonyítja, hogy van mit leírni → **Chloe**
-- [ ] **2.14** Nincs `CONTRIBUTING.md` · ellenőrizve: a fájl nem létezik · A régi register **2.11**-e a CODEOWNERS-t és a PR-sablont utasította el mint „checklist-ballaszt" egy egyszemélyes repóban — ez a döntés áll. A `CONTRIBUTING.md` viszont más kérdésre válaszol: nem kapu, hanem egy helyen összeszedett szerzői folyamat (szabály-scaffold → validálás → review → promotion), ami ma öt dokumentum és három skill között van szétszórva. Alacsony prioritás az egyszemélyes valóság miatt, de olcsó, és a 2.6 (lokális futtatás) természetes otthona lenne. Yara javaslata → **Chloe**
+- [x] **2.13** Nincs architektúra-dokumentum magáról a `.claude/` ökoszisztémáról · `docs/architecture/` négy mély referenciát ad a pipeline-ról, a csapatmodellről egyet sem · A `CLAUDE.md` előíró (ki mit birtokol, hogyan megy a delegálás), a `TEAM.md` roster — egyik sem „hogyan folyik a munka a gyakorlatban" referencia valódi példákkal. Egy `docs/architecture/agent_workflow.md` (Yuki→Bjorn átadás, egy Kwame-féle drift-elkapás, egy Gaz-féle feladatszétvágás, mindegyik valós esettel) egyszerre lenne onboarding-anyag és annak a dokumentálása, ami ebben a repóban ténylegesen újszerű. Yara javaslata; a jelen audit 5. szakasza pont azt bizonyítja, hogy van mit leírni → **Chloe**
+- [x] **2.14** Nincs `CONTRIBUTING.md` · ellenőrizve: a fájl nem létezik · A régi register **2.11**-e a CODEOWNERS-t és a PR-sablont utasította el mint „checklist-ballaszt" egy egyszemélyes repóban — ez a döntés áll. A `CONTRIBUTING.md` viszont más kérdésre válaszol: nem kapu, hanem egy helyen összeszedett szerzői folyamat (szabály-scaffold → validálás → review → promotion), ami ma öt dokumentum és három skill között van szétszórva. Alacsony prioritás az egyszemélyes valóság miatt, de olcsó, és a 2.6 (lokális futtatás) természetes otthona lenne. Yara javaslata → **Chloe**
 
 ## 3 · Funkció- és képességhiányok (13) · ×1,5
 
@@ -2445,3 +2445,35 @@ grep-elni.
   **Nyitott halmaz (9): 2.2, 2.3, 2.5, 2.6, 2.7, 2.9, 2.13, 2.14 (mind Chloe/docs,
   deprioritizált) + 4.4 (b) (Jamal). A következő nem-docs, csapat-végrehajtható
   tétel változatlanul a 4.4 (b).** **Modell:** Sonnet 5.
+
+- **2026-08-29 — 2.3, 2.13, 2.14 lezárva, Kwame verifikálta. Számláló 43/52 → 46/52.**
+  Chloe passza (`21498a6`).
+  **2.3 — verifikálva a `.claude/agents/*.md` frontmatter ellen:** a
+  `pipeline_overview.md:477–497` „Custom Claude Code subagents involved" szekció
+  mind a 10 nevesített specialistát + a `gaz-reference` stubot listázza, mindegyiket
+  a valós sluggal — `yuki-detection-engineer`, `bjorn-detection-content-reviewer`,
+  `jamal-devops-engineer`, `chloe-docs-maintainer`, `sienna-frontend-engineer`,
+  `kai-github-ops`, `yara-ideation`, `masha-threat-intel`, `priya-security-scanner`,
+  `kwame-audit-compliance`, `gaz-reference` — **karakterre egyezik** a 11 ügynökfájl
+  `name:` sorával. `.mcp.json` (repo-gyökér, létezik) rundown megvan, a `TEAM.md` /
+  `CLAUDE.md` / `agent_workflow.md` mint igazságforrás megnevezve. A `threat_model.md`
+  ugyanezen drift-osztálya is javítva: a csupasz slugok most valós névvel párban
+  (`:8,10,12,66,68`).
+  **2.13 — verifikálva:** `docs/architecture/agent_workflow.md` létrejött (11 830
+  bájt) — a register saját javasolt fájlnevével egyezik. Tartalma: delegálási
+  modell + Mermaid, review-gate, 6 valós, repo-történetből bányászott munkapélda
+  (A–F: a 3.5 verzió-séma szétvágás, Kwame repo-terkep drift-flipje, a Yuki→Bjorn
+  hurok, a gate elérése Sienna/Jamal felé, a `~/.claude.json` határincidens,
+  elutasítás-mint-lezárás), megosztott-skillek tábla, `author:`-mező szabály, a
+  „az operatív fájlok Gazéi" felosztás. Keresztlinkelve a `pipeline_overview.md`,
+  `scripts_reference.md`, `threat_model.md`, `README.md`-ből.
+  **2.14 — verifikálva:** `CONTRIBUTING.md` létrejött a repo-gyökérben (7 331 bájt):
+  a szabály-hozzáadás teljes folyamata egy helyen (scaffold → logika/raw_query →
+  MITRE → kitöltés → automatikus verzió-bump → lokális validálás → PR a `dev`-re →
+  review → promóció → prod), változtatás/kivezetés szakasz, `author:`-mező jegyzet,
+  kifelé linkel duplikálás helyett. A „Running the pipeline and tests locally"
+  szakasz **szándékosan kommentbe téve, `audit item 2.6`-ként jelölve** — a 2.6
+  nyitva marad.
+  **Nyitott halmaz (6): 2.2, 2.5, 2.6, 2.7, 2.9 (mind Chloe/docs, deprioritizált;
+  2.7 és 2.9 Gaz-dönt komponenssel) + 4.4 (b) (Jamal). A következő nem-docs,
+  csapat-végrehajtható tétel változatlanul a 4.4 (b).** **Modell:** Sonnet 5.
