@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-29T09:02:14.622192+00:00",
+  "generated_at": "2026-08-29T09:49:56.259775+00:00",
   "total_rules": 28,
   "total_sigma_rules": 28,
   "total_compiled_sigma_rules": 27,
@@ -9,11 +9,11 @@
   "verified_fail": 0,
   "verified_not_verified": 26,
   "verified_testing_disabled": 26,
-  "verified_testing_disabled_current": 25,
+  "verified_testing_disabled_current": 24,
   "never_tested": 0,
   "not_verified": 26,
-  "verified_stale": 1,
-  "verified_superseded": 1,
+  "verified_stale": 2,
+  "verified_superseded": 2,
   "verified_expired": 0,
   "verified_pass_current": 2,
   "verified_fail_current": 0,
@@ -200,7 +200,7 @@
         "None known; /setnotifycmdline has no legitimate production use case"
       ],
       "testing": {
-        "enabled": false,
+        "enabled": true,
         "runner": "windows-victim",
         "type": "atomic",
         "atomics": [
@@ -214,7 +214,7 @@
       },
       "rule_body": "detection:\n  selection_image_commandline:\n    Image|endswith: \\bitsadmin.exe\n    CommandLine|contains: /setnotifycmdline\n  filter_legit_user:\n    User|contains:\n    - SYSTEM\n    - NETWORK SERVICE\n  filter_legit_parent:\n    ParentImage|endswith:\n    - \\svchost.exe\n  condition: selection_image_commandline and not (filter_legit_user and filter_legit_parent)",
       "rule_body_lang": "yaml",
-      "rule_version": "1.10"
+      "rule_version": "1.11"
     },
     {
       "detect_id": "DETECT-2026-0007",
