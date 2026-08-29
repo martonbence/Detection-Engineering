@@ -60,3 +60,6 @@
 {"date": "2026-08-28", "name": "Chloe", "slug": "chloe-docs-maintainer", "task": "Add team-ops row to Live views table", "tokens": 26079, "tool_uses": 2, "duration_ms": 21240, "model": "inherited (sonnet-5)"}
 {"date": "2026-08-28", "name": "Chloe", "slug": "chloe-docs-maintainer", "task": "Simplify README header: stacked logo + h1 title", "tokens": 25924, "tool_uses": 3, "duration_ms": 14661, "model": "inherited (sonnet-5)"}
 {"date": "2026-08-28", "name": "Chloe", "slug": "chloe-docs-maintainer", "task": "Left-align logo, shrink tagline below title", "tokens": 24044, "tool_uses": 2, "duration_ms": 16748, "model": "inherited (sonnet-5)"}
+{"date": "2026-08-29", "name": "Jamal", "slug": "jamal-devops-engineer", "task": "Add prod-deploy dashboard regen job", "tokens": 120202, "tool_uses": 40, "duration_ms": 384955, "model": "inherited (sonnet-5)"}
+{"date": "2026-08-29", "name": "Bjorn", "slug": "bjorn-detection-content-reviewer", "task": "Review new prod-workflow dashboard regen jobs", "tokens": 95338, "tool_uses": 27, "duration_ms": 271029, "model": "inherited (sonnet-5)"}
+{"date": "2026-08-29", "name": "Chloe", "slug": "chloe-docs-maintainer", "task": "Fix scripts_reference.md prod workflow drift", "tokens": 150541, "tool_uses": 37, "duration_ms": 326637, "model": "inherited (sonnet-5)"}
