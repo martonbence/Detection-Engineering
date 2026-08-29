@@ -2327,3 +2327,52 @@ grep-elni.
   ténylegesen és helyesen leszállt. **Következő tétel változatlan: 4.4 (b)
   opciója** — Gaz dönt a további ütemezésről. **Modell:** ez a
   könyvelési kör Sonnet 5-ön futott.
+
+- **2026-08-29 — mindkét register újraverifikálva a valós repo-állapottal
+  szemben (Kwame). A checkboxokhoz nem nyúltam, ez drift-jelentés Gaznak.**
+  `remediation-plan.md`: **54/54 változatlanul zárt**, nincs CI-regresszió a
+  2026-08-15 óta eltelt ~41 workflow/script-érintő commitban — a
+  spot-ellenőrzött tételek (`3.2` prod attesztáció él `ci_prod_workflow.yml:237`,
+  `1.3` drift-gate törölve maradt, `1.6`/`4.10` `ci_code_checks.yml` megvan,
+  `3.5` a 2026-08-29-i `rule_version.py`-törlés után is könyvelt a saját
+  Naplójában) mind állják. `audit/register.html` 54/54 checked, a
+  `remediation-plan.md`-vel szinkronban (utoljára 2026-08-15-én generálva, de a
+  darabszám és a súlyok nem mozdultak, tehát nincs numerikus drift).
+  **`feature-and-process-audit.md`: a 38/52 zárt / 14 nyitott számláló helyes,
+  de a 14 „nyitott" túlbecsült.** A `README.md` teljes újraírása (magas szintű
+  áttekintéssé, `65abf10`/`e7b13c9`/`45656ea`) és a `docs/architecture/*`
+  szinkron-commitjai (`22e321d`, `44dd060`, `5fe6244` — a register-3.5
+  rule-version munka és a dashboard-job munka mellékhatásaként) a **1.1**, **1.2**
+  és **1.3** érdemi részét már elvégezték, könyvelés nélkül:
+  – **1.1**: a README már nem állítja a megszűnt drift-gate-et; `pipeline_overview.md`,
+    `scripts_reference.md`, `data_flow.md`, `threat_model.md` mind helyesen írják
+    le a `gh attestation verify` / Sigstore provenance kaput és hogy az váltotta
+    a drift-gate-et. **Maradék: `docs/architecture/repo-terkep.hu.md:106,130`**,
+    ami még mindig élő jó ötletként magyarázza a „drift gate"-et.
+  – **1.2**: `CLAUDE.md:22` már „The 4 GitHub Actions workflows"; a Jamal-ügynökfájl
+    négy workflow-t + `ci_prod_audit.yml` sort listáz; négy architektúra-doksi
+    hivatkozik a `ci_prod_audit.yml`-re; a README-ből eltűnt a „three workflows".
+    **Maradék: `repo-terkep.hu.md`**, ami még mindig csak 3 workflow-szekciót ír.
+  – **1.3**: a README-ben már 11-csomópontos Mermaid job-gráf (benne az
+    `update_dashboard`, `deploy_pages`, `notify_pipeline_status`); a
+    `pipeline_overview.md` job-táblája (407–419) is tartalmazza mind a négy
+    korábban hiányzót és a prodot 4 jobként írja le. A tétel saját szövege
+    viszont már elavult („9 job" → 11, „prod két job" → 4).
+  – **2.1**: részleges — `check_version_bump.py`, `deployment_inventory.py`,
+    `migrate_backfill_rule_version.py` már dokumentált; **még hiányzik**: `env.py`,
+    `meta_sidecar.py`, `rules.py`, `splunk_client.py`, `splunk_ns.py`, `summary.py`,
+    `verdict_history.py`, `check_detect_id_uniqueness.py`, `check_spl_syntax.py`,
+    `new_rule.py` (a `rule_version.py` helyesen kikerült).
+  – **2.4**: teljesen nyitott és romlott — `repo-terkep.hu.md` számai („1 695 sor,
+    8 job" stb.) még távolabb a valóságtól (`ci_dev` ~2900+ sor / 11 job, `ci_prod`
+    341 sor / 4 job).
+  – **2.2**: nyitott (0 `LAB_ONLINE` a README-ben), de a magas szintű README-átírás
+    fényében inkább újra-scope-olandó / elutasítandó, mint javítandó — Gaz/user döntés.
+  **Checkboxokat szándékosan nem flippeltem** (1.1/1.2/1.3 nincs teljesen kész a
+  `repo-terkep.hu.md`-maradék miatt; 2.1 részleges). Egyetlen `repo-terkep.hu.md`
+  Chloe-pass lezárná 1.1 + 1.2 maradékát és a teljes 2.4-et — de docs, tehát a
+  `feedback_deprioritize_docs` szerint előbb rá kell kérdezni.
+  **A 12 `[ ]` docs-tétel (1.1–1.3, 2.1–2.7, 2.9, 2.13, 2.14) mind Chloe, mind
+  deprioritizált. Az egyetlen nyitott, nem-docs, csapat-végrehajtható munka
+  változatlanul a 4.4 (b) szelete → Jamal** (funkcionális CI-változás, Bjorn
+  review-gate a „kész" előtt). **Modell:** Sonnet 5.
