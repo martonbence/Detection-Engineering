@@ -622,27 +622,24 @@ therefore needs a run when it has no result at all, or when its result belongs t
 itself — the same "drift" the rule browser already displays, made into something you can *start* a
 run from.
 
-**As of register item 3.5's close, this script's own `git_version()` was not updated and is now a
-second, disconnected version scheme.** `sigma_to_spl.py` and `generate_stats.py` both moved to
-reading the Sigma YAML's own `version:` field directly (auto-bumped by `.githooks/pre-commit` on a
-real `detection:`/`logsource:`/`custom.splunk.raw_query` change, backstopped by
-`check_version_bump.py`); `result.json`'s `rule_version` is therefore that YAML value (e.g. `"1.1"`).
-This script's `git_version()` still independently derives `1.<commit-count-1>` from `git log --follow`
-on the rule file — the same computation `scripts/lib/rule_version.py::compute_rule_version()` used to
-do before it was deleted, just reimplemented locally here rather than imported. The two numbering
-schemes have no reason to agree (a rule with 12 commits and a YAML `version: "1.1"` compares `"1.11"`
-against `"1.1"`), so `classify()`'s `verified != current` check is now comparing values from two
-unrelated sources rather than the same source at two points in time. This was not one of the files
-touched by the 3.5 migration and is flagged here as a known, unfixed drift rather than corrected
-narration of intended behaviour — confirm with whoever owns this script before relying on
-`workflow_dispatch`'s `unverified` scope to mean what it says.
+`classify()` reads the rule's current version straight from the loaded rule dict —
+`data.get("version")`, the same field and the same read pattern `generate_stats.py` uses — and
+compares it against `result.json`'s `rule_version`. Both sides are now the single, unified version
+number: the rule's hand-set Sigma YAML `version:` field, auto-bumped by `.githooks/pre-commit` on a
+real `detection:`/`logsource:`/`custom.splunk.raw_query` change (register item 3.5, closed same day
+as commit `cd40d34`). The script previously computed its own "current version" via a local
+`git_version()` (a raw git-commit-count scheme, `1.<commit-count-1>`), which briefly diverged from
+the newer YAML-field scheme after 3.5 landed and made `classify()`'s `verified != current` check
+compare two unrelated numbering schemes — that bug is fixed as of commit `4bc4ea5`: `git_version()`
+was deleted outright (no other caller depended on it) and `classify()` now reads `version:` directly,
+matching `result.json`'s `rule_version` for real.
 
 Deprecated rules are skipped, because they are not deployed and measuring them would measure nothing.
 A FAIL still counts as verified at that version: this selects work, it does not re-litigate verdicts.
 
-**Biases towards selecting.** If the current version cannot be established — no git history, a
-shallow clone, an unreadable rule — the rule is included. A needless re-run costs lab time; a wrong
-skip leaves a rule everyone believes was verified and was not.
+**Biases towards selecting.** If the current version cannot be established — no `version:` field, an
+unreadable rule — the rule is included. A needless re-run costs lab time; a wrong skip leaves a rule
+everyone believes was verified and was not.
 
 stdout carries the selected rule paths and nothing else, so the workflow reads it straight into an
 array; everything explanatory goes to stderr. `--json` writes the full per-rule reasoning.
