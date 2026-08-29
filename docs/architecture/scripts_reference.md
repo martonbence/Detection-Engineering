@@ -27,6 +27,9 @@ The manual entry points are called out explicitly where they exist.
 | [`scripts/validate/validate_sigma.py`](../../scripts/validate/validate_sigma.py) | Validates each Sigma rule against the JSON Schema | the wrapper above |
 | [`scripts/validate/check_test_routing.py`](../../scripts/validate/check_test_routing.py) | Warns when a rule's test runner has no job that services it, and tells the workflow which test jobs a batch needs | dev workflow (twice), pytest |
 | [`scripts/validate/check_mitre_tags.py`](../../scripts/validate/check_mitre_tags.py) | Checks every rule's ATT&CK tags against the committed technique map — offline, advisory in CI | dev workflow, pytest |
+| [`scripts/validate/check_version_bump.py`](../../scripts/validate/check_version_bump.py) | Hard-gates that a rule's `version:` moved when its `detection:`/`logsource:`/`raw_query` did — the CI backstop for `.githooks/pre-commit` | dev workflow, pytest |
+| [`.githooks/pre-commit`](../../.githooks/pre-commit) | Auto-bumps a rule's `version:` at commit time on a real logic change (not installed until `git config core.hooksPath .githooks` is run once per clone) | local `git commit`, opt-in |
+| [`scripts/migrate_backfill_rule_version.py`](../../scripts/migrate_backfill_rule_version.py) | One-time backfill that recomputed every rule's `version:` from its real logic-change history; already run | manual, one-off |
 | [`scripts/convert/sigma_to_spl.py`](../../scripts/convert/sigma_to_spl.py) | Sigma YAML → `.spl` query + `.meta.json` sidecar | dev + prod workflows |
 | [`scripts/convert/backend_config.py`](../../scripts/convert/backend_config.py) | Loads `config/backends.yml` — which backend the converter targets and which pipeline each rule gets | `sigma_to_spl.py`, pytest |
 | [`scripts/deploy/deploy_spl_to_splunk.py`](../../scripts/deploy/deploy_spl_to_splunk.py) | Creates/updates the Splunk saved searches | dev + prod workflows |
@@ -289,6 +292,77 @@ Exit codes: `0` clean or advisory, `1` error-severity findings under `--strict`,
 could not run. `--json` writes the full findings, `--quiet` drops the per-rule OK lines, `--cache`
 points at a different map.
 
+### `scripts/validate/check_version_bump.py`
+
+Answers a third question the schema cannot: **does this rule's hand-maintained `version:` field
+actually reflect what changed?** Register item 3.5, closed — this is now the sole mechanism
+deciding whether a rule's Sigma `version:` field means anything, and every downstream reader of
+`rule_version` (`sigma_to_spl.py`'s sidecar, `generate_stats.py`'s superseded-verdict check, the
+Splunk saved-search description) ultimately trusts what this file — and `.githooks/pre-commit`,
+which reuses it — decided.
+
+For every changed rule file in the push, it loads the rule as staged and the same path at the diff's
+base ref, and calls `logic_diff()` to see whether `detection:`, `logsource:`, or
+`custom.splunk.raw_query` differ between the two. Only those three fields count as a behaviour
+change; `description`, `references`, `falsepositives`, `status`, `level`, tags and everything under
+`custom.testing`/`custom.splunk` other than `raw_query` do not — rewording a description should
+never force a version bump, which was the exact complaint that opened this register item. If any of
+the three changed and `version:` did not move between the two revisions, the rule is a finding; a new
+file or a base ref that can't be read is skipped rather than failed, since there is no prior version
+to compare against.
+
+Severity: a **hard gate**, unlike the two advisory checks above it — whether a version moved between
+two git blobs is not a judgment call the way an ATT&CK tag or a test-routing gap is, so there is no
+`--strict` toggle and no reason to let a finding through as a warning.
+
+**As of `.githooks/pre-commit` (below), this check should rarely have anything to report.** The hook
+runs the identical `logic_diff()`/`version_of()` logic at commit time and bumps `version:`
+automatically before the commit is even made, so a finding here now more likely means the hook
+never ran — `--no-verify`, a fresh clone before the one-time `git config core.hooksPath .githooks`
+step, or a rule edited through the GitHub web UI, none of which invoke a local hook — than an author
+who forgot to type a version by hand.
+
+Exit codes: `0` every logic-changing edit bumped its version (or nothing needed one, or no rule files
+were given), `1` a rule changed logic without bumping `version:`, `2` setup failure (missing
+`pyyaml`).
+
+### `.githooks/pre-commit`
+
+The other half of register item 3.5. Not installed by default — `git config core.hooksPath
+.githooks` is a one-time, per-clone step, deliberately not run automatically by any script here (a
+hook that installs itself is a hook that can start running code nobody asked for). Once set, git
+runs this on every commit that stages a `rules/sigma/**/*.yml`/`*.yaml` file.
+
+For each such file it imports `check_version_bump.py`'s own `logic_diff()`/`version_of()` — not a
+reimplementation, so the hook and the CI backstop can never quietly define "logic changed"
+differently — and compares the staged copy against HEAD's. If `detection:`/`logsource:`/
+`custom.splunk.raw_query` changed and the author did not already bump `version:` by hand, it parses
+the current `MAJOR.MINOR` value (schema-enforced pattern), increments MINOR by one (treating a
+missing/unparseable value as `1.0` first), rewrites the staged file in place, and `git add`s it back
+so the bump rides along in the commit being made rather than a follow-up one. A version the author
+already changed by hand — e.g. jumping straight to `2.0` for a rewrite — is left alone.
+
+It never fails or blocks the commit — this is a rewrite, not a gate; gating stays
+`check_version_bump.py`'s job in CI — and every exception it can hit (missing PyYAML, a git plumbing
+failure, an unparseable rule) is caught and logged to stderr as "skip this file," never a non-zero
+exit. It also refuses to touch a file whose worktree content doesn't match what's actually staged,
+trading a rare missed auto-bump for never silently discarding an edit the author hadn't staged yet.
+
+No test file currently exercises this hook or `scripts/migrate_backfill_rule_version.py` below — a
+known, non-blocking gap noted in review at the time 3.5 closed; `check_version_bump.py`, whose logic
+both reuse, is covered by `tests/test_check_version_bump.py`.
+
+### `scripts/migrate_backfill_rule_version.py`
+
+A one-time migration, already run with `--apply`. Recomputes every existing rule's `version:` field
+from a real replay of that rule's logic-change history — walking its actual commit history and
+re-running `logic_diff()` between consecutive revisions, bumping only on a genuine
+`detection:`/`logsource:`/`custom.splunk.raw_query` change — rather than the raw commit count the
+now-deleted `scripts/lib/rule_version.py::compute_rule_version()` used to produce. Default mode
+reports what it would write; `--apply` writes it. Run once against the existing 28 rules, it changed
+27 of their version numbers. Not invoked by any workflow — it exists for this one migration and for
+re-running by hand if a similar backfill is ever needed again.
+
 ### `scripts/convert/sigma_to_spl.py`
 
 **In:** Sigma YAML. **Out:** `rules/splunk/<same stem>.spl` plus a `<same stem>.meta.json` sidecar.
@@ -315,6 +389,13 @@ gitignored — it exists only during a run. Prod no longer re-converts to obtain
 (register item 3.2, stage C): `deploy_to_prod` downloads the sidecar the dev run already produced
 from the attested `spl-pipeline-bundle` artifact instead — see `ci_prod_workflow.yml`'s own entry
 below.
+
+`meta["rule_version"]` is popped straight from the Sigma YAML's own `version:` field (register item
+3.5, closed) — no computation, `build_meta_dict()` just reads it. See
+`scripts/validate/check_version_bump.py`'s entry above for what keeps that field meaningful, and
+[`data_flow.md`](data_flow.md#rule_version-the-one-field-that-travels-the-whole-chain) for everywhere
+this value travels afterward (the deploy step's Splunk saved-search description, the verify sidecar,
+the committed result, and `generate_stats.py`'s superseded-verdict check).
 
 ### `scripts/convert/backend_config.py`
 
@@ -536,11 +617,25 @@ Answers "which rules still need a lab run?" for a manual `workflow_dispatch`, wh
 before/after to diff.
 
 The baseline it uses already exists in the repo: each committed
-`outputs/results/<detect_id>/result.json` records the `rule_version` it was measured against, and a
-rule's version is its commit count (`git log --follow` on the Sigma source, the same scheme
-`sigma_to_spl.py` and `generate_stats.py` use). A rule therefore needs a run when it has no result
-at all, or when its result belongs to an older version of itself — the same "drift" the rule browser
-already displays, made into something you can *start* a run from.
+`outputs/results/<detect_id>/result.json` records the `rule_version` it was measured against. A rule
+therefore needs a run when it has no result at all, or when its result belongs to an older version of
+itself — the same "drift" the rule browser already displays, made into something you can *start* a
+run from.
+
+**As of register item 3.5's close, this script's own `git_version()` was not updated and is now a
+second, disconnected version scheme.** `sigma_to_spl.py` and `generate_stats.py` both moved to
+reading the Sigma YAML's own `version:` field directly (auto-bumped by `.githooks/pre-commit` on a
+real `detection:`/`logsource:`/`custom.splunk.raw_query` change, backstopped by
+`check_version_bump.py`); `result.json`'s `rule_version` is therefore that YAML value (e.g. `"1.1"`).
+This script's `git_version()` still independently derives `1.<commit-count-1>` from `git log --follow`
+on the rule file — the same computation `scripts/lib/rule_version.py::compute_rule_version()` used to
+do before it was deleted, just reimplemented locally here rather than imported. The two numbering
+schemes have no reason to agree (a rule with 12 commits and a YAML `version: "1.1"` compares `"1.11"`
+against `"1.1"`), so `classify()`'s `verified != current` check is now comparing values from two
+unrelated sources rather than the same source at two points in time. This was not one of the files
+touched by the 3.5 migration and is flagged here as a known, unfixed drift rather than corrected
+narration of intended behaviour — confirm with whoever owns this script before relying on
+`workflow_dispatch`'s `unverified` scope to mean what it says.
 
 Deprecated rules are skipped, because they are not deployed and measuring them would measure nothing.
 A FAIL still counts as verified at that version: this selects work, it does not re-litigate verdicts.

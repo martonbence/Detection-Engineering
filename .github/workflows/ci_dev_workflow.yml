@@ -97,9 +97,10 @@ on:
       #
       # The baseline that does exist is in the committed results: each
       # result.json records the rule_version it was measured against, and a
-      # rule's version is its commit count. "Needs a run" is therefore
-      # answerable without a diff -- no result, or a result belonging to an
-      # older version of itself.
+      # rule's version is its hand-set Sigma YAML version: field, bumped by
+      # the pre-commit hook whenever detection-relevant content actually
+      # changes. "Needs a run" is therefore answerable without a diff -- no
+      # result, or a result belonging to an older version of itself.
       scope:
         description: "Which rules to process"
         type: choice
