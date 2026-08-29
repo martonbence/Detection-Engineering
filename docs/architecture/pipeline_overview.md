@@ -476,14 +476,22 @@ Two things to know about the switch:
 
 ## Custom Claude Code subagents involved in building/maintaining this pipeline
 
-Not part of the runtime CI pipeline, but the tooling used to build and maintain it — see `.claude/agents/*.md` for the authoritative frontmatter (`name`/`description`); re-read that directory if this list looks stale:
+Not part of the runtime CI pipeline — this is the AI-agent team that builds and maintains it, working under a human lead. [`TEAM.md`](../../TEAM.md) (the named roster, with bios and a collaboration diagram) and [`CLAUDE.md`](../../CLAUDE.md) (the delegation contract) are the source of truth; per-agent frontmatter (`name`/`description`/`tools`) lives in `.claude/agents/*.md`. Re-read those rather than trusting the summary here if it looks stale. [`agent_workflow.md`](agent_workflow.md) is the practical "how work actually flows" companion — the delegation model, the review gate, and worked examples from this repo's own history.
 
-- **devops-engineer** — owns `.github/workflows/*.yml` and the scripts they invoke; the agent that would implement changes like the dev/prod split or the promotion-PR step itself.
-- **github-ops** — owns GitHub-platform mechanics (branch protection, secrets, self-hosted runner registration, PR/merge conflict resolution, the wiki-enablement gap) as opposed to workflow YAML content.
-- **docs-maintainer** — this document's own maintainer; keeps README/docs/architecture/Wiki in sync with the pipeline described above.
-- **detection-content-reviewer** — reviews Sigma/SPL rule *content* quality (logic soundness, false-positive risk, MITRE tag accuracy, test coverage) — the judgment layer CI's schema/pass-fail checks don't provide.
-- **frontend-engineer** — owns `docs/index.html`, `scripts/docs/generate_stats.py` and, since audit item 3.4 phase 1, the page assets under `scripts/docs/assets/` (the rule browser / Navigator), using the Playwright and Chrome DevTools MCP tools for verification.
-- **security-scanner** — audits this repo's own code/config (not rule content) for vulnerabilities and secrets, using the semgrep MCP tools, `pip-audit`, and GitHub's secret-scanning MCP tool.
-- **ideation** — brainstorming-only; proposes new rules or tools, never edits pipeline code.
+Ten named specialists, plus a reference stub for the lead:
 
-See `docs/architecture/data_flow.md` for the concrete files/artifacts moving between these stages, and `docs/architecture/threat_model.md` for what's in/out of scope from a security standpoint.
+- **Yuki** — `yuki-detection-engineer` — authors new Sigma rules end to end (`scripts/new_rule.py` scaffold → `detection:` logic or the `custom.splunk.raw_query` fallback → MITRE tags). Never self-approves.
+- **Bjorn** — `bjorn-detection-content-reviewer` — reviews rule *quality* (logic soundness, false-positive risk, ATT&CK tag accuracy, overlap, test coverage); also the review gate for Jamal/Sienna/Kai's functional/structural changes, and repo-wide file-hygiene audits. Reviews only, never authors.
+- **Jamal** — `jamal-devops-engineer` — the four GitHub Actions workflows and every pipeline script they call (validate / convert / deploy / verify / state-reconcile / docs-gen), the Splunk deploy step, the Atomic Red Team CI stage.
+- **Chloe** — `chloe-docs-maintainer` — this document, the rest of `docs/architecture/*.md`, `README.md` prose (outside the generated STATS block), and the GitHub Wiki.
+- **Sienna** — `sienna-frontend-engineer` — the rule browser (`docs/index.html`, `scripts/docs/generate_stats.py`, `scripts/docs/assets/`), the MITRE Navigator view, and the internal `.claude/team-ops.html` dashboard.
+- **Kai** — `kai-github-ops` — the GitHub platform itself: branches, PRs, merge conflicts, secrets, self-hosted runner registration, releases. Not workflow *content* (that's Jamal).
+- **Yara** — `yara-ideation` — whole-repo strategic ideation (pipeline, tooling, rule browser, detection coverage). Proposes only, never implements.
+- **Masha** — `masha-threat-intel` — external CTI research turned into a prioritized "what to detect next" brief; the outward-looking counterpart to Yara's internal gap analysis.
+- **Priya** — `priya-security-scanner` — security audits of the repo's *own* code and config (semgrep, `pip-audit`, secret scanning), not the detection rules' subject matter.
+- **Kwame** — `kwame-audit-compliance` — audits the remediation registers under `audit/` against real repo state, catches drift, reports accurate progress and the real next item. Verifies and reports, never implements.
+- **Gaz** — `gaz-reference` — **reference file only, never dispatched via the Agent tool.** Gaz is the top-level Claude Code session that talks to the user and delegates to the ten above; the file exists only so `.claude/agents/` mirrors the roster in `TEAM.md`/`CLAUDE.md`.
+
+The MCP servers these agents use are declared in [`.mcp.json`](../../.mcp.json) at the repo root — `github` (Kai's PR/branch/release mechanics; Priya's secret-scanning and code search), `semgrep` (Priya's static analysis), `playwright` and `chrome-devtools` (Sienna's rule-browser visual/behavioural verification and Lighthouse audits) — plus a user-scoped `context7` for library documentation lookup. The exact per-agent tool subsets are in each agent's `tools:` frontmatter line; [`agent_workflow.md`](agent_workflow.md) cross-references which agent invokes which.
+
+See [`data_flow.md`](data_flow.md) for the concrete files/artifacts moving between pipeline stages, [`threat_model.md`](threat_model.md) for what's in/out of scope from a security standpoint, and [`agent_workflow.md`](agent_workflow.md) for how the team above is coordinated.

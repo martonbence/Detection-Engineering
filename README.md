@@ -35,7 +35,7 @@
 
 | | |
 |---|---|
-| <img src="docs/pictures/branding/architecture.png" width="90" alt="Architecture icon"> | **[Architecture](docs/architecture/)**<br>Pipeline overview, data flow, threat model, and a per-file scripts reference — all with Mermaid diagrams. |
+| <img src="docs/pictures/branding/architecture.png" width="90" alt="Architecture icon"> | **[Architecture](docs/architecture/)**<br>Pipeline overview, data flow, threat model, a per-file scripts reference, and how the AI-agent team is coordinated — all with Mermaid diagrams. |
 | <img src="docs/pictures/branding/wiki.png" width="90" alt="Wiki icon"> | **[Wiki](../../wiki)**<br>Planned newcomer-facing walkthrough — not yet initialized. |
 
 ## The problem this repo solves
@@ -153,7 +153,7 @@ A checkmark in this repo is not a claim the rule's author made about their own w
 4. **Watch it show up** in the [rule browser](https://martonbence.github.io/Detection-Engineering/) with a real verdict and its place on the ATT&CK matrix.
 5. **Once proven**, the rule becomes eligible to be promoted from the proving-ground branch to production — via a pull request the pipeline opens for a human to review and merge, never automatically.
 
-The full step-by-step version of this — exact filenames, workflow names, job graphs — belongs in the [Wiki](../../wiki) and [`docs/architecture/`](docs/architecture/), not here.
+The full step-by-step version of this — exact filenames, the scaffold command, which checks gate what — is in [`CONTRIBUTING.md`](CONTRIBUTING.md), with the deeper mechanics in [`docs/architecture/`](docs/architecture/) and (eventually) the [Wiki](../../wiki).
 
 ## Built partly by an AI agent team
 
@@ -181,6 +181,7 @@ Part of what this repo is meant to demonstrate is disciplined use of GitHub itse
 
 ## Further reading
 
-- [`docs/architecture/`](docs/architecture/) — pipeline overview, data flow, threat model, and a per-file scripts reference, all with Mermaid diagrams
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — the end-to-end flow for adding a new detection, in one place
+- [`docs/architecture/`](docs/architecture/) — pipeline overview, data flow, threat model, a per-file scripts reference, and the agent-workflow guide, all with Mermaid diagrams
 - [GitHub Wiki](../../wiki) — planned newcomer-facing walkthrough (not yet initialized)
 - [`LICENSE`](LICENSE) — MIT

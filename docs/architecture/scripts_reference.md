@@ -2,7 +2,9 @@
 
 Every executable file in this repo, what it is for, and who runs it. This is the "what does
 this file do" lookup; [`pipeline_overview.md`](pipeline_overview.md) is the "how do they fit
-together" narrative, and [`data_flow.md`](data_flow.md) traces the artefacts they pass around.
+together" narrative, [`data_flow.md`](data_flow.md) traces the artefacts they pass around,
+[`threat_model.md`](threat_model.md) covers scope and credential handling, and
+[`agent_workflow.md`](agent_workflow.md) documents the AI-agent team that maintains all of it.
 
 Nothing here is run by hand in the happy path — the CI workflows invoke everything. The manual
 entry points (`scripts/new_rule.py` to scaffold a rule, the one-off migration scripts, the
