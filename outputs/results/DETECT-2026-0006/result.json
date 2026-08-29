@@ -1,16 +1,16 @@
 {
   "detect_id": "DETECT-2026-0006",
   "title": "BITS Persistence via SetNotifyCmdLine",
-  "verdict": "NOT_VERIFIED",
-  "reason": "Testing is disabled for this rule (custom.testing.enabled: false)",
-  "disabled": true,
-  "event_count": 0,
+  "verdict": "PASS",
+  "reason": "Event count 1 within expected range [1–10]",
+  "disabled": false,
+  "event_count": 1,
   "min_pass": 1,
   "max_pass": 10,
-  "earliest": "1786997202",
+  "earliest": "1787996926",
   "latest": "now",
-  "run_timestamp": "2026-08-17T20:08:36.916439+00:00",
-  "rule_version": "1.10",
-  "git_sha": "826c6fc8d59a641be9e25bf3411b1c6c51bfd772",
-  "run_id": "32064011123"
+  "run_timestamp": "2026-08-29T09:50:33.858136+00:00",
+  "rule_version": "1.11",
+  "git_sha": "b64424d186bc397f743a0575c6e131405e729862",
+  "run_id": "33246355951"
 }
