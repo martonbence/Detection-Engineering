@@ -330,8 +330,8 @@
     },
     {
       "date": "2026-08-29",
-      "timestamp": "2026-08-29T12:28:13.170199+00:00",
-      "git_sha": "1fca672790cd59f6239426c2ff0ed1a8faa2b0bc",
+      "timestamp": "2026-08-29T12:32:13.580010+00:00",
+      "git_sha": "896d923934b343035c4e605562244497bb081bb8",
       "mitre_covered_techniques": 12,
       "mitre_total_techniques": 222,
       "mitre_coverage_pct": 5.4
