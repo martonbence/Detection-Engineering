@@ -2,15 +2,15 @@
   "detect_id": "DETECT-2026-0005",
   "title": "BITS Job abuse via BITSAdmin or PowerShell",
   "verdict": "PASS",
-  "reason": "Event count 2 within expected range [1–10]",
+  "reason": "Event count 4 within expected range [1–10]",
   "disabled": false,
-  "event_count": 2,
+  "event_count": 4,
   "min_pass": 1,
   "max_pass": 10,
-  "earliest": "1787993995",
+  "earliest": "1788004322",
   "latest": "now",
-  "run_timestamp": "2026-08-29T09:01:42.961268+00:00",
-  "rule_version": "1.10",
-  "git_sha": "16358e0428923434d3d438ae83ed950613bba35e",
-  "run_id": "33244431859"
+  "run_timestamp": "2026-08-29T11:54:09.559750+00:00",
+  "rule_version": "1.1",
+  "git_sha": "775322617c1efddf7323d63946269f9eeb01559e",
+  "run_id": "33251116121"
 }
