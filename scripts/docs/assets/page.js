@@ -509,13 +509,21 @@ function buildDashboardCharts() {
   // ring can drift out of agreement with the rows underneath it. (Those
   // predicates are hoisted function declarations in this same scope, defined
   // further down.)
-  const evidenceCount = { current: 0, superseded: 0, expired: 0, never: 0 };
+  const evidenceCount = { current: 0, superseded: 0, expired: 0, never: 0, scoped: 0 };
   const verifyCount = { pass: 0, notver: 0, fail: 0 };
   RULES.forEach(r => {
     const v = r.verdict || 'N/A';
     if (v === 'N/A' || !v) { evidenceCount.never++; return; }
     if (isVerdictSuperseded(r)) { evidenceCount.superseded++; return; }
     if (isVerdictExpired(r)) { evidenceCount.expired++; return; }
+    // Checked after the two lapse tests, not before, so this stays in step
+    // with generate_stats.py: there, an out-of-scope verdict that has also
+    // aged out is counted as expired (verified_stale), and only the rest is
+    // subtracted as out-of-scope. Same rule is excluded from the pass rate
+    // either way -- the order decides only which slice names it, and the two
+    // sides have to name it identically or the ring and the badge tell
+    // different stories.
+    if (isOutOfScope(r)) { evidenceCount.scoped++; return; }
     evidenceCount.current++;
     // Only current verdicts reach the verdict tally. A lapsed PASS is not a
     // pass that happens to be old, it is an absence of present-tense
@@ -534,16 +542,90 @@ function buildDashboardCharts() {
   // tell one story in one hue; Expired takes the teal the retired Review facet
   // used to carry. Empty segments are filtered out, so Expired is simply not
   // drawn until a verdict actually crosses the review interval.
+  //
+  // Out of scope takes orange rather than another grey: it sits next to the
+  // grey "Never tested" slice and means something different from it — skipped
+  // on purpose, not missed — and every muted blue-grey tried against that grey
+  // came back under the validator's normal-vision separation floor, i.e.
+  // indistinguishable to readers with full colour vision, let alone without.
+  // Orange clears it (ΔE 17.5 normal, 15.3 tritan) and is not one of the
+  // page's reserved verdict hues, so it cannot be misread as a fourth verdict.
   const evidenceSegs = [
     { label: 'Current', n: evidenceCount.current, color: '#3fb950' },
     { label: 'Superseded', n: evidenceCount.superseded, color: '#bc8cff' },
     { label: 'Expired', n: evidenceCount.expired, color: '#2dd4bf' },
+    { label: 'Out of scope', n: evidenceCount.scoped, color: '#db6d28' },
     { label: 'Never tested', n: evidenceCount.never, color: '#8b949e' },
   ].filter(s => s.n > 0);
   const evidenceTotal = evidenceSegs.reduce((s, x) => s + x.n, 0);
   const evidencePct = evidenceTotal > 0 ? Math.round(evidenceCount.current / evidenceTotal * 100) : 0;
   const evidencePctEl = document.getElementById('evidence-overlay-pct');
   if (evidencePctEl) evidencePctEl.textContent = evidencePct + '%';
+  // The one number on this page that explains a low Current % without the
+  // reader having to open a filter: rules nobody set out to measure. Shown
+  // only while there are any, so the card carries no permanent footnote about
+  // a state the library is normally not in -- and hidden via the hidden
+  // attribute so it leaves no empty line behind when it goes.
+  const scopeNoteEl = document.getElementById('evidence-scope-note');
+  if (scopeNoteEl) {
+    if (evidenceCount.scoped > 0) {
+      scopeNoteEl.textContent =
+        evidenceCount.scoped + ' of ' + RULES.length + ' rules are out of testing scope' +
+        ' — testing is switched off on the rule itself, so the pipeline skips them' +
+        ' rather than failing to measure them. Not counted in the Pass Rate.';
+      scopeNoteEl.hidden = false;
+    } else {
+      scopeNoteEl.hidden = true;
+    }
+  }
+
+  // Last live verification — a plain historical fact ("when did the pipeline
+  // last actually measure anything, and how much of the library did that run
+  // cover"), not a standing that erodes with elapsed time like the pass rate
+  // or the Evidence segments above. It is recomputed here from RULES, rather
+  // than left as the build-time @@LAST_LIVE_TEXT@@ seed, purely so it can
+  // never silently drift from the Python-side figure in stats.json -- both
+  // sides use the identical predicate (see _last_live_verification()'s
+  // docstring in generate_stats.py): a rule counts only if its verdict is
+  // not N/A, testing was not deliberately disabled for that run, and it
+  // carries both a runId and a verdictAt. Rows failing that (e.g. legacy
+  // result.json files written before run_id existed) are left out of the
+  // grouping entirely, matching the Python side row for row.
+  let lastLiveAt = '';
+  let lastLiveRunId = '';
+  RULES.forEach(r => {
+    const v = r.verdict || 'N/A';
+    if (v === 'N/A' || !v || r.testingDisabled) return;
+    if (!r.runId || !r.verdictAt) return;
+    if (r.verdictAt > lastLiveAt) { lastLiveAt = r.verdictAt; lastLiveRunId = r.runId; }
+  });
+  let lastLiveCount = 0;
+  if (lastLiveAt) {
+    RULES.forEach(r => {
+      const v = r.verdict || 'N/A';
+      if (v === 'N/A' || !v || r.testingDisabled) return;
+      if (r.runId === lastLiveRunId) lastLiveCount++;
+    });
+  }
+  const lastLiveNoteEl = document.getElementById('evidence-lastlive-note');
+  if (lastLiveNoteEl) {
+    if (lastLiveCount > 0) {
+      const displayAt = lastLiveAt.slice(0, 19).replace('T', ' ') + ' UTC';
+      lastLiveNoteEl.textContent =
+        'Last live verification: ' + displayAt + ' — ' + lastLiveCount + ' of ' +
+        RULES.length + ' rules measured in that run.';
+      lastLiveNoteEl.hidden = false;
+    } else {
+      lastLiveNoteEl.hidden = true;
+    }
+  }
+  const evidenceCanvas = document.getElementById('chart-evidence');
+  if (evidenceCanvas) {
+    evidenceCanvas.setAttribute('aria-label',
+      'Doughnut chart of how much of the library has a verdict worth reading: ' +
+      evidenceSegs.map(s => s.n + ' ' + s.label.toLowerCase()).join(', ') +
+      ' — ' + evidencePct + '% current out of ' + RULES.length + ' rules');
+  }
   const evidenceChart = new Chart(document.getElementById('chart-evidence'), {
     type: 'doughnut',
     data: {
@@ -1096,6 +1178,22 @@ function isVerdictExpired(r) {
   return days === null || days >= REVIEW_INTERVAL_DAYS;
 }
 
+// A verdict that was never attempted, on purpose. NOT_VERIFIED is one word
+// covering two opposite situations -- the pipeline tried and could not tell,
+// or the pipeline was told not to try (custom.testing.enabled: false on the
+// rule) -- and only the second one is a scoping decision rather than a hole in
+// the measurement. pass_fail_eval.py records which happened at the moment of
+// the run, and generate_stats.py carries it through as testingDisabled; it is
+// deliberately a property of the verdict, so re-enabling testing on a rule
+// does not retroactively rewrite what the last run did.
+//
+// The verdict check is not redundant with the flag: it keeps the predicate
+// answering "this verdict was skipped" rather than "this rule has testing
+// off", which is what makes it safe to fold into the Evidence chain below.
+function isOutOfScope(r) {
+  return !!(r && r.testingDisabled && r.verdict === 'NOT_VERIFIED');
+}
+
 // The two ways a verdict stops being evidence about the rule as it stands
 // today, in one predicate. Superseded is the certain one -- the logic that
 // was tested is demonstrably not the logic that is deployed. Expired is the
@@ -1125,11 +1223,16 @@ RULES.forEach(r => {
   // "Never tested" means no verdict at all. A verdict that exists but cannot
   // be dated is Expired, not Never tested -- the measurement did happen, we
   // just cannot show it still counts.
+  // "Out of scope" sits last among the not-Current buckets for the same
+  // reason it does in the chart above and in generate_stats.py: a skipped
+  // verdict that has also gone stale is filed under the staleness, because
+  // that is the state a re-run would have to clear first.
   r.evidence = (!r.verdict || r.verdict === 'N/A')
     ? 'Never tested'
     : isVerdictSuperseded(r) ? 'Superseded'
       : isVerdictExpired(r) ? 'Expired'
-        : 'Current';
+        : isOutOfScope(r) ? 'Out of scope'
+          : 'Current';
 });
 
 // How long ago a verdict was measured, in plain words. Days all the way up —
@@ -1461,8 +1564,16 @@ function verdictBadge(r) {
   const drift = superseded
     ? `<span class="verdict-drift" title="Superseded — ${escHtml(vLabel(v))} measured on rule v${escHtml(r.verdictRuleVersion)}, but the rule is now v${escHtml(r.ruleVersion)}. Not counted in the pass rate."><svg viewBox="0 0 24 24"><path d="M12 5 L20.5 19 H3.5 Z"/></svg></span>`
     : '';
-  if (r.runUrl) return `<a href="${escHtml(r.runUrl)}" target="_blank" title="View Actions run" onclick="event.stopPropagation()">${badge}</a>${due}${drift}`;
-  return badge + due + drift;
+  // Without this, a column of identical NOT VERIFIED badges gives no way to
+  // tell the rules nobody tried to test from the ones the pipeline could not
+  // measure -- the same conflation that made the published pass rate read 27
+  // deliberate skips as failures. Shown only where neither lapse marker is
+  // (they answer first, and two markers on one badge would be a puzzle).
+  const scoped = (!superseded && !expired && isOutOfScope(r))
+    ? `<span class="verdict-scoped" title="Out of testing scope — testing is switched off on this rule (custom.testing.enabled: false), so the pipeline skipped it rather than failing to measure it. Not counted in the pass rate."><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><line x1="6.3" y1="17.7" x2="17.7" y2="6.3"/></svg></span>`
+    : '';
+  if (r.runUrl) return `<a href="${escHtml(r.runUrl)}" target="_blank" title="View Actions run" onclick="event.stopPropagation()">${badge}</a>${due}${drift}${scoped}`;
+  return badge + due + drift + scoped;
 }
 
 function mitrePills(list, kind) {
@@ -1860,6 +1971,14 @@ function openDrawer(idx) {
         : '';
       meta.push(`<span>${via}${on}${ver}${drifted}</span>`);
     }
+    // Said in words, not just carried by the marker in the table: the drawer
+    // is where someone lands to find out why a rule reads NOT VERIFIED, and
+    // "we chose not to test this" is a different answer from "the test did not
+    // finish" -- the badge above is identical in both cases.
+    if (isOutOfScope(r)) {
+      meta.push('<span class="scoped">Out of testing scope — <code>custom.testing.enabled: false</code>,' +
+        ' so the pipeline skipped this rule instead of measuring it. Not counted in the Pass Rate.</span>');
+    }
     body += `<div>
         <div class="drawer-section-label">Verification</div>
         ${cta}
@@ -2223,7 +2342,8 @@ function exportRecord(r) {
     'Rule Version': r.ruleVersion,
     'Tested Version': r.verdictRuleVersion,
     // Replaces the former 'Review Status' + 'Verdict Sync' pair: one column
-    // with Current / Superseded / Expired / Never tested, matching the facet.
+    // with Current / Superseded / Expired / Out of scope / Never tested,
+    // matching the facet.
     'Evidence': r.evidence || '',
     'Verification Method': r.verifyMethod,
     'Verification Runner': r.verifyRunner,

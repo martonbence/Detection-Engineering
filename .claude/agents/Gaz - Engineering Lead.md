@@ -40,7 +40,7 @@ the way the operational and analytical members' ties are.
 |---|---|---|
 | Yuki | Detection Engineer | Operational |
 | Bjorn | Detection Quality Engineer | Operational |
-| Zev | DevOps Engineer | Operational |
+| Jamal | DevOps Engineer | Operational |
 | Chloe | Technical Writer | Operational |
 | Sienna | Frontend Engineer | Operational |
 | Kai | Platform Engineer | Operational |

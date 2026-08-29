@@ -19,3 +19,9 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
+
+# npm leftovers from running the rule-browser smoke test locally
+# (scripts/docs/smoke_test_rule_browser.js, register item 4.7). There is no
+# package.json in this repo -- see ci_code_checks.yml's "Install Playwright"
+# step -- so nothing else already keeps this out.
+node_modules/

@@ -1,11 +1,14 @@
-# Register item 2.11. Automated version bumps for the two things this repo
-# pins: the Python toolchain and the GitHub Actions it calls.
+# Automated version bumps for the two things this repo pins: the Python
+# toolchain and the GitHub Actions it calls.
 #
-# The pins exist because prod re-runs the converter over the same Sigma source
-# dev already converted, and only produces the reviewed bytes if both ran the
-# same version (see .github/requirements.txt). Pinning without a bump mechanism
-# is how a repo ends up on a converter nobody has looked at in two years, and
-# how a CVE like the one pip-audit reported against diskcache goes unnoticed.
+# The pins exist for dev's own conversion reproducibility (register item
+# 2.11): dev converts every Sigma rule to SPL with this exact toolchain, and
+# the bytes it produces are what gets committed, atomic-tested, and
+# eventually deployed, so the conversion needs to be reproducible on its own
+# terms, not tied to whatever happens to resolve on a given day (see
+# .github/requirements.txt). Pinning without a bump mechanism is how a repo
+# ends up on a converter nobody has looked at in two years, and how a CVE
+# like the one pip-audit reported against diskcache goes unnoticed.
 version: 2
 
 updates:

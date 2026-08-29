@@ -52,13 +52,20 @@ on:
       - ".github/workflows/**"
       - ".github/PSScriptAnalyzerSettings.psd1"
       - ".github/actionlint.yaml"
-  # Lets Publish Console be forced from the Actions tab when docs/index.html
-  # on dev is already correct but never made it to Pages -- e.g. a fix
-  # committed directly rather than through the auto-regenerate step, so
-  # Regenerate Console finds nothing new to commit and Publish Console has
-  # nothing to trigger on. ci_dev_workflow.yml's deploy_pages job could also
-  # republish, but only as a side effect of the full Splunk/Atomic run; this
-  # is the light path that does only the regenerate-and-publish work.
+  # Lets Regenerate Console + Publish Console be forced from the Actions tab
+  # without pulling in the full dev/Splunk/Atomic run that ci_dev_workflow.yml
+  # would otherwise require to republish Pages -- this is the light path that
+  # does only the regenerate-and-publish work.
+  #
+  # audit/feature-and-process-audit.md item 4.4, 2026-08-24 follow-up: the
+  # original reason this existed ("a fix committed directly to docs/index.html
+  # so Regenerate Console finds nothing new to commit and Publish Console has
+  # nothing to trigger on") is now structurally impossible, not just rarer --
+  # docs/index.html is no longer a committed file Publish Console reacts to a
+  # diff of at all; Publish Console now runs whenever Regenerate Console
+  # itself succeeds, regardless of whether anything changed. This trigger is
+  # kept anyway, for the reason stated above: it is still the only way to
+  # force a republish without running the whole dev pipeline.
   workflow_dispatch:
 
 concurrency:
@@ -78,8 +85,25 @@ jobs:
     timeout-minutes: 20
 
     steps:
+      # Full history, not shallow: this job's own "Generate rule browser for
+      # smoke test" step below calls generate_stats.py, which derives each
+      # rule's version from `git log --follow` over its file. On a depth=1
+      # checkout every rule silently comes out "1.0" -- no error, just wrong
+      # data. That wrongness is not cosmetic here: it feeds
+      # isVerdictSuperseded() in page.js, which flags a verdict as superseded
+      # whenever this run's freshly (mis)computed ruleVersion disagrees with
+      # the verdictRuleVersion recorded at actual verification time.
+      # DETECT-2026-0007 is the repo's only rule with a real PASS verdict, so
+      # under a shallow checkout it alone gets wrongly marked superseded,
+      # verifyCount ends up all-zero across every rule, and the "Rule browser
+      # smoke test" step's chart-verify check fails with "dataset sums to 0"
+      # -- deterministically, on every run, not flakily. The
+      # regenerate_console job below carries the same note for the same
+      # reason; this checkout was missed when that fix was applied there.
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -104,6 +128,124 @@ jobs:
 
       - name: Pytest
         run: pytest
+
+      # Kept as a step here rather than its own job (unlike powershell_analysis
+      # and workflow_analysis below): this is a syntax-only parse check, not a
+      # linter, and scripts/docs/assets/page.js -- the rule browser's JS -- had
+      # no automated check of any kind before this. The narrowest fix is one
+      # more step in the job that already exists for this kind of thing, not a
+      # new job, and not npm/eslint/a package.json for a single `node --check`.
+      #
+      # `if: ${{ !cancelled() }}` matters here in a way it does not for Ruff or
+      # Pytest above it: steps in a job run in sequence, and a failed Ruff or
+      # Pytest step would otherwise skip everything after it, including this
+      # one -- exactly the "steps run in sequence" risk the powershell_analysis
+      # and workflow_analysis comments describe for why those are separate
+      # jobs. Here the same risk is accepted (one job, not three) but closed at
+      # the step level instead: this still runs, and still fails the job on a
+      # parse error, even when an earlier step in static_analysis already
+      # failed. It is not continue-on-error -- see the dependency_audit job
+      # below for why that would be the wrong tool for a real gate.
+      - name: Setup Node.js
+        if: ${{ !cancelled() }}
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: lts/*
+
+      # page.js is a template fragment, not standalone JS: it carries 14
+      # @@TOKEN@@ placeholders (RULES_JSON, TACTIC_IDS_JSON, TS, TOTAL, ... see
+      # the html.replace("@@...@@", ...) calls in generate_stats.py) that are
+      # only filled in with real data once this file is inlined into
+      # docs/index.html. `node --check` on the file as committed fails
+      # unconditionally on the first of those, on every run, regardless of
+      # whether the rest of the file is sound -- so every @@TOKEN@@ is
+      # substituted with a syntactically valid stand-in on a throwaway copy
+      # first (an empty array for the *_JSON ones, 0 for the rest -- the exact
+      # values don't matter, only that they parse). This still catches every
+      # real defect (unbalanced brackets, a broken function, a stray token)
+      # anywhere else in the file; only the substitution sites themselves are
+      # exempt, and they are the tokens already known, by construction, not to
+      # be JS on their own.
+      - name: JS syntax check (page.js)
+        if: ${{ !cancelled() }}
+        run: |
+          set -euo pipefail
+          sed -E \
+            -e 's/@@[A-Z_]+_JSON@@/[]/g' \
+            -e 's/@@[A-Z_]+@@/0/g' \
+            scripts/docs/assets/page.js \
+            > "${RUNNER_TEMP}/page_js_syntax_check.js"
+          node --check "${RUNNER_TEMP}/page_js_syntax_check.js"
+
+      # Register item 4.7. Three more steps here rather than a dedicated job,
+      # even though "smoke test" is a stretch of this job's "static analysis"
+      # name: a separate job would need its own checkout plus a *second*
+      # Python setup+install (to run generate_stats.py below) and a *second*
+      # Node setup (to run Playwright) -- both already paid for in this job,
+      # the first by the Ruff/Pytest steps above, the second by the page.js
+      # check right above this comment. Piggybacking here is the same
+      # narrowest-fix reasoning the page.js check's own comment gives for
+      # living in this job instead of getting one of its own.
+      #
+      # docs/index.html and outputs/reports/stats.json are regenerated fresh
+      # right here rather than smoke-tested as committed in the checkout:
+      # those files are only ever refreshed by ci_code_checks.yml's own
+      # regenerate_console job below, which runs solely on a push (or manual
+      # dispatch) to dev -- never on a pull request, and never as part of
+      # *this* job's run even on dev, since regenerate_console is a separate,
+      # later job. Checking the committed copies here would mean a PR (or a
+      # push to any other branch) that breaks page.js, page.template.html, or
+      # a rule's metadata sails through this check against a stale page that
+      # was generated before the change under test existed. Running the exact
+      # command regenerate_console itself runs closes that gap: this step
+      # always exercises what this commit would actually produce.
+      - name: Generate rule browser for smoke test
+        id: generate_smoke_fixture
+        if: ${{ !cancelled() }}
+        run: |
+          set -euo pipefail
+          python scripts/docs/generate_stats.py
+
+      # Playwright is pinned like every other tool this workflow installs
+      # (actionlint, PSScriptAnalyzer) and for the same reason: left floating,
+      # a browser-automation library updating itself out from under this step
+      # would turn an unrelated push red on Microsoft's release schedule, not
+      # this repo's. Deliberately not added to either requirements*.txt (see
+      # scripts/docs/smoke_test_rule_browser.js's own module docstring): this
+      # is the one piece of CI that needs a real browser, kept on the Node
+      # side rather than pulled into the Python toolchain for it.
+      #
+      # --no-save: there is no package.json in this repo, and one dev-only
+      # npm dependency is not reason enough to add one; --no-save stops npm
+      # from creating one just to record this install.
+      #
+      # Gated on the generate step's own outcome, not just !cancelled() like
+      # the steps above: without a freshly generated docs/index.html there is
+      # nothing valid for the smoke test to check, so there is no point
+      # spending the time to download Chromium if that step already failed.
+      - name: Install Playwright
+        if: ${{ !cancelled() && steps.generate_smoke_fixture.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-audit --no-fund playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      # See scripts/docs/smoke_test_rule_browser.js's own module docstring
+      # for exactly what this checks (leftover @@MARKER@@ placeholders, page
+      # load, console/page errors, rule row count agreement, the two
+      # Dashboards-tab rings) and its exit-code contract (0 pass, 1 fail).
+      # --docs-dir/--stats point explicitly at the copies the step above just
+      # generated in this checkout -- the same paths are also this script's
+      # defaults, but naming them here is deliberate so this step keeps
+      # working, and keeps testing the right files, even if that default ever
+      # changes.
+      - name: Rule browser smoke test
+        if: ${{ !cancelled() && steps.generate_smoke_fixture.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          node scripts/docs/smoke_test_rule_browser.js \
+            --docs-dir docs \
+            --stats outputs/reports/stats.json
 
   # Separate job rather than two more steps in static_analysis, for two reasons:
   # steps run in sequence, so a ruff failure would hide a PowerShell failure
@@ -396,6 +538,15 @@ jobs:
     # Regenerates the whole console (generate_stats.py, including a git
     # log --follow per rule) and commits, so it gets more room than the two
     # analysis jobs.
+    #
+    # audit/feature-and-process-audit.md item 4.4, 2026-08-24 follow-up: this
+    # job's commit used to also carry docs/index.html and README.md's
+    # generated STATS block, which alone accounted for a large share of the
+    # commit-storm the item's opening paragraph measures (185 of ~894 commits
+    # touched docs/index.html). Neither is staged/committed here any more --
+    # see the "Regenerate and commit if changed" step below for what still
+    # is, and the new "Upload console artifact for Pages" step for how
+    # docs/index.html reaches Pages instead.
     timeout-minutes: 30
     # Required for secrets.GH_PAT_DEV_PUSH to resolve: it is an environment
     # secret on `dev`, not a repository secret, so a job that does not declare
@@ -487,24 +638,33 @@ jobs:
             python scripts/docs/generate_stats.py
 
             # outputs/results/ is deliberately NOT staged: those are verdicts,
-            # owned by the verification pipeline. This job only publishes what
-            # the generator derives from them.
-            git add outputs/reports/ README.md docs/index.html
+            # owned by the verification pipeline. This job only commits what
+            # the generator derives from them into outputs/reports/.
+            #
+            # audit/feature-and-process-audit.md item 4.4, 2026-08-24
+            # follow-up: used to also stage README.md and docs/index.html.
+            # Both are still written to disk by the generate_stats.py call
+            # above (unchanged), but neither is committed here any more --
+            # docs/index.html reaches Pages via the "Upload console artifact
+            # for Pages" step below instead, and README.md's generated block
+            # stops being auto-refreshed on dev at all (see that step's
+            # comment for the tradeoff).
+            git add outputs/reports/
 
             if git diff --cached --quiet; then
-              echo "Generated output is byte-identical. Nothing to publish."
+              echo "Generated stats are byte-identical. Nothing new to commit."
               echo "published=false" >> "$GITHUB_OUTPUT"
               exit 0
             fi
 
             if ! has_substantive_change; then
-              echo "Only generation timestamps moved -- no content change. Nothing to publish."
+              echo "Only generation timestamps moved -- no content change. Nothing new to commit."
               git reset >/dev/null
               echo "published=false" >> "$GITHUB_OUTPUT"
               exit 0
             fi
 
-            echo "Console output changed; publishing."
+            echo "Stats output changed; committing."
             git diff --cached --stat
 
             # [skip ci] matters: this job's own push touches paths in its
@@ -525,20 +685,78 @@ jobs:
           echo "Push failed after 3 attempts."
           exit 1
 
+      # 2026-08-28, Jamal's follow-up to Sienna's generate_dashboard.py
+      # change: same invocation as the manual/local-only usage
+      # (`python3 .claude/generate_dashboard.py`, no new flags), now wired
+      # into CI for the first time. Writes .claude/team-ops.html (unused
+      # here) AND docs/team-ops.html + docs/assets/team-ops/avatars/*.png --
+      # the second pair is what needs to reach the "Upload console artifact
+      # for Pages" step below, alongside docs/index.html, so this runs
+      # after the regen-and-commit step above (stable working tree, no more
+      # `git reset --hard` retries to wipe an untracked file) and before the
+      # upload. Stdlib-only (json/shutil/subprocess/pathlib) plus the `git`
+      # binary for its `git log` activity feed -- no install step needed,
+      # and this checkout's `fetch-depth: 0` above (originally for
+      # generate_stats.py's compute_rule_version()) already gives it enough
+      # history for `git log -n40`. Not gated on regen's own `published`
+      # outcome: the dashboard's content doesn't depend on outputs/reports/
+      # at all, so it should regenerate (and get bundled into the Pages
+      # artifact) on every run that reaches this point, not just runs that
+      # found a stats diff.
+      - name: Generate team-ops dashboard for Pages
+        run: python3 .claude/generate_dashboard.py
+
+      # audit/feature-and-process-audit.md item 4.4, 2026-08-24 follow-up.
+      # docs/index.html is regenerated on disk by the "Regenerate and commit
+      # if changed" step above regardless of whether outputs/reports/ had
+      # anything new to commit -- this uploads it (and, as of 2026-08-28,
+      # docs/team-ops.html + docs/assets/team-ops/ from the dashboard step
+      # directly above) as a same-run artifact for publish_console to
+      # consume instead of that job checking out dev's tip. No explicit
+      # `if:` here on purpose: default step sequencing already does the
+      # right thing -- this step only runs if "Regenerate and commit if
+      # changed" succeeded (all three of its exit-0 paths, not just the
+      # "pushed" one) and the dashboard step after it also succeeded, and is
+      # skipped along with everything else in the job if either failed
+      # (e.g. 3 failed push attempts), which is also when publish_console's
+      # own `if:` (below) keeps it from trying to download an artifact that
+      # was never uploaded.
+      #
+      # retention-days: 1 -- pure same-run transport to publish_console,
+      # never consumed after this run, no reason to keep it longer (matches
+      # ci_dev_workflow.yml's identically-scoped artifact of the same name).
+      - name: Upload console artifact for Pages
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: console-${{ github.run_id }}
+          path: docs/
+          retention-days: 1
+
   publish_console:
     name: Publish Console
     needs: regenerate_console
-    # Runs when something actually changed, OR when manually dispatched --
-    # GitHub Pages publishes from an uploaded artifact, not from the branch,
-    # so committing docs/index.html above updates the repo but NOT the live
-    # site. Without the first arm the published page would wait for the next
-    # rule change to go out (half of what register item 1.6 is about);
-    # without the second, dev's docs/index.html has no way to reach Pages
-    # once it is already correct in the repo but was never actually
-    # published (e.g. a fix committed by hand rather than by the
-    # auto-regenerate step above, which then finds nothing new to commit).
-    if: needs.regenerate_console.outputs.published == 'true' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev')
+    # audit/feature-and-process-audit.md item 4.4, 2026-08-24 follow-up. Used
+    # to be gated on `needs.regenerate_console.outputs.published == 'true'`
+    # (whether the previous job actually found a git diff to commit) OR a
+    # manual workflow_dispatch, because GitHub Pages publishes from an
+    # uploaded artifact, not from the branch, and committing docs/index.html
+    # updated the repo but not the live site by itself -- without the
+    # dispatch escape hatch, a docs/index.html fix committed by hand (finding
+    # nothing for regenerate_console to commit) had no way to reach Pages at
+    # all. Both of those were consequences of publishing being downstream of
+    # a git commit in the first place. Now that regenerate_console always
+    # regenerates and uploads docs/ as an artifact regardless of whether
+    # outputs/reports/ changed, this job runs whenever regenerate_console
+    # itself succeeded, full stop -- simpler, and the original "hand-fix with
+    # nothing to trigger on" gap this used to work around cannot happen any
+    # more (docs/index.html is not a committed file this job's publish
+    # decision reacts to at all). workflow_dispatch is still handled: it is
+    # already one of the two conditions regenerate_console's own `if:` above
+    # requires to run, so a dispatch that reaches this point already implies
+    # regenerate_console ran and (if it succeeded) uploaded a fresh artifact.
+    if: needs.regenerate_console.result == 'success'
     runs-on: ubuntu-latest
+    # No checkout needed any more -- see the download-artifact step below.
     # Also bounds how long this can hold the repo-wide `pages` concurrency
     # group that the dev pipeline's own publish job queues behind.
     timeout-minutes: 15
@@ -556,10 +774,16 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # audit/feature-and-process-audit.md item 4.4, 2026-08-24 follow-up.
+      # Used to be `actions/checkout` at `ref: dev`, relying on the previous
+      # job's commit having landed. Downloads the same-run artifact
+      # regenerate_console's last step uploaded instead -- see that step's
+      # comment.
+      - name: Download console artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          # dev's tip, which now includes the commit the previous job pushed.
-          ref: dev
+          name: console-${{ github.run_id }}
+          path: docs
 
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 

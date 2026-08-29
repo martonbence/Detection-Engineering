@@ -1,182 +1,186 @@
+<img src="docs/pictures/branding/logo.png" alt="Detection-Engineering logo" width="200">
+
 # Detection-Engineering
 
-A CI/CD-driven detection engineering pipeline that treats Sigma/SPL detections as code: every rule is schema-validated, converted, deployed to a live Splunk instance (the dev app), fired at with real Atomic Red Team techniques, and verified to actually generate a hit — automatically, on every push to `dev`. A rule only reaches `main` (and the prod Splunk app — the same server, a different app) after it has already passed that live verification on `dev`, via an auto-opened promotion pull request. Nothing in the published pass/fail numbers below is self-reported by the rule author; it's produced by the pipeline running the attack and checking Splunk for the result — and a verdict only counts toward the pass rate while it still describes the rule's *current* version and is still recent enough to mean anything (see [What a verdict means](#what-a-verdict-means)).
-
-🔍 **[Interactive Rule Browser](https://martonbence.github.io/Detection-Engineering/)**
-
-🛡️ **[Interactive MITRE Navigator](https://martonbence.github.io/Detection-Engineering/#navigator)**
+*<small>What isn't proven is assumption.</small>*
 
 <!-- STATS_START -->
 [![Total Rules](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.total_rules&label=Total%20Rules&color=informational)](https://github.com/martonbence/Detection-Engineering/tree/main/rules)
 
 [![Sigma Rules](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.total_compiled_sigma_rules&label=Sigma%20Rules&color=00ACD7)](https://github.com/martonbence/Detection-Engineering/tree/main/rules/sigma) [![Native SPL](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.total_native_spl_rules&label=Native%20SPL&color=FF6600)](https://github.com/martonbence/Detection-Engineering/tree/main/rules/splunk)
 
-![Pass](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.verified_pass_current&label=Pass&color=brightgreen) ![Fail](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.verified_fail_current&label=Fail&color=red) ![Pass Rate](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.pass_rate_pct&label=Pass%20Rate%20%25&color=red) ![Verified Current](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.verification_current_pct&label=Verified%20Current%20%25&color=brightgreen) ![Needs Re-run](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.verified_stale&label=Needs%20Re-run&color=BC8CFF) ![Not Verified](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.not_verified&label=Not%20Verified&color=lightgrey)
+![Pass](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.verified_pass_current&label=Pass&color=brightgreen) ![Fail](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.verified_fail_current&label=Fail&color=red) ![Pass Rate](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.pass_rate_pct&label=Pass%20Rate%20%25&color=brightgreen) ![Not Verified](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.not_verified&label=Not%20Verified&color=lightgrey) ![MITRE Coverage](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.mitre_coverage_pct&label=MITRE%20Coverage%20%25&color=8f95d6)
 
-🗺️ Interactive MITRE Navigator → [GitHub Pages](https://martonbence.github.io/Detection-Engineering/#navigator)
+> **27 of 28 rules are currently out of testing scope** — `custom.testing.enabled: false`, so the pipeline skips them rather than failing to measure them. They are excluded from Pass Rate (which would otherwise read them as failures), but still count against how much of the library has actually been measured — what they cost is coverage, not correctness.
+
+> **Last live verification: 2026-08-17 20:08:36 UTC** — 1 of 28 rules were actually measured in that run. `stats.json` and the badges above are a build-time snapshot; a verdict's standing can change simply because time passed, so the rule browser itself ([GitHub Pages](https://martonbence.github.io/Detection-Engineering/)) recomputes Pass Rate and coverage against the current date on every load.
+
+🗺️ Interactive MITRE Navigator → [GitHub Pages](https://martonbence.github.io/Detection-Engineering/#tab=navigator)
 
 📋 Full rule index → [GitHub Pages](https://martonbence.github.io/Detection-Engineering/)
 
-*Generated at 2026-08-17T20:09:01 UTC*
+*Generated at 2026-08-28T14:55:01 UTC*
 <!-- STATS_END -->
 
-## Why this exists
+**Live views** — the published rule browser, generated straight from the pipeline's own output:
 
-Most "detection as code" repos stop at linting YAML. This one closes the loop: a rule isn't considered done because it parses — it's done because the pipeline deployed it to a real Splunk instance, ran the corresponding Atomic Red Team technique against a real Windows host, and confirmed the saved search actually fired on that specific execution. The Pass/Fail badges above are a live measurement, regenerated on every merge, not a claim.
-
-The corollary — and the reason for the section below — is that a measurement has a shelf life. Editing a rule after it passed doesn't re-run the attack; it just means the green checkmark now describes logic that isn't in the file anymore. And even an untouched rule's verdict eventually stops being evidence, because everything around it moves. The pipeline gives both cases their own state rather than quietly counting them as passes.
-
-## What a verdict means
-
-Every rule resolves to exactly one of the states below. The distinction matters because everything that isn't PASS tends to get collapsed into "not passing," and these mean very different things — only one of them says the detection didn't work:
-
-| State | What actually happened | Where it comes from |
-|---|---|---|
-| **PASS** | The attack ran, Splunk was queried, and the saved search fired within the expected event window (CI runs with `1 ≤ events ≤ 10`) — measured against the rule exactly as it is today. | `pass_fail_eval.py` → `outputs/results/DETECT-*/result.json` |
-| **FAIL** | Same measurement, negative outcome: no events, too many events (noisy), or the rule itself is at fault — the saved search isn't in Splunk, or the search errored when Splunk ran it. This is a real result about the current rule. | `pass_fail_eval.py` |
-| **NOT VERIFIED** | We tried and couldn't finish, by either of two routes. The **attack** didn't complete: the Atomic Red Team test never reached a `completed` progress marker, typically because the test step hit its `timeout-minutes` partway through the batch. Or the **measurement** didn't complete: the Splunk search never reached `DONE`, the network dropped, or Splunk answered unparseably. Both mean *"we don't know,"* not *"it's broken"* — there's nothing to conclude either way. The first route only applies to Atomic-tested rules; the second applies to every rule. | `pass_fail_eval.py`'s progress-marker gate (using the `atomic-progress-*` artifacts) and `check_saved_search_hits.py`'s `error_kind: unmeasured` |
-| **Superseded** | A PASS or FAIL was measured, but the rule file has changed since. The verdict is real — it's just about a previous version of the logic. A green checkmark here refers to text that is no longer in the rule. | Derived by comparing the `rule_version` recorded in `result.json` against the rule's current version |
-| **Expired** | Nothing about the rule changed, but the measurement is older than the 180-day review interval. Telemetry, Splunk configuration and attacker tooling all move even when the YAML doesn't, so past that horizon the verdict stops counting as evidence about today. | Derived by comparing the verdict's `run_timestamp` against now |
-| **N/A** | No test ever ran against this rule — there's no `result.json` at all. | Absence of a result file |
-
-**Superseded and Expired are one concept with two diagnoses.** Think of a verdict as a certificate: it can be *revoked* because the thing it certifies was replaced (superseded — the certain case, the deployed logic provably isn't what was tested), or it can simply *lapse* because it got old (expired — the probabilistic case, nothing in the rule moved but the world around it may have). The consequence is identical in both cases — this is no longer evidence about the rule as it stands — and so is the remedy: re-run the pipeline against it. They therefore share one bucket in every calculation, and differ only in label, because the two diagnoses call for different reading.
-
-**Both are derived when the page is rendered, not when the verdict is written.** At the moment of measurement every verdict is current by definition; a verdict lapses *afterwards*. So `pass_fail_eval.py` has no concept of either — it writes what it measured, plus the `rule_version` and timestamp it measured at — and `generate_stats.py` does the comparing (`compute_rule_version()` for the version, `_verdict_age_days()` against `REVIEW_INTERVAL_DAYS = 180` for the age). The version itself is derived from git history (`git log --follow` commit count per rule file, computed identically in `sigma_to_spl.py` and `generate_stats.py`), so it's conservative: a typo fix in a `description:` bumps it exactly like a rewritten `detection:` block does. That's why a lapsed verdict costs a rule its place in the pass-rate numerator but is never counted as a failure. If a rule is both superseded and expired it counts as **Superseded** — that's the stronger, more certain claim.
-
-### How that changes the pass rate
-
-`pass_rate_pct` is **current PASS ÷ rules whose verdict is still current evidence** — "of what we actually measured against the rule as it stands today, how much works." It is deliberately *not* "all PASS ÷ all rules," which is what it used to be. That older denominator quietly inherited every verdict ever recorded, so the headline number stayed high while the measurements underneath it aged out. On today's data the difference is 96% (inherited) vs. 92% (measured), and the gap is only that small because the *coverage* of current measurement is what really moved: only 12 of 27 rules currently hold a verdict that still counts.
-
-Because the denominator now includes the age test as well as the version test, the number can't freeze: a pipeline that stopped running would drive the pass rate to zero within 180 days instead of reporting a green 92% forever. Today that half of the rule hasn't fired yet — the oldest verdict is well inside the window, so all 15 lapsed verdicts are superseded and none are expired — but the formula no longer depends on someone noticing.
-
-Because a single percentage is always quoted on its own, one number can't carry both facts. The badge row above therefore publishes **Pass Rate** next to **Verified Current %** — the share of rules whose verdict still counts — so the coverage can't go missing when someone screenshots only the first badge, plus a **Needs Re-run** badge counting the rules waiting on a re-measurement (`verified_stale` = superseded + expired). That badge is named for the consequence rather than the diagnosis, deliberately: a badge has room for one word, and what the two lapse kinds share is not a category but a to-do. For the same reason both count badges read the current population: **Pass** queries `verified_pass_current` and **Fail** queries `verified_fail_current`, so the two are always the same kind of statement about the same set of rules, and a lapsed verdict is never quietly published as either.
-
-The rule browser splits the same two facts into **two separate rings**, because a slice can only carry one name:
-
-- **Evidence** — over the whole library (27): `Current` (12, green) / `Superseded` (15, purple) / `Expired` (0, teal) / `Never tested` (0, grey), with `44%` / `Current` in the center. The same four values as the `Verdict → Evidence` facet, in ring form. Empty segments aren't drawn, so `Expired` appears only once something has actually expired.
-- **Verification** — over the current verdicts only (12): `Pass` (11) / `Not Verified` (0) / `Fail` (1), with `92%` / `Pass Rate` in the center and `12 of 27 current` directly beneath it as one visual unit.
-
-**The two denominators differ on purpose, and that's the point.** Verification's ring is smaller than the library because a lapsed PASS isn't a pass that happens to be old — it's an absence of present-tense evidence, counted once on the Evidence ring and never as a pass on the Verification one. That's why the Verification overlay names its own denominator underneath the percentage: `92% Pass Rate` now describes exactly its own ring, with nothing to correct for mentally. Had Verification kept all 27 verdicts, a reader adding up the slices would get 26/27 = 96% — precisely the inherited number this whole change exists to retire. The invariant to remember: **the Verification ring's total always equals the Evidence ring's `Current` slice.**
-
-**One deliberate divergence worth knowing about**: the Verification overlay's percentage and fraction are recomputed *in your browser, against your clock*, because expiry depends on when the page is read, not when it was built. `stats.json` and the README badges above stay build-time snapshots — that's what a badge is. So an old page can legitimately show a lower pass rate than the badge that was generated with it; the page is the more current of the two.
-
-`stats.json` exposes the underlying counts so nothing has to be recomputed by a consumer. The keys come in three layers, and knowing which layer a key belongs to is the whole trick to reading them:
-
-| Layer | Keys | Scope |
-|---|---|---|
-| **1. Whole library, lapsing ignored** | `verified_pass`, `verified_fail`, `verified_not_verified`, `never_tested`, `not_verified` | Every verdict ever recorded, current or not. These meanings have never changed and won't — they exist so older badges and external references keep returning the same quantity. |
-| **2. Current verdicts only** | `verified_pass_current`, `verified_fail_current`, `verified_current`, `verified_stale`, `verified_superseded`, `verified_expired` | Counted with one consistent rule: a verdict that has been superseded or has expired doesn't count, whatever it said. `verified_stale` = `verified_superseded` (15 today) + `verified_expired` (0 today); `verified_current` = `total − verified_stale − never_tested` and is the pass rate's denominator. |
-| **3. Derived percentages** | `pass_rate_pct`, `verification_current_pct`, `confirmed_working_pct` | `verified_pass_current ÷ verified_current` (92% today), `verified_current ÷ total_rules` (44%), and `verified_pass_current ÷ total_rules` (41%) — the last being the strictest reading: how much of the library is provably working right now. |
-
-The badge row draws its counts from layer 2 and its percentages from layer 3; layer 1 is kept for compatibility, not for headlines.
-
-### Known limits of these numbers
-
-- **The NOT VERIFIED gate only applies to `atomic` rules.** `pass_fail_eval.py` checks progress markers only when a rule's `tester` is `atomic`. For the 8 rules with `testing.type: emulation`, a test that never started produces zero events and is scored as **FAIL**, not NOT VERIFIED — an infrastructure problem currently indistinguishable from a detection problem for those rules. (Tracked as audit item 2.8.)
-- **Versioning is git-derived, not declared.** Any commit touching a rule's YAML bumps its version and therefore supersedes its verdict, even a comment change. An explicit `version:` field in the rule, bumped deliberately, would be the correct fix. (Tracked as audit item 3.5.)
-- **The 180-day review interval is a single global constant** (`REVIEW_INTERVAL_DAYS` in `generate_stats.py`), not a per-rule or per-severity policy. A fast-moving technique and a stable one lapse on exactly the same schedule.
-- **A PASS still only proves the search fired once**, on one synthetic execution — not that the rule is well-scoped in real traffic. See [`docs/architecture/threat_model.md`](docs/architecture/threat_model.md).
-
-## Pipeline
-
-Every detection is authored as [Sigma](https://github.com/SigmaHQ/sigma) YAML — there is a single authoring format and a single pipeline, not two.
-
-**1. Author.** Detections are written as Sigma YAML in [`rules/sigma/`](rules/sigma/). Most rules have a real `detection:` block that Sigma can compile. Some detections are too sophisticated or robust to express in the Sigma spec — those still live in `rules/sigma/*.yml` (a real `detection:` block is a required placeholder, never actually used), but set `custom.splunk.raw_query` to the raw SPL text, which the converter emits verbatim instead of compiling. Either way, `rules/sigma/*.yml` is the single source of truth for every field: severity, MITRE mapping, false positives, and testing config.
-
-**2. Validate.** [`scripts/validate/validate_sigma.py`](scripts/validate/validate_sigma.py) checks every rule (converted or `raw_query`) against a Draft-07 JSON Schema ([`docs/schemas/sigma_schema.json`](docs/schemas/sigma_schema.json)). Nothing downstream runs on a rule that fails schema validation. Two further checks run alongside it and **report rather than block**: [`check_test_routing.py`](scripts/validate/check_test_routing.py) (is there a test job that will actually claim this rule?) and [`check_mitre_tags.py`](scripts/validate/check_mitre_tags.py) (do its ATT&CK tags name techniques and tactics that exist?). The second one exists because the schema's tag pattern sits next to a free-text branch and so enforces nothing — a mistyped technique would otherwise be published as coverage. It reads the committed `outputs/reports/mitre_technique_map.json` and makes no network call.
-
-**3. Convert.** [`scripts/convert/sigma_to_spl.py`](scripts/convert/sigma_to_spl.py) compiles each validated Sigma rule into a `.spl` file in `rules/splunk/` (via `pysigma` with the Splunk backend, or verbatim for `raw_query` rules), plus a `.meta.json` sidecar carrying the same metadata for the deploy/verify/atomic-runner steps. Which backend and which pipeline is configuration, not code: [`scripts/convert/backend_config.py`](scripts/convert/backend_config.py) loads [`config/backends.yml`](config/backends.yml) before the conversion loop starts, and fails the run rather than falling back on a built-in default. The `.spl` file contains only the query — no embedded metadata — and is committed back to `main` by CI; the `.meta.json` sidecar is CI-runtime-only and never committed.
-
-**4. Deploy.** [`scripts/deploy/deploy_spl_to_splunk.py`](scripts/deploy/deploy_spl_to_splunk.py) pushes each SPL file to a real Splunk instance as a saved search / scheduled alert, via Splunk's REST API, using credentials injected as GitHub Actions secrets. The saved search name is computed by the shared [`scripts/lib/rule_naming.py`](scripts/lib/rule_naming.py) helper from the rule's `detect_id` + title (from the `.meta.json` sidecar), not from the filename — so renaming or restructuring files never orphans a deployed saved search, and this step and the verify step below always agree on the name since both import the same function.
-
-**5. Attack.** [`scripts/atomic/run_atomic.ps1`](scripts/atomic/run_atomic.ps1) executes the [Atomic Red Team](https://github.com/redcanaryco/atomic-red-team) test(s) referenced in each rule's testing metadata against a live Windows host — a preflight dry run followed by the real execution. This is what actually generates the telemetry the deployed saved search is supposed to catch.
-
-**6. Verify.** [`scripts/verify/check_saved_search_hits.py`](scripts/verify/check_saved_search_hits.py) queries Splunk for events matching each saved search. The search window is anchored to when testing actually began — every test job stamps its start as a job output and the `Compute verification time window` step takes the earliest of them, minus a clock-skew margin — because the test phase routinely outlasts any fixed window, and a rule that ran first would otherwise be failed for being early rather than for missing the attack. [`scripts/verify/pass_fail_eval.py`](scripts/verify/pass_fail_eval.py) turns those matches into a per-rule PASS / FAIL / NOT_VERIFIED verdict. Query failures are classified rather than lumped together: `check_saved_search_hits.py` tags each error as `unmeasured` (the search never reached `DONE` within its budget, the network dropped, Splunk answered unparseably) or `rule_error` (the saved search isn't deployed, or the search job errored inside Splunk). The first becomes `NOT_VERIFIED` — a search that never finished says nothing about the detection — while the second stays `FAIL`, because a missing saved search is a real defect. Results are read only in `DONE` state; `FINALIZING` still has an incomplete result set, and counting it would undercount events and fail working rules. The verdict is written to [`outputs/results/`](outputs/results/) as `DETECT-*` result files. Each result records the `rule_version` it was measured against, which is what makes the verdict falsifiable later.
-
-**7. Report.** [`scripts/docs/generate_stats.py`](scripts/docs/generate_stats.py) aggregates every rule and result into [`outputs/reports/stats.json`](outputs/reports/), `mitre_technique_map.json`, and `navigator_layer.json`. This is also where a verdict's standing is derived — by recomputing each rule's current version from git history and comparing it to the version stored in the result file, and by checking the result's timestamp against the 180-day review interval — so the published pass rate reflects only measurements still valid for the rule as it stands (see [What a verdict means](#what-a-verdict-means)). The first two back the stats block above and cache the ATT&CK technique list between runs; `navigator_layer.json` is a portable [ATT&CK Navigator](https://mitre-attack.github.io/attack-navigator/) layer of the same coverage, linked from the rule browser's Navigator export menu so it can be loaded into the official tool and compared against other layers.
-
-**8. Publish.** [`docs/index.html`](docs/index.html) is a self-contained rule browser and interactive MITRE ATT&CK Navigator — generated by `generate_stats.py` from the page sources in [`scripts/docs/assets/`](scripts/docs/assets/) (`page.template.html`, `page.css`, `page.js`), which are inlined into one file — published to GitHub Pages from the `dev` branch by the `deploy_pages` job inside [`ci_dev_workflow.yml`](.github/workflows/ci_dev_workflow.yml) — the sole Pages-publish path, gated on `splunk_verify` having run (`success` or `failure`). A previously-existing standalone `deploy_pages.yml` workflow, which fired independently on any push to `dev` touching `docs/**`, was removed because it double-published Pages on every normal run (the pipeline's own results-commit step also touches `docs/index.html`). One tradeoff of that fix: a genuinely docs-only edit no longer triggers its own publish — it just rides along with the next real pipeline run.
-
-### CI orchestration — three workflows
-
-Detection changes are authored against `dev`, not `main` directly. Two workflows split "prove it works" from "ship it", and a third checks the pipeline's own code:
-
-**[`ci_dev_workflow.yml`](.github/workflows/ci_dev_workflow.yml) — the full pipeline, runs on `dev`.** Triggered on `push` to any branch other than `main` and on `pull_request`, whenever `rules/sigma/**`, the schema, `config/**` or the pipeline scripts change (`scripts/validate/**`, `scripts/convert/**` and named files elsewhere — globs, so a new converter module can't slip past the filter). Jobs, in dependency order:
-
-| Job | Runs on | What it does |
-|---|---|---|
-| `prepare_validate_convert` | `ubuntu-latest` | Diffs changed Sigma files, validates them, runs the two advisory checks (`Check every rule has a job that can run its test`, `Check MITRE ATT&CK tags against the technique map`), converts them to `.spl` + `.meta.json`, and — on `push` to `dev` only — commits the regenerated `.spl` files back to `dev` and bundles the SPL/meta/scripts into an uploaded artifact (`spl-pipeline-bundle`, 1-day retention) for the self-hosted jobs below to consume without a full checkout. |
-| `deploy_to_splunk` | `self-hosted, linux, de-lab` | Pushes the bundled SPL to the **dev** Splunk instance via `deploy_spl_to_splunk.py` (`environment: dev`, which supplies the `SPLUNK_APP` variable). Only on `push` to `dev` with SPL to deploy. |
-| `atomic_verify` / `atomic_verify_dc` | `self-hosted, X64, Windows, victim, atomic, windows-victim` / `self-hosted, X64, Windows, dc, windows-dc` | Run `run_atomic.ps1` (preflight, then real execution) for rules whose testing metadata targets the victim host or the domain controller, respectively. Both are `continue-on-error: true` and upload their own progress markers (`atomic-progress-victim-*` / `atomic-progress-dc-*`, 1-day retention) so a hung/timed-out run still leaves ground truth for the verify step. Neither job has a checkout/clean step, so they run directly in the self-hosted Windows runner's own persistent workspace; `run_atomic.ps1` clears any leftover marker files from a previous run out of that workspace before writing this run's markers, so a stale marker for an out-of-scope `detect_id` can never be mistaken for this run's ground truth. |
-| `emulation_verify` | `self-hosted, X64, Windows, victim, windows-victim` | Runs script-emulation-style tests via the same `run_atomic.ps1`, for rules whose testing metadata declares `type: emulation`. |
-| `splunk_verify` | `self-hosted, linux, de-lab` | Checks out `dev` with full history (`fetch-depth: 0` — needed not just for its own commit-back step but because `generate_stats.py`'s rule-version calculation mines `git log --follow` per rule file; a shallow checkout was tried once and silently made every rule report version `1.0`), polls until Splunk has indexed the test window (`wait_for_indexing.py` — up to 180s, then warns and carries on, rather than the old fixed 60s sleep), queries matched events (`check_saved_search_hits.py`), scores Pass/Fail (`pass_fail_eval.py`), uploads matched events as a diagnostic artifact (`matched-events-sigma-*`, 14-day retention — they hold raw lab events and artifacts on a public repo are downloadable by anyone), regenerates stats (`generate_stats.py`), commits results/stats/README back to `dev`, then reports the final PASS/FAIL verdict via its own process exit code (the job's `result` — `success` or `failure` — *is* that verdict). |
-| `open_promotion_pr` | `ubuntu-latest` | Runs only `if: always() && needs.splunk_verify.result == 'success'`. No checkout — pure `gh` CLI. Opens the promotion PR described below and sets its Project #3 status to `In review`. |
-| `deploy_pages` | `ubuntu-latest` | `needs: [splunk_verify, atomic_verify, atomic_verify_dc, emulation_verify]`. Publishes `docs/` from `dev` to GitHub Pages — the sole publish path (see the note above). |
-
-**[`ci_prod_workflow.yml`](.github/workflows/ci_prod_workflow.yml) — deploy-only, runs on `main`.** Triggered on `push` to `main` when `rules/sigma/**` changes (i.e. on merge of a promotion PR, or any other direct change to `main`). It does **not** re-validate, re-test, or re-verify anything: it re-runs `sigma_to_spl.py` over the already-committed, already-reviewed Sigma source. That step exists for the gitignored `.meta.json` sidecars, but it rewrites the `.spl` files too — the converter has no sidecar-only mode — and the deploy step reads file *contents* from the working tree (`git ls-files` supplies only the path list). Two things make that safe rather than merely hoped-for: both workflows install the same pinned converter from [`.github/requirements.txt`](.github/requirements.txt), and a **drift gate** (`git diff --exit-code -- rules/splunk`) fails the job if the regenerated `.spl` differs from the committed, reviewed, Atomic-verified one. Only after that check passes does it deploy every rule in `rules/splunk/*.spl` straight to the **prod** Splunk instance (`environment: prod`, which supplies the `SPLUNK_APP` variable) via the same `deploy_spl_to_splunk.py`. There is no Atomic Red Team run, no verification, and no stats/README commit on `main` — production deploy trusts the dev-branch verification that already happened.
-
-**[`ci_code_checks.yml`](.github/workflows/ci_code_checks.yml) — the pipeline's own CI, runs on any branch but `main`.** Triggered on `push`/`pull_request` touching `scripts/**`, `tests/**`, `pyproject.toml`, the requirements files or `.github/workflows/**`. `ci_dev_workflow.yml` only does substantive work when a *rule* changes — its `changes` step derives a list of Sigma files, and an empty list skips every downstream job — so the code that runs the pipeline was never exercised by CI. (Adding `scripts/docs/**` to the dev workflow's `paths:` would not have helped: the run starts, then skips everything.) Six jobs, all on `ubuntu-latest` (no Splunk, no self-hosted runner, no live attacks). Four checkers, kept as separate jobs so one's failure can't mask another's: `static_analysis` (`ruff` + `pytest`), `powershell_analysis` (PowerShell's own parser, then PSScriptAnalyzer), `workflow_analysis` (a pinned `actionlint` over the workflow YAML, with `shellcheck` asserted present because actionlint delegates every `run:` block to it) and `dependency_audit` (`pip-audit` over both pinned requirements files — advisory, but an audit that fails to *run* still fails the job). Then `regenerate_console` re-runs `generate_stats.py` on `dev` and commits `docs/index.html`, `README.md` and `outputs/reports/` when the output changed by more than its embedded timestamps, and `publish_console` publishes, because Pages serves an uploaded artifact rather than the branch, so a commit alone would update the repo but not the live site. It shares the `pages` concurrency group with the dev workflow's publish job so the two never race.
-
-
-#### Promotion PR: dev → main
-
-Opening the promotion PR is its own job, `open_promotion_pr`, not a step inside `splunk_verify`. It runs on plain `ubuntu-latest` (no lab access needed — it's pure `gh` CLI, no checkout), gated with `needs: splunk_verify` and `if: always() && needs.splunk_verify.result == 'success'`. When that condition holds, it opens a pull request (unless one is already open) with `gh pr create --base main --head dev --title "Promote verified detections from dev to main" --label automated-promotion`. This PR does **not** auto-merge — a human reviews and merges it manually, which is what triggers `ci_prod_workflow.yml` to deploy to prod. The same job immediately adds the new PR to [Project #3](https://github.com/users/martonbence/projects/3) (`gh project item-add`) and sets its Status field to `In review` (option `4fdb6324`), so auto-opened promotion PRs land on the board pre-triaged instead of mixed in with manually-created Todo/Ready items.
-
-This gate took two fix attempts to get right, and both are worth knowing about before you add another job downstream of `splunk_verify` — see the "Platform quirk" callout in [`docs/architecture/pipeline_overview.md`](docs/architecture/pipeline_overview.md) for the full account. Short version: gating on `needs.splunk_verify.result` instead of reading `splunk_verify.outputs.exit_code` (a job-level output from a job whose own `if:` starts with `always()`, and cross-job outputs from such a job were observed not to propagate reliably) was a real, necessary fix — but it wasn't sufficient on its own. Even after dropping the `outputs:` read, `open_promotion_pr` was still observed to skip on a confirmed-good run, because its `if:` had no `always()`/`success()`/`failure()`/`cancelled()` of its own, so GitHub Actions silently ANDed in an implicit `success()` check that itself evaluated false whenever an upstream job in `splunk_verify`'s own `needs:` chain (e.g. `atomic_verify_dc`, when a batch has no DC-targeted tests) had been `skipped`. The actual fix mirrors `deploy_pages`'s already-proven pattern in the same file: an explicit `always()` ANDed with the explicit `result` check, not implicit `success()`.
-
-#### Project board automation on merge
-
-Once the promotion PR is merged, its Project #3 board item moves from Status `In review` to `Auto-merged` automatically — but not via any workflow in this repo. That transition is done by [Project #3](https://github.com/users/martonbence/projects/3)'s own native "Workflow" automation (GitHub Projects' built-in, UI-configured rule: "Pull request merged" → set Status to `Auto-merged`), configured directly in the Project's Settings, not by any YAML in `.github/workflows/`. A previous repo workflow (`project_status_automerged.yml`) attempted to do this same thing from CI, but was confirmed (via the GitHub API run history) to have only ever executed once in the repo's history — and that single run was skipped — while every real promotion PR since has still landed on `Auto-merged` correctly, because the native Project workflow was doing the job the whole time. The dead workflow file was removed accordingly.
-
-The jobs run on a deliberate mix of runners, each mapped to what it needs physical/network access to. `dev` and `prod` share the same runner labels for the Splunk-side and Windows jobs — what differs between them is the GitHub Actions `environment` (`dev` vs `prod`), and the only Splunk-side setting that environment actually selects is `SPLUNK_APP` — an environment **variable**, not a secret, because an app namespace is a routing label rather than a credential (audit item 2.18). Its value is the app's *directory* name: `detection_engineering` on dev (whose Splunk label is merely `dev`) and `prod` on prod — the REST namespace is built from the directory name, so the label would 404. `SPLUNK_BASE_URL`, `SPLUNK_USERNAME`, `SPLUNK_PASSWORD` and `SPLUNK_VERIFY_TLS` are repository secrets shared by both; `SPLUNK_VERIFY_TLS` is `true` and, since audit item 2.14, no longer carries a `|| 'false'` fallback anywhere — an unset value now means *verify*, and every Splunk-touching script prints which TLS mode it is running in:
-
-| Runner label(s) | Role |
+| | |
 |---|---|
-| `ubuntu-latest` | Validate/convert/bundle steps, `open_promotion_pr` (pure `gh` CLI, no checkout), and the `deploy_pages` GitHub Pages publish job — no access to lab infrastructure needed. |
-| `self-hosted, linux, de-lab` | The Splunk-side box: deploys saved searches (dev and prod, aimed by the `environment`-scoped `SPLUNK_APP` variable) and queries Splunk for dev verification results. |
-| `self-hosted, X64, Windows, victim, atomic, windows-victim` | The Windows victim host where Atomic Red Team tests and script emulations actually execute (dev pipeline only). |
-| `self-hosted, X64, Windows, dc, windows-dc` | A domain-controller host, used only for techniques that specifically require DC context (dev pipeline only). |
+| <img src="docs/pictures/branding/rule_browser.png" width="200" alt="Rule Browser icon"> | **[Rule Browser](https://martonbence.github.io/Detection-Engineering/)**<br>Every rule in the repo, searchable and filterable, with its ATT&CK mapping and its current pass/fail verdict. |
+| <img src="docs/pictures/branding/mitre_navigator.png" width="200" alt="MITRE Navigator icon"> | **[MITRE Navigator](https://martonbence.github.io/Detection-Engineering/#tab=navigator)**<br>The same coverage plotted against the full ATT&CK matrix, exportable as a Navigator layer for the official MITRE tool. |
+| <img src="docs/pictures/branding/dashboards.png" width="200" alt="Dashboards icon"> | **[Dashboards](https://martonbence.github.io/Detection-Engineering/#tab=dashboards)**<br>Rule-library breakdowns by type, severity, status and verification outcome, MITRE tactic spread, and coverage/rule-count trends over the repo's own history. |
+| <img src="docs/pictures/branding/team.png" width="200" alt="Team icon"> | **[Team](https://martonbence.github.io/Detection-Engineering/team-ops.html)**<br>The org chart for this repo's own Claude Code subagent team, a logged per-agent dispatch activity feed, and token-usage/dispatch-count stats generated from the agent usage log and this repo's own git history. |
 
-Note: `ci_prod_workflow.yml`'s single job (`deploy_to_prod`) also runs on `self-hosted, linux, de-lab`, not `ubuntu-latest` — it needs the same network path to Splunk as the dev deploy step.
+**Reference docs** — deeper technical background, for after the live views raise a question:
+
+| | |
+|---|---|
+| <img src="docs/pictures/branding/architecture.png" width="90" alt="Architecture icon"> | **[Architecture](docs/architecture/)**<br>Pipeline overview, data flow, threat model, and a per-file scripts reference — all with Mermaid diagrams. |
+| <img src="docs/pictures/branding/wiki.png" width="90" alt="Wiki icon"> | **[Wiki](../../wiki)**<br>Planned newcomer-facing walkthrough — not yet initialized. |
+
+## The problem this repo solves
+
+Most "detection as code" projects stop at linting YAML: a rule is considered finished the moment it parses. That answers almost nothing security teams actually care about — does the rule still exist in the SIEM, does it fire when the technique it claims to catch actually happens, and does anyone find out the moment that stops being true?
+
+This repo is an attempt at closing that loop end to end, automatically, on every change:
+
+- A detection is **written once**, in one format, with everything about it — logic, severity, MITRE ATT&CK mapping, test plan — in a single file.
+- It's **shipped for real**, deployed as a live saved search in an actual SIEM (Splunk), not just validated on paper.
+- It's **attacked on purpose**, using real adversary emulation (Atomic Red Team) against a real host, and then checked for whether the deployed rule actually caught it.
+- Only a rule that survives that whole loop is allowed to move from a proving-ground environment into the one that matters.
+- And because software rots, a "yes, this worked" verdict has a shelf life — it stops counting as evidence once the rule changes or enough time passes, rather than sitting there forever as a stale green checkmark.
+
+Nothing about "does this detection work" is self-reported here. It's a measurement the pipeline makes and can show its work for.
+
+## How it fits together
+
+The five-phase shape of the pipeline, end to end — Strategic phase through Development, Continuous Integration (with its nested Testing phase), and Measurement & Reporting, plus the "Tune" feedback loop that runs verification results back into Development:
+
+<p align="center">
+  <a href="https://raw.githubusercontent.com/martonbence/Detection-Engineering/dev/docs/pictures/Workflow.drawio.svg" target="_blank" rel="noopener">
+    <img src="docs/pictures/Workflow.drawio.svg" alt="Detection-Engineering pipeline diagram: Strategic Phase feeds the Development Phase (write Sigma/SPL rule, validate syntax, convert), which feeds the Continuous Integration Phase (deploy to dev Splunk, then a nested Testing Phase running Atomic Red Team and script emulation, then a pass/fail verification), which feeds the Measurement &amp; Reporting Phase (update docs and stats, deploy GitHub Pages, open a promotion PR, deploy to dev Splunk, notify Slack) — with a Tune feedback loop running from Verification back into Development." width="900">
+  </a>
+</p>
+<p align="center"><sub>Click the diagram to open the full-size vector in a new tab (browser zoom works cleanly on it).</sub></p>
+
+The exact job graph below is the same pipeline drawn from `ci_dev_workflow.yml`'s own dependency structure:
+
+```mermaid
+flowchart LR
+    A(["Prepare, Validate, Convert"])
+    B(["Deploy to Splunk"])
+
+    subgraph tests["Attack &amp; Emulation Tests"]
+        direction TB
+        C(["Atomic Red Team Test"])
+        D(["Atomic Red Team Test (DC)"])
+        E(["Script Emulation Test"])
+    end
+
+    F(["Splunk Verification"])
+    G(["Update Dashboard &amp; Docs"])
+    H(["Persist Verification Results (fallback)"])
+
+    subgraph fanout["After Dashboard Update"]
+        direction TB
+        I(["Open Promotion PR"])
+        J(["Deploy GitHub Pages"])
+        K(["Notify Pipeline Status (Slack)"])
+    end
+
+    A --> B
+    A --> C
+    B --> C
+    A --> D
+    B --> D
+    A --> E
+    B --> E
+    A --> F
+    B --> F
+    C --> F
+    D --> F
+    E --> F
+    A --> G
+    F --> G
+    F --> H
+    G --> H
+    F --> I
+    G --> I
+    G --> J
+    F --> K
+    G --> K
+    H --> K
+
+    classDef stage fill:#f0a341,stroke:#8a5a1a,color:#1a1200,font-weight:bold;
+    classDef fallback fill:#f0a341,stroke:#8a5a1a,color:#1a1200,font-weight:bold,stroke-dasharray: 5 5;
+    class A,B,C,D,E,F,G,I,J,K stage
+    class H fallback
+```
+
+This is the real job graph of `ci_dev_workflow.yml` — every node is an actual GitHub Actions job, every arrow an actual `needs:` dependency, including ones that look transitively redundant (e.g. the attack-test jobs each depend on both "Prepare, Validate, Convert" *and* "Deploy to Splunk" even though the latter already depends on the former) — that's how GitHub's own UI draws it, so this does too. "Persist Verification Results (fallback)" has a dashed border because it's conditional: it only does anything if verification ran but the dashboard update didn't succeed, so on a normal green run it executes zero steps. A push to the repo runs this whole graph without a human clicking through any of it.
+
+That whole loop first runs in a low-stakes proving-ground environment. Only once a batch of rules has actually survived it does the repo open a pull request offering to promote them to the environment that matters — a human still has to look at that PR and merge it; nothing ships to production purely because a script said so.
+
+```mermaid
+flowchart LR
+    dev(("proving ground<br/>branch")) -- "verified by the pipeline" --> pr{{"promotion PR"}}
+    pr -- "human review & merge" --> main(("production<br/>branch"))
+
+    classDef auto fill:#f0a341,stroke:#8a5a1a,color:#1a1200,font-weight:bold;
+    classDef human fill:#7a4a12,stroke:#4d2e0a,color:#ffffff,font-weight:bold;
+    class dev,main auto
+    class pr human
+```
+
+## See it live
+
+| | |
+|---|---|
+| 🔍 **[Rule Browser](https://martonbence.github.io/Detection-Engineering/)** | Every rule in the repo, searchable and filterable, with its ATT&CK mapping and its current pass/fail verdict — generated straight from the pipeline's own output, published on GitHub Pages. |
+| 🛡️ **[MITRE ATT&CK Navigator](https://martonbence.github.io/Detection-Engineering/#tab=navigator)** | The same coverage plotted against the full ATT&CK matrix, exportable as a Navigator layer for use in the official MITRE tool. |
+
+*The badges near the top of this page are a live, regenerated snapshot, not something typed by hand — treat them, not any number written into the prose on this page, as current.*
+
+## What "pass" actually means here
+
+A checkmark in this repo is not a claim the rule's author made about their own work. It's the output of a pipeline that deployed the rule for real, ran a real attack technique, and queried the SIEM for a real hit. And a verdict doesn't stay valid forever by default: edit the rule and the old result stops applying to it; let too much time pass without re-testing and the result ages out on its own. A rule only counts as "proven" while there's still a recent measurement that actually matches the logic currently sitting in the file. The exact mechanics of how that's computed — and there's a fair amount of nuance to it — live in [`docs/architecture/`](docs/architecture/) rather than here.
+
+## Building a new detection, in broad strokes
+
+1. **Write** the detection as a single Sigma-format rule file — logic, severity, MITRE mapping, and test plan all live together in that one file. If the underlying idea genuinely can't be expressed in Sigma's own syntax, the same file can carry the raw SIEM query directly instead; either way there is one authoring format and one pipeline, not two.
+2. **Open a pull request.** The pipeline validates and compiles the rule before anything else happens, and shows you the result before it's merged.
+3. **Merge, and the pipeline takes over**: it deploys the rule, runs the attack technique it's meant to catch, and checks whether it actually fired.
+4. **Watch it show up** in the [rule browser](https://martonbence.github.io/Detection-Engineering/) with a real verdict and its place on the ATT&CK matrix.
+5. **Once proven**, the rule becomes eligible to be promoted from the proving-ground branch to production — via a pull request the pipeline opens for a human to review and merge, never automatically.
+
+The full step-by-step version of this — exact filenames, workflow names, job graphs — belongs in the [Wiki](../../wiki) and [`docs/architecture/`](docs/architecture/), not here.
+
+## Built partly by an AI agent team
+
+One thing worth knowing about how this repo itself gets maintained: a chunk of the day-to-day work on it — pipeline changes, rule authoring, quality review, documentation, security auditing — is carried out by a small team of scoped AI agents working under a human lead, each responsible for one surface of the repo rather than one generalist touching everything. That division of labor, and how work moves between agents, is itself documented in the repo (`CLAUDE.md`, `TEAM.md`) — treated as a real engineering practice worth being transparent about, not a hidden implementation detail.
+
+The team even tracks its own activity: an internal dashboard (`.claude/team-ops.html`, viewable after cloning the repo) shows what each agent has been doing. It's deliberately *not* published alongside the public rule browser — it's an internal working tool, not something meant for outside visitors.
 
 ## Repository layout
 
-| Path | Contents |
+| Path | What's there |
 |---|---|
-| [`rules/sigma/`](rules/sigma/) | Source-of-truth Sigma detection rules (`DETECT-*.yml`) |
-| [`rules/splunk/`](rules/splunk/) | Deployable SPL — pure query text (`*.spl`), no embedded metadata, for every rule regardless of authoring style |
-| [`scripts/validate/`](scripts/validate/), [`convert/`](scripts/convert/), [`deploy/`](scripts/deploy/), [`atomic/`](scripts/atomic/), [`verify/`](scripts/verify/), [`docs/`](scripts/docs/), [`state/`](scripts/state/), [`lib/`](scripts/lib/) | The pipeline itself, one directory per stage, plus state reconciliation and a small shared library. Every file is described in [`docs/architecture/scripts_reference.md`](docs/architecture/scripts_reference.md) |
-| [`config/`](config/) | Pipeline configuration that is data rather than code — `backends.yml` decides which pySigma backend the converter targets and which pipeline each log source gets |
-| [`tests/`](tests/) | pytest suite over the Python scripts, with Splunk faked — run by `ci_code_checks.yml` |
-| [`docs/schemas/`](docs/schemas/) | JSON Schema that gates every rule (`sigma_schema.json`) |
-| [`scripts/docs/assets/`](scripts/docs/assets/) | The rule browser's source: `page.template.html`, `page.css`, `page.js`, inlined into `docs/index.html` by `generate_stats.py` |
-| [`docs/index.html`](docs/index.html) | The rule browser / MITRE Navigator published to GitHub Pages — generated, never hand-edited |
-| [`docs/architecture/`](docs/architecture/) | Deeper technical references: pipeline overview, data flow and threat model with Mermaid diagrams, plus a per-file [scripts reference](docs/architecture/scripts_reference.md) |
-| [`outputs/reports/`](outputs/reports/) | Generated aggregate JSON (`stats.json`, `mitre_technique_map.json`, `navigator_layer.json`) |
-| [`outputs/results/`](outputs/results/) | Per-rule `DETECT-*` pass/fail verification results |
-| [`.github/workflows/`](.github/workflows/) | The CI/CD workflows described above (`ci_dev_workflow.yml`, `ci_prod_workflow.yml`, `ci_code_checks.yml`) |
+| [`rules/sigma/`](rules/sigma/) | The source of truth — every detection rule, as Sigma YAML |
+| [`rules/splunk/`](rules/splunk/) | The compiled, deployable query for every rule |
+| [`scripts/`](scripts/) | The pipeline itself, one subdirectory per stage (validate, convert, deploy, atomic, verify, docs, state) — see [`docs/architecture/scripts_reference.md`](docs/architecture/scripts_reference.md) for what each file does |
+| [`config/`](config/) | Pipeline configuration as data, not code |
+| [`tests/`](tests/) | The pipeline's own automated test suite |
+| [`docs/index.html`](https://martonbence.github.io/Detection-Engineering/) | The generated rule browser and MITRE Navigator — live on GitHub Pages |
+| [`docs/architecture/`](docs/architecture/) | Deeper technical references, with diagrams |
+| [`outputs/reports/`](outputs/reports/) & [`outputs/results/`](outputs/results/) | Generated stats and per-rule verification results |
+| [`.github/workflows/`](.github/workflows/) | The automation that runs the whole pipeline |
 
-## Adding a new detection rule, end to end
+## Run by GitHub's own tooling, too
 
-1. Write a Sigma rule under `rules/sigma/` following the naming convention `DETECT-YYYY-NNNN_Short-Title.yml`, conforming to `docs/schemas/sigma_schema.json` (including the `custom.splunk` block for index/cron/testing metadata). If the detection is too sophisticated to express as a Sigma `detection:` block, set `custom.splunk.raw_query` to the raw SPL instead — the converter emits it verbatim.
-2. Open a PR against `dev` (or push a feature branch). `ci_dev_workflow.yml` validates the rule and converts it to SPL on both `push` and `pull_request` — you can see the compiled SPL and any schema errors before merge.
-3. On merge/push to `dev`, the same workflow deploys the saved search to the **dev** Splunk instance, executes the mapped Atomic Red Team test (or DC / emulation variant), and verifies a hit was recorded via `check_saved_search_hits.py` + `pass_fail_eval.py`.
-4. `generate_stats.py` regenerates the stats block in this README and the rule browser; results land in `outputs/results/` and `outputs/reports/`, committed back to `dev`.
-5. If the overall dev-pipeline verdict is PASS, CI automatically opens a **promotion pull request** (`dev` → `main`, titled "Promote verified detections from dev to main", labeled `automated-promotion`) and adds it to [Project #3](https://github.com/users/martonbence/projects/3) with Status `In review`. This does not auto-merge — review it and merge manually to actually ship to prod.
-6. Merging the promotion PR triggers `ci_prod_workflow.yml`, which deploys the same, already-verified SPL to the **prod** Splunk instance (no re-testing). Merging also moves the board item's Status from `In review` to `Auto-merged`, via Project #3's own native "Pull request merged" board automation (configured in the Project UI, not a repo workflow — see "Project board automation on merge" above).
-7. Check the [rule browser](https://martonbence.github.io/Detection-Engineering/) or [MITRE Navigator](https://martonbence.github.io/Detection-Engineering/#navigator) (published from `dev`) to confirm the new rule shows up with a Pass verdict and correct technique mapping.
-
-Note for step 7 and after: **editing a rule that already passed does not re-run its test on its own** — it only invalidates the existing verdict. The rule's version bumps on the next commit touching its YAML, the old verdict becomes *Superseded*, and the rule drops out of the pass-rate denominator until the pipeline actually re-tests it. The same happens without any edit once a verdict passes 180 days, as *Expired*. In the rule browser both cases draw the verdict badge hollow, with a `△` marker for superseded and a `●` marker for expired; the `Verdict → Evidence` facet splits the library into *Current* / *Superseded* / *Expired* / *Never tested*, and CSV/JSON exports carry that value in a single `Evidence` column. To restore a current verdict, push a change that matches `ci_dev_workflow.yml`'s `rules/sigma/**` trigger so the full deploy → attack → verify loop runs against the edited rule.
-
-## Built on the GitHub platform, not just in it
-
-Part of what this repo demonstrates is disciplined use of GitHub's native collaboration surface for planning and tracking detection engineering work — not just committing YAML:
-
-- **Issues** track planned pipeline enhancements as scoped, evidence-backed proposals rather than TODO comments. For example, [issue #20](https://github.com/martonbence/Detection-Engineering/issues/20) specifies auto-generating audit-ready per-rule documentation once a rule passes CI. The metadata-source question it raised has since been resolved: every rule's metadata now lives solely in `rules/sigma/*.yml` (including hand-crafted SPL rules, via `custom.splunk.raw_query`), so the future automation has one unambiguous source to read from.
-- **[Detection Engineering Platform](https://github.com/users/martonbence/projects/3)** (Project #3) is a private GitHub Project board tracking pipeline and rule-content work through a `Todo` → in-progress → done workflow, with fields for status, labels, linked PRs, and parent/sub-issue relationships — the same mechanism used to plan and sequence the work in this repo, not an ad-hoc backlog. Promotion PRs are automated end-to-end on this board, split across two different mechanisms: `ci_dev_workflow.yml`'s `open_promotion_pr` job adds the PR to Project #3 with Status `In review` the moment it's auto-opened (repo code), then Project #3's own native "Pull request merged" board Workflow moves it to `Auto-merged` once it's actually merged (platform-side automation configured in the Project's own Settings UI, not a repo workflow) — so these automated items never sit in `Todo`/`Ready` alongside manually-triaged work.
-- **Wiki**: intentionally not oversold — GitHub only provisions the wiki repository once the feature is enabled and a first page exists via the web UI, and that hasn't happened yet for this repo. It's planned as a more narrative, newcomer-facing companion to `docs/architecture/`, but as of now it does not exist as a clonable repo.
+Part of what this repo is meant to demonstrate is disciplined use of GitHub itself as the engineering platform, not just as a place to host YAML: planned work is tracked as Issues, sequenced on a GitHub Project board, and the pipeline's own promotion pull requests are wired into that same board automatically rather than living in a separate tracker. A GitHub Wiki is planned as the newcomer-facing companion to the technical docs in this repo; it hasn't been switched on for this project yet, which is exactly why the polished starting point right now is the [Rule Browser](https://martonbence.github.io/Detection-Engineering/) plus the docs linked below.
 
 ## Further reading
 
-- [`docs/architecture/`](docs/architecture/) — Mermaid-diagrammed technical deep dives: [`pipeline_overview.md`](docs/architecture/pipeline_overview.md), [`data_flow.md`](docs/architecture/data_flow.md), [`threat_model.md`](docs/architecture/threat_model.md), plus the per-file [`scripts_reference.md`](docs/architecture/scripts_reference.md)
-- [GitHub Wiki](../../wiki) — planned newcomer-facing walkthrough (not yet initialized, see above)
+- [`docs/architecture/`](docs/architecture/) — pipeline overview, data flow, threat model, and a per-file scripts reference, all with Mermaid diagrams
+- [GitHub Wiki](../../wiki) — planned newcomer-facing walkthrough (not yet initialized)
+- [`LICENSE`](LICENSE) — MIT

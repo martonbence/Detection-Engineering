@@ -81,7 +81,14 @@
       align-items: center;
       justify-content: space-between;
       gap: 14px;
-      height: 48px;
+      /* Second enlargement pass (register: header logo, round 2) — the row
+         itself now grows with the mark instead of the mark staying pinned
+         to a fixed 48px strip. Kept at 72px through the 2026-08-23
+         branding-crop pass even though .strip-logo's own size dropped to
+         36px below -- this height is the approved layout, not derived from
+         the mark size, so it's left alone; only the mark shrank to keep
+         the same visual weight inside it. */
+      height: 72px;
       padding: 0 18px;
       background: var(--bg2);
       border-bottom: 1px solid var(--border);
@@ -90,8 +97,27 @@
     .strip-brand {
       display: flex;
       align-items: center;
-      gap: 9px;
+      gap: 11px;
       min-width: 0;
+    }
+
+    /* Decorative brand mark, not the page's identity (the title text still
+       carries that). Exported at 96x96 and displayed at 36px so it stays
+       crisp at 2x device pixel ratio; sized to sit comfortably inside the
+       72px strip alongside the 14px info-btn icon without dominating the
+       row. 36px, not the previous 48px: the 2026-08-23 branding pass moved
+       to a tightly-cropped source (docs/pictures/branding/logo.png went from a
+       2000x2000 file with large transparent margins to a 1233x1299 crop of
+       just the artwork), so the same 48px export now renders the shield
+       edge-to-edge instead of filling ~70% of the box -- keeping the CSS
+       size at 48px would have made the mark visibly heavier than the
+       48px/72px-strip layout the user last approved, even though no CSS
+       number changed. 36px was chosen by rendering both and comparing. */
+    .strip-logo {
+      width: 36px;
+      height: 36px;
+      flex-shrink: 0;
+      display: block;
     }
 
     .strip-title {
@@ -112,7 +138,11 @@
     .strip-total {
       font-family: var(--font);
       font-size: 12px;
-      color: var(--text3);
+      /* text3 measures 3.77:1 against this strip's bg2 background, short of
+         WCAG AA's 4.5:1 for text this size (register 3.12, color-contrast).
+         text2 is the same muted-label token already used elsewhere on the
+         page (e.g. .tab-btn:hover below) and clears it at 5.62:1. */
+      color: var(--text2);
       white-space: nowrap;
     }
 
@@ -125,7 +155,10 @@
       text-align: center;
       font-family: var(--font);
       font-size: 10px;
-      color: var(--text3);
+      /* text3 measures 3.76:1 against this strip's bg2 background, short of
+         WCAG AA (register 3.13, color-contrast). text2 clears 5.62:1, same
+         fix as .strip-total above. */
+      color: var(--text2);
       padding-top: 4px;
     }
 
@@ -139,7 +172,12 @@
     .tab-btn {
       background: none;
       border: 1px solid transparent;
-      color: var(--text3);
+      /* Inactive tabs ("MITRE Navigator", "Dashboards") were text3 at
+         3.77:1 against bg2 -- fails WCAG AA (register 3.12, color-contrast).
+         text2 clears 4.5:1 with room to spare; hover escalates further to
+         the brightest text token, the same base->hover pattern used by
+         .search-clear / .info-close / .nav-qf elsewhere on this page. */
+      color: var(--text2);
       padding: 5px 12px;
       border-radius: 20px;
       cursor: pointer;
@@ -150,13 +188,26 @@
     }
 
     .tab-btn:hover {
-      color: var(--text2);
+      color: var(--text);
     }
 
     .tab-btn.active {
       background: #ffaa00;
       border-color: #ffaa00;
       color: #111111;
+    }
+
+    /* The <main> landmark wraps the three tab panes (register 3.12,
+       landmark-one-main) purely for a11y structure -- it takes over the
+       flex-child role the panes used to hold directly against body, so the
+       panes' own flex:1/min-height:0 sizing below still fills the remaining
+       viewport height exactly as before. */
+    main {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
     .tab-pane {
@@ -380,7 +431,9 @@
       font-weight: 600;
       letter-spacing: 0.8px;
       text-transform: uppercase;
-      color: var(--text3);
+      /* text3 measures 3.52:1 against this panel's bg3 background, short of
+         WCAG AA (register 3.13, color-contrast). text2 clears 5.26:1. */
+      color: var(--text2);
     }
 
     .filter-supergroup.open>.filter-supergroup-head .filter-supergroup-title {
@@ -454,7 +507,9 @@
       font-weight: 600;
       letter-spacing: 0.8px;
       text-transform: uppercase;
-      color: var(--text3);
+      /* text3 measures 3.52:1 against this panel's bg3 background, short of
+         WCAG AA (register 3.13, color-contrast). text2 clears 5.26:1. */
+      color: var(--text2);
       flex: 1;
     }
 
@@ -466,7 +521,9 @@
       font-family: var(--font);
       font-weight: 400;
       font-size: 9px;
-      color: var(--text3);
+      /* text3 measures 3.52:1 against this panel's bg3 background, short of
+         WCAG AA (register 3.13, color-contrast). text2 clears 5.26:1. */
+      color: var(--text2);
       letter-spacing: 0;
     }
 
@@ -733,7 +790,10 @@
 
     .result-count {
       font-size: 12px;
-      color: var(--text3);
+      /* text3 measures 4.12:1 against this row's (body) background --
+         still short of WCAG AA's 4.5:1 at this size (register 3.12,
+         color-contrast). text2 clears it at 6.15:1. */
+      color: var(--text2);
       white-space: nowrap;
       font-family: var(--font);
     }
@@ -743,7 +803,11 @@
       align-items: center;
       gap: 4px;
       font-size: 10px;
-      color: var(--text3);
+      /* text3 measures 4.11:1 against this row's (body) background --
+         still short of WCAG AA (register 3.13, color-contrast; same
+         background/context as .result-count above, fixed in 3.12).
+         text2 clears it at 6.15:1. */
+      color: var(--text2);
       white-space: nowrap;
     }
 
@@ -991,8 +1055,17 @@
       width: 120px;
     }
 
+    /* 110px fit the "NOT VERIFIED" badge alone (the longest verdict word) but
+       not the badge plus one of the review-due/drift/out-of-scope markers
+       verdictBadge() appends beside it (~16px each for icon + margin) -- the
+       combination silently overflowed the nowrap/ellipsis cell (register:
+       Verdict column badge+scope-icon overflow). 160px gives the worst case
+       (badge + one marker; only one of due/drift/scoped ever renders at once)
+       comfortable room without changing the table's existing fixed-layout +
+       horizontal-scroll pattern (.table-wrap already scrolls when column
+       widths exceed the viewport, so widening this one is inert elsewhere). */
     th:nth-child(10) {
-      width: 110px;
+      width: 160px;
     }
 
     th:nth-child(8),
@@ -1085,7 +1158,11 @@
       display: flex;
       flex-direction: column;
       align-items: flex-start;
-      gap: 4px;
+      /* 4px used to leave stacked pills ~21px apart center-to-center, under
+         the WCAG 24px target-size minimum once .badge-mitre below reaches
+         24px tall in its own right. 6px keeps clear daylight between two
+         adjacent tap targets on top of that (register 3.12, target-size). */
+      gap: 6px;
       overflow: visible;
       white-space: normal;
     }
@@ -1115,7 +1192,14 @@
 
     .badge-category {
       background: rgba(248, 81, 73, 0.13);
-      color: #f85149;
+      /* Base --red (#f85149) on this translucent pill only clears 3.95-4.48:1
+         depending on which background it composites over (table row, its
+         hover state, or the drawer) -- short of WCAG AA in every one of
+         those contexts (register 3.13, color-contrast). #ff7b72 is already
+         used elsewhere on this page as the brighter member of this exact red
+         family (the .t-kw/.t-cond syntax-highlight tokens); reusing it here
+         clears 5.25:1+ in all of them. */
+      color: #ff7b72;
       border: 1px solid rgba(248, 81, 73, 0.3);
     }
 
@@ -1127,11 +1211,29 @@
 
     .badge-service {
       background: var(--green-bg);
-      color: var(--green);
+      /* Base --green (#2ea44f) on this translucent pill only clears
+         4.06-4.62:1 depending on background context -- short of WCAG AA in
+         most of them (register 3.13, color-contrast). #3fb950 is already
+         the "service" facet's own accent elsewhere on this page
+         (.fc-service et al.); reusing it here clears 5.14:1+ in every
+         context this badge renders in. */
+      color: #3fb950;
       border: 1px solid rgba(63, 185, 80, 0.25);
     }
 
     .badge-mitre {
+      /* Base .badge's 2px/7px padding at font-size 10px lands at ~17px
+         tall, under the WCAG 24x24 target-size minimum -- these are the
+         only .badge instances that are also individually-clickable links
+         (register 3.12, target-size). min-height/min-width plus
+         inline-flex centering brings the tap target to 24x24 without
+         changing the badge's visual weight relative to the others. */
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 24px;
+      min-width: 24px;
+      padding: 4px 10px;
       background: rgba(143, 149, 214, 0.14);
       color: #b3b8e8;
       border: 1px solid rgba(143, 149, 214, 0.35);
@@ -1597,6 +1699,19 @@
       color: #bc8cff;
     }
 
+    /* Same orange the Evidence ring gives the Out of scope slice, so the
+       drawer line, the table marker and the chart segment are recognisably
+       one fact in three places. */
+    .verify-meta .scoped {
+      color: #db6d28;
+    }
+
+    .verify-meta .scoped code {
+      font-family: var(--font);
+      font-size: 10px;
+      color: inherit;
+    }
+
     /* Verdict markers next to a badge in the table. Amber ● = the verdict is
        old; purple Δ = the verdict was measured on a different version of the
        rule. Two independent states, so two glyphs — a rule can carry either,
@@ -1631,6 +1746,28 @@
       fill: none;
       stroke-width: 2.4;
       stroke-linejoin: round;
+    }
+
+    /* Third marker, third state: orange ⊘ = nobody tried to measure this one.
+       Drawn rather than typed for the same reason the delta is — the ⊘
+       character sits off the badge's baseline at this size — and stroked at
+       the same weight as the delta so the two read as one family. */
+    .verdict-scoped {
+      color: #db6d28;
+      margin-left: 5px;
+      cursor: help;
+      display: inline-flex;
+      align-items: center;
+      vertical-align: middle;
+    }
+
+    .verdict-scoped svg {
+      width: 11px;
+      height: 11px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2.2;
+      stroke-linecap: round;
     }
 
     .code-head {
@@ -1828,6 +1965,28 @@
       color: var(--text3);
       line-height: 1.45;
       margin-top: -6px;
+    }
+
+    /* The Evidence card's scope note. Tinted and rule-marked rather than left
+       as plain sub-text: it explains a number that otherwise looks like a
+       broken pipeline, so it has to survive a glance. No display property
+       here on purpose — the element carries the `hidden` attribute when there
+       is nothing to say, and a display rule would override it. */
+    .chart-card-sub-scope {
+      border-left: 2px solid #db6d28;
+      padding: 2px 0 2px 8px;
+      color: var(--text2);
+    }
+
+    /* The Evidence card's last-live-verification note. Same treatment as the
+       scope note above -- rule-marked so it survives a glance -- but in the
+       page's neutral accent blue rather than the scope note's orange: this is
+       informational context ("here is when and how much"), not a caveat
+       about something being excluded from a number. */
+    .chart-card-sub-lastlive {
+      border-left: 2px solid var(--accent);
+      padding: 2px 0 2px 8px;
+      color: var(--text2);
     }
 
     /* Second row of the Rule Overview section. Its own grid so the four cards
@@ -3475,7 +3634,7 @@
     @media (max-width: 900px) {
       .stats-strip {
         height: auto;
-        min-height: 48px;
+        min-height: 72px;
         padding: 8px 12px;
         flex-wrap: wrap;
       }

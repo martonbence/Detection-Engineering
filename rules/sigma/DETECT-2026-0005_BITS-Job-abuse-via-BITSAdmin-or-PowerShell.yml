@@ -148,9 +148,9 @@ custom:
     latest: "now"
     severity: high
   testing:
-    enabled: false
+    enabled: true
     runner: windows-victim
     type: atomic
     atomics:
       - technique: T1197
-        test_numbers: [ 1, 2 ]
+        test_numbers: [1, 2]

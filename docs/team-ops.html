@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<title>Detection-Engineering &mdash; Áttekintés</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0d1117;
+    --sidebar-bg: #161b22;
+    --card-bg: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --accent: #f0a341;
+    --accent-soft: rgba(240, 163, 65, .12);
+    --blue: #58a6ff;
+    --green: #3fb950;
+    --hover-bg: #21262d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    display: flex;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  /* --- sidebar --- */
+  .sidebar {
+    width: 234px;
+    flex-shrink: 0;
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border);
+    padding: 1.1rem .75rem 1.5rem;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .35rem .5rem 1.4rem;
+  }
+  .brand img { width: 30px; height: 30px; border-radius: 6px; }
+  .brand-text { font-weight: 700; font-size: .88rem; line-height: 1.25; }
+  .brand-sub { font-size: .68rem; color: var(--text-dim); display: flex; align-items: center; gap: .35rem; margin-top: .1rem; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px rgba(63,185,80,.15); flex-shrink: 0; }
+  nav { display: flex; flex-direction: column; gap: .1rem; }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    width: 100%;
+    padding: .5rem .6rem;
+    border-radius: 7px;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: .82rem;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+  }
+  .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+  .nav-item:hover { background: var(--hover-bg); color: var(--text); }
+  .nav-item.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+  /* --- main --- */
+  .main { flex: 1; min-width: 0; padding: 1.9rem 2.1rem 3.5rem; }
+  .page-head { margin-bottom: 1.5rem; }
+  .page-head h1 { font-size: 1.25rem; margin: 0 0 .3rem; letter-spacing: -.01em; }
+  .page-head p { margin: 0; font-size: .82rem; color: var(--text-dim); max-width: 640px; line-height: 1.5; }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* --- stat cards --- */
+  .stat-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.75rem; }
+  .stat-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.05rem 1.25rem; }
+  .stat-card .label { font-size: .72rem; color: var(--text-dim); margin-bottom: .5rem; }
+  .stat-card .value { font-size: 1.65rem; font-weight: 700; }
+  .stat-card .context { font-size: .7rem; color: var(--text-dim); margin-top: .35rem; }
+
+  /* --- panel --- */
+  .panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem 1.35rem; }
+  .panel-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1.1rem; }
+  .panel-header h2 { font-size: .92rem; margin: 0; }
+  .panel-header .hint { font-size: .68rem; color: var(--text-dim); }
+
+  /* --- team chart: flexbox staircase tree (round 8 revert of the round
+     6-7 radial/polar experiment -- see the comment above BRANCH_LAYOUT in
+     the Python source for the full history). --- */
+  .canvas-scroll { overflow-x: auto; padding-bottom: .25rem; }
+  /* Horizontal padding here isn't just breathing room -- it's load-bearing
+     for drawOrgLines(). Every trunk now runs on the LEFT of the avatars it
+     serves, at (leftmost avatar edge - 16px gutter). The left branch's head
+     (Yara) sits flush against the container's content edge, so without this
+     padding her sub-tree's trunk would land at a negative X and be clipped
+     by .canvas-scroll's overflow-x. 28px comfortably clears the 16px
+     gutter. */
+  .org-chart { position: relative; padding: .5rem 28px .25rem; }
+  .root-row { display: flex; justify-content: center; margin-bottom: 2.25rem; }
+  .branches { display: flex; justify-content: space-between; gap: 3rem; }
+  .branch { display: flex; flex-direction: column; flex: 0 0 auto; }
+  /* Both branches are align-items: flex-start now (2026-08-25, round 9).
+     Kwame's branch used to be align-items: flex-end with margin-right
+     stairs -- a mirror image of Yara's branch that anchored Kwame himself
+     flush against the panel's right edge and stepped his reports INWARD,
+     toward center, away from him (build_branch_html() used margin-right
+     for the right branch, margin-left for the left). User feedback: that
+     read less clearly than Yara's side, where the parent sits at the outer
+     edge and children step visibly inward/rightward beneath them.
+     Flipping Kwame's branch to the same flex-start + margin-left grammar
+     (see build_branch_html() in the Python source) doesn't change this
+     branch's own outer box width at all -- shrink-to-fit sizing is
+     symmetric either way, so .branches' justify-content: space-between
+     still pins that box's right edge to the panel's right edge exactly
+     where it always was. What moves is only the content *inside* the box:
+     Kwame's own row (indent 0) now sits at the box's LEFT edge instead of
+     its right, freeing the width of one indent step to his right for
+     Masha/Priya/Chloe to stair-step into -- same "parent, then child
+     stepping right" grammar as Yara's branch, just living in the right
+     half of the chart. No .branches/column-width change needed; verified
+     with the same collision-check script at 1024-1920px (see report). */
+  .branch-left { align-items: flex-start; }
+  .branch-right { align-items: flex-start; }
+  .row { margin-bottom: 2.25rem; }
+  .row:last-child { margin-bottom: 0; }
+  svg#lines { position: absolute; inset: 0; pointer-events: none; overflow: visible; z-index: 0; }
+  .edge { fill: none; stroke: var(--border); stroke-width: 1.5; }
+  .node {
+    position: relative; z-index: 1;
+    display: flex; flex-direction: row; align-items: center;
+    width: max-content;
+  }
+  .avatar-ring {
+    width: 140px; height: 140px; border-radius: 50%; flex-shrink: 0;
+    background: var(--fill); border: 3px solid var(--stroke);
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+    box-shadow: 0 0 0 5px var(--card-bg), 0 4px 14px rgba(0,0,0,.35);
+    position: relative; z-index: 2;
+  }
+  .avatar { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+  /* The 16px negative margin tucks the box under the avatar; the near side
+     gets extra padding to match, so the overlap only ever eats into
+     background/border, never the name/role text (the avatar renders above
+     the box, z-index 2 vs 1). This is NOT related to the connector-line
+     gutter -- lines leave from the avatar's LEFT side now, nowhere near
+     this overlap. */
+  /* BOTH dimensions are pinned, in px, and flex-shrink is off. All three
+     parts of that matter:
+       - Fixed WIDTH keeps every .node's total footprint identical. Both
+         branches align their rows via align-items: flex-start (see the
+         .branch-right comment above for the 2026-08-25 change that made
+         this true of the right branch too), positioning each whole node
+         (avatar+box) as one unit at its row's indent offset, so a
+         content-sized box would put siblings' avatars at different X
+         values -- breaking the "siblings share one trunk X" property
+         drawOrgLines() relies on.
+       - Fixed HEIGHT + flex centering replaces the old implicit height
+         (rem padding + two line boxes + a rem margin = a fractional
+         57.36px). That height was emergent, so it moved with the reader's
+         font metrics and root font-size instead of being a contract.
+       - px, not rem, throughout this card. The box width/padding were px
+         while the text and padding were rem, so a reader whose browser
+         default font size isn't 16px got a box that did NOT grow with its
+         own text: at a 24px root the text column shrinks to 227px while
+         "Application Security Engineer" grows to 238px and spills past the
+         border, while the other ten roles still fit. That is the
+         "boxes aren't the same size" failure -- one node visibly wider
+         than its plate. px on both sides makes the card invariant.
+     Sizing headroom, measured in-browser (fallback sans-serif, the widest
+     of the realistic stacks): longest name "Kwame" = 56px, longest role
+     "Application Security Engineer" = 159px, against a 252px text column
+     -- ~1.6x headroom, so a noticeably wider font still fits on one line.
+     Height 64px holds a 20px name line + 3px gap + 16px role line (39px)
+     with ~10px of air above and below. Re-measure both if a much longer
+     name/role string is ever added. */
+  .info-box {
+    background: var(--fill); border: 2px solid var(--stroke); border-radius: 10px;
+    z-index: 1;
+    flex: 0 0 300px; width: 300px; height: 64px;
+    margin-left: -16px;
+    padding: 0 16px 0 28px;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .rname { font-weight: 700; font-size: 16px; line-height: 20px; color: var(--text); white-space: nowrap; }
+  /* No opacity here (2026-08-25): at .92 the green "strategic" nodes'
+     role text (Yara, Kwame) measured 4.44:1 against var(--stroke),
+     just under WCAG AA's 4.5:1 for normal text. Full-opacity text at
+     the same color measures 4.99:1 -- passes, and changes no color
+     value, so it's compatible with "don't touch the colors". */
+  .rrole { font-size: 12px; margin-top: 3px; line-height: 16px; color: var(--stroke); white-space: nowrap; }
+  .legend { display: flex; justify-content: center; gap: 1.4rem; flex-wrap: wrap; font-size: .68rem; color: var(--text-dim); margin-top: .4rem; }
+  .legend-item { display: flex; align-items: center; gap: .35rem; }
+  .legend-swatch { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--stroke-color); background: var(--fill-color); }
+  .legend-line { width: 18px; height: 0; border-top: 1.4px solid var(--text-dim); }
+
+  /* --- token table --- */
+  .token-table { width: 100%; border-collapse: collapse; font-size: .78rem; }
+  .token-table th { text-align: left; font-size: .68rem; color: var(--text-dim); font-weight: 600; padding: .5rem .6rem; border-bottom: 1px solid var(--border); }
+  .token-table td { padding: .55rem .6rem; border-bottom: 1px solid var(--border); }
+  .token-table tr:last-child td { border-bottom: none; }
+  .token-table tr.row-empty td { color: var(--text-dim); font-style: italic; }
+
+  /* --- activity feed --- */
+  .activity-list { display: flex; flex-direction: column; max-height: 560px; overflow-y: auto; }
+  .activity-item { display: flex; gap: .55rem; padding: .6rem 0; border-bottom: 1px solid var(--border); }
+  .activity-item:last-child { border-bottom: none; }
+  .activity-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); margin-top: .35rem; flex-shrink: 0; }
+  .activity-body { display: flex; flex-direction: column; gap: .2rem; min-width: 0; }
+  .activity-msg { font-size: .78rem; color: var(--text); line-height: 1.35; word-break: break-word; }
+  .activity-meta { font-size: .66rem; color: var(--text-dim); }
+  .activity-hash { font-family: ui-monospace, SFMono-Regular, monospace; }
+  .activity-empty { color: var(--text-dim); font-size: .8rem; padding: 1rem 0; }
+
+  /* --- placeholder tabs --- */
+  .placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5rem 1rem; color: var(--text-dim); text-align: center; gap: .5rem; }
+  .placeholder svg { width: 42px; height: 42px; opacity: .35; margin-bottom: .5rem; }
+  .placeholder h2 { margin: 0; font-size: 1.05rem; color: var(--text); }
+  .placeholder p { margin: 0; font-size: .82rem; max-width: 360px; }
+  .placeholder-note { font-size: .68rem; opacity: .7; margin-top: .3rem !important; }
+
+  footer { text-align: center; color: var(--text-dim); font-size: .7rem; margin-top: 2.5rem; }
+  footer code { background: var(--sidebar-bg); border: 1px solid var(--border); border-radius: 4px; padding: .1rem .35rem; }
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="brand">
+    <img src="pictures/branding/logo.png" alt="logo">
+    <div>
+      <div class="brand-text">Detection-Engineering</div>
+      <div class="brand-sub"><span class="status-dot"></span>csapat online</div>
+    </div>
+  </div>
+  <nav>
+      <button class="nav-item active" data-tab="overview"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>Áttekintés</span></button>
+      <button class="nav-item" data-tab="agents"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2.5"/><circle cx="9" cy="14" r="1.3" fill="currentColor" stroke="none"/><circle cx="15" cy="14" r="1.3" fill="currentColor" stroke="none"/><path d="M12 8V4"/><circle cx="12" cy="3" r="1.2"/></svg><span>Ügynökök</span></button>
+      <button class="nav-item" data-tab="activity"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-7 4 14 2-7h6"/></svg><span>Aktivitás</span></button>
+      <button class="nav-item" data-tab="group"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="8" r="2.4"/><path d="M15.5 14.2c2.6.4 4.5 2.7 4.5 5.8"/></svg><span>Csapat</span></button>
+      <button class="nav-item" data-tab="skills"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.1-5.4 3.1 1.3-6-4.6-4.1 6.1-.6z"/></svg><span>Skillek</span></button>
+      <button class="nav-item" data-tab="mcp"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6M15 2v6M6 8h12l-1 5a5 5 0 0 1-10 0z"/><path d="M12 17v5"/></svg><span>MCP</span></button>
+      <button class="nav-item" data-tab="tokens"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M12 20V4M20 20v-7"/></svg><span>Token Monitor</span></button>
+  </nav>
+</aside>
+
+<main class="main">
+  <section class="tab-panel active" id="tab-overview">
+    <div class="page-head">
+      <h1>Áttekintés</h1>
+      <p>A 11 tagú csapat mai állapota — valós adatokkal ott, ahol van; őszinte "nincs naplózva" mindenhol máshol.</p>
+    </div>
+
+    <div class="stat-cards">
+      <div class="stat-card">
+        <div class="label">Aktív ügynökök ma</div>
+        <div class="value">5</div>
+        <div class="context">10 specialista összesen</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Ma futott dispatch</div>
+        <div class="value">26</div>
+        <div class="context">62 naplózott dispatch összesen</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Token napló</div>
+        <div class="value">4.74M</div>
+        <div class="context">6/10 tagnál van adat</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Audit register</div>
+        <div class="value">38/52</div>
+        <div class="context">lezárt tétel</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Csapat</h2>
+        <span class="hint">jelentési hierarchia</span>
+      </div>
+      <div class="canvas-scroll">
+<div class="org-chart" id="org-chart">
+      <svg id="lines"></svg>
+      <div class="root-row">
+        <div class="node" style="--fill:#2c1b4d;--stroke:#b388ff;--text:#f1e6ff"><div class="avatar-ring" id="avatar-Gaz"><img src="pictures/avatars/Gaz_transparent.png" alt="Gaz" class="avatar" loading="lazy"></div><div class="info-box"><div class="rname">Gaz</div><div class="rrole">Engineering Lead</div></div></div>
+      </div>
+      <div class="branches">
+    <div class="branch branch-left">
+      <div class="row" style="margin-left:0.00rem"><div class="node" style="--fill:#12351f;--stroke:#4caf7d;--text:#dcf7ee"><div class="avatar-ring" id="avatar-Yara"><img src="pictures/avatars/Yara_transparent.png" alt="Yara" class="avatar" loading="lazy"></div><div class="info-box"><div class="rname">Yara</div><div class="rrole">Technology Strategist</div></div></div></div>
+      <div class="row" style="margin-left:3.25rem"><div class="node" style="--fill:#0d3b36;--stroke:#2dd4bf;--text:#d3fff5"><div class="avatar-ring" id="avatar-Bjorn"><img src="pictures/avatars/Bjorn_transparent.png" alt="Bjorn" class="avatar" loading="lazy"></div><div class="info-box"><div class="rname">Bjorn</div><div class="rrole">Detection Quality Engineer</div></div></div></div>
+      <div class="row" style="margin-left:6.50rem"><div class="node" style="--fill:#0d2440;--stroke:#58a6ff;--text:#dceeff"><div class="avatar-ring" id="avatar-Jamal"><img src="pictures/avatars/Jamal_transparent.png" alt="Jamal" class="avatar" loading="lazy"></div><div class="info-box"><div class="rname">Jamal</div><div class="rrole">DevOps Engineer</div></div></div></div>
+      <div class="row" style="margin-left:6.50rem"><div class="node" style="--fill:#0d2440;--stroke:#58a6ff;--text:#dceeff"><div class="avatar-ring" id="avatar-Kai"><img src="pictures/avatars/Kai_transparent.png" alt="Kai" class="avatar" loading="lazy"></div><div class="info-box"><div class="rname">Kai</div><div class="rrole">Platform Engineer</div></div></div></div>
+      <div class="row" style="margin-left:6.50rem"><div class="node" style="--fill:#0d2440;--stroke:#58a6ff;--text:#dceeff"><div class="avatar-ring" id="avatar-Sienna"><img src="pictures/avatars/Sienna_transparent.png" alt="Sienna" class="avatar" loading="lazy"></div><div class="info-box"><div class="rname">Sienna</div><div class="rrole">Frontend Engineer</div></div></div></div>
+      <div class="row" style="margin-left:6.50rem"><div class="node" style="--fill:#0d2440;--stroke:#58a6ff;--text:#dceeff"><div class="avatar-ring" id="avatar-Yuki"><img src="pictures/avatars/Yuki_transparent.png" alt="Yuki" class="avatar" loading="lazy"></div><div class="info-box"><div class="rname">Yuki</div><div class="rrole">Detection Engineer</div></div></div></div>
+    </div>
+    <div class="branch branch-right">
+      <div class="row" style="margin-left:0.00rem"><div class="node" style="--fill:#12351f;--stroke:#4caf7d;--text:#dcf7ee"><div class="avatar-ring" id="avatar-Kwame"><img src="pictures/avatars/Kwame_transparent.png" alt="Kwame" class="avatar" loading="lazy"></div><div class="info-box"><div class="rname">Kwame</div><div class="rrole">Compliance Analyst</div></div></div></div>
+      <div class="row" style="margin-left:3.25rem"><div class="node" style="--fill:#3d2c07;--stroke:#e0a94c;--text:#fdecc9"><div class="avatar-ring" id="avatar-Masha"><img src="pictures/avatars/Masha_transparent.png" alt="Masha" class="avatar" loading="lazy"></div><div class="info-box"><div class="rname">Masha</div><div class="rrole">Threat Intelligence Analyst</div></div></div></div>
+      <div class="row" style="margin-left:3.25rem"><div class="node" style="--fill:#3d2c07;--stroke:#e0a94c;--text:#fdecc9"><div class="avatar-ring" id="avatar-Priya"><img src="pictures/avatars/Priya_transparent.png" alt="Priya" class="avatar" loading="lazy"></div><div class="info-box"><div class="rname">Priya</div><div class="rrole">Application Security Engineer</div></div></div></div>
+      <div class="row" style="margin-left:3.25rem"><div class="node" style="--fill:#3d2c07;--stroke:#e0a94c;--text:#fdecc9"><div class="avatar-ring" id="avatar-Chloe"><img src="pictures/avatars/Chloe_transparent.png" alt="Chloe" class="avatar" loading="lazy"></div><div class="info-box"><div class="rname">Chloe</div><div class="rrole">Technical Writer</div></div></div></div>
+    </div>
+      </div>
+    </div>
+      </div>
+      <div class="legend">
+        <div class="legend-item"><span class="legend-swatch" style="--fill-color:#2c1b4d;--stroke-color:#b388ff"></span>Stratégiai/vezetői szint</div>
+        <div class="legend-item"><span class="legend-swatch" style="--fill-color:#12351f;--stroke-color:#4caf7d"></span>Stratégiai szint</div>
+        <div class="legend-item"><span class="legend-swatch" style="--fill-color:#0d2440;--stroke-color:#58a6ff"></span>Mérnöki/technológiai szint</div>
+        <div class="legend-item"><span class="legend-swatch" style="--fill-color:#0d3b36;--stroke-color:#2dd4bf"></span>Csoportkoordinátor</div>
+        <div class="legend-item"><span class="legend-swatch" style="--fill-color:#3d2c07;--stroke-color:#e0a94c"></span>Compliance/dokumentációs szint</div>
+        <div class="legend-item"><span class="legend-line"></span>jelentési vonal</div>
+      </div>
+    </div>
+  </section>
+
+    <section class="tab-panel" id="tab-activity">
+      <div class="page-head">
+        <h1>Aktivitás</h1>
+        <p>Commit-előzmény ehhez a repo-hoz, frissen a <code>git log</code>-ból generálva.</p>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Aktivitás</h2>
+          <span class="hint">git log, friss</span>
+        </div>
+        <div class="activity-list">
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(readme): left-align logo, shrink tagline under title</span><span class="activity-meta"><span class="activity-hash">e28beef</span> · 2026-08-28 19:47</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(readme): simplify header to stacked logo + real h1 title</span><span class="activity-meta"><span class="activity-hash">6b45baf</span> · 2026-08-28 19:43</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(readme): increase logo size for better visibility</span><span class="activity-meta"><span class="activity-hash">6d32ae1</span> · 2026-08-28 17:59</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(readme): add line break for improved layout</span><span class="activity-meta"><span class="activity-hash">800f1bf</span> · 2026-08-28 17:59</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(readme): adjust icon sizes for Architecture and Wiki sections</span><span class="activity-meta"><span class="activity-hash">5055e91</span> · 2026-08-28 17:57</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(readme): update Team Ops Dashboard icon and adjust sizes for other icons</span><span class="activity-meta"><span class="activity-hash">632f204</span> · 2026-08-28 17:55</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(readme): add team.png icon to the Team Ops Dashboard row</span><span class="activity-meta"><span class="activity-hash">88bcd03</span> · 2026-08-28 17:52</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(readme): update icon sizes for Rule Browser, MITRE Navigator, and Dashboards</span><span class="activity-meta"><span class="activity-hash">1807432</span> · 2026-08-28 17:36</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(readme): link the live team-ops dashboard from Live views</span><span class="activity-meta"><span class="activity-hash">07a717a</span> · 2026-08-28 17:30</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(readme): rebalance Reference docs icon sizes</span><span class="activity-meta"><span class="activity-hash">ab08529</span> · 2026-08-28 17:24</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(readme): custom icons for the Reference docs table</span><span class="activity-meta"><span class="activity-hash">3226909</span> · 2026-08-28 17:17</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(readme): remove unnecessary line breaks for cleaner formatting</span><span class="activity-meta"><span class="activity-hash">9d86733</span> · 2026-08-28 17:13</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(readme): bigger title, bigger icons, split Live views columns</span><span class="activity-meta"><span class="activity-hash">2031306</span> · 2026-08-28 17:06</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(readme): bigger title, separated tagline, more spacing, bigger icons</span><span class="activity-meta"><span class="activity-hash">b62fa20</span> · 2026-08-28 17:01</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(readme): custom icons for the Live views table rows</span><span class="activity-meta"><span class="activity-hash">3c8e4cf</span> · 2026-08-28 16:58</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">refactor(assets): consolidate all repo images into docs/pictures/</span><span class="activity-meta"><span class="activity-hash">35e3fe8</span> · 2026-08-28 16:56</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(rule-browser): widen Verdict column to fit scope/due/drift badge</span><span class="activity-meta"><span class="activity-hash">e191dbb</span> · 2026-08-28 16:18</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">ci: regenerate team-ops dashboard before Pages publish</span><span class="activity-meta"><span class="activity-hash">4fa0d95</span> · 2026-08-28 16:05</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">feat(dashboard): publish team-ops dashboard to GitHub Pages</span><span class="activity-meta"><span class="activity-hash">be20bb9</span> · 2026-08-28 16:05</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(readme): drop table wrapper, use float layout for header</span><span class="activity-meta"><span class="activity-hash">2bf6da2</span> · 2026-08-28 16:02</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">Merge remote-tracking branch 'origin/dev' into dev</span><span class="activity-meta"><span class="activity-hash">453dc17</span> · 2026-08-28 15:56</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(readme): lay out logo and title side by side in header</span><span class="activity-meta"><span class="activity-hash">6b89cb3</span> · 2026-08-28 15:55</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(docs): regenerate Console and stats [skip ci]</span><span class="activity-meta"><span class="activity-hash">4731514</span> · 2026-08-28 13:51</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">Merge pull request #64 from martonbence/dependabot/pip/dot-github/dev/dev-tooling-b1e9581fbb</span><span class="activity-meta"><span class="activity-hash">22cc482</span> · 2026-08-28 15:50</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(dashboard): satisfy ruff 0.16.4 lint rules in generate_dashboard.py</span><span class="activity-meta"><span class="activity-hash">e5672e1</span> · 2026-08-28 15:42</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(architecture): rename workflow diagram box titles for consistency</span><span class="activity-meta"><span class="activity-hash">3246bc6</span> · 2026-08-27 22:08</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(deps-dev): bump ruff in /.github in the dev-tooling group</span><span class="activity-meta"><span class="activity-hash">05413b9</span> · 2026-08-27 19:15</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(docs): link Workflow diagram straight to raw.githubusercontent.com</span><span class="activity-meta"><span class="activity-hash">7773be5</span> · 2026-08-27 20:26</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(docs): link Workflow diagram straight to raw content, not the blob viewer</span><span class="activity-meta"><span class="activity-hash">bdb6c6d</span> · 2026-08-27 20:23</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(docs): use relative link for Workflow diagram, not hardcoded main branch</span><span class="activity-meta"><span class="activity-hash">bb17a8c</span> · 2026-08-27 20:14</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs: embed Workflow diagram in README, add source SVG to repo</span><span class="activity-meta"><span class="activity-hash">93d0e09</span> · 2026-08-27 20:12</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">feat(docs): enhance README with redesigned quick-links and Mermaid diagrams for improved clarity</span><span class="activity-meta"><span class="activity-hash">6213dfd</span> · 2026-08-26 16:46</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs: update README to remove outdated testing scope and verification details</span><span class="activity-meta"><span class="activity-hash">e7b13c9</span> · 2026-08-25 20:26</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(ops): log agent dispatch usage for the dashboard-rename/README session</span><span class="activity-meta"><span class="activity-hash">83b69a1</span> · 2026-08-25 19:59</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs: redesign README header — new motto, repositioned stats, expanded quick-links</span><span class="activity-meta"><span class="activity-hash">45656ae</span> · 2026-08-25 19:59</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">feat(stats): recompose README badge row, add MITRE coverage, fix #navigator anchors</span><span class="activity-meta"><span class="activity-hash">0810806</span> · 2026-08-25 19:59</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">refactor(dashboard): rename dashboard.html output to team-ops.html</span><span class="activity-meta"><span class="activity-hash">beeb547</span> · 2026-08-25 19:59</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(ops): narrow Bjorn's review gate to functional changes; sync rename refs</span><span class="activity-meta"><span class="activity-hash">4b30b8b</span> · 2026-08-25 19:58</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs: rewrite README as a general, high-level project overview</span><span class="activity-meta"><span class="activity-hash">65abf10</span> · 2026-08-25 18:18</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(ops): log agent dispatch usage for 2026-08-25 sessions</span><span class="activity-meta"><span class="activity-hash">8fef176</span> · 2026-08-25 18:18</span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="tab-panel" id="tab-tokens">
+      <div class="page-head">
+        <h1>Token Monitor</h1>
+        <p>Naplózott dispatch-ek tagonként, a <code>.claude/agent_usage_log.jsonl</code> naplóból. A vizualizáció designja később készül el.</p>
+      </div>
+      <div class="panel">
+        <table class="token-table">
+          <thead>
+            <tr><th>Tag</th><th>Szerep</th><th>Dispatch</th><th>Token</th><th>Tool use</th><th>Idő</th><th>Utolsó</th></tr>
+          </thead>
+          <tbody>
+      <tr class="row-empty"><td>Yara</td><td>Technology Strategist</td><td colspan="5">nincs naplózott munka</td></tr>
+      <tr><td>Kwame</td><td>Compliance Analyst</td><td>6</td><td>651.9K</td><td>256</td><td>30m</td><td>2026-08-24</td></tr>
+      <tr class="row-empty"><td>Masha</td><td>Threat Intelligence Analyst</td><td colspan="5">nincs naplózott munka</td></tr>
+      <tr class="row-empty"><td>Yuki</td><td>Detection Engineer</td><td colspan="5">nincs naplózott munka</td></tr>
+      <tr><td>Bjorn</td><td>Detection Quality Engineer</td><td>6</td><td>379.5K</td><td>112</td><td>16m</td><td>2026-08-28</td></tr>
+      <tr><td>Chloe</td><td>Technical Writer</td><td>20</td><td>622.5K</td><td>107</td><td>17m</td><td>2026-08-28</td></tr>
+      <tr><td>Jamal</td><td>DevOps Engineer</td><td>8</td><td>1.12M</td><td>377</td><td>1.0h</td><td>2026-08-28</td></tr>
+      <tr><td>Sienna</td><td>Frontend Engineer</td><td>17</td><td>1.70M</td><td>499</td><td>1.7h</td><td>2026-08-28</td></tr>
+      <tr><td>Kai</td><td>Platform Engineer</td><td>5</td><td>264.1K</td><td>46</td><td>6m</td><td>2026-08-28</td></tr>
+      <tr class="row-empty"><td>Priya</td><td>Application Security Engineer</td><td colspan="5">nincs naplózott munka</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="tab-panel" id="tab-agents">
+      <div class="placeholder">
+        <svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
+        <h2>Ügynökök</h2>
+        <p>Részletes ügynök-lista és állapotfigyelés -- ha lesz rá valós igény.</p>
+        <p class="placeholder-note">Még nincs megvalósítva.</p>
+      </div>
+    </section>
+    <section class="tab-panel" id="tab-group">
+      <div class="placeholder">
+        <svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
+        <h2>Csapat</h2>
+        <p>Mélyebb csapat-nézet -- egyelőre az áttekintő oldal Csapat panelje adja ezt.</p>
+        <p class="placeholder-note">Még nincs megvalósítva.</p>
+      </div>
+    </section>
+    <section class="tab-panel" id="tab-skills">
+      <div class="placeholder">
+        <svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
+        <h2>Skillek</h2>
+        <p>A .claude/skills/ tartalmának áttekintése.</p>
+        <p class="placeholder-note">Még nincs megvalósítva.</p>
+      </div>
+    </section>
+    <section class="tab-panel" id="tab-mcp">
+      <div class="placeholder">
+        <svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
+        <h2>MCP</h2>
+        <p>A konfigurált MCP szerverek állapota.</p>
+        <p class="placeholder-note">Még nincs megvalósítva.</p>
+      </div>
+    </section>
+
+  <footer>
+    Generálva 2026-08-28 17:51 UTC &middot; <code>.claude/generate_dashboard.py</code>-vel,
+    a <code>.claude/agent_usage_log.jsonl</code> naplóból és a repo <code>git log</code>-jából.
+    A napló frissítése után futtasd újra a scriptet.
+  </footer>
+</main>
+
+<script>
+  // Round 8 revert: back to the flexbox staircase tree (rounds 3-5), after
+  // a radial/polar layout was tried for two rounds (6-7) and rejected
+  // outright. Node positions are real flexbox layout, not fixed math
+  // computed at generation time, so -- like the original round 3-5 tree --
+  // the connector lines have to be drawn here in JS, re-measuring the DOM
+  // via getBoundingClientRect() on load/resize/tab-switch rather than
+  // being embedded as a static SVG.
+  var EDGES = [["Gaz", "Yara"], ["Yara", "Bjorn"], ["Bjorn", "Yuki"], ["Bjorn", "Jamal"], ["Bjorn", "Sienna"], ["Bjorn", "Kai"], ["Gaz", "Kwame"], ["Kwame", "Masha"], ["Kwame", "Priya"], ["Kwame", "Chloe"]];
+  var ROOT = "Gaz";
+  // Clearance between a trunk and the nearest avatar edge it runs past.
+  // Must stay > the .avatar-ring box-shadow ring (5px), or the first part
+  // of a line disappears under the ring that's painted in card-bg.
+  var TRUNK_GUTTER = 16;
+
+  // Edge routing (2026-08-25). Two rules, two bends each -- down from the
+  // previous three-bend "drop, across, down, in" path:
+  //
+  //  * Every non-root node's outgoing lines LEAVE FROM ITS OWN 9 o'clock
+  //    point (left edge, vertically centered) and ARRIVE at the child's
+  //    9 o'clock point. The left side of a circle is that node's single
+  //    connection hub -- one line in, all lines out -- which is what makes
+  //    the hierarchy readable at a glance despite the mirrored branches.
+  //    Path: H out to a shared trunk, V down, H in. The old code picked a
+  //    side per edge by comparing parent/child centre X; that produced
+  //    right-side entries on the mirrored branch, which ran the line
+  //    straight through the gap between an avatar and its own info-box.
+  //    Side is no longer derived -- it is always left, on both ends.
+  //  * The ROOT is the one exception: its children sit far apart on
+  //    opposite sides, so it uses the classic top-down bus instead --
+  //    bottom-centre, V down to a bus line, H across, V down into the
+  //    child's 12 o'clock. Routing those two edges left-side-first would
+  //    drag a long horizontal across the whole chart for no gain.
+  //
+  // Siblings are drawn as a group so they genuinely share one trunk X.
+  // The trunk clears BOTH ends on the left: min(parent.left, children's
+  // leftmost) - gutter. That single expression covers both mirrored
+  // branches without a per-branch special case -- on the left branch the
+  // parent is the leftmost thing (children stair-step right), on the right
+  // branch the children are (they stair-step left). Anchoring on just one
+  // of the two would put the trunk straight through the other's circles.
+  function drawOrgLines() {
+    var container = document.getElementById('org-chart');
+    var svg = document.getElementById('lines');
+    if (!container || !svg) return;
+    var containerRect = container.getBoundingClientRect();
+    if (containerRect.width === 0 && containerRect.height === 0) return; // tab hidden, nothing to measure
+
+    function box(name) {
+      var el = document.getElementById('avatar-' + name);
+      if (!el) return null;
+      var r = el.getBoundingClientRect();
+      return {
+        left: r.left - containerRect.left,
+        top: r.top - containerRect.top,
+        bottom: r.bottom - containerRect.top,
+        cx: r.left + r.width / 2 - containerRect.left,
+        cy: r.top + r.height / 2 - containerRect.top
+      };
+    }
+    function n(v) { return v.toFixed(1); }
+
+    var byParent = {};
+    var order = [];
+    EDGES.forEach(function (edge) {
+      if (!byParent[edge[0]]) { byParent[edge[0]] = []; order.push(edge[0]); }
+      byParent[edge[0]].push(edge[1]);
+    });
+
+    var paths = [];
+    order.forEach(function (parent) {
+      var p = box(parent);
+      if (!p) return;
+      var kids = byParent[parent].map(box).filter(Boolean);
+      if (!kids.length) return;
+
+      if (parent === ROOT) {
+        var topMost = Math.min.apply(null, kids.map(function (k) { return k.top; }));
+        var busY = (p.bottom + topMost) / 2;
+        kids.forEach(function (k) {
+          paths.push('<path class="edge" d="M ' + n(p.cx) + ' ' + n(p.bottom) +
+            ' V ' + n(busY) + ' H ' + n(k.cx) + ' V ' + n(k.top) + '"></path>');
+        });
+        return;
+      }
+
+      var leftMost = Math.min.apply(null, kids.map(function (k) { return k.left; }));
+      var trunkX = Math.min(p.left, leftMost) - TRUNK_GUTTER;
+      kids.forEach(function (k) {
+        paths.push('<path class="edge" d="M ' + n(p.left) + ' ' + n(p.cy) +
+          ' H ' + n(trunkX) + ' V ' + n(k.cy) + ' H ' + n(k.left) + '"></path>');
+      });
+    });
+    svg.innerHTML = paths.join('');
+  }
+
+  document.querySelectorAll('.nav-item').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.nav-item').forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      var tab = btn.dataset.tab;
+      document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
+      var target = document.getElementById('tab-' + tab);
+      if (target) target.classList.add('active');
+      if (tab === 'overview') drawOrgLines();
+    });
+  });
+
+  window.addEventListener('load', drawOrgLines);
+  window.addEventListener('resize', drawOrgLines);
+</script>
+</body>
+</html>

@@ -274,8 +274,64 @@
     },
     {
       "date": "2026-08-17",
-      "timestamp": "2026-08-17T20:09:01.531886+00:00",
-      "git_sha": "ec5e68463f9ee6b1e501a4d528b91d02865189a9",
+      "timestamp": "2026-08-17T20:25:55.003015+00:00",
+      "git_sha": "49cefa22d6d194107429ab22b0099bb59a8765cf",
+      "total_rules": 28,
+      "total_sigma_rules": 28,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-08-20",
+      "timestamp": "2026-08-20T15:32:38.229924+00:00",
+      "git_sha": "577a0d7a015a169f0256685b905ab2fcf30f9477",
+      "total_rules": 28,
+      "total_sigma_rules": 28,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-08-21",
+      "timestamp": "2026-08-21T08:40:58.456360+00:00",
+      "git_sha": "885ef9f0d25867c1a09823dd904e838822c7bdfc",
+      "total_rules": 28,
+      "total_sigma_rules": 28,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-08-22",
+      "timestamp": "2026-08-22T15:57:24.118324+00:00",
+      "git_sha": "8971f2d7a4c37f677bdea2174d5e4d3da894d54e",
+      "total_rules": 28,
+      "total_sigma_rules": 28,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-08-23",
+      "timestamp": "2026-08-23T15:18:19.036409+00:00",
+      "git_sha": "22d09633a31018758b76de94e0c0ed1423c72f8e",
+      "total_rules": 28,
+      "total_sigma_rules": 28,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-08-25",
+      "timestamp": "2026-08-25T17:46:39.201379+00:00",
+      "git_sha": "65abf10eb1635ec2df06afab57ead6e5f3e5243f",
+      "total_rules": 28,
+      "total_sigma_rules": 28,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-08-28",
+      "timestamp": "2026-08-28T14:55:01.490475+00:00",
+      "git_sha": "e191dbb872bd3fedd7c63e337dfc08992d3eb83a",
+      "total_rules": 28,
+      "total_sigma_rules": 28,
+      "total_native_spl_rules": 1
+    },
+    {
+      "date": "2026-08-29",
+      "timestamp": "2026-08-29T09:02:14.622218+00:00",
+      "git_sha": "500435c320cec135ddb32697cb8f9d8db82c6f38",
       "total_rules": 28,
       "total_sigma_rules": 28,
       "total_native_spl_rules": 1
