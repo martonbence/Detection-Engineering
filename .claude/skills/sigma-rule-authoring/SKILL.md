@@ -51,21 +51,28 @@ sophisticated for Sigma's block syntax to express. Even then, keep the
 `detection:` block populated with its required placeholder — the schema
 demands it, but it is never actually evaluated for a `raw_query` rule.
 
-## `version:` — bump it when the detection changes, not when the words do
+## `version:` — auto-bumped when the detection changes, not when the words do
 
 Every rule carries an explicit `version:` field (`"MAJOR.MINOR"`, e.g.
-`"1.0"` on a freshly scaffolded rule — see `new_rule.py`'s skeleton). This is
-**not** the same number as the `rule_version` written into a deployed rule's
-`.meta.json` sidecar: that one is derived from git commit count
-(`scripts/lib/rule_version.py`) purely as a measurement, moves on every
-commit including a typo fix, and is not something you set. `version:` is the
-opposite — a deliberate signal from the author that says "the detection
-itself moved," and CI enforces that you actually send it.
+`"1.0"` on a freshly scaffolded rule — see `new_rule.py`'s skeleton). As of
+2026-08-29 (register item 3.5, closed for real) this is the **only** version
+number for a rule — the old, separate git-commit-count-derived `rule_version`
+(`scripts/lib/rule_version.py`) is gone, and `.meta.json`'s `rule_version`
+now reads straight from this same field. You normally never type it by
+hand: `.githooks/pre-commit` bumps it automatically the moment a commit
+actually changes the detection (see the field list below), and respects a
+version you already changed yourself (e.g. jumping straight to `2.0` for a
+rewrite) rather than overwriting it.
 
-`scripts/validate/check_version_bump.py` (register item 3.5) fails the run
-(hard gate, no `--strict` — same contract as `check_detect_id_uniqueness.py`)
-if a push changes any of the following without also changing `version:` from
-what the same file carried at the base commit:
+`scripts/validate/check_version_bump.py` (register item 3.5) remains the
+CI-side backstop — it fails the run (hard gate, no `--strict` — same
+contract as `check_detect_id_uniqueness.py`) if a push changes any of the
+following without `version:` also having changed from what the same file
+carried at the base commit. It exists for the cases the hook can't reach:
+`--no-verify`, a fresh clone before the one-time `git config
+core.hooksPath .githooks` setup, or a rule edited through the GitHub web UI.
+In the normal local-commit case you shouldn't need to think about this at
+all:
 
 - `detection:` — the matching logic itself.
 - `logsource:` — which events the logic even runs against; repointing this
@@ -77,20 +84,18 @@ what the same file carried at the base commit:
 
 Editing `description`, `references`, `falsepositives`, `tags`, `status`,
 `level`, `fields`, or anything under `custom.testing` / `custom.splunk`
-other than `raw_query` does **not** require a bump — that was the original
+other than `raw_query` does **not** trigger a bump — that was the original
 complaint this register item opened with (a wording fix and a rewritten
-condition: block used to look identical to the version number). When in
-doubt, bump anyway; the checker never penalizes an unnecessary bump, only a
-missing one.
+condition: block used to look identical to the version number).
 
 ## Tagging and handoff
 
 Tag `attack.<tactic>` / `attack.tXXXX(.YYY)` using the
 [[mitre-attack-mapping]] skill — don't tag from memory of upstream ATT&CK,
 this repo's tactic vocabulary and cache diverge from it. Before calling a
-rule done, run `scripts/validate/validate_sigma.py`,
-`scripts/validate/check_mitre_tags.py`, and — if you touched an existing
-rule rather than scaffolding a new one — `scripts/validate/check_version_bump.py`
-locally if feasible, then hand the rule to the Detection Quality Engineer for
-review. A newly authored rule is never self-approved or merged straight
-through.
+rule done, run `scripts/validate/validate_sigma.py` and
+`scripts/validate/check_mitre_tags.py` locally if feasible (the version
+bump on an existing rule is handled automatically by `.githooks/pre-commit`
+at commit time — see above — so there's normally nothing to run for that
+yourself), then hand the rule to the Detection Quality Engineer for review.
+A newly authored rule is never self-approved or merged straight through.
