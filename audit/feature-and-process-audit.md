@@ -2585,3 +2585,17 @@ grep-elni.
   863 passed, `ruff` tiszta, `docs/index.html`/`stats.json` nincs a
   changesetben (a blokkot közvetlen függvényhívással renderelte, nem a teljes
   generátorral). **Modell:** Sonnet 5.
+
+- **2026-08-30 — a „Generated at <ts>" sor is kivéve a README STATS-blokkból
+  (Gaz, `generate_stats.py::render_readme_section()`).** A felhasználó
+  észrevette: minden tegnapi teljes workflow-futás után is „Generated at
+  2026-08-28" áll a README-ben, miközben a shields.io badge-ek helyesen mutatják
+  az aktuális 5/5 PASS-t. Ok = a 4.4 2026-08-24-i szelete: a pipeline regenerálja
+  a blokkot, de nem commitolja a `README.md`-t, csak Pages-artifactként viszi —
+  így minden statikus szöveg a blokkban a `dev`-en befagy, míg a badge-ek élők
+  (a `stats.json`-t a `main`-ről fetch-elik betöltéskor). Sienna trimje után az
+  időbélyeg volt az egyetlen befagyott elem; kivéve → a STATS-blokk mostantól
+  100% élő badge, nincs mi elavuljon. `render_readme_section()` egy magyarázó
+  kommentet kap a helyére (miért nincs itt statikus tartalom). `ruff` tiszta,
+  a blokk közvetlen render byte-egyezik a kézzel szerkesztett README-vel.
+  **Modell:** Sonnet 5.

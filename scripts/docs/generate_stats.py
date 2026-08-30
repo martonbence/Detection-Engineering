@@ -1492,12 +1492,13 @@ def render_readme_section(stats: dict, repo: str) -> str:
     ])
     for row in [row1, "", row2, "", row3]:
         lines.append(row)
-    lines.append("")
 
-    lines += [
-        f"*Generated at {stats['generated_at'][:19]} UTC*",
-    ]
-
+    # No "Generated at" stamp or prose lines here on purpose: since audit item
+    # 4.4 (2026-08-24) the pipeline regenerates this block on every run but no
+    # longer commits README.md, so anything static baked in here goes stale on
+    # the branch while the run's real output ships to Pages as an artifact. The
+    # shields.io badges above sidestep that entirely -- they fetch stats.json
+    # from main at view time -- so the block is deliberately nothing but badges.
     return "\n".join(lines)
 
 
