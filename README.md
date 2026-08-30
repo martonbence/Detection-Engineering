@@ -12,20 +12,46 @@
 ![Pass](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.verified_pass_current&label=Pass&color=brightgreen) ![Fail](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.verified_fail_current&label=Fail&color=red) ![Pass Rate](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.pass_rate_pct&label=Pass%20Rate%20%25&color=brightgreen) ![Not Verified](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.not_verified&label=Not%20Verified&color=lightgrey) ![MITRE Coverage](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.mitre_coverage_pct&label=MITRE%20Coverage%20%25&color=8f95d6)
 <!-- STATS_END -->
 
-**Live views** — the published rule browser, generated straight from the pipeline's own output:
+## The live picture
 
-| | |
-|---|---|
-| <img src="docs/pictures/branding/rule_browser.png" width="200" alt="Rule Browser icon"> | **[Rule Browser](https://martonbence.github.io/Detection-Engineering/)**<br>Every rule in the repo, searchable and filterable, with its ATT&CK mapping and its current pass/fail verdict. |
-| <img src="docs/pictures/branding/mitre_navigator.png" width="200" alt="MITRE Navigator icon"> | **[MITRE Navigator](https://martonbence.github.io/Detection-Engineering/#tab=navigator)**<br>The same coverage plotted against the full ATT&CK matrix, exportable as a Navigator layer for the official MITRE tool. |
-| <img src="docs/pictures/branding/dashboards.png" width="200" alt="Dashboards icon"> | **[Dashboards](https://martonbence.github.io/Detection-Engineering/#tab=dashboards)**<br>Rule-library breakdowns by type, severity, status and verification outcome, MITRE tactic spread, and coverage/rule-count trends over the repo's own history. |
-| <img src="docs/pictures/branding/team.png" width="200" alt="Team icon"> | **[Team](https://martonbence.github.io/Detection-Engineering/team-ops.html)**<br>The org chart for this repo's own Claude Code subagent team, a logged per-agent dispatch activity feed, and token-usage/dispatch-count stats generated from the agent usage log and this repo's own git history. |
+Generated views of where the rule library actually stands right now — regenerated and published by both the `dev` and `prod` workflows, and recomputed against the current date on every load.
 
-**Reference docs** — deeper technical background, for after the live views raise a question:
+<table>
+<tr>
+<td><img src="docs/pictures/branding/rule_browser.png" width="200" alt="Rule Browser icon"></td>
+<td><strong><a href="https://martonbence.github.io/Detection-Engineering/">Rule Browser</a></strong><br>Every rule in the repo, searchable and filterable, with its ATT&amp;CK mapping and its current pass/fail verdict.</td>
+</tr>
+<tr>
+<td><img src="docs/pictures/branding/mitre_navigator.png" width="200" alt="MITRE Navigator icon"></td>
+<td><strong><a href="https://martonbence.github.io/Detection-Engineering/#tab=navigator">MITRE Navigator</a></strong><br>The same coverage plotted against the full ATT&amp;CK matrix, exportable as a Navigator layer for the official MITRE tool.</td>
+</tr>
+<tr>
+<td><img src="docs/pictures/branding/dashboards.png" width="200" alt="Dashboards icon"></td>
+<td><strong><a href="https://martonbence.github.io/Detection-Engineering/#tab=dashboards">Dashboards</a></strong><br>Rule-library breakdowns by type, severity, status and verification outcome, MITRE tactic spread, and coverage/rule-count trends over the repo's own history.</td>
+</tr>
+</table>
 
-| | |
-|---|---|
-| <img src="docs/pictures/branding/architecture.png" width="130" alt="Architecture icon"> | **[Architecture](docs/architecture/)**<br>Pipeline overview, data flow, threat model, a per-file scripts reference, and how the AI-agent team is coordinated — all with Mermaid diagrams. |
+## Under the hood
+
+When the live views prompt a "but how?", these go down to the mechanics — every stage, the artefacts that move between them, the threat model, and a per-file map of the pipeline.
+
+<table>
+<tr>
+<td><img src="docs/pictures/branding/architecture.png" width="130" alt="Architecture icon"></td>
+<td><strong><a href="docs/architecture/">Architecture</a></strong><br>Pipeline overview, data flow, threat model, a per-file scripts reference, and how the AI-agent team is coordinated — all with Mermaid diagrams.</td>
+</tr>
+</table>
+
+## The team behind it
+
+This repo is maintained largely by a small team of scoped AI agents under a human lead — each owning one surface (pipeline, rules, quality review, docs, security, platform). How the team is organised and how work moves between agents is documented in [`CLAUDE.md`](CLAUDE.md) and [`TEAM.md`](TEAM.md).
+
+<table>
+<tr>
+<td><img src="docs/pictures/branding/team.png" width="200" alt="Team dashboard icon"></td>
+<td><strong><a href="https://martonbence.github.io/Detection-Engineering/team-ops.html">Team Dashboard</a></strong><br>The org chart, a per-agent dispatch activity feed, and token-usage / dispatch-count stats — published live on GitHub Pages, generated from the agent usage log and the repo's own git history.</td>
+</tr>
+</table>
 
 ## The problem this repo solves
 
@@ -72,14 +98,6 @@ flowchart LR
     class pr human
 ```
 
-## See it live
-
-| | |
-|---|---|
-| 🔍 **[Rule Browser](https://martonbence.github.io/Detection-Engineering/)** | Every rule in the repo, searchable and filterable, with its ATT&CK mapping and its current pass/fail verdict — generated straight from the pipeline's own output, published on GitHub Pages. |
-| 🛡️ **[MITRE ATT&CK Navigator](https://martonbence.github.io/Detection-Engineering/#tab=navigator)** | The same coverage plotted against the full ATT&CK matrix, exportable as a Navigator layer for use in the official MITRE tool. |
-
-*The badges near the top of this page are a live, regenerated snapshot, not something typed by hand — treat them, not any number written into the prose on this page, as current.*
 
 ## What "pass" actually means here
 
@@ -94,12 +112,6 @@ A checkmark in this repo is not a claim the rule's author made about their own w
 5. **Once proven**, the rule becomes eligible to be promoted from the proving-ground branch to production — via a pull request the pipeline opens for a human to review and merge, never automatically.
 
 The full step-by-step version of this — exact filenames, the scaffold command, which checks gate what — is in [`CONTRIBUTING.md`](CONTRIBUTING.md), with the deeper mechanics in [`docs/architecture/`](docs/architecture/).
-
-## Built partly by an AI agent team
-
-One thing worth knowing about how this repo itself gets maintained: a chunk of the day-to-day work on it — pipeline changes, rule authoring, quality review, documentation, security auditing — is carried out by a small team of scoped AI agents working under a human lead, each responsible for one surface of the repo rather than one generalist touching everything. That division of labor, and how work moves between agents, is itself documented in the repo (`CLAUDE.md`, `TEAM.md`) — treated as a real engineering practice worth being transparent about, not a hidden implementation detail.
-
-The team even tracks its own activity: an internal dashboard (`.claude/team-ops.html`, viewable after cloning the repo) shows what each agent has been doing. It's deliberately *not* published alongside the public rule browser — it's an internal working tool, not something meant for outside visitors.
 
 ## Repository layout
 
