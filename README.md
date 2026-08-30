@@ -37,7 +37,7 @@ When the live views prompt a "but how?", these go down to the mechanics — ever
 
 <table>
 <tr>
-<td><img src="docs/pictures/branding/architecture.png" width="250" alt="Architecture icon"></td>
+<td><img src="docs/pictures/branding/architecture.png" width="200" alt="Architecture icon"></td>
 <td><strong><a href="docs/architecture/">Architecture</a></strong><br>How every moving part actually works, in prose and diagrams — from a Sigma file to a prod deploy.</td>
 </tr>
 </table>
@@ -48,7 +48,7 @@ This repo is maintained largely by a small team of scoped AI agents under a huma
 
 <table>
 <tr>
-<td><img src="docs/pictures/branding/team.png" width="310" alt="Team dashboard icon"></td>
+<td><img src="docs/pictures/branding/team.png" width="200" alt="Team dashboard icon"></td>
 <td><strong><a href="https://martonbence.github.io/Detection-Engineering/team-ops.html">Team Dashboard</a></strong><br>Turns the "AI team" claim into something you can inspect: the team's make-up and what it's actually been doing.</td>
 </tr>
 </table>
