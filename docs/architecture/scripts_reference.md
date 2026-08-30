@@ -113,7 +113,7 @@ Two things worth knowing before editing it:
   single-file entry. The `rebuild_all_files` list inside the `Determine changed Sigma files` step
   stays an explicit list of seven paths (schema, `validate_sigma.py`, `validate_sigma.ps1`,
   `sigma_to_spl.py`, `rule_naming.py`, `backend_config.py`, `config/backends.yml`) because a false
-  positive there re-deploys and re-attacks all 27 rules on the lab VMs.
+  positive there re-deploys and re-attacks every rule in the library on the lab VMs.
 
 ### `ci_prod_workflow.yml` — production deploy
 
@@ -166,7 +166,7 @@ plus the explicit `!= 'skipped'` check (rather than a bare `needs:`, which impli
 deliberate for two reasons: it must still run when `deploy_to_prod` itself was skipped by
 `LAB_ONLINE=false`, and it must still run on a *partial* deploy failure —
 `deploy_spl_to_splunk.py` only returns non-zero at the very end if *any one* file failed, so a run
-that deployed 26 of 27 rules still makes `deploy_to_prod` report `failure`, and that run's successes
+that deployed all but one rule still makes `deploy_to_prod` report `failure`, and that run's successes
 are exactly what the dashboard most needs to pick up.
 
 **`deploy_pages`** (`needs: [update_dashboard]`, `if: always() && needs.update_dashboard.result ==

@@ -102,11 +102,11 @@ teljesíthető utasítással indul.
 ## 2 · Dokumentációs hiányok és elavulás (14) · ×1
 
 - [x] **2.1** A „per-file map" 13 scriptet nem ír le a 30-ból · `docs/architecture/scripts_reference.md` · Hiányzik a teljes `scripts/lib/` a `rule_naming.py` kivételével (`env.py`, `meta_sidecar.py`, `rule_version.py`, `rules.py`, `splunk_client.py`, `splunk_ns.py`, `summary.py`, `verdict_history.py`), továbbá `check_detect_id_uniqueness.py`, `check_spl_syntax.py`, `check_version_bump.py`, `deployment_inventory.py`, `new_rule.py`. Ebből három **hard CI-kapu** (`check_detect_id_uniqueness`, `check_version_bump`, `check_spl_syntax`), egy pedig az a script, amivel a `sigma-rule-authoring` skill szerint minden új szabály indul (`new_rule.py`). Chloe saját ügynökfájlja ezt a dokumentumot nevezi meg úgy, mint „the first thing to drift" — igaza lett → **Chloe**
-- [ ] **2.2** A `LAB_ONLINE` kapcsoló nincs a README-ben · `README.md` (0 előfordulás) vs. `ci_dev_workflow.yml` (14), `ci_prod_workflow.yml` (6), `pipeline_overview.md` (5) · Ez az a repository-variable, ami eldönti, hogy a pipeline lab-függő fele egyáltalán fut-e. Aki csak a README-t olvassa, nem tudja megmagyarázni, miért zöld egy futás, ami semmit nem mért → **Chloe**
+- [x] **2.2** A `LAB_ONLINE` kapcsoló nincs a README-ben · `README.md` (0 előfordulás) vs. `ci_dev_workflow.yml` (14), `ci_prod_workflow.yml` (6), `pipeline_overview.md` (5) · Ez az a repository-variable, ami eldönti, hogy a pipeline lab-függő fele egyáltalán fut-e. Aki csak a README-t olvassa, nem tudja megmagyarázni, miért zöld egy futás, ami semmit nem mért → **Chloe** · **Javítva, lásd Napló 2026-08-30**
 - [x] **2.3** A `pipeline_overview.md` ügynök-listája 7 ügynököt sorol a 11-ből · `docs/architecture/pipeline_overview.md:438-448` · Hiányzik a `detection-engineer` (Yuki), a `threat-intel` (Masha), az `audit-compliance` (Kwame) és a Gaz-referencia. A lista csak slugokat használ, a `TEAM.md`-re (a névvel ellátott, hivatalos roster) nem hivatkozik, pedig az a fájl azóta létrejött. A szakasz saját maga kéri, hogy „re-read that directory if this list looks stale" — elavult → **Chloe**
 - [x] **2.4** A `repo-terkep.hu.md` számai elavultak · `docs/architecture/repo-terkep.hu.md:80,97,111` · „`ci_dev_workflow.yml` — 1 695 sor, 8 job" (valójában **2 572 sor, 9 job**), „`ci_prod_workflow.yml` — 232 sor" (valójában **341**), „`ci_code_checks.yml` — 559 sor" (valójában **571**). A `:106` és `:130` sorok ráadásul a drift gate-et magyarázzák mint élő indoklást (lásd 1.1) → **Chloe**
-- [ ] **2.5** 19 helyen kézzel bedrótozott „27 szabály" / „12 of 27" / „92%" · `README.md:48,50,52,56,57,59`, `docs/architecture/*.md` · A könyvtár ma **28** szabály, a mai adatokon 1 PASS / 27 NOT_VERIFIED / 4%. A próza számai a `<!-- STATS_START -->` blokkon *kívül* élnek, tehát a generátor sosem frissíti őket. Két megoldás közül kell választani: vagy a próza ne idézzen élő számot (csak fogalmat magyarázzon, példát „pl."-lel jelölve), vagy a generátor kapjon több behelyettesíthető markert. A jelenlegi állapot a rosszabbik: konkrét, hitelesnek *látszó* és hamis → **Chloe**, generált markerek esetén **Sienna**
-- [ ] **2.6** Nincs „hogyan futtasd le helyben" dokumentum · sem `README.md`, sem `docs/architecture/` · Nincs leírva, mit kell telepíteni ahhoz, hogy a `pytest`, a `ruff`, a `validate_sigma.py` vagy a `generate_stats.py` helyben fusson; a `.github/requirements*.txt` fejléce kifejezetten azt mondja, hogy „nothing here is needed to work on the rules locally" — ami a tesztekre nem igaz. Lásd a 4.3-at: a suite ma bukik a fejlesztő saját gépén, és nincs hova utánanézni → **Chloe**, a tényleges függőséglista **Jamal**
+- [x] **2.5** 19 helyen kézzel bedrótozott „27 szabály" / „12 of 27" / „92%" · `README.md:48,50,52,56,57,59`, `docs/architecture/*.md` · A könyvtár ma **28** szabály, a mai adatokon 1 PASS / 27 NOT_VERIFIED / 4%. A próza számai a `<!-- STATS_START -->` blokkon *kívül* élnek, tehát a generátor sosem frissíti őket. Két megoldás közül kell választani: vagy a próza ne idézzen élő számot (csak fogalmat magyarázzon, példát „pl."-lel jelölve), vagy a generátor kapjon több behelyettesíthető markert. A jelenlegi állapot a rosszabbik: konkrét, hitelesnek *látszó* és hamis → **Chloe**, generált markerek esetén **Sienna** · **Javítva a próza-út mentén (nincs új generátor-marker), lásd Napló 2026-08-30**
+- [x] **2.6** Nincs „hogyan futtasd le helyben" dokumentum · sem `README.md`, sem `docs/architecture/` · Nincs leírva, mit kell telepíteni ahhoz, hogy a `pytest`, a `ruff`, a `validate_sigma.py` vagy a `generate_stats.py` helyben fusson; a `.github/requirements*.txt` fejléce kifejezetten azt mondja, hogy „nothing here is needed to work on the rules locally" — ami a tesztekre nem igaz. Lásd a 4.3-at: a suite ma bukik a fejlesztő saját gépén, és nincs hova utánanézni → **Chloe**, a tényleges függőséglista **Jamal** · **Javítva (`CONTRIBUTING.md` „Running the checks locally"), lásd Napló 2026-08-30. Maradék: a `.github/requirements*.txt` félrevezető fejléce Jamal felülete — külön, kicsi tétel, ld. Napló.**
 - [ ] **2.7** A Wiki továbbra sem létezik · `README.md:177,182`, `.claude/agents/Chloe - Technical Writer.md` · A README őszintén jelzi, hogy nincs — ez rendben van —, de a „planned newcomer-facing walkthrough" tartósan terv marad, miközben a `docs/architecture/` négy fájlja együtt 1 400+ sor mély referencia, kezdő belépési pont nélkül. Döntést igényel: vagy engedélyezés + első oldal (**Kai**, majd **Chloe**), vagy a Wiki-hivatkozások kivezetése a README-ből, hogy ne ígérjen nem létező felületet → **Gaz** dönt
 - [x] **2.8** `TEAM.md`: 11/11 „Avatar: pending", holott két avatár létezik · `TEAM.md:5,63,80,96,…` vs. `.claude/agents/avatars/Bjorn.jpg`, `Yuki.png` · Ráadásul a `team-avatars` skill (`.claude/skills/team-avatars/SKILL.md:84-89`) `<firstname-lowercase>.png` elnevezést és `![Bjorn](...)` bekötést ír elő — a két meglévő fájl nagy kezdőbetűs, az egyik `.jpg`, és egyik sincs bekötve. A `Yuki.png` 1,1 MB, a repo legnagyobb követett fájlja. **Kwame és Yara egymástól függetlenül ugyanezt találta meg** — a két átvizsgálás egyetlen teljes átfedése, ami önmagában is jelzés arról, mennyire látható ez a rés → **gazdátlan, lásd 5.1**
 - [ ] **2.9** Nincs per-szabály dokumentáció, és a hozzá tartozó hivatkozás holt · `README.md:175` (issue #20), `.claude/agents/Bjorn - Detection Quality Engineer.md` frontmatter (a `rule_documentations/` könyvtárra hivatkozik, ami már nincs a repóban — az ügynökfájl maga jelzi ezt, de a mondat így is félrevezető) · A README szerint a metaadat-forrás kérdése megoldódott (minden a `rules/sigma/*.yml`-ben van), tehát az automatizálásnak nincs technikai akadálya. Ma egyetlen szabályról sincs önálló, olvasható lap sem a repóban, sem a rule browserben → **Gaz** priorizál, **Sienna** (generátor) vagy **Jamal** (CI-lépés)
@@ -2477,3 +2477,53 @@ grep-elni.
   **Nyitott halmaz (6): 2.2, 2.5, 2.6, 2.7, 2.9 (mind Chloe/docs, deprioritizált;
   2.7 és 2.9 Gaz-dönt komponenssel) + 4.4 (b) (Jamal). A következő nem-docs,
   csapat-végrehajtható tétel változatlanul a 4.4 (b).** **Modell:** Sonnet 5.
+
+- **2026-08-30 — 2.2, 2.5, 2.6 lezárva, Gaz nézte át. Számláló 46/52 → 49/52.**
+  Chloe passza (Sonnet 5, 112k subagent-token). Docs-only batch, Bjorn-kapun
+  kívül (prózai tartalom, `feedback_bjorn_review_gate_scope`).
+  **2.2 — `README.md`:** egy bekezdés a job-gráf-magyarázat után — `LAB_ONLINE`
+  repo-változó kapuzza a deploy/attack/verify felet; lab-offline futás validál,
+  konvertál, commitol, zöld lesz, de nem mér újra semmit — ezért van a „Last live
+  verification" sor és a coverage-badge. Fogalmi szint, workflow-mechanika nélkül.
+  **2.5 — próza-út, nincs új generátor-marker.** Chloe végigvette a README-t
+  (STATS-blokkon kívül) + `pipeline_overview.md` / `threat_model.md` /
+  `data_flow.md` / `scripts_reference.md` / `repo-terkep.hu.md`. Minden előfordulás
+  három vödörbe: (a) legitim múltidejű elbeszélés („at the time this was
+  addressed, 15 of 27…", a védett 96%/92% példa) — **érintetlen**; (b) elavult
+  jelenidejű állítás („All 27 rules are clean", „44% today", „all 27 outputs",
+  „26 of 27 rules") — **javítva** fogalmi szóra („every rule in the library") vagy
+  explicit múltidőbe; (c) README-próza élő számmal — nincs ilyen a STATS-blokkon
+  kívül, a :14/:16 sor generátor-termék, érintetlen. A `pipeline_overview.md`
+  három kulcs-táblájának „Today" oszlopa → „Worked example", plusz egy bevezető
+  kaveát: egy múltbeli futás konzisztens pillanatképe, a kulcsok viszonyát
+  mutatja, **nem** élő — élő értékért `stats.json` / badge. A doughnut-alszöveg
+  „12 of 27 current" → `<current> of <library total>` formátum-leírás „pl. `12 of
+  27`"-tel. Teljes előfordulás-tábla Chloe report-backjében.
+  **2.6 — `CONTRIBUTING.md`:** a `<!-- Placeholder -->` „Running the pipeline and
+  tests locally" csonk helyére írt „Running the checks locally" szakasz: Python
+  3.11 (CI-egyezés), teljes suite (`pip install -r .github/requirements.txt -r
+  .github/requirements-dev.txt` → `ruff check .` → `pytest`), csak-script telepítés
+  (`requirements.txt` önmagában), tzdata/Windows `Europe/Budapest` jegyzet (4.3
+  már megoldotta), `git config core.hooksPath .githooks` lépés. README „Further
+  reading" bullet a `#running-the-checks-locally` horgonyra mutat. **Maradék
+  (külön, kicsi):** a `.github/requirements.txt` / `-dev.txt` fejléce még mindig
+  „nothing here is needed to work on the rules locally"-t mond — a „félrevezet"
+  fele a 2.6-nak; egysoros fejléc-pontosítás, Jamal config-felülete, nem blokkolja
+  a 2.6 lezárását.
+  **Chloe drift-jelzései (drift-queue-ba, NEM javítva ebben a körben):**
+  `pipeline_overview.md` „two GitHub Actions workflows" (`:3`) még mindig kettőt
+  mond, a 4. workflow (`ci_prod_audit.yml`) nem kap saját jobs/steps-bejegyzést;
+  a `migrate_backfill_rule_version.py` „27 of 28" migrációs tény háromszor
+  kézzel duplikálva (`threat_model.md:22`, `data_flow.md:78`,
+  `scripts_reference.md:443`). *(Chloe negyedik jelzése — „nincs `.mcp.json`" —
+  téves: a fájl létezik a repo-gyökérben, Kwame 2026-08-29-i 2.3-bejegyzése
+  helyesen írja; a chrome-devtools vs. playwright szerverlista pontossága külön
+  kérdés, nem sürgős.)*
+  **Chloe skill-jelöltje:** „architektúra-dokumentum sose írjon jelenidejű élő
+  szabályszám / pass-rate / coverage számot" + az a/b/c osztályozás. Gaz:
+  **egyelőre nem** — egyszeri audit-takarítás, nem visszatérő munkafolyamat; ha a
+  `generate_stats.py` egyszer worked-example blokkot emittál oda (lehetséges
+  jövőbeli Sienna-tétel), az a strukturális fix, nem egy skill.
+  **Nyitott halmaz (3): 2.7, 2.9 (Chloe/docs, mindkettő Gaz-dönt komponenssel) +
+  4.4 (b) (Jamal). A következő nem-docs, csapat-végrehajtható tétel változatlanul
+  a 4.4 (b).** **Modell:** ez a könyvelési kör Sonnet 5-ön futott.

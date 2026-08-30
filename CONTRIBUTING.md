@@ -16,15 +16,49 @@ links out rather than repeating them.
 
 ---
 
-## Running the pipeline and tests locally
+## Running the checks locally
 
-<!-- Placeholder — this section is tracked as audit item 2.6 and is not written yet.
-     It will cover: what to install (the pinned requirements files), and how to run
-     pytest / ruff / validate_sigma.py / generate_stats.py on your own machine. -->
+Use **Python 3.11** to match CI (`ci_code_checks.yml` pins `python-version: "3.11"`).
+Run everything from the repo root.
 
-Not documented yet. For now, CI (`ci_code_checks.yml`) is the reference for how
-the checks are run — see
-[`docs/architecture/scripts_reference.md`](docs/architecture/scripts_reference.md).
+**Full lint + test suite** (what `ci_code_checks.yml` runs):
+
+```
+pip install -r .github/requirements.txt -r .github/requirements-dev.txt
+ruff check .
+pytest
+```
+
+Ruff and pytest both read their config from the root `pyproject.toml`
+(`[tool.ruff]` / `[tool.pytest.ini_options]`).
+
+**Just running a pipeline script** — `validate_sigma.py`, `generate_stats.py`,
+the Sigma→SPL converter — needs only the toolchain file:
+
+```
+pip install -r .github/requirements.txt
+```
+
+(The header comment in that file says nothing there is needed to work locally —
+that's true for *editing rules*, not for running the scripts or the test suite.)
+
+**Windows note.** `scripts/convert/sigma_to_spl.py` resolves the
+`Europe/Budapest` timezone, which needs IANA tzdata that Windows doesn't ship at
+the OS level. `tzdata` is pinned in `.github/requirements-dev.txt`, so a Windows
+checkout with the dev requirements installed no longer hits
+`ZoneInfo: No time zone found with key Europe/Budapest`. A suite that's red with
+that error means the dev requirements are missing.
+
+**Git hook.** The pre-commit version-bump hook is inert until you point git at it
+once per clone:
+
+```
+git config core.hooksPath .githooks
+```
+
+After that, `.githooks/pre-commit` bumps a rule's `version:` field automatically
+when its `detection:` / `logsource:` / `custom.splunk.raw_query` changes;
+`check_version_bump.py` is the CI backstop for commits that skipped it.
 
 ---
 
