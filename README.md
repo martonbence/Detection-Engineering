@@ -43,7 +43,7 @@ Nothing about "does this detection work" is self-reported here. It's a measureme
 
 ## How it fits together
 
-The five-phase shape of the pipeline, end to end — Strategic phase through Development, Continuous Integration (with its nested Testing phase), and Measurement & Reporting, plus the "Tune" feedback loop that runs verification results back into Development:
+The five-phase shape of the pipeline, end to end — Strategic phase through Development, Continuous Integration (with its nested Testing phase), and Measurement & Reporting, plus the "Tune" feedback loop that runs verification results back into Development. The diagram spans both CI workflows: `ci_dev_workflow.yml` (the full validate → deploy → attack → verify → report loop, on `dev`) and `ci_prod_workflow.yml` (the deploy of already-verified rules to the prod Splunk app, once a promotion PR merges to `main`):
 
 <p align="center">
   <a href="https://raw.githubusercontent.com/martonbence/Detection-Engineering/dev/docs/pictures/Workflow.drawio.svg" target="_blank" rel="noopener">
@@ -54,57 +54,6 @@ The five-phase shape of the pipeline, end to end — Strategic phase through Dev
 
 The exact job graph below is the same pipeline drawn from `ci_dev_workflow.yml`'s own dependency structure:
 
-```mermaid
-flowchart LR
-    A(["Prepare, Validate, Convert"])
-    B(["Deploy to Splunk"])
-
-    subgraph tests["Attack &amp; Emulation Tests"]
-        direction TB
-        C(["Atomic Red Team Test"])
-        D(["Atomic Red Team Test (DC)"])
-        E(["Script Emulation Test"])
-    end
-
-    F(["Splunk Verification"])
-    G(["Update Dashboard &amp; Docs"])
-    H(["Persist Verification Results (fallback)"])
-
-    subgraph fanout["After Dashboard Update"]
-        direction TB
-        I(["Open Promotion PR"])
-        J(["Deploy GitHub Pages"])
-        K(["Notify Pipeline Status (Slack)"])
-    end
-
-    A --> B
-    A --> C
-    B --> C
-    A --> D
-    B --> D
-    A --> E
-    B --> E
-    A --> F
-    B --> F
-    C --> F
-    D --> F
-    E --> F
-    A --> G
-    F --> G
-    F --> H
-    G --> H
-    F --> I
-    G --> I
-    G --> J
-    F --> K
-    G --> K
-    H --> K
-
-    classDef stage fill:#f0a341,stroke:#8a5a1a,color:#1a1200,font-weight:bold;
-    classDef fallback fill:#f0a341,stroke:#8a5a1a,color:#1a1200,font-weight:bold,stroke-dasharray: 5 5;
-    class A,B,C,D,E,F,G,I,J,K stage
-    class H fallback
-```
 
 This is the real job graph of `ci_dev_workflow.yml` — every node is an actual GitHub Actions job, every arrow an actual `needs:` dependency, including ones that look transitively redundant (e.g. the attack-test jobs each depend on both "Prepare, Validate, Convert" *and* "Deploy to Splunk" even though the latter already depends on the former) — that's how GitHub's own UI draws it, so this does too. "Persist Verification Results (fallback)" has a dashed border because it's conditional: it only does anything if verification ran but the dashboard update didn't succeed, so on a normal green run it executes zero steps. A push to the repo runs this whole graph without a human clicking through any of it.
 
