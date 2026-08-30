@@ -2567,3 +2567,21 @@ grep-elni.
   priorizál) + 4.4 (b) (Jamal, az egyetlen nem-docs). A következő nem-docs
   tétel változatlanul a 4.4 (b).** **Modell:** ez a könyvelési kör Sonnet 5-ön
   futott.
+
+- **2026-08-30 — 3.9 README-oldali echója eltávolítva felhasználói kérésre; a
+  tétel LEZÁRVA MARAD, nem újranyitás.** A 3.9 két részt szállított: (a) egy
+  „Last live verification: <dátum>, N/M szabály" sor a README STATS-blokkjában
+  a badge-ek mellett, és (b) a rule browser élő, betöltésenkénti újraszámítása
+  + a „újramérésre vár" szűrő/jelvény. A felhasználó a README-blokkból kivetette
+  a (a) sort — plusz a „N of M rules out of testing scope" magyarázó
+  blockquote-ot és a két GitHub Pages navigációs linket (🗺️/📋) —, mert a 4.4
+  2026-08-24-i szelete óta a pipeline ezt a blokkot már nem frissíti a `dev`-en
+  (befagyott pillanatkép, magától avul), és a testing-enabled értéket sem
+  tervezi mozgatni. Sienna (`generate_stats.py::render_readme_section()`, −52
+  sor) csak a README-emissziót vette ki; a `stats.json` kulcsok
+  (`verified_testing_disabled*`, `last_live_verification_*`), a
+  `_last_live_verification()` logika és a rule browser saját kijelzése — a 3.9
+  *valódi* lényege — érintetlen. Badge-sorok + „Generated at" marad. `pytest`
+  863 passed, `ruff` tiszta, `docs/index.html`/`stats.json` nincs a
+  changesetben (a blokkot közvetlen függvényhívással renderelte, nem a teljes
+  generátorral). **Modell:** Sonnet 5.

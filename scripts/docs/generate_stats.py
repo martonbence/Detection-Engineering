@@ -1462,7 +1462,6 @@ def generate_stats() -> dict:
 
 def render_readme_section(stats: dict, repo: str) -> str:
     lines: list[str] = []
-    gh_pages = f"https://{repo.split('/')[0]}.github.io/{repo.split('/')[1]}/"
 
     # --- Shields.io dynamic badges ---
     raw_base = (
@@ -1495,58 +1494,7 @@ def render_readme_section(stats: dict, repo: str) -> str:
         lines.append(row)
     lines.append("")
 
-    # Pass Rate is measured over the rules the pipeline actually tries to
-    # test, so when a slice of the library is deliberately out of scope the
-    # badge alone leaves a reader to work out why measured coverage is low --
-    # and the likeliest guess ("the pipeline is broken") is the wrong one.
-    # Written as a line rather than another badge: this needs a clause to be
-    # honest, and a badge has room for a word. (2026-08-25: this paragraph
-    # used to also name a "Verified Current" badge in row3 -- that badge was
-    # dropped; the rendered clause below no longer references it, this
-    # comment now shouldn't either.) Emitted only while such rules exist, so
-    # the row is silent in the normal case instead of carrying a permanent
-    # "0 rules" footnote.
-    scoped_out = stats.get("verified_testing_disabled", 0)
-    if scoped_out:
-        lines += [
-            f"> **{scoped_out} of {stats['total_rules']} rules are currently out of testing "
-            f"scope** — `custom.testing.enabled: false`, so the pipeline skips them rather "
-            f"than failing to measure them. They are excluded from Pass Rate (which would "
-            f"otherwise read them as failures), but still count against how much of the "
-            f"library has actually been measured — what they cost is coverage, not "
-            f"correctness.",
-            "",
-        ]
-
-    # Pairs with the blockquote above rather than standing alone: both answer
-    # "what do the badges above actually mean today". A pass rate or Verified
-    # Current that hasn't moved in a while is easy to misread as regression --
-    # this line is what lets a reader tell that apart from "the lab has been
-    # offline" or "most of the library is temporarily testing-disabled"
-    # without opening outputs/results themselves. See
-    # _last_live_verification()'s docstring in generate_stats.py for exactly
-    # what counts as a live measurement here. Emitted only once the pipeline
-    # has produced at least one real verdict -- silent before that, same as
-    # the scoped-out line above it.
-    last_live_at = stats.get("last_live_verification_at", "")
-    last_live_count = stats.get("last_live_verification_count", 0)
-    if last_live_count:
-        last_live_display = last_live_at[:19].replace("T", " ") + " UTC"
-        lines += [
-            f"> **Last live verification: {last_live_display}** — {last_live_count} of "
-            f"{stats['total_rules']} rules were actually measured in that run. `stats.json` "
-            f"and the badges above are a build-time snapshot; a verdict's standing can "
-            f"change simply because time passed, so the rule browser itself "
-            f"([GitHub Pages]({gh_pages})) recomputes Pass Rate and coverage against the "
-            f"current date on every load.",
-            "",
-        ]
-
     lines += [
-        f"🗺️ Interactive MITRE Navigator → [GitHub Pages]({gh_pages}#tab=navigator)",
-        "",
-        f"📋 Full rule index → [GitHub Pages]({gh_pages})",
-        "",
         f"*Generated at {stats['generated_at'][:19]} UTC*",
     ]
 

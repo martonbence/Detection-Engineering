@@ -83,3 +83,4 @@
 {"date": "2026-08-29", "name": "Kwame", "slug": "kwame-audit-compliance", "task": "Re-verify + flip 2.3/2.13/2.14 (46/52)", "tokens": 198623, "tool_uses": 8, "duration_ms": 84724, "model": "inherited (sonnet-5)"}
 {"ts":"2026-08-30","agent":"chloe-docs-maintainer","task":"audit 2.2/2.5/2.6 docs batch","model":"sonnet","subagent_tokens":112188,"tool_uses":39,"duration_ms":373506}
 {"ts":"2026-08-30","agent":"chloe-docs-maintainer","task":"audit 2.7 - retire Wiki refs (README + arch docs)","model":"sonnet","subagent_tokens":36978,"tool_uses":15,"duration_ms":53894}
+{"ts":"2026-08-30","agent":"sienna-frontend-engineer","task":"trim README STATS block (remove 2 blockquotes + 2 nav links from render_readme_section)","model":"sonnet","subagent_tokens":51967,"tool_uses":21,"duration_ms":131273}
