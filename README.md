@@ -19,15 +19,15 @@ Generated views of where the rule library actually stands right now — regenera
 <table>
 <tr>
 <td><img src="docs/pictures/branding/rule_browser.png" width="200" alt="Rule Browser icon"></td>
-<td><strong><a href="https://martonbence.github.io/Detection-Engineering/">Rule Browser</a></strong><br>Every rule in the repo, searchable and filterable, with its ATT&amp;CK mapping and its current pass/fail verdict.</td>
+<td><strong><a href="https://martonbence.github.io/Detection-Engineering/">Rule Browser</a></strong><br>Every rule in the repo — searchable, filterable, sortable, each carrying the verdict the pipeline last measured for it.</td>
 </tr>
 <tr>
 <td><img src="docs/pictures/branding/mitre_navigator.png" width="200" alt="MITRE Navigator icon"></td>
-<td><strong><a href="https://martonbence.github.io/Detection-Engineering/#tab=navigator">MITRE Navigator</a></strong><br>The same coverage plotted against the full ATT&amp;CK matrix, exportable as a Navigator layer for the official MITRE tool.</td>
+<td><strong><a href="https://martonbence.github.io/Detection-Engineering/#tab=navigator">MITRE Navigator</a></strong><br>The coverage and the gaps, laid over the full ATT&amp;CK matrix — and exportable straight into MITRE's own Navigator.</td>
 </tr>
 <tr>
 <td><img src="docs/pictures/branding/dashboards.png" width="200" alt="Dashboards icon"></td>
-<td><strong><a href="https://martonbence.github.io/Detection-Engineering/#tab=dashboards">Dashboards</a></strong><br>Rule-library breakdowns by type, severity, status and verification outcome, MITRE tactic spread, and coverage/rule-count trends over the repo's own history.</td>
+<td><strong><a href="https://martonbence.github.io/Detection-Engineering/#tab=dashboards">Dashboards</a></strong><br>The big-picture view of the detection program — what the library adds up to today, and how it got there.</td>
 </tr>
 </table>
 
@@ -37,8 +37,8 @@ When the live views prompt a "but how?", these go down to the mechanics — ever
 
 <table>
 <tr>
-<td><img src="docs/pictures/branding/architecture.png" width="130" alt="Architecture icon"></td>
-<td><strong><a href="docs/architecture/">Architecture</a></strong><br>Pipeline overview, data flow, threat model, a per-file scripts reference, and how the AI-agent team is coordinated — all with Mermaid diagrams.</td>
+<td><img src="docs/pictures/branding/architecture.png" width="250" alt="Architecture icon"></td>
+<td><strong><a href="docs/architecture/">Architecture</a></strong><br>How every moving part actually works, in prose and diagrams — from a Sigma file to a prod deploy.</td>
 </tr>
 </table>
 
@@ -48,8 +48,8 @@ This repo is maintained largely by a small team of scoped AI agents under a huma
 
 <table>
 <tr>
-<td><img src="docs/pictures/branding/team.png" width="200" alt="Team dashboard icon"></td>
-<td><strong><a href="https://martonbence.github.io/Detection-Engineering/team-ops.html">Team Dashboard</a></strong><br>The org chart, a per-agent dispatch activity feed, and token-usage / dispatch-count stats — published live on GitHub Pages, generated from the agent usage log and the repo's own git history.</td>
+<td><img src="docs/pictures/branding/team.png" width="310" alt="Team dashboard icon"></td>
+<td><strong><a href="https://martonbence.github.io/Detection-Engineering/team-ops.html">Team Dashboard</a></strong><br>Turns the "AI team" claim into something you can inspect: the team's make-up and what it's actually been doing.</td>
 </tr>
 </table>
 
