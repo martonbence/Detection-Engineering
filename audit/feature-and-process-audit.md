@@ -107,7 +107,7 @@ teljesíthető utasítással indul.
 - [x] **2.4** A `repo-terkep.hu.md` számai elavultak · `docs/architecture/repo-terkep.hu.md:80,97,111` · „`ci_dev_workflow.yml` — 1 695 sor, 8 job" (valójában **2 572 sor, 9 job**), „`ci_prod_workflow.yml` — 232 sor" (valójában **341**), „`ci_code_checks.yml` — 559 sor" (valójában **571**). A `:106` és `:130` sorok ráadásul a drift gate-et magyarázzák mint élő indoklást (lásd 1.1) → **Chloe**
 - [x] **2.5** 19 helyen kézzel bedrótozott „27 szabály" / „12 of 27" / „92%" · `README.md:48,50,52,56,57,59`, `docs/architecture/*.md` · A könyvtár ma **28** szabály, a mai adatokon 1 PASS / 27 NOT_VERIFIED / 4%. A próza számai a `<!-- STATS_START -->` blokkon *kívül* élnek, tehát a generátor sosem frissíti őket. Két megoldás közül kell választani: vagy a próza ne idézzen élő számot (csak fogalmat magyarázzon, példát „pl."-lel jelölve), vagy a generátor kapjon több behelyettesíthető markert. A jelenlegi állapot a rosszabbik: konkrét, hitelesnek *látszó* és hamis → **Chloe**, generált markerek esetén **Sienna** · **Javítva a próza-út mentén (nincs új generátor-marker), lásd Napló 2026-08-30**
 - [x] **2.6** Nincs „hogyan futtasd le helyben" dokumentum · sem `README.md`, sem `docs/architecture/` · Nincs leírva, mit kell telepíteni ahhoz, hogy a `pytest`, a `ruff`, a `validate_sigma.py` vagy a `generate_stats.py` helyben fusson; a `.github/requirements*.txt` fejléce kifejezetten azt mondja, hogy „nothing here is needed to work on the rules locally" — ami a tesztekre nem igaz. Lásd a 4.3-at: a suite ma bukik a fejlesztő saját gépén, és nincs hova utánanézni → **Chloe**, a tényleges függőséglista **Jamal** · **Javítva (`CONTRIBUTING.md` „Running the checks locally"), lásd Napló 2026-08-30. Maradék: a `.github/requirements*.txt` félrevezető fejléce Jamal felülete — külön, kicsi tétel, ld. Napló.**
-- [ ] **2.7** A Wiki továbbra sem létezik · `README.md:177,182`, `.claude/agents/Chloe - Technical Writer.md` · A README őszintén jelzi, hogy nincs — ez rendben van —, de a „planned newcomer-facing walkthrough" tartósan terv marad, miközben a `docs/architecture/` négy fájlja együtt 1 400+ sor mély referencia, kezdő belépési pont nélkül. Döntést igényel: vagy engedélyezés + első oldal (**Kai**, majd **Chloe**), vagy a Wiki-hivatkozások kivezetése a README-ből, hogy ne ígérjen nem létező felületet → **Gaz** dönt
+- [x] **2.7** A Wiki továbbra sem létezik · `README.md:177,182`, `.claude/agents/Chloe - Technical Writer.md` · A README őszintén jelzi, hogy nincs — ez rendben van —, de a „planned newcomer-facing walkthrough" tartósan terv marad, miközben a `docs/architecture/` négy fájlja együtt 1 400+ sor mély referencia, kezdő belépési pont nélkül. Döntést igényel: vagy engedélyezés + első oldal (**Kai**, majd **Chloe**), vagy a Wiki-hivatkozások kivezetése a README-ből, hogy ne ígérjen nem létező felületet → **Gaz** dönt · **Döntés: kivezetés. Lásd Napló 2026-08-30.**
 - [x] **2.8** `TEAM.md`: 11/11 „Avatar: pending", holott két avatár létezik · `TEAM.md:5,63,80,96,…` vs. `.claude/agents/avatars/Bjorn.jpg`, `Yuki.png` · Ráadásul a `team-avatars` skill (`.claude/skills/team-avatars/SKILL.md:84-89`) `<firstname-lowercase>.png` elnevezést és `![Bjorn](...)` bekötést ír elő — a két meglévő fájl nagy kezdőbetűs, az egyik `.jpg`, és egyik sincs bekötve. A `Yuki.png` 1,1 MB, a repo legnagyobb követett fájlja. **Kwame és Yara egymástól függetlenül ugyanezt találta meg** — a két átvizsgálás egyetlen teljes átfedése, ami önmagában is jelzés arról, mennyire látható ez a rés → **gazdátlan, lásd 5.1**
 - [ ] **2.9** Nincs per-szabály dokumentáció, és a hozzá tartozó hivatkozás holt · `README.md:175` (issue #20), `.claude/agents/Bjorn - Detection Quality Engineer.md` frontmatter (a `rule_documentations/` könyvtárra hivatkozik, ami már nincs a repóban — az ügynökfájl maga jelzi ezt, de a mondat így is félrevezető) · A README szerint a metaadat-forrás kérdése megoldódott (minden a `rules/sigma/*.yml`-ben van), tehát az automatizálásnak nincs technikai akadálya. Ma egyetlen szabályról sincs önálló, olvasható lap sem a repóban, sem a rule browserben → **Gaz** priorizál, **Sienna** (generátor) vagy **Jamal** (CI-lépés)
 - [x] **2.10** Feloldatlan register-hivatkozás a kódban: `[dashboard-decoupling]` · `.github/workflows/ci_dev_workflow.yml:1131,1601,2116,2295,2578` (öt komment, nem három — a szám a v1.0 kiadás óta nőtt) · A lezárt `audit/remediation-plan.md`-ben **nulla** előfordulása van; a repo minden más ilyen kommentje valódi számozott tételre mutat (38 azonosító). A mögöttes döntés (`cb99a97`) valós és jó volt, csak sosem lett regisztrálva. **Utólag felvéve és lezárva mint 4.8** (ld. ott a teljes tartalom) — ez a tétel saját maga kínálta (a) opció. A (b) opció (a kódkommentek szövege a placeholder helyett `4.8`-ra hivatkozzon) **nem történt meg**: a register-könyvelés kész, a kommentcsere Jamal külön hatásköre (`ci_dev_workflow.yml` tartalma), Kwame nem szerkesztheti → **Jamal** (5 komment `[dashboard-decoupling]` → `4.8`)
@@ -2527,3 +2527,39 @@ grep-elni.
   **Nyitott halmaz (3): 2.7, 2.9 (Chloe/docs, mindkettő Gaz-dönt komponenssel) +
   4.4 (b) (Jamal). A következő nem-docs, csapat-végrehajtható tétel változatlanul
   a 4.4 (b).** **Modell:** ez a könyvelési kör Sonnet 5-ön futott.
+
+- **2026-08-30 — 2.7 lezárva döntéssel: a Wiki kivezetve. Számláló 49/52 → 50/52.**
+  Gaz döntése a két javasolt irány közül (engedélyezés+első oldal vs. kivezetés):
+  **kivezetés.** Indok: a Wiki „planned, not initialized" állapota hónapok óta áll;
+  a kezdő-belépőpont szerepet, amiért terveztük, mára a `CONTRIBUTING.md` (2.14) +
+  `docs/architecture/agent_workflow.md` (2.13) betölti; a Pages rule browser a
+  publikus homlokzat; a docs deprioritált (`feedback_deprioritize_docs`), és egy
+  CI/PR-review nélküli, önálló doc-felület csak új drift-forrás. A Wiki egyetlen
+  valódi előnye a `docs/`-hoz képest (alacsonyabb szerkesztési súrlódás, kódtól
+  elválás) ebben a repóban — aminek a fegyelmezett mérnöki gyakorlat és a
+  drift-védelem a lényege — inkább hátrány. Amit érdemes leírni, az a repóba kerül.
+  **Végrehajtás:** Chloe passza (Sonnet 5, 37k token) a publikus felületeken —
+  `README.md` (Reference-docs tábla Wiki-sora törölve; „Building a new detection"
+  záró mondat Wiki-klóza törölve; „Run by GitHub's own tooling" bekezdés
+  újrafogalmazva Wiki nélkül → belépőpont = Rule Browser → CONTRIBUTING →
+  `docs/architecture/`; „Further reading" Wiki-bullet törölve),
+  `docs/architecture/agent_workflow.md` (2 hely), `docs/architecture/pipeline_
+  overview.md` (Chloe roster-sora). Gaz közvetlenül az operatív fájlokon
+  (CLAUDE.md 8. pont), `CLAUDE.md` roster + point 8, `TEAM.md` Chloe-blokk,
+  `.claude/agents/Chloe - Technical Writer.md` (3 doc-felület → 2, + explicit
+  „a Wiki nem használt felület, a `../../wiki` link drift" sor; a 4. arch-fájl
+  `agent_workflow.md` is felvéve a listába), `.claude/agents/Kai - Platform
+  Engineer.md` („Known outstanding item" Wiki-szakasz + `has_wiki=true` példa
+  törölve). Teljes repo-grep `.md`-kre: nincs több `wiki`/`../../wiki`
+  hivatkozás a Chloe-fájl szándékos „ez drift" mondatán és magán ezen a
+  register-tételen kívül. **Árva asszet:** `docs/pictures/branding/wiki.png`
+  (891 KB) — most semmi nem hivatkozik rá; törlése Bjorn/Gaz file-hygiene
+  döntése, nem e tétel része, külön jelölve. **Register-tétel-szöveg
+  megjegyzés:** a Chloe-ügynökfájl Component-inventory szakasza még mindig
+  „there is no `.mcp.json`" / „all three workflow files" / hiányos ügynök-lista
+  — nem Wiki-hez tartozó, régről meglévő agent-fájl-drift (5.5 terület),
+  ebben a körben szándékosan nem javítva.
+  **Nyitott halmaz (2): 2.9 (Chloe/Sienna/Jamal — per-szabály doc, Gaz
+  priorizál) + 4.4 (b) (Jamal, az egyetlen nem-docs). A következő nem-docs
+  tétel változatlanul a 4.4 (b).** **Modell:** ez a könyvelési kör Sonnet 5-ön
+  futott.

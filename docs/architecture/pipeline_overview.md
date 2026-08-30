@@ -483,7 +483,7 @@ Ten named specialists, plus a reference stub for the lead:
 - **Yuki** — `yuki-detection-engineer` — authors new Sigma rules end to end (`scripts/new_rule.py` scaffold → `detection:` logic or the `custom.splunk.raw_query` fallback → MITRE tags). Never self-approves.
 - **Bjorn** — `bjorn-detection-content-reviewer` — reviews rule *quality* (logic soundness, false-positive risk, ATT&CK tag accuracy, overlap, test coverage); also the review gate for Jamal/Sienna/Kai's functional/structural changes, and repo-wide file-hygiene audits. Reviews only, never authors.
 - **Jamal** — `jamal-devops-engineer` — the four GitHub Actions workflows and every pipeline script they call (validate / convert / deploy / verify / state-reconcile / docs-gen), the Splunk deploy step, the Atomic Red Team CI stage.
-- **Chloe** — `chloe-docs-maintainer` — this document, the rest of `docs/architecture/*.md`, `README.md` prose (outside the generated STATS block), and the GitHub Wiki.
+- **Chloe** — `chloe-docs-maintainer` — this document, the rest of `docs/architecture/*.md`, `README.md` prose (outside the generated STATS block).
 - **Sienna** — `sienna-frontend-engineer` — the rule browser (`docs/index.html`, `scripts/docs/generate_stats.py`, `scripts/docs/assets/`), the MITRE Navigator view, and the internal `.claude/team-ops.html` dashboard.
 - **Kai** — `kai-github-ops` — the GitHub platform itself: branches, PRs, merge conflicts, secrets, self-hosted runner registration, releases. Not workflow *content* (that's Jamal).
 - **Yara** — `yara-ideation` — whole-repo strategic ideation (pipeline, tooling, rule browser, detection coverage). Proposes only, never implements.

@@ -84,7 +84,7 @@ layout, behaviour, data plumbing, a script's actual output.
 
 It does **not** cover documentation or prose content, even when the edit lives in a
 `.py` file — e.g. Sienna rewording a generated blockquote in `generate_stats.py`
-does not need Bjorn's review. Chloe's README/architecture/Wiki prose was never in
+does not need Bjorn's review. Chloe's README/architecture prose was never in
 scope. Investigation-only dispatches and trivial cosmetic fixes are Gaz's judgment
 call the same way — the bar is "important," not "touched a file."
 
@@ -201,5 +201,5 @@ is an internal working identity, not rule metadata.
 `CLAUDE.md`, `TEAM.md`, `.claude/agents/*.md` and `.claude/skills/*` are the
 internal delegation contract, edited directly by Gaz as roster/process decisions
 happen in conversation. Chloe owns *public-facing* documentation of what the
-pipeline does — `README.md` prose, `docs/architecture/*.md` (including this file),
-the Wiki — for an external reader.
+pipeline does — `README.md` prose, `docs/architecture/*.md` (including this file) —
+for an external reader.

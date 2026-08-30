@@ -36,7 +36,6 @@
 | | |
 |---|---|
 | <img src="docs/pictures/branding/architecture.png" width="90" alt="Architecture icon"> | **[Architecture](docs/architecture/)**<br>Pipeline overview, data flow, threat model, a per-file scripts reference, and how the AI-agent team is coordinated — all with Mermaid diagrams. |
-| <img src="docs/pictures/branding/wiki.png" width="90" alt="Wiki icon"> | **[Wiki](../../wiki)**<br>Planned newcomer-facing walkthrough — not yet initialized. |
 
 ## The problem this repo solves
 
@@ -155,7 +154,7 @@ A checkmark in this repo is not a claim the rule's author made about their own w
 4. **Watch it show up** in the [rule browser](https://martonbence.github.io/Detection-Engineering/) with a real verdict and its place on the ATT&CK matrix.
 5. **Once proven**, the rule becomes eligible to be promoted from the proving-ground branch to production — via a pull request the pipeline opens for a human to review and merge, never automatically.
 
-The full step-by-step version of this — exact filenames, the scaffold command, which checks gate what — is in [`CONTRIBUTING.md`](CONTRIBUTING.md), with the deeper mechanics in [`docs/architecture/`](docs/architecture/) and (eventually) the [Wiki](../../wiki).
+The full step-by-step version of this — exact filenames, the scaffold command, which checks gate what — is in [`CONTRIBUTING.md`](CONTRIBUTING.md), with the deeper mechanics in [`docs/architecture/`](docs/architecture/).
 
 ## Built partly by an AI agent team
 
@@ -179,11 +178,10 @@ The team even tracks its own activity: an internal dashboard (`.claude/team-ops.
 
 ## Run by GitHub's own tooling, too
 
-Part of what this repo is meant to demonstrate is disciplined use of GitHub itself as the engineering platform, not just as a place to host YAML: planned work is tracked as Issues, sequenced on a GitHub Project board, and the pipeline's own promotion pull requests are wired into that same board automatically rather than living in a separate tracker. A GitHub Wiki is planned as the newcomer-facing companion to the technical docs in this repo; it hasn't been switched on for this project yet, which is exactly why the polished starting point right now is the [Rule Browser](https://martonbence.github.io/Detection-Engineering/) plus the docs linked below.
+Part of what this repo is meant to demonstrate is disciplined use of GitHub itself as the engineering platform, not just as a place to host YAML: planned work is tracked as Issues, sequenced on a GitHub Project board, and the pipeline's own promotion pull requests are wired into that same board automatically rather than living in a separate tracker. For a newcomer, the polished starting point is the [Rule Browser](https://martonbence.github.io/Detection-Engineering/), followed by [`CONTRIBUTING.md`](CONTRIBUTING.md) and the deeper references in [`docs/architecture/`](docs/architecture/).
 
 ## Further reading
 
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — the end-to-end flow for adding a new detection, plus [how to run the lint + test checks locally](CONTRIBUTING.md#running-the-checks-locally)
 - [`docs/architecture/`](docs/architecture/) — pipeline overview, data flow, threat model, a per-file scripts reference, and the agent-workflow guide, all with Mermaid diagrams
-- [GitHub Wiki](../../wiki) — planned newcomer-facing walkthrough (not yet initialized)
 - [`LICENSE`](LICENSE) — MIT

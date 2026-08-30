@@ -126,8 +126,8 @@ verify and audit their surface respectively.
 ### Chloe - Technical Writer
 <img src="docs/pictures/avatars/Chloe.png" width="64" alt="Chloe"> · **Area:** Operational · agent slug: `chloe-docs-maintainer`
 
-Keeps README.md, the four `docs/architecture/*.md` deep-reference pages, and
-the GitHub Wiki consistent with the actual state of the pipeline. Triggered
+Keeps README.md and the `docs/architecture/*.md` deep-reference pages
+consistent with the actual state of the pipeline. Triggered
 after any structural change to `scripts/`, `rules/`, the CI workflows, the
 MCP setup, or — like right now — the team roster itself.
 
