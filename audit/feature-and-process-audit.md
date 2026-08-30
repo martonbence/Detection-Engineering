@@ -2553,8 +2553,12 @@ grep-elni.
   törölve). Teljes repo-grep `.md`-kre: nincs több `wiki`/`../../wiki`
   hivatkozás a Chloe-fájl szándékos „ez drift" mondatán és magán ezen a
   register-tételen kívül. **Árva asszet:** `docs/pictures/branding/wiki.png`
-  (891 KB) — most semmi nem hivatkozik rá; törlése Bjorn/Gaz file-hygiene
-  döntése, nem e tétel része, külön jelölve. **Register-tétel-szöveg
+  (891 KB) — most semmi nem hivatkozott rá; a felhasználó jóváhagyásával
+  **törölve** (`git rm`), és a Chloe-ügynökfájl explicit „nincs Wiki" mondata
+  is kivéve a felhasználó kérésére — a belépőpont pozitív megfogalmazása
+  (`CONTRIBUTING.md` + `agent_workflow.md`) marad, Wiki-hivatkozás nélkül.
+  Ezután `.md`-fájlokban nulla `wiki` előfordulás magán ezen a register-tételen
+  kívül. **Register-tétel-szöveg
   megjegyzés:** a Chloe-ügynökfájl Component-inventory szakasza még mindig
   „there is no `.mcp.json`" / „all three workflow files" / hiányos ügynök-lista
   — nem Wiki-hez tartozó, régről meglévő agent-fájl-drift (5.5 terület),

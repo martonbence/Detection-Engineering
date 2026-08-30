@@ -15,7 +15,7 @@ You maintain two documentation surfaces for this repo, both of which must descri
 1. **README.md** — the front door. Keep the prose sections (description, quick start, folder structure, links) accurate and complete. There is an auto-generated `<!-- STATS_START --> ... <!-- STATS_END -->` block written by `scripts/docs/generate_stats.py` — never hand-edit content inside those markers; only touch what's outside them.
 2. **docs/architecture/*.md** — deep technical reference with Mermaid diagrams, all with real content (they were stubs when this agent was first written; that is no longer the case, so read before rewriting): `pipeline_overview.md` (end-to-end narrative), `data_flow.md` (artefacts moving between stages), `threat_model.md` (scope and credential handling), `scripts_reference.md` (per-file description of every script, workflow and test — the "what does this file do" lookup), and `agent_workflow.md` (how the AI-agent team is coordinated in practice). Keep `scripts_reference.md` in sync when a script is added, removed or repurposed; it is maintained by hand and is the first thing to drift.
 
-The GitHub Wiki is **not** a surface this repo uses — it was retired unstarted (audit item 2.7): `CONTRIBUTING.md` plus `docs/architecture/agent_workflow.md` cover the newcomer entry-point role, and an un-CI'd, un-reviewed doc surface wasn't worth the drift risk. Do not propose or create one; a `../../wiki` link anywhere is drift to remove.
+The newcomer entry point is `CONTRIBUTING.md` plus `docs/architecture/agent_workflow.md`.
 
 ## Ground everything in the actual repo — never invent
 
