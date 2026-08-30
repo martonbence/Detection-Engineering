@@ -25,7 +25,7 @@
 
 | | |
 |---|---|
-| <img src="docs/pictures/branding/architecture.png" width="120" alt="Architecture icon"> | **[Architecture](docs/architecture/)**<br>Pipeline overview, data flow, threat model, a per-file scripts reference, and how the AI-agent team is coordinated — all with Mermaid diagrams. |
+| <img src="docs/pictures/branding/architecture.png" width="130" alt="Architecture icon"> | **[Architecture](docs/architecture/)**<br>Pipeline overview, data flow, threat model, a per-file scripts reference, and how the AI-agent team is coordinated — all with Mermaid diagrams. |
 
 ## The problem this repo solves
 
