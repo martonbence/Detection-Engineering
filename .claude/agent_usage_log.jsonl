@@ -84,3 +84,4 @@
 {"date": "2026-08-30", "name": "Chloe", "slug": "chloe-docs-maintainer", "task": "Close audit 2.2/2.5/2.6 (LAB_ONLINE, stale numbers, local-checks doc)", "tokens": 112188, "tool_uses": 39, "duration_ms": 373506, "model": "inherited (sonnet-5)"}
 {"date": "2026-08-30", "name": "Chloe", "slug": "chloe-docs-maintainer", "task": "Close audit 2.7: retire Wiki refs from README + arch docs", "tokens": 36978, "tool_uses": 15, "duration_ms": 53894, "model": "inherited (sonnet-5)"}
 {"date": "2026-08-30", "name": "Sienna", "slug": "sienna-frontend-engineer", "task": "Trim README STATS block to badges + timestamp", "tokens": 51967, "tool_uses": 21, "duration_ms": 131273, "model": "inherited (sonnet-5)"}
+{"date": "2026-08-30", "name": "Jamal", "slug": "jamal-devops-engineer", "task": "Add .claude dashboard files to ci_code_checks paths filter", "tokens": 59906, "tool_uses": 16, "duration_ms": 155120, "model": "inherited (sonnet-5)"}

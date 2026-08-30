@@ -35,6 +35,18 @@ on:
       - ".github/workflows/**"
       - ".github/PSScriptAnalyzerSettings.psd1"
       - ".github/actionlint.yaml"
+      # These two feed the regenerate_console job's "Generate team-ops
+      # dashboard for Pages" step (python3 .claude/generate_dashboard.py).
+      # Neither was in this filter, so on 2026-08-30 three malformed
+      # agent_usage_log.jsonl lines (wrong key names -> load_usage() raises
+      # KeyError: 'name') sat latent across three commits (41c14a5, c3e0012,
+      # 181fd8d) and only failed regenerate_console once an unrelated
+      # scripts/docs/ edit finally triggered this workflow (run 33304029683).
+      # Watching them here fails CI on the commit that introduces a broken
+      # log line or a broken generator, not whenever something else happens
+      # to run next.
+      - ".claude/generate_dashboard.py"
+      - ".claude/agent_usage_log.jsonl"
   pull_request:
     paths:
       - "scripts/**"
@@ -52,6 +64,18 @@ on:
       - ".github/workflows/**"
       - ".github/PSScriptAnalyzerSettings.psd1"
       - ".github/actionlint.yaml"
+      # These two feed the regenerate_console job's "Generate team-ops
+      # dashboard for Pages" step (python3 .claude/generate_dashboard.py).
+      # Neither was in this filter, so on 2026-08-30 three malformed
+      # agent_usage_log.jsonl lines (wrong key names -> load_usage() raises
+      # KeyError: 'name') sat latent across three commits (41c14a5, c3e0012,
+      # 181fd8d) and only failed regenerate_console once an unrelated
+      # scripts/docs/ edit finally triggered this workflow (run 33304029683).
+      # Watching them here fails CI on the commit that introduces a broken
+      # log line or a broken generator, not whenever something else happens
+      # to run next.
+      - ".claude/generate_dashboard.py"
+      - ".claude/agent_usage_log.jsonl"
   # Lets Regenerate Console + Publish Console be forced from the Actions tab
   # without pulling in the full dev/Splunk/Atomic run that ci_dev_workflow.yml
   # would otherwise require to republish Pages -- this is the light path that
