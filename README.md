@@ -44,28 +44,28 @@ When the live views prompt a "but how?", these go down to the mechanics — ever
 
 ## The team behind it
 
-This repo is maintained largely by a small team of scoped AI agents under a human lead — each owning one surface. How the team is organised and how work moves between agents is documented in [`CLAUDE.md`](CLAUDE.md); per-agent bios live on the *Ügynökök* tab of the team-ops dashboard ([`docs/team-ops.html`](docs/team-ops.html)).
+This repo is maintained largely by a small team of scoped AI agents under a human lead — each owning one surface. The rules of engagement — every agent's scope, the review gates, and what stays the human's call — are in [`CLAUDE.md`](CLAUDE.md).
 
 <table>
 <tr>
 <td><img src="docs/pictures/branding/team.png" width="200" alt="Team dashboard icon"></td>
-<td><strong><a href="https://martonbence.github.io/Detection-Engineering/team-ops.html">Team Dashboard</a></strong><br>Turns the "AI team" claim into something you can inspect: the team's make-up and what it's actually been doing.</td>
+<td><strong><a href="https://martonbence.github.io/Detection-Engineering/team-ops.html">Team Dashboard</a></strong><br>Every agent, their scope, their place in the org chart, and what they've actually shipped.</td>
 </tr>
 </table>
 
 ## The problem this repo solves
 
-Most "detection as code" projects stop at linting YAML: a rule is considered finished the moment it parses. That answers almost nothing security teams actually care about — does the rule still exist in the SIEM, does it fire when the technique it claims to catch actually happens, and does anyone find out the moment that stops being true?
+Most "detection-as-code" projects stop at the linter: once a rule's YAML parses, it counts as finished. That leaves unanswered the questions that actually matter to a security team — is the rule still live in the SIEM, does it fire when the technique it targets is genuinely executed, and does anyone find out the moment that stops being true?
 
-This repo is an attempt at closing that loop end to end, automatically, on every change:
+This repository closes that loop end to end, automatically, on every change:
 
-- A detection is **written once**, in one format, with everything about it — logic, severity, MITRE ATT&CK mapping, test plan — in a single file.
-- It's **shipped for real**, deployed as a live saved search in an actual SIEM (Splunk), not just validated on paper.
-- It's **attacked on purpose**, using real adversary emulation (Atomic Red Team) against a real host, and then checked for whether the deployed rule actually caught it.
-- Only a rule that survives that whole loop is allowed to move from a proving-ground environment into the one that matters.
-- And because software rots, a "yes, this worked" verdict has a shelf life — it stops counting as evidence once the rule changes or enough time passes, rather than sitting there forever as a stale green checkmark.
+- **Authored once.** Each detection is a single file carrying its full definition: logic, severity, MITRE ATT&CK mapping, and test plan.
+- **Deployed for real.** The rule is installed as a live saved search in a running SIEM (Splunk), not merely validated on paper.
+- **Exercised by a real attack.** The technique the rule targets is executed against a live host — through Atomic Red Team, or a custom emulation script where the technique needs one — and the SIEM is then queried for the resulting detection.
+- **Promoted only on evidence.** A rule reaches the production environment only after clearing that entire loop in an isolated proving ground first.
+- **Revalidated over time.** A passing verdict has a shelf life: it is invalidated when the rule's logic changes, and it expires when too long passes without a re-test. A stale result does not count as proof.
 
-Nothing about "does this detection work" is self-reported here. It's a measurement the pipeline makes and can show its work for.
+Nothing here about whether a detection works is self-reported. Every verdict is a measurement the pipeline made — and it can show its work.
 
 ## How it fits together
 
