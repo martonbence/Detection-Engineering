@@ -11,14 +11,16 @@
 # same shape of problem as scripts/docs/generate_stats.py -- so the generator
 # code, HTML structure, CSS and layout are Sienna's (Frontend Engineer), not
 # Gaz's, per CLAUDE.md's roster table. The file's actual content/roster data
-# (WHO is on the team, the reporting tree, name/role text) stays Gaz's call
-# via CLAUDE.md/TEAM.md -- same split as the rule browser, where Sienna owns
-# the page and Kwame/Gaz own what rules exist.
+# (WHO is on the team, the reporting tree, the per-member bios) stays Gaz's
+# call -- CLAUDE.md is the machine contract, ROSTER/TREE/BIOS below are the
+# rendered data (bios moved here 2026-09-01 from the retired TEAM.md). Same
+# split as the rule browser, where Sienna owns the page and Kwame/Gaz own
+# what rules exist.
 #
-# "Attekintes" (Overview), "Aktivitas" (Activity) and "Token Monitor" have
-# real content; Agents, Group, Skills and MCP are still scaffolded nav
-# entries that render a plain "not built yet" placeholder until a real need
-# for that page shows up -- not a promise every one of them ships.
+# "Attekintes" (Overview), "Ugynokok" (Agents), "Aktivitas" (Activity)
+# and "Token Monitor" have real content; Group, Skills and MCP are still
+# scaffolded nav entries that render a plain "not built yet" placeholder
+# until a real need for that page shows up -- not a promise every one ships.
 #
 # 2026-08-25 redesign (user's explicit ask): the team chart moved from flat
 # per-area rows to an actual reporting tree (TREE below), colors now encode
@@ -108,7 +110,7 @@ AREA_COLORS = {
     "coordinator": {"fill": "#0d3b36", "stroke": "#2dd4bf", "text": "#d3fff5"},
 }
 
-# Kept in sync by hand with TEAM.md's table. name, role, chart-color group
+# Kept in sync by hand with CLAUDE.md's roster table. name, role, chart-color group
 # (see AREA_COLORS above), agent slug (None for Gaz -- reference file only,
 # never dispatched via the Agent tool).
 ROSTER = [
@@ -124,6 +126,79 @@ ROSTER = [
     ("Kai", "Platform Engineer", "engineering", "kai-github-ops"),
     ("Priya", "Application Security Engineer", "compliance", "priya-security-scanner"),
 ]
+
+# Per-member bios, moved here 2026-09-01 from the now-deleted TEAM.md (user's
+# explicit ask) -- they render on the "Ügynökök" tab. name -> (area,
+# description, works_with). `area` is CLAUDE.md's Strategic / Analytical /
+# Operational column (NOT the chart-colour group in ROSTER above). TEAM.md's
+# "## Collaboration map" mermaid diagram was intentionally NOT carried over.
+# CLAUDE.md stays the machine-readable delegation contract that every session
+# auto-loads; this is the human-readable roster that lived in TEAM.md.
+BIOS: dict[str, tuple[str, str, str]] = {
+    "Gaz": (
+        "Strategic",
+        "The one point of contact, and the top-level session itself — always already running. Turns a request into a task, splits it into subtasks along the scope boundaries, delegates each to the right specialist, stays in contact while they work, and reports back. Only does a specialist's job when no one below owns it yet. Has no dispatchable subagent — CLAUDE.md is the source of truth for what Gaz does.",
+        "Yara and Kwame on direction-setting (the strategic trio); routes work to and takes reports from all ten specialists.",
+    ),
+    "Bjorn": (
+        "Operational",
+        "Reviews rule quality, never authors: whether a Sigma rule's detection block implements what its title and description claim, whether the listed false positives are realistic, whether its MITRE ATT&CK tag genuinely matches the technique, and whether it overlaps unnoticed with another rule. Also heads the engineering group's quality gate — real functional/structural work from Yuki, Jamal, Sienna and Kai passes him before it counts as done — and owns repo-wide file-hygiene audits.",
+        "Yuki — the tightest single pair on the team, one author, one reviewer, every rule.",
+    ),
+    "Yuki": (
+        "Operational",
+        "Writes new detections. Starts every rule from scripts/new_rule.py's scaffold, fills in the real detection logic (or the custom.splunk.raw_query escape hatch for logic too complex for Sigma's block syntax), and tags it via the mitre-attack-mapping skill. Follows the sigma-rule-authoring skill for this repo's conventions — including the hard rule that a rule's author field records real accountability and is never a persona name. Hands every finished rule to Bjorn; never self-approves.",
+        "Bjorn on every rule; Masha and Yara as intake for what to build next; Chloe, who documents the results.",
+    ),
+    "Jamal": (
+        "Operational",
+        "Owns the CI/CD pipeline as code: the four GitHub Actions workflows and every script along the Sigma → validate → convert → deploy → Atomic Red Team → verify → reconcile → docs-generation chain, plus the pipeline's own test and lint gates. Not repo settings, secrets or runner registration — that is Kai.",
+        "Sienna, whose generated rule browser his CI publishes; Kai on the pipeline / platform boundary; Kwame and Priya, who verify and audit his surface.",
+    ),
+    "Chloe": (
+        "Operational",
+        "Keeps README.md and the docs/architecture/*.md deep-reference pages consistent with the actual state of the pipeline. Triggered after any structural change to scripts/, rules/, the CI workflows, the MCP setup, or the team roster itself. Does not touch the team's own operating files (CLAUDE.md, TEAM-content, agent and skill definitions) — those are Gaz's.",
+        "Jamal and Yuki, documenting what changes on their surfaces; Kai on PR mechanics for doc changes.",
+    ),
+    "Sienna": (
+        "Operational",
+        "Owns the rule browser: docs/index.html (generated, never hand-edited), scripts/docs/generate_stats.py and its assets (template, CSS, JS), plus the MITRE Navigator view. Also owns this dashboard — .claude/generate_dashboard.py and team-ops.html. Covers implementation and design decisions alike, since these are small generated static pages with no separate design handoff.",
+        "Jamal, whose CI publishes her output; Kai on PR / merge mechanics; Kwame, who verifies her register items for drift.",
+    ),
+    "Kai": (
+        "Operational",
+        "Handles the GitHub platform side — branches, PRs, merge conflicts (walked through with the user, never resolved unilaterally), releases and tags, repo settings, secrets, and self-hosted runner registration. Not the content that moves through those mechanisms — that belongs to whoever owns it.",
+        "Jamal, Sienna and Chloe on PR / merge mechanics for their content; Priya on secrets and repo-settings exposure findings.",
+    ),
+    "Yara": (
+        "Strategic",
+        "Not a detection-only role: strategic ideation across the whole repo — pipeline and tooling direction, rule-browser and dashboard features, process improvements, future standalone tools for the wider lifecycle, and detection-coverage gaps against the MITRE Navigator data, all as one portfolio. Operates at the same strategic level as Gaz and Kwame. Never writes production code; a greenlit idea is routed by Gaz to whoever owns that surface.",
+        "Gaz and Kwame (strategic peers, across every surface); Masha, cross-checking detection-coverage findings against external threat data.",
+    ),
+    "Masha": (
+        "Analytical",
+        "Looks outward instead of inward. Where Yara mines this repo's own coverage gaps, Masha researches what attackers are actually doing right now — CTI vendor reports, actively-exploited CVEs, MITRE ATT&CK group and software pages — and turns it into a prioritized, sourced brief on what is worth detecting next. Cross-checks every finding against what is already covered. Research and reporting only.",
+        "Yara, cross-checking gap analysis; Gaz, delivering prioritized briefs; Yuki, direct handoff when a finding is ready to build.",
+    ),
+    "Priya": (
+        "Operational",
+        "Audits the repo's own code and configuration — Python scripts, GitHub Actions workflows, config and schemas — for vulnerabilities, secrets and risky CI configuration, using semgrep plus supplementary open-source scanners. This is about securing the pipeline's engineering, not the detection rules' subject matter.",
+        "Jamal, flagging findings on pipeline code and CI config; Kai, on secrets and repo-settings exposure.",
+    ),
+    "Kwame": (
+        "Strategic",
+        "Keeps the pipeline remediation register honest. audit/remediation-plan.md is maintained by hand, so it drifts — an item can be marked done when the code has since moved on, and the rendered register.html can fall out of sync with the source markdown. Kwame verifies claims against the actual repo state, catches that drift, and reports accurate progress plus the real next item. Verifies and reports, never implements.",
+        "Gaz and Yara (strategic peers) on what the program should prioritize next; Jamal and Sienna, whose surfaces carry the most register items to verify.",
+    ),
+}
+
+# Area chip colours for the Ügynökök tab (CLAUDE.md Area column, not the
+# ROSTER chart-colour group). fill, stroke.
+AREA_CHIP = {
+    "Strategic": ("#2c1b4d", "#b388ff"),
+    "Analytical": ("#3d2c07", "#e0a94c"),
+    "Operational": ("#0d2440", "#58a6ff"),
+}
 
 # Direct-report tree (2026-08-25 redesign, user's explicit ask): parent ->
 # children. Bjorn sits under Yara as team coordinator/lead engineer for the
@@ -401,6 +476,52 @@ def build_org_chart_html(avatar_dir_rel: str) -> str:
     </div>"""
 
 
+# --- agents (Ügynökök) tab ---------------------------------------------------
+
+
+def build_agents_tab_html(avatar_dir_rel: str) -> str:
+    """The full per-member roster, moved here from TEAM.md. One card per
+    ROSTER member: avatar, name, role, CLAUDE.md Area chip, the bio
+    paragraph and the "works closely with" line from BIOS. TEAM.md's
+    collaboration-map diagram is deliberately not reproduced."""
+    cards = []
+    for name, role, _group, slug in ROSTER:
+        area, desc, works = BIOS[name]
+        fill, stroke = AREA_CHIP[area]
+        if slug:
+            slug_html = f'<code class="agent-slug">{slug}</code>'
+        else:
+            slug_html = '<span class="agent-slug agent-slug-none">nem dispatchelhető</span>'
+        avatar_file = f"{avatar_dir_rel}/{name}_transparent.png"
+        cards.append(
+            f"""      <article class="agent-card">
+        <div class="agent-card-head">
+          <div class="agent-avatar"><img src="{avatar_file}" alt="{name}" loading="lazy"></div>
+          <div class="agent-id">
+            <div class="agent-name">{name}</div>
+            <div class="agent-role">{role}</div>
+          </div>
+          <span class="agent-area" style="--chip-fill:{fill};--chip-stroke:{stroke}">{area}</span>
+        </div>
+        <p class="agent-desc">{desc}</p>
+        <div class="agent-foot">
+          <div class="agent-works"><span class="agent-works-label">Szorosan együttműködik:</span> {works}</div>
+          {slug_html}
+        </div>
+      </article>"""
+        )
+    cards_html = "\n".join(cards)
+    return f"""    <section class="tab-panel" id="tab-agents">
+      <div class="page-head">
+        <h1>Ügynökök</h1>
+        <p>A 11 tagú csapat — szerep, terület és felelősségi kör fejenként. A gépi delegálási szerződést (scope-határok, review-gate-ek) a repo gyökerében lévő <code>CLAUDE.md</code> tartja, amit minden munkamenet automatikusan betölt.</p>
+      </div>
+      <div class="agent-grid">
+{cards_html}
+      </div>
+    </section>"""
+
+
 # --- activity panel ------------------------------------------------------------
 
 
@@ -490,11 +611,14 @@ def build_tokens_tab_html(usage: dict[str, dict]) -> str:
 # --- nav / placeholders --------------------------------------------------------
 
 PLACEHOLDER_COPY = {
-    "agents": "Részletes ügynök-lista és állapotfigyelés -- ha lesz rá valós igény.",
-    "group": "Mélyebb csapat-nézet -- egyelőre az áttekintő oldal Csapat panelje adja ezt.",
+    "group": "Mélyebb csapat-nézet -- egyelőre az áttekintő oldal Csapat panelje és az Ügynökök fül adja ezt.",
     "skills": "A .claude/skills/ tartalmának áttekintése.",
     "mcp": "A konfigurált MCP szerverek állapota.",
 }
+
+# Tabs with a real builder of their own -- never rendered as a "nincs
+# megvalósítva" placeholder.
+BUILT_TABS = ("overview", "agents", "activity", "tokens")
 
 
 def build_nav_html() -> str:
@@ -508,7 +632,7 @@ def build_nav_html() -> str:
 def build_placeholder_tabs() -> str:
     panels = []
     for key, label, _icon, active in NAV_ITEMS:
-        if active or key in ("activity", "tokens"):
+        if active or key in BUILT_TABS:
             continue
         copy = PLACEHOLDER_COPY.get(key, "Hamarosan.")
         panels.append(f"""    <section class="tab-panel" id="tab-{key}">
@@ -602,6 +726,23 @@ TEMPLATE = """<!doctype html>
 
   .tab-panel {{ display: none; }}
   .tab-panel.active {{ display: block; }}
+
+  /* --- agents (Ügynökök) tab --- */
+  .agent-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1rem; align-items: start; }}
+  .agent-card {{ background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.1rem 1.15rem; display: flex; flex-direction: column; gap: .8rem; height: 100%; }}
+  .agent-card-head {{ display: flex; align-items: center; gap: .7rem; }}
+  .agent-avatar {{ width: 44px; height: 44px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: var(--hover-bg); border: 1px solid var(--border); }}
+  .agent-avatar img {{ width: 100%; height: 100%; object-fit: cover; display: block; }}
+  .agent-id {{ min-width: 0; flex: 1; }}
+  .agent-name {{ font-weight: 600; font-size: .92rem; }}
+  .agent-role {{ font-size: .74rem; color: var(--text-dim); }}
+  .agent-area {{ font-size: .6rem; text-transform: uppercase; letter-spacing: .05em; padding: .2rem .5rem; border-radius: 999px; background: var(--chip-fill); border: 1px solid var(--chip-stroke); color: #fff; white-space: nowrap; flex-shrink: 0; }}
+  .agent-desc {{ margin: 0; font-size: .8rem; line-height: 1.55; color: var(--text); }}
+  .agent-foot {{ display: flex; flex-direction: column; gap: .55rem; margin-top: auto; padding-top: .7rem; border-top: 1px solid var(--border); }}
+  .agent-works {{ font-size: .72rem; line-height: 1.5; color: var(--text-dim); }}
+  .agent-works-label {{ color: var(--text); font-weight: 500; }}
+  .agent-slug {{ font-size: .68rem; color: var(--accent); background: var(--accent-soft); padding: .14rem .45rem; border-radius: 5px; align-self: flex-start; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }}
+  .agent-slug-none {{ color: var(--text-dim); background: var(--hover-bg); font-style: italic; }}
 
   /* --- stat cards --- */
   .stat-cards {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.75rem; }}
@@ -818,6 +959,8 @@ TEMPLATE = """<!doctype html>
     </div>
   </section>
 
+{agents_tab}
+
 {activity_tab}
 
 {tokens_tab}
@@ -968,6 +1111,7 @@ def build_html(avatar_dir_rel: str, logo_rel: str) -> str:
         logo_rel=logo_rel,
         nav_html=build_nav_html(),
         org_chart=build_org_chart_html(avatar_dir_rel),
+        agents_tab=build_agents_tab_html(avatar_dir_rel),
         edges_json=json.dumps(RELATIONSHIPS),
         root_json=json.dumps(ROOT),
         activity_tab=build_activity_tab_html(activity),

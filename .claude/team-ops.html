@@ -79,6 +79,23 @@
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
 
+  /* --- agents (Ügynökök) tab --- */
+  .agent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1rem; align-items: start; }
+  .agent-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.1rem 1.15rem; display: flex; flex-direction: column; gap: .8rem; height: 100%; }
+  .agent-card-head { display: flex; align-items: center; gap: .7rem; }
+  .agent-avatar { width: 44px; height: 44px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: var(--hover-bg); border: 1px solid var(--border); }
+  .agent-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .agent-id { min-width: 0; flex: 1; }
+  .agent-name { font-weight: 600; font-size: .92rem; }
+  .agent-role { font-size: .74rem; color: var(--text-dim); }
+  .agent-area { font-size: .6rem; text-transform: uppercase; letter-spacing: .05em; padding: .2rem .5rem; border-radius: 999px; background: var(--chip-fill); border: 1px solid var(--chip-stroke); color: #fff; white-space: nowrap; flex-shrink: 0; }
+  .agent-desc { margin: 0; font-size: .8rem; line-height: 1.55; color: var(--text); }
+  .agent-foot { display: flex; flex-direction: column; gap: .55rem; margin-top: auto; padding-top: .7rem; border-top: 1px solid var(--border); }
+  .agent-works { font-size: .72rem; line-height: 1.5; color: var(--text-dim); }
+  .agent-works-label { color: var(--text); font-weight: 500; }
+  .agent-slug { font-size: .68rem; color: var(--accent); background: var(--accent-soft); padding: .14rem .45rem; border-radius: 5px; align-self: flex-start; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .agent-slug-none { color: var(--text-dim); background: var(--hover-bg); font-style: italic; }
+
   /* --- stat cards --- */
   .stat-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.75rem; }
   .stat-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.05rem 1.25rem; }
@@ -261,12 +278,12 @@
     <div class="stat-cards">
       <div class="stat-card">
         <div class="label">Aktív ügynökök ma</div>
-        <div class="value">3</div>
+        <div class="value">0</div>
         <div class="context">10 specialista összesen</div>
       </div>
       <div class="stat-card">
         <div class="label">Ma futott dispatch</div>
-        <div class="value">4</div>
+        <div class="value">0</div>
         <div class="context">87 naplózott dispatch összesen</div>
       </div>
       <div class="stat-card">
@@ -321,6 +338,180 @@
     </div>
   </section>
 
+    <section class="tab-panel" id="tab-agents">
+      <div class="page-head">
+        <h1>Ügynökök</h1>
+        <p>A 11 tagú csapat — szerep, terület és felelősségi kör fejenként. A gépi delegálási szerződést (scope-határok, review-gate-ek) a repo gyökerében lévő <code>CLAUDE.md</code> tartja, amit minden munkamenet automatikusan betölt.</p>
+      </div>
+      <div class="agent-grid">
+      <article class="agent-card">
+        <div class="agent-card-head">
+          <div class="agent-avatar"><img src="../docs/pictures/avatars/Gaz_transparent.png" alt="Gaz" loading="lazy"></div>
+          <div class="agent-id">
+            <div class="agent-name">Gaz</div>
+            <div class="agent-role">Engineering Lead</div>
+          </div>
+          <span class="agent-area" style="--chip-fill:#2c1b4d;--chip-stroke:#b388ff">Strategic</span>
+        </div>
+        <p class="agent-desc">The one point of contact, and the top-level session itself — always already running. Turns a request into a task, splits it into subtasks along the scope boundaries, delegates each to the right specialist, stays in contact while they work, and reports back. Only does a specialist's job when no one below owns it yet. Has no dispatchable subagent — CLAUDE.md is the source of truth for what Gaz does.</p>
+        <div class="agent-foot">
+          <div class="agent-works"><span class="agent-works-label">Szorosan együttműködik:</span> Yara and Kwame on direction-setting (the strategic trio); routes work to and takes reports from all ten specialists.</div>
+          <span class="agent-slug agent-slug-none">nem dispatchelhető</span>
+        </div>
+      </article>
+      <article class="agent-card">
+        <div class="agent-card-head">
+          <div class="agent-avatar"><img src="../docs/pictures/avatars/Yara_transparent.png" alt="Yara" loading="lazy"></div>
+          <div class="agent-id">
+            <div class="agent-name">Yara</div>
+            <div class="agent-role">Technology Strategist</div>
+          </div>
+          <span class="agent-area" style="--chip-fill:#2c1b4d;--chip-stroke:#b388ff">Strategic</span>
+        </div>
+        <p class="agent-desc">Not a detection-only role: strategic ideation across the whole repo — pipeline and tooling direction, rule-browser and dashboard features, process improvements, future standalone tools for the wider lifecycle, and detection-coverage gaps against the MITRE Navigator data, all as one portfolio. Operates at the same strategic level as Gaz and Kwame. Never writes production code; a greenlit idea is routed by Gaz to whoever owns that surface.</p>
+        <div class="agent-foot">
+          <div class="agent-works"><span class="agent-works-label">Szorosan együttműködik:</span> Gaz and Kwame (strategic peers, across every surface); Masha, cross-checking detection-coverage findings against external threat data.</div>
+          <code class="agent-slug">yara-ideation</code>
+        </div>
+      </article>
+      <article class="agent-card">
+        <div class="agent-card-head">
+          <div class="agent-avatar"><img src="../docs/pictures/avatars/Kwame_transparent.png" alt="Kwame" loading="lazy"></div>
+          <div class="agent-id">
+            <div class="agent-name">Kwame</div>
+            <div class="agent-role">Compliance Analyst</div>
+          </div>
+          <span class="agent-area" style="--chip-fill:#2c1b4d;--chip-stroke:#b388ff">Strategic</span>
+        </div>
+        <p class="agent-desc">Keeps the pipeline remediation register honest. audit/remediation-plan.md is maintained by hand, so it drifts — an item can be marked done when the code has since moved on, and the rendered register.html can fall out of sync with the source markdown. Kwame verifies claims against the actual repo state, catches that drift, and reports accurate progress plus the real next item. Verifies and reports, never implements.</p>
+        <div class="agent-foot">
+          <div class="agent-works"><span class="agent-works-label">Szorosan együttműködik:</span> Gaz and Yara (strategic peers) on what the program should prioritize next; Jamal and Sienna, whose surfaces carry the most register items to verify.</div>
+          <code class="agent-slug">kwame-audit-compliance</code>
+        </div>
+      </article>
+      <article class="agent-card">
+        <div class="agent-card-head">
+          <div class="agent-avatar"><img src="../docs/pictures/avatars/Masha_transparent.png" alt="Masha" loading="lazy"></div>
+          <div class="agent-id">
+            <div class="agent-name">Masha</div>
+            <div class="agent-role">Threat Intelligence Analyst</div>
+          </div>
+          <span class="agent-area" style="--chip-fill:#3d2c07;--chip-stroke:#e0a94c">Analytical</span>
+        </div>
+        <p class="agent-desc">Looks outward instead of inward. Where Yara mines this repo's own coverage gaps, Masha researches what attackers are actually doing right now — CTI vendor reports, actively-exploited CVEs, MITRE ATT&CK group and software pages — and turns it into a prioritized, sourced brief on what is worth detecting next. Cross-checks every finding against what is already covered. Research and reporting only.</p>
+        <div class="agent-foot">
+          <div class="agent-works"><span class="agent-works-label">Szorosan együttműködik:</span> Yara, cross-checking gap analysis; Gaz, delivering prioritized briefs; Yuki, direct handoff when a finding is ready to build.</div>
+          <code class="agent-slug">masha-threat-intel</code>
+        </div>
+      </article>
+      <article class="agent-card">
+        <div class="agent-card-head">
+          <div class="agent-avatar"><img src="../docs/pictures/avatars/Yuki_transparent.png" alt="Yuki" loading="lazy"></div>
+          <div class="agent-id">
+            <div class="agent-name">Yuki</div>
+            <div class="agent-role">Detection Engineer</div>
+          </div>
+          <span class="agent-area" style="--chip-fill:#0d2440;--chip-stroke:#58a6ff">Operational</span>
+        </div>
+        <p class="agent-desc">Writes new detections. Starts every rule from scripts/new_rule.py's scaffold, fills in the real detection logic (or the custom.splunk.raw_query escape hatch for logic too complex for Sigma's block syntax), and tags it via the mitre-attack-mapping skill. Follows the sigma-rule-authoring skill for this repo's conventions — including the hard rule that a rule's author field records real accountability and is never a persona name. Hands every finished rule to Bjorn; never self-approves.</p>
+        <div class="agent-foot">
+          <div class="agent-works"><span class="agent-works-label">Szorosan együttműködik:</span> Bjorn on every rule; Masha and Yara as intake for what to build next; Chloe, who documents the results.</div>
+          <code class="agent-slug">yuki-detection-engineer</code>
+        </div>
+      </article>
+      <article class="agent-card">
+        <div class="agent-card-head">
+          <div class="agent-avatar"><img src="../docs/pictures/avatars/Bjorn_transparent.png" alt="Bjorn" loading="lazy"></div>
+          <div class="agent-id">
+            <div class="agent-name">Bjorn</div>
+            <div class="agent-role">Detection Quality Engineer</div>
+          </div>
+          <span class="agent-area" style="--chip-fill:#0d2440;--chip-stroke:#58a6ff">Operational</span>
+        </div>
+        <p class="agent-desc">Reviews rule quality, never authors: whether a Sigma rule's detection block implements what its title and description claim, whether the listed false positives are realistic, whether its MITRE ATT&CK tag genuinely matches the technique, and whether it overlaps unnoticed with another rule. Also heads the engineering group's quality gate — real functional/structural work from Yuki, Jamal, Sienna and Kai passes him before it counts as done — and owns repo-wide file-hygiene audits.</p>
+        <div class="agent-foot">
+          <div class="agent-works"><span class="agent-works-label">Szorosan együttműködik:</span> Yuki — the tightest single pair on the team, one author, one reviewer, every rule.</div>
+          <code class="agent-slug">bjorn-detection-content-reviewer</code>
+        </div>
+      </article>
+      <article class="agent-card">
+        <div class="agent-card-head">
+          <div class="agent-avatar"><img src="../docs/pictures/avatars/Chloe_transparent.png" alt="Chloe" loading="lazy"></div>
+          <div class="agent-id">
+            <div class="agent-name">Chloe</div>
+            <div class="agent-role">Technical Writer</div>
+          </div>
+          <span class="agent-area" style="--chip-fill:#0d2440;--chip-stroke:#58a6ff">Operational</span>
+        </div>
+        <p class="agent-desc">Keeps README.md and the docs/architecture/*.md deep-reference pages consistent with the actual state of the pipeline. Triggered after any structural change to scripts/, rules/, the CI workflows, the MCP setup, or the team roster itself. Does not touch the team's own operating files (CLAUDE.md, TEAM-content, agent and skill definitions) — those are Gaz's.</p>
+        <div class="agent-foot">
+          <div class="agent-works"><span class="agent-works-label">Szorosan együttműködik:</span> Jamal and Yuki, documenting what changes on their surfaces; Kai on PR mechanics for doc changes.</div>
+          <code class="agent-slug">chloe-docs-maintainer</code>
+        </div>
+      </article>
+      <article class="agent-card">
+        <div class="agent-card-head">
+          <div class="agent-avatar"><img src="../docs/pictures/avatars/Jamal_transparent.png" alt="Jamal" loading="lazy"></div>
+          <div class="agent-id">
+            <div class="agent-name">Jamal</div>
+            <div class="agent-role">DevOps Engineer</div>
+          </div>
+          <span class="agent-area" style="--chip-fill:#0d2440;--chip-stroke:#58a6ff">Operational</span>
+        </div>
+        <p class="agent-desc">Owns the CI/CD pipeline as code: the four GitHub Actions workflows and every script along the Sigma → validate → convert → deploy → Atomic Red Team → verify → reconcile → docs-generation chain, plus the pipeline's own test and lint gates. Not repo settings, secrets or runner registration — that is Kai.</p>
+        <div class="agent-foot">
+          <div class="agent-works"><span class="agent-works-label">Szorosan együttműködik:</span> Sienna, whose generated rule browser his CI publishes; Kai on the pipeline / platform boundary; Kwame and Priya, who verify and audit his surface.</div>
+          <code class="agent-slug">jamal-devops-engineer</code>
+        </div>
+      </article>
+      <article class="agent-card">
+        <div class="agent-card-head">
+          <div class="agent-avatar"><img src="../docs/pictures/avatars/Sienna_transparent.png" alt="Sienna" loading="lazy"></div>
+          <div class="agent-id">
+            <div class="agent-name">Sienna</div>
+            <div class="agent-role">Frontend Engineer</div>
+          </div>
+          <span class="agent-area" style="--chip-fill:#0d2440;--chip-stroke:#58a6ff">Operational</span>
+        </div>
+        <p class="agent-desc">Owns the rule browser: docs/index.html (generated, never hand-edited), scripts/docs/generate_stats.py and its assets (template, CSS, JS), plus the MITRE Navigator view. Also owns this dashboard — .claude/generate_dashboard.py and team-ops.html. Covers implementation and design decisions alike, since these are small generated static pages with no separate design handoff.</p>
+        <div class="agent-foot">
+          <div class="agent-works"><span class="agent-works-label">Szorosan együttműködik:</span> Jamal, whose CI publishes her output; Kai on PR / merge mechanics; Kwame, who verifies her register items for drift.</div>
+          <code class="agent-slug">sienna-frontend-engineer</code>
+        </div>
+      </article>
+      <article class="agent-card">
+        <div class="agent-card-head">
+          <div class="agent-avatar"><img src="../docs/pictures/avatars/Kai_transparent.png" alt="Kai" loading="lazy"></div>
+          <div class="agent-id">
+            <div class="agent-name">Kai</div>
+            <div class="agent-role">Platform Engineer</div>
+          </div>
+          <span class="agent-area" style="--chip-fill:#0d2440;--chip-stroke:#58a6ff">Operational</span>
+        </div>
+        <p class="agent-desc">Handles the GitHub platform side — branches, PRs, merge conflicts (walked through with the user, never resolved unilaterally), releases and tags, repo settings, secrets, and self-hosted runner registration. Not the content that moves through those mechanisms — that belongs to whoever owns it.</p>
+        <div class="agent-foot">
+          <div class="agent-works"><span class="agent-works-label">Szorosan együttműködik:</span> Jamal, Sienna and Chloe on PR / merge mechanics for their content; Priya on secrets and repo-settings exposure findings.</div>
+          <code class="agent-slug">kai-github-ops</code>
+        </div>
+      </article>
+      <article class="agent-card">
+        <div class="agent-card-head">
+          <div class="agent-avatar"><img src="../docs/pictures/avatars/Priya_transparent.png" alt="Priya" loading="lazy"></div>
+          <div class="agent-id">
+            <div class="agent-name">Priya</div>
+            <div class="agent-role">Application Security Engineer</div>
+          </div>
+          <span class="agent-area" style="--chip-fill:#0d2440;--chip-stroke:#58a6ff">Operational</span>
+        </div>
+        <p class="agent-desc">Audits the repo's own code and configuration — Python scripts, GitHub Actions workflows, config and schemas — for vulnerabilities, secrets and risky CI configuration, using semgrep plus supplementary open-source scanners. This is about securing the pipeline's engineering, not the detection rules' subject matter.</p>
+        <div class="agent-foot">
+          <div class="agent-works"><span class="agent-works-label">Szorosan együttműködik:</span> Jamal, flagging findings on pipeline code and CI config; Kai, on secrets and repo-settings exposure.</div>
+          <code class="agent-slug">priya-security-scanner</code>
+        </div>
+      </article>
+      </div>
+    </section>
+
     <section class="tab-panel" id="tab-activity">
       <div class="page-head">
         <h1>Aktivitás</h1>
@@ -332,6 +523,18 @@
           <span class="hint">git log, friss</span>
         </div>
         <div class="activity-list">
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(readme): adjust image widths for architecture and team dashboard sections</span><span class="activity-meta"><span class="activity-hash">c962850</span> · 2026-08-30 14:46</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(readme): punchier one-line descriptions for the four view cards</span><span class="activity-meta"><span class="activity-hash">37366bd</span> · 2026-08-30 14:44</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">Revise README.md to enhance live views section and improve team documentation</span><span class="activity-meta"><span class="activity-hash">0eb5956</span> · 2026-08-30 14:13</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">Update Workflow.drawio.svg</span><span class="activity-meta"><span class="activity-hash">23e255d</span> · 2026-08-30 12:47</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">Update Workflow.drawio.svg</span><span class="activity-meta"><span class="activity-hash">47f7f8d</span> · 2026-08-30 12:46</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">Update Workflow.drawio.svg</span><span class="activity-meta"><span class="activity-hash">f8e283c</span> · 2026-08-30 12:44</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">Update Workflow.drawio.svg</span><span class="activity-meta"><span class="activity-hash">1b810ff</span> · 2026-08-30 12:44</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">Update Workflow.drawio.svg</span><span class="activity-meta"><span class="activity-hash">6081f13</span> · 2026-08-30 12:43</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(readme): note the diagram covers both CI workflows; drop the dev job-graph mermaid</span><span class="activity-meta"><span class="activity-hash">3eab091</span> · 2026-08-30 12:07</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">increase size from 120 to 130</span><span class="activity-meta"><span class="activity-hash">3fd742c</span> · 2026-08-30 11:53</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs: sync ci_code_checks paths list in scripts_reference</span><span class="activity-meta"><span class="activity-hash">1a872bf</span> · 2026-08-30 11:52</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">ci: watch .claude dashboard files in ci_code_checks paths filter</span><span class="activity-meta"><span class="activity-hash">2b66ec7</span> · 2026-08-30 11:51</span></div></div>
       <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">increase architecture icon size to 120</span><span class="activity-meta"><span class="activity-hash">4cffffa</span> · 2026-08-30 11:43</span></div></div>
       <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs: drop 'Generated at' stamp from README STATS block</span><span class="activity-meta"><span class="activity-hash">a5efa02</span> · 2026-08-30 11:40</span></div></div>
       <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(dashboard): correct malformed agent_usage_log entries, regenerate team-ops</span><span class="activity-meta"><span class="activity-hash">0a2258a</span> · 2026-08-30 11:30</span></div></div>
@@ -360,18 +563,6 @@
       <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(pipeline): verification results and dashboard [skip ci]</span><span class="activity-meta"><span class="activity-hash">56edab9</span> · 2026-08-29 12:32</span></div></div>
       <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(convert): update SPL outputs and prune deleted-rule artefacts [skip ci]</span><span class="activity-meta"><span class="activity-hash">896d923</span> · 2026-08-29 12:30</span></div></div>
       <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(tests): enable testing for PowerShell Download Cradle Execution rule</span><span class="activity-meta"><span class="activity-hash">360369a</span> · 2026-08-29 14:29</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(pipeline): verification results and dashboard [skip ci]</span><span class="activity-meta"><span class="activity-hash">0ea5947</span> · 2026-08-29 12:28</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(convert): update SPL outputs and prune deleted-rule artefacts [skip ci]</span><span class="activity-meta"><span class="activity-hash">1fca672</span> · 2026-08-29 12:27</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(pipeline): verification results and dashboard [skip ci]</span><span class="activity-meta"><span class="activity-hash">817863d</span> · 2026-08-29 12:25</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(convert): update SPL outputs and prune deleted-rule artefacts [skip ci]</span><span class="activity-meta"><span class="activity-hash">b107e74</span> · 2026-08-29 12:24</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">Merge branch 'dev' of https://github.com/martonbence/Detection-Engineering into dev</span><span class="activity-meta"><span class="activity-hash">fe32d6c</span> · 2026-08-29 14:22</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(state): select_unverified.py reads version: field, not commit count</span><span class="activity-meta"><span class="activity-hash">4bc4ea5</span> · 2026-08-29 14:20</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(architecture): sync to unified rule-version scheme (register 3.5)</span><span class="activity-meta"><span class="activity-hash">44dd060</span> · 2026-08-29 14:11</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(ci): fix stale rule-version comment in dev workflow dispatch</span><span class="activity-meta"><span class="activity-hash">5773a4d</span> · 2026-08-29 14:05</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(inventory): prod state as deployed [skip ci]</span><span class="activity-meta"><span class="activity-hash">8dc5ad0</span> · 2026-08-29 11:57</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(pipeline): verification results and dashboard [skip ci]</span><span class="activity-meta"><span class="activity-hash">2b2d473</span> · 2026-08-29 11:54</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(convert): update SPL outputs and prune deleted-rule artefacts [skip ci]</span><span class="activity-meta"><span class="activity-hash">3962f24</span> · 2026-08-29 11:52</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">Merge branch 'dev' of https://github.com/martonbence/Detection-Engineering into dev</span><span class="activity-meta"><span class="activity-hash">7753226</span> · 2026-08-29 13:50</span></div></div>
         </div>
       </div>
     </section>
@@ -402,19 +593,11 @@
       </div>
     </section>
 
-    <section class="tab-panel" id="tab-agents">
-      <div class="placeholder">
-        <svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
-        <h2>Ügynökök</h2>
-        <p>Részletes ügynök-lista és állapotfigyelés -- ha lesz rá valós igény.</p>
-        <p class="placeholder-note">Még nincs megvalósítva.</p>
-      </div>
-    </section>
     <section class="tab-panel" id="tab-group">
       <div class="placeholder">
         <svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
         <h2>Csapat</h2>
-        <p>Mélyebb csapat-nézet -- egyelőre az áttekintő oldal Csapat panelje adja ezt.</p>
+        <p>Mélyebb csapat-nézet -- egyelőre az áttekintő oldal Csapat panelje és az Ügynökök fül adja ezt.</p>
         <p class="placeholder-note">Még nincs megvalósítva.</p>
       </div>
     </section>
@@ -436,7 +619,7 @@
     </section>
 
   <footer>
-    Generálva 2026-08-30 09:51 UTC &middot; <code>.claude/generate_dashboard.py</code>-vel,
+    Generálva 2026-09-01 17:28 UTC &middot; <code>.claude/generate_dashboard.py</code>-vel,
     a <code>.claude/agent_usage_log.jsonl</code> naplóból és a repo <code>git log</code>-jából.
     A napló frissítése után futtasd újra a scriptet.
   </footer>
