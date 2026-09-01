@@ -26,7 +26,7 @@ Generated views of where the rule library actually stands right now — regenera
 <td><strong><a href="https://martonbence.github.io/Detection-Engineering/#tab=navigator">MITRE Navigator</a></strong><br>The coverage and the gaps, laid over the full ATT&amp;CK matrix — and exportable straight into MITRE's own Navigator.</td>
 </tr>
 <tr>
-<td><img src="docs/pictures/branding/dashboards.png" width="180" alt="Dashboards icon"></td>
+<td><img src="docs/pictures/branding/dashboards.png" width="175" alt="Dashboards icon"></td>
 <td><strong><a href="https://martonbence.github.io/Detection-Engineering/#tab=dashboards">Dashboards</a></strong><br>The big-picture view of the detection program — what the library adds up to today, and how it got there.</td>
 </tr>
 </table>
@@ -37,7 +37,7 @@ When the live views prompt a "but how?", these go down to the mechanics — ever
 
 <table>
 <tr>
-<td><img src="docs/pictures/branding/architecture.png" width="180" alt="Architecture icon"></td>
+<td><img src="docs/pictures/branding/architecture.png" width="175" alt="Architecture icon"></td>
 <td><strong><a href="docs/architecture/">Architecture</a></strong><br>How every moving part actually works, in prose and diagrams — from a Sigma file to a prod deploy.</td>
 </tr>
 </table>
