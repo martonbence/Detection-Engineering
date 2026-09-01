@@ -476,7 +476,7 @@ Two things to know about the switch:
 
 ## Custom Claude Code subagents involved in building/maintaining this pipeline
 
-Not part of the runtime CI pipeline — this is the AI-agent team that builds and maintains it, working under a human lead. [`TEAM.md`](../../TEAM.md) (the named roster, with bios and a collaboration diagram) and [`CLAUDE.md`](../../CLAUDE.md) (the delegation contract) are the source of truth; per-agent frontmatter (`name`/`description`/`tools`) lives in `.claude/agents/*.md`. Re-read those rather than trusting the summary here if it looks stale. [`agent_workflow.md`](agent_workflow.md) is the practical "how work actually flows" companion — the delegation model, the review gate, and worked examples from this repo's own history.
+Not part of the runtime CI pipeline — this is the AI-agent team that builds and maintains it, working under a human lead. [`CLAUDE.md`](../../CLAUDE.md) (the delegation contract) is the source of truth; per-member bios are on the *Ügynökök* tab of the team-ops dashboard ([`docs/team-ops.html`](../team-ops.html)), and per-agent frontmatter (`name`/`description`/`tools`) lives in `.claude/agents/*.md`. Re-read those rather than trusting the summary here if it looks stale. [`agent_workflow.md`](agent_workflow.md) is the practical "how work actually flows" companion — the delegation model, the review gate, and worked examples from this repo's own history.
 
 Ten named specialists, plus a reference stub for the lead:
 
@@ -490,7 +490,7 @@ Ten named specialists, plus a reference stub for the lead:
 - **Masha** — `masha-threat-intel` — external CTI research turned into a prioritized "what to detect next" brief; the outward-looking counterpart to Yara's internal gap analysis.
 - **Priya** — `priya-security-scanner` — security audits of the repo's *own* code and config (semgrep, `pip-audit`, secret scanning), not the detection rules' subject matter.
 - **Kwame** — `kwame-audit-compliance` — audits the remediation registers under `audit/` against real repo state, catches drift, reports accurate progress and the real next item. Verifies and reports, never implements.
-- **Gaz** — `gaz-reference` — **reference file only, never dispatched via the Agent tool.** Gaz is the top-level Claude Code session that talks to the user and delegates to the ten above; the file exists only so `.claude/agents/` mirrors the roster in `TEAM.md`/`CLAUDE.md`.
+- **Gaz** — `gaz-reference` — **reference file only, never dispatched via the Agent tool.** Gaz is the top-level Claude Code session that talks to the user and delegates to the ten above; the file exists only so `.claude/agents/` mirrors the roster in `CLAUDE.md`.
 
 The MCP servers these agents use are declared in [`.mcp.json`](../../.mcp.json) at the repo root — `github` (Kai's PR/branch/release mechanics; Priya's secret-scanning and code search), `semgrep` (Priya's static analysis), `playwright` and `chrome-devtools` (Sienna's rule-browser visual/behavioural verification and Lighthouse audits) — plus a user-scoped `context7` for library documentation lookup. The exact per-agent tool subsets are in each agent's `tools:` frontmatter line; [`agent_workflow.md`](agent_workflow.md) cross-references which agent invokes which.
 

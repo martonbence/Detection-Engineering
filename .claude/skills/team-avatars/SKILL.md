@@ -1,6 +1,6 @@
 ---
 name: team-avatars
-description: Use when generating a profile-picture prompt for a Detection-Engineering team member (TEAM.md roster) — reuses the locked style/camera/resolution blocks unchanged, follows Jamal's block as the worked example, and only swaps in a new per-person description.
+description: Use when generating a profile-picture prompt for a Detection-Engineering team member (the CLAUDE.md roster) — reuses the locked style/camera/resolution blocks unchanged, follows Jamal's block as the worked example, and only swaps in a new per-person description.
 ---
 
 Produces the AI-image-generation prompt text for one team member's avatar.
@@ -83,9 +83,12 @@ docs/pictures/avatars/<Name>.png
 ```
 
 Capitalized first name, directly in `avatars/`, no subdirectory — this is
-the convention all current files follow. Once generated, wire it into
-that person's `*Avatar: pending*` line in `TEAM.md` as
-`![Name](docs/pictures/avatars/Name.png)`.
+the convention all current files follow. A `<Name>_transparent.png`
+companion (same directory) is what the team-ops dashboard renders. Once
+generated, the avatar is picked up automatically by
+`.claude/generate_dashboard.py` from its filename — no roster line to
+edit — so just regenerate the dashboard (`python3
+.claude/generate_dashboard.py`).
 
 Save the finished prompt text itself as a new entry in this skill file
 (a short addition to or replacement of the worked example above), not as

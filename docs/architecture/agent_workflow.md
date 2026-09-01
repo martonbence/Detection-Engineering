@@ -5,15 +5,17 @@ The other four files in `docs/architecture/` describe the **CI pipeline**; this 
 describes the **team that builds and runs it** — as a practical onboarding reference,
 not a restatement of the rules.
 
-- **The authoritative roster** (names, areas, who-works-with-whom, bios): [`TEAM.md`](../../TEAM.md).
+- **The authoritative roster** (names, areas, scope): the table in
+  [`CLAUDE.md`](../../CLAUDE.md); per-member bios are on the *Ügynökök* tab of
+  [`docs/team-ops.html`](../team-ops.html).
 - **The authoritative delegation contract** (scope boundaries, the review gate, the
   commit/permission rules, model-choice policy): [`CLAUDE.md`](../../CLAUDE.md).
 - **Per-agent definitions** (`name` / `description` / `tools`): `.claude/agents/*.md`.
 - **The one-line-per-person summary of the pipeline's agents**:
   [`pipeline_overview.md` → "Custom Claude Code subagents"](pipeline_overview.md#custom-claude-code-subagents-involved-in-buildingmaintaining-this-pipeline).
 
-If anything below disagrees with `CLAUDE.md` or `TEAM.md`, those win — this file
-is the illustrated tour, they are the contract.
+If anything below disagrees with `CLAUDE.md`, it wins — this file
+is the illustrated tour, `CLAUDE.md` is the contract.
 
 ---
 
@@ -198,8 +200,8 @@ is an internal working identity, not rule metadata.
 
 ## The team's own operating files are Gaz's, not Chloe's
 
-`CLAUDE.md`, `TEAM.md`, `.claude/agents/*.md` and `.claude/skills/*` are the
-internal delegation contract, edited directly by Gaz as roster/process decisions
-happen in conversation. Chloe owns *public-facing* documentation of what the
+`CLAUDE.md`, `.claude/agents/*.md`, `.claude/skills/*` and the roster/bio data
+in `.claude/generate_dashboard.py` are the internal delegation contract, edited
+directly by Gaz as roster/process decisions happen in conversation. Chloe owns *public-facing* documentation of what the
 pipeline does — `README.md` prose, `docs/architecture/*.md` (including this file) —
 for an external reader.

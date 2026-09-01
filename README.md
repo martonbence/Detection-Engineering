@@ -44,7 +44,7 @@ When the live views prompt a "but how?", these go down to the mechanics — ever
 
 ## The team behind it
 
-This repo is maintained largely by a small team of scoped AI agents under a human lead — each owning one surface (pipeline, rules, quality review, docs, security, platform). How the team is organised and how work moves between agents is documented in [`CLAUDE.md`](CLAUDE.md) and [`TEAM.md`](TEAM.md).
+This repo is maintained largely by a small team of scoped AI agents under a human lead — each owning one surface. How the team is organised and how work moves between agents is documented in [`CLAUDE.md`](CLAUDE.md); per-agent bios live on the *Ügynökök* tab of the team-ops dashboard ([`docs/team-ops.html`](docs/team-ops.html)).
 
 <table>
 <tr>

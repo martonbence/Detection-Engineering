@@ -26,7 +26,7 @@ Készült: 2026-08-07. Struktúra-számok és a workflow-lista frissítve: 2026-
 | `.git/hooks`, `.git/worktrees` | A **git saját belső** könyvtárai. Minden git repóban ott vannak, a git hozza létre. Soha ne nyúlj hozzájuk. | ⚪ |
 | `.claude/hooks/` | 2 shell script, amit a Claude Code használ (dokumentáció-elcsúszás ellenőrzés). Nem a pipeline része. | ⚪ |
 | `.claude/worktrees/` | Üres. A Claude Code agentek hozzák létre ideiglenesen, ha izolált másolatban dolgoznak. | ⚪ |
-| `.claude/agents/` | A 10 egyedi specialista-agent definíciója (Yuki, Bjorn, Jamal, Chloe, Sienna, Kai, Yara, Masha, Priya, Kwame) + egy soha nem hívott referencia-fájl (Gaz). A tényleges delegálási szerződést a `CLAUDE.md` és a `TEAM.md` írja le. | ⚪ |
+| `.claude/agents/` | A 10 egyedi specialista-agent definíciója (Yuki, Bjorn, Jamal, Chloe, Sienna, Kai, Yara, Masha, Priya, Kwame) + egy soha nem hívott referencia-fájl (Gaz). A tényleges delegálási szerződést a `CLAUDE.md` írja le; a fejenkénti bio-k a team-ops dashboard *Ügynökök* fülén (`docs/team-ops.html`). | ⚪ |
 | `.ruff_cache/`, `.pytest_cache/` | A linter és a tesztfuttató **automatikus gyorsítótárai**. `.gitignore`-ban vannak, tehát nincsenek a repóban. Bármikor törölheted, maguktól újra létrejönnek. | ⚪ |
 | `__pycache__/` mappák | Ugyanez: a Python fordított bájtkód-gyorsítótára. Gitignorálva. | ⚪ |
 | `pyproject.toml` | **Egyetlen dolgot csinál:** beállítja a `ruff`-ot (kódstílus-ellenőrző) és a `pytest`-et (tesztfuttató). A repo *nem* Python csomag, nincs telepítve. Azért van a gyökérben, mert a két eszköz ott keresi. | 🟢 |

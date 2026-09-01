@@ -11,8 +11,9 @@ links out rather than repeating them.
 > This repo is maintained mostly by a team of scoped AI agents under a human
 > lead. How that team is coordinated is documented in
 > [`docs/architecture/agent_workflow.md`](docs/architecture/agent_workflow.md),
-> [`CLAUDE.md`](CLAUDE.md) and [`TEAM.md`](TEAM.md). The flow below is the same
-> whether a human or an agent is doing the authoring.
+> and [`CLAUDE.md`](CLAUDE.md); per-agent bios are on the *Ügynökök* tab of
+> the team-ops dashboard ([`docs/team-ops.html`](docs/team-ops.html)). The
+> flow below is the same whether a human or an agent is doing the authoring.
 
 ---
 
