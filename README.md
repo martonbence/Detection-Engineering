@@ -69,7 +69,7 @@ Nothing here about whether a detection works is self-reported. Every verdict is 
 
 ## How it fits together
 
-The five-phase shape of the pipeline, end to end — Strategic phase through Development, Continuous Integration (with its nested Testing phase), and Measurement & Reporting, plus the "Tune" feedback loop that runs verification results back into Development. The diagram spans both CI workflows: `ci_dev_workflow.yml` (the full validate → deploy → attack → verify → report loop, on `dev`) and `ci_prod_workflow.yml` (the deploy of already-verified rules to the prod Splunk app, once a promotion PR merges to `main`):
+The pipeline runs in five phases — Strategic, Development, Continuous Integration, its nested Testing phase, and Measurement & Reporting — with a Tune feedback loop that carries verification results back into Development. The diagram below spans both workflows that implement it: `ci_dev_workflow.yml`, which runs the full validate → deploy → attack → verify → report loop on the `dev` branch, and `ci_prod_workflow.yml`, which deploys already-verified rules to the production Splunk app once a promotion PR merges to `main`.
 
 <p align="center">
   <a href="https://raw.githubusercontent.com/martonbence/Detection-Engineering/dev/docs/pictures/Workflow.drawio.svg" target="_blank" rel="noopener">
@@ -78,26 +78,11 @@ The five-phase shape of the pipeline, end to end — Strategic phase through Dev
 </p>
 <p align="center"><sub>Click the diagram to open the full-size vector in a new tab (browser zoom works cleanly on it).</sub></p>
 
-The exact job graph below is the same pipeline drawn from `ci_dev_workflow.yml`'s own dependency structure:
+Underneath, it is a GitHub Actions job graph — every stage a job, every dependency an explicit `needs:` — and a single push drives the `dev` loop from end to end with no manual step.
 
+That green checkmark comes with one caveat: the lab the pipeline deploys to is not always online. A repository variable, `LAB_ONLINE`, gates every lab-dependent stage — the Splunk deploy, the attack tests, and verification. With it set to `false`, a push still validates, converts and commits its SPL, and the run still passes — but nothing is deployed, attacked or re-measured. This is why the rule browser leads with a *last live verification* date and an ATT&CK coverage figure rather than a bare pass count: a green run alone does not mean anything was tested.
 
-This is the real job graph of `ci_dev_workflow.yml` — every node is an actual GitHub Actions job, every arrow an actual `needs:` dependency, including ones that look transitively redundant (e.g. the attack-test jobs each depend on both "Prepare, Validate, Convert" *and* "Deploy to Splunk" even though the latter already depends on the former) — that's how GitHub's own UI draws it, so this does too. "Persist Verification Results (fallback)" has a dashed border because it's conditional: it only does anything if verification ran but the dashboard update didn't succeed, so on a normal green run it executes zero steps. A push to the repo runs this whole graph without a human clicking through any of it.
-
-One caveat about that green checkmark: the lab it deploys to isn't always online. A repository variable, `LAB_ONLINE`, gates the entire lab-dependent half of the pipeline — deploy to Splunk, the attack tests, verification. When it's set to `false`, a push still validates, converts and commits its SPL, and the run still goes green, but the deploy/attack/verify stages skip themselves and nothing is re-measured. That's exactly why the "Last live verification" line in the stats block and the coverage badge exist: a green run on its own doesn't tell you anything was tested — the date and the coverage percentage do.
-
-That whole loop first runs in a low-stakes proving-ground environment. Only once a batch of rules has actually survived it does the repo open a pull request offering to promote them to the environment that matters — a human still has to look at that PR and merge it; nothing ships to production purely because a script said so.
-
-```mermaid
-flowchart LR
-    dev(("proving ground<br/>branch")) -- "verified by the pipeline" --> pr{{"promotion PR"}}
-    pr -- "human review & merge" --> main(("production<br/>branch"))
-
-    classDef auto fill:#f0a341,stroke:#8a5a1a,color:#1a1200,font-weight:bold;
-    classDef human fill:#7a4a12,stroke:#4d2e0a,color:#ffffff,font-weight:bold;
-    class dev,main auto
-    class pr human
-```
-
+Verification always runs first in a low-stakes proving-ground environment. Only after a batch of rules clears it does the pipeline open a pull request proposing their promotion — which a human reviews and merges. Nothing reaches production because a script said so.
 
 ## What "pass" actually means here
 
