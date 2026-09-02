@@ -150,8 +150,8 @@
          36px below -- this height is the approved layout, not derived from
          the mark size, so it's left alone; only the mark shrank to keep
          the same visual weight inside it. */
-      height: 72px;
-      padding: 0 18px;
+      height: 60px;
+      padding: 0 16px;
       /* PREVIEW v3: the "distinct surface" read comes from the EDGES now, not the
          fill alpha -- on a dark wash a dark translucent fill nets a <3 RGB-point
          shift vs opaque (measured), which is below perceptual threshold. So:
@@ -190,8 +190,8 @@
        48px/72px-strip layout the user last approved, even though no CSS
        number changed. 36px was chosen by rendering both and comparing. */
     .strip-logo {
-      width: 36px;
-      height: 36px;
+      width: 40px;
+      height: 40px;
       flex-shrink: 0;
       display: block;
     }
@@ -218,13 +218,8 @@
          WCAG AA's 4.5:1 for text this size (register 3.12, color-contrast).
          text2 is the same muted-label token already used elsewhere on the
          page (e.g. .tab-btn:hover below) and clears it at 5.62:1. */
-      color: var(--text2);
+      color: var(--text);
       white-space: nowrap;
-    }
-
-    .strip-total strong {
-      color: #ffaa00;
-      font-weight: 700;
     }
 
     .filters-generated {
@@ -253,7 +248,7 @@
          text2 clears 4.5:1 with room to spare; hover escalates further to
          the brightest text token, the same base->hover pattern used by
          .search-clear / .info-close / .nav-qf elsewhere on this page. */
-      color: var(--text2);
+      color: #ffffff;
       padding: 5px 12px;
       border-radius: 20px;
       cursor: pointer;
@@ -752,6 +747,7 @@
       cursor: pointer;
       width: 100%;
       flex-shrink: 0;
+      margin-top: 5px;
       transition: all 0.1s;
       font-family: var(--font-ui);
     }
@@ -878,6 +874,9 @@
     .search-input-wrap {
       position: relative;
       flex: 1;
+      height: 28px;
+      display: flex;
+      align-items: center;
     }
 
     .search-input-wrap svg {
@@ -902,7 +901,9 @@
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid rgba(255, 255, 255, 0.10);
       border-radius: var(--radius);
-      padding: 7px 32px 7px 32px;
+      height: 28px;
+      box-sizing: border-box;
+      padding: 0 32px 0 32px;
       font-size: 13px;
       color: var(--text);
       outline: none;
@@ -991,16 +992,15 @@
 
     .kbd {
       display: inline-block;
-      padding: 1px 5px;
-      /* PREVIEW item 4: glass keycap -- translucent fill + hairline, keeps the
-         2px bottom border for the "physical key" read. */
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 1px 6px;
+      /* PREVIEW: bumped fill/border/text so these read clearly, per feedback. */
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.22);
       border-bottom-width: 2px;
       border-radius: 3px;
       font-family: var(--font);
       font-size: 9px;
-      color: var(--text2);
+      color: var(--text);
       line-height: 1.4;
     }
 
@@ -1016,10 +1016,11 @@
       gap: 6px;
       height: 28px;
       padding: 0 12px;
-      /* PREVIEW item 4: faint glass fill + hairline (was transparent / dull
-         --border2). Amber hover cue kept -- Export owns amber. */
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.11);
+      /* PREVIEW: stronger fill + a raised hairline/shadow so these read as
+         actual clickable buttons rather than flat labels. */
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
       border-radius: var(--radius);
       color: var(--text2);
       font-size: 12px;
@@ -1057,15 +1058,16 @@
       right: 0;
       top: calc(100% + 5px);
       min-width: 210px;
-      /* PREVIEW item 4: frosted popover -- fairly opaque (0.93) for menu-text
-         legibility over whatever's behind it, but with the hairline + blur +
-         soft shadow of the glass vocabulary rather than a flat --bg2 box. */
-      background: rgba(22, 27, 34, 0.93);
+      /* PREVIEW: aligned to the main page's glass-strip vocabulary (see
+         .stats-strip) instead of a separate flat popover recipe. */
+      background: rgba(20, 25, 34, 0.75);
       backdrop-filter: blur(18px) saturate(1.3);
       -webkit-backdrop-filter: blur(18px) saturate(1.3);
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: var(--radius-lg);
-      box-shadow: 0 14px 38px -8px rgba(0, 0, 0, 0.6);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 14px 38px -8px rgba(0, 0, 0, 0.6);
       z-index: 50;
       overflow: hidden;
     }
@@ -1122,7 +1124,7 @@
       font-size: 11px;
       /* PREVIEW: text3 -> text2, was ~3.9:1 on the menu bg (register 3.12/3.13
          pattern); text2 clears AA. */
-      color: var(--text2);
+      color: var(--text);
     }
 
     /* The ATT&CK layer entry is a real link (the file is served from the repo,
@@ -1141,6 +1143,113 @@
     .export-menu-item+.export-menu-head {
       border-top: 1px solid rgba(255, 255, 255, 0.08);
     }
+
+    /* ── PREVIEW FEATURE: row select / column customization / saved views ──
+       Self-contained -- delete this whole block (+ the matching HTML in the
+       search-row and the JS block marked the same way) to fully revert. */
+    .views-wrap { position: relative; flex-shrink: 0; }
+
+    .views-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      color: var(--text2);
+      border-radius: var(--radius);
+      height: 28px;
+      padding: 0 12px;
+      font-size: 12px;
+      font-family: var(--font-ui);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.12s;
+    }
+
+    .nav-btn-eq {
+      min-width: 96px;
+      justify-content: center;
+    }
+
+    .rule-id-check {
+      position: absolute;
+      left: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 2;
+      accent-color: #ffaa00;
+    }
+
+    #view-name-input {
+      accent-color: #ffaa00;
+    }
+
+    th.col-hidden, td.col-hidden { display: none; }
+
+    .col-toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .col-toggle-row input { accent-color: #ffaa00; }
+
+    .col-toggle-row:hover { background: rgba(255, 255, 255, 0.05); color: var(--text); }
+
+    .saved-view-row { display: flex; align-items: center; }
+    .view-delete { color: var(--text2); cursor: pointer; padding: 0 4px; }
+    .view-delete:hover { color: var(--red, #f85149); }
+
+    .views-save-row {
+      display: flex;
+      gap: 6px;
+      padding: 8px 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .view-name-input {
+      flex: 1;
+      min-width: 0;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 12px;
+      font-family: var(--font-ui);
+      padding: 4px 8px;
+    }
+
+    .views-save-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      color: var(--text2);
+      border-radius: var(--radius);
+      padding: 4px 10px;
+      font-size: 12px;
+      font-family: var(--font-ui);
+      cursor: pointer;
+    }
+
+    .views-save-btn:hover { color: var(--text); }
+
+    #views-menu {
+      position: absolute;
+      left: 0;
+      right: auto;
+      top: calc(100% + 5px);
+    }
+    #columns-menu {
+      position: absolute;
+      right: 0;
+      left: auto;
+      top: calc(100% + 5px);
+    }
+    /* ── END PREVIEW FEATURE ── */
 
     .table-wrap {
       /* PREVIEW: near-opaque (0.82) so the dense table stays crisp, but a touch
@@ -1281,12 +1390,8 @@
       transition: background 0.08s;
     }
 
-    tbody tr:nth-child(even) {
-      /* PREVIEW: zebra bumped 0.022 -> 0.04 so it's actually legible on the
-         translucent .content surface; kept subtle -- the table is the dense
-         payload, it shouldn't compete with the panel chrome. */
-      background: rgba(255, 255, 255, 0.04);
-    }
+    tbody tr:nth-child(even) { background: oklch(80% 0.03 300 / 0.16); }
+    tbody tr:nth-child(odd)  { background: oklch(80% 0.03 300 / 0.05); }
 
     tbody td {
       border-bottom: 1px solid var(--border);
@@ -1297,17 +1402,15 @@
     }
 
     tbody tr:hover {
-      /* PREVIEW: reverted to the repo's warm-cream hover (matches committed
-         docs/index.html). The selected-row treatment below stays split out to
-         blue -- that was Gaz's change, not part of the hover revert. */
-      background: rgba(233, 220, 196, 0.10);
+      /* PREVIEW: brighter, clearly-visible cream/white hover per feedback. */
+      background: rgba(245, 242, 235, 0.32);
     }
 
     tbody tr.selected {
-      /* PREVIEW: clearer than the shared hover tint -- brand-blue wash + a solid
-         left accent bar so the open row is unmistakable. */
-      background: rgba(88, 166, 255, 0.12);
-      box-shadow: inset 3px 0 0 var(--accent);
+      /* PREVIEW: matches the hover treatment per feedback -- same wash stays
+         once the row's drawer is closed, no accent bar needed since it's now
+         identical to hover. */
+      background: rgba(245, 242, 235, 0.32);
     }
 
     td {
@@ -1642,6 +1745,8 @@
       bottom: 0;
       width: 560px;
       max-width: 92vw;
+      display: flex;
+      flex-direction: column;
       /* PREVIEW v2: self-contained blue->violet fill in the page's family, so
          the drawer and the legend/Navigator panel read as one surface (and the
          .bg-shapes SVG does NOT show through -- opaque #0d1117 base). The glow
@@ -1665,7 +1770,6 @@
         -18px 0 44px -14px rgba(0, 0, 0, 0.6),
         -2px 0 22px -6px rgba(167, 153, 232, 0.16);
       z-index: 201;
-      overflow-y: auto;
       transform: translateX(100%);
       transition: transform 0.2s ease;
     }
@@ -1677,15 +1781,17 @@
     .drawer-header {
       padding: 18px 20px 14px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      position: sticky;
-      top: 0;
-      /* PREVIEW v5: same radial stack as .drawer's body (seamless sticky header,
-         no reversed seam), on the #0f172a blue-navy base. */
+      flex-shrink: 0;
+      /* PREVIEW: header now sits outside the scrolling region (see .drawer-body
+         overflow below) so it always spans the drawer's full width, no
+         scrollbar gutter eating into its right edge. Violet/blue wash instead
+         of amber, for a calmer highlight that still separates it from the body. */
       background:
-        radial-gradient(900px 800px at 100% -8%, rgba(132, 98, 230, 0.30), transparent 72%),
-        radial-gradient(1200px 1100px at -40% 8%, rgba(64, 116, 244, 0.24), transparent 68%),
+        linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.55)),
+        radial-gradient(900px 800px at 100% -8%, rgba(132, 98, 230, 0.42), transparent 72%),
+        radial-gradient(1200px 1100px at -40% 8%, rgba(64, 116, 244, 0.34), transparent 68%),
         #0f172a;
-      z-index: 1;
+      border-left: 4px solid #a78bfa;
     }
 
     .drawer-header-top {
@@ -1716,8 +1822,10 @@
     }
 
     .drawer-close {
-      background: none;
-      border: 1px solid var(--border2);
+      /* PREVIEW: stronger fill + raised shadow so it reads as an actual button. */
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
       border-radius: var(--radius);
       width: 28px;
       height: 28px;
@@ -1754,6 +1862,7 @@
       display: flex;
       flex-direction: column;
       gap: 14px;
+      overflow-y: auto;
     }
 
     .drawer-body>div {
@@ -1777,7 +1886,9 @@
       color: #ffffff;
       margin-bottom: 10px;
       padding-bottom: 5px;
-      border-bottom: 2px solid var(--border2);
+      /* PREVIEW: brighter, thicker underline so section labels stand out
+         throughout the drawer. */
+      border-bottom: 2px solid #ffaa00;
     }
 
     .drawer-desc {
@@ -1848,12 +1959,9 @@
       font-size: 12px;
       font-family: var(--font);
       color: var(--text2);
-      /* PREVIEW: kept an opaque fill on purpose (references are often long URLs
-         -- want max legibility); only the hairline is aligned to the glass
-         vocabulary. Nesting a translucent-white item inside the translucent
-         section card would compound the lift and drop text2 under AA in the
-         panel's violet corners. */
-      background: var(--bg3);
+      /* PREVIEW: matched to .rule-body-pre's transparency, bumped more
+         transparent per feedback. */
+      background: rgba(13, 17, 23, 0.4);
       border: 1px solid rgba(255, 255, 255, 0.07);
       border-left: 2px solid #ffaa00;
       border-radius: var(--radius);
@@ -2024,7 +2132,8 @@
     }
 
     .rule-body-pre {
-      background: var(--bg);
+      /* PREVIEW: matched to .drawer-list-item's transparency per feedback. */
+      background: rgba(13, 17, 23, 0.4);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 12px 14px;
@@ -2127,15 +2236,14 @@
     }
 
     .dash-section {
-      /* PREVIEW: this is the outer tray the .chart-cards sit in -- kept more
-         see-through (~0.55, like .content on the Rule Library tab) so the wash
-         genuinely reaches the cards above it rather than stopping at an opaque
-         bg3 slab. Outer tray lighter, inner card more solid: same layering
-         model as .content vs .filters-panel. */
-      background: rgba(28, 33, 40, 0.55);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      border: 1px solid var(--border);
+      /* PREVIEW: aligned to the Rule Library's .content card language --
+         violet-tinted border + blur, same see-through tray/inner-card layering
+         model (.dash-section behind, .chart-card in front, like .content vs
+         .filters-panel). */
+      background: rgba(20, 25, 34, 0.48);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 2px solid rgba(167, 153, 232, 0.4);
       border-radius: var(--radius-lg);
       padding: 18px;
     }
@@ -2195,13 +2303,16 @@
     }
 
     .chart-card {
-      /* PREVIEW: slight transparency (~0.88) + blur so the background wash reads
-         faintly through the Dashboards cards without touching chart/canvas
-         legibility. */
-      background: rgba(22, 27, 34, 0.88);
+      /* PREVIEW: aligned to the Rule Library's card language -- near-opaque
+         glass fill, bright hairline + inset top highlight + soft float shadow,
+         same as .filters-panel, instead of a flat --border edge. */
+      background: rgba(22, 27, 34, 0.45);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
-      border: 1px solid var(--border);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        0 12px 30px -14px rgba(0, 0, 0, 0.55);
       border-radius: var(--radius-lg);
       padding: 20px;
       display: flex;
@@ -2624,14 +2735,14 @@
 
     /* MITRE Navigator */
     .nav-wrap {
-      /* PREVIEW: was a flush opaque slab against the gradient -- now ~0.88 + blur
-         so the wash reads faintly around the matrix. Matrix cells keep their own
-         solid verdict colours, so cell legibility is unaffected. */
-      background: rgba(22, 27, 34, 0.88);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      border: 1px solid var(--border);
-      border-radius: 6px;
+      /* PREVIEW: aligned to the Rule Library's .content card language --
+         violet-tinted border + more transparent fill, matrix cells keep their
+         own solid verdict colours so cell legibility is unaffected. */
+      background: rgba(20, 25, 34, 0.48);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 2px solid rgba(167, 153, 232, 0.4);
+      border-radius: var(--radius-lg);
       padding: 16px;
       margin: 16px 20px;
     }
@@ -2695,10 +2806,12 @@
 
     .nav-search-input {
       width: 100%;
-      height: 32px;
+      height: 28px;
+      box-sizing: border-box;
       padding: 0 30px 0 32px;
-      background: var(--bg);
-      border: 1px solid var(--border2);
+      /* PREVIEW: matched to the Rule Library search field's glass style. */
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.10);
       border-radius: var(--radius);
       color: var(--text);
       font-family: var(--font-ui);
@@ -2707,8 +2820,8 @@
 
     .nav-search-input:focus {
       outline: none;
-      border-color: #ffaa00;
-      box-shadow: 0 0 0 2px rgba(255, 170, 0, 0.14);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.14);
     }
 
     .nav-search-clear {
@@ -2759,7 +2872,11 @@
       border: none;
       border-right: 1px solid rgba(255, 255, 255, 0.11);
       color: var(--text2);
-      padding: 5px 13px;
+      height: 28px;
+      box-sizing: border-box;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 13px;
       font-size: 12px;
       font-weight: 600;
       font-family: var(--font-ui);
@@ -2816,7 +2933,9 @@
       border: 1px solid rgba(255, 255, 255, 0.11);
       color: var(--text2);
       border-radius: var(--radius);
-      padding: 5px 10px;
+      height: 28px;
+      box-sizing: border-box;
+      padding: 0 10px;
       font-size: 12px;
       font-family: var(--font-ui);
       font-weight: 600;
@@ -2832,7 +2951,12 @@
       fill: none;
     }
 
-    .nav-verdict-btn:hover,
+    .nav-verdict-btn:hover {
+      border-color: #ffaa00;
+      color: #ffaa00;
+      box-shadow: 0 0 0 2px rgba(255, 170, 0, 0.14);
+    }
+
     .nav-verdict-btn.has-active {
       border-color: #ffaa00;
       color: var(--text);
@@ -3343,15 +3467,18 @@
       border: 1px solid rgba(255, 255, 255, 0.11);
       color: var(--text2);
       border-radius: 5px;
-      padding: 3px 10px;
+      height: 28px;
+      box-sizing: border-box;
+      padding: 0 12px;
       font-size: 12px;
       cursor: pointer;
       white-space: nowrap;
     }
 
     #expand-all-btn:hover {
-      color: var(--text);
+      color: #ffaa00;
       border-color: #FFAA00;
+      box-shadow: 0 0 0 2px rgba(255, 170, 0, 0.14);
     }
 
     /* Detail panel — mirrors the Rule Library drawer's look (tokens, slide-in,
@@ -3668,13 +3795,16 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: none;
-      border: 1px solid var(--border2);
+      /* PREVIEW: stronger fill + raised shadow so it reads as an actual button. */
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
       color: var(--text2);
       border-radius: var(--radius);
-      padding: 5px 11px;
+      height: 28px;
+      padding: 0 12px;
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 400;
       font-family: var(--font-ui);
       cursor: pointer;
       flex-shrink: 0;
@@ -3727,10 +3857,16 @@
          top-right corner, ~5.75:1 through the centre. backdrop-filter dropped
          (does nothing behind an opaque fill). Violet outline + bloom to match
          .content. */
-      /* PREVIEW v6: flat single-colour #0f172a (user asked for the legend to be
-         solid blue, not a gradient). Thin violet edge kept; violet bloom
-         dropped -- just a plain depth shadow now. */
-      background: #0f172a;
+      /* PREVIEW v7: lightened the flat fill a notch (#0f172a -> #1a2740) per
+         feedback -- still solid, no gradient -- text stays high-contrast
+         since all copy here uses the light --text/--text2 tokens. */
+      /* PREVIEW v8: layered radial wash (violet top-right + blue bottom-left)
+         matching .content/.drawer-header's language, over the same opaque
+         #1a2740 base so text contrast is unchanged. */
+      background:
+        radial-gradient(700px 600px at 100% -10%, rgba(132, 98, 230, 0.16), transparent 70%),
+        radial-gradient(900px 800px at -20% 110%, rgba(64, 116, 244, 0.14), transparent 70%),
+        #1a2740;
       border: 1px solid rgba(167, 153, 232, 0.35);
       border-radius: var(--radius-lg);
       box-shadow:
@@ -3752,6 +3888,10 @@
       padding: 15px 20px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
       flex-shrink: 0;
+      /* PREVIEW: same treatment as the rule drawer's header -- dark wash +
+         violet accent bar, so both top sections read consistently. */
+      background: linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.55));
+      border-left: 4px solid #a78bfa;
     }
 
     .info-head-title {
@@ -4534,12 +4674,20 @@
        Pattern contents copied verbatim from design/brand-canvas/Main.dc.html. -->
   <svg class="bg-shapes" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
     <defs>
-      <pattern id="shp" width="116" height="116" patternUnits="userSpaceOnUse" patternTransform="rotate(4)">
-        <circle cx="20" cy="26" r="4.5" fill="none" stroke="#9fb0ff" stroke-opacity="0.11" />
-        <circle cx="92" cy="80" r="1.7" fill="#c7a6f4" fill-opacity="0.16" />
-        <path d="M70 18 h10 M75 13 v10" stroke="#9fb0ff" stroke-opacity="0.09" stroke-width="1" />
-        <circle cx="44" cy="98" r="1.3" fill="#9fb0ff" fill-opacity="0.14" />
-        <circle cx="104" cy="30" r="2.6" fill="none" stroke="#b79bf0" stroke-opacity="0.09" />
+      <pattern id="shp" width="260" height="260" patternUnits="userSpaceOnUse" patternTransform="rotate(6)">
+        <line x1="30" y1="34" x2="112" y2="70" stroke="#9fb0ff" stroke-opacity="0.09" stroke-width="1" />
+        <line x1="112" y1="70" x2="102" y2="164" stroke="#9fb0ff" stroke-opacity="0.08" stroke-width="1" />
+        <line x1="112" y1="70" x2="200" y2="52" stroke="#b79bf0" stroke-opacity="0.08" stroke-width="1" />
+        <line x1="200" y1="52" x2="228" y2="140" stroke="#9fb0ff" stroke-opacity="0.07" stroke-width="1" />
+        <line x1="102" y1="164" x2="182" y2="210" stroke="#9fb0ff" stroke-opacity="0.07" stroke-width="1" />
+        <line x1="102" y1="164" x2="30" y2="200" stroke="#b79bf0" stroke-opacity="0.07" stroke-width="1" />
+        <circle cx="30" cy="34" r="2.4" fill="#9fb0ff" fill-opacity="0.15" />
+        <circle cx="112" cy="70" r="3.2" fill="#c7a6f4" fill-opacity="0.17" />
+        <circle cx="200" cy="52" r="2.2" fill="#9fb0ff" fill-opacity="0.14" />
+        <circle cx="228" cy="140" r="2" fill="#b79bf0" fill-opacity="0.13" />
+        <circle cx="102" cy="164" r="2.8" fill="#9fb0ff" fill-opacity="0.15" />
+        <circle cx="182" cy="210" r="2" fill="#c7a6f4" fill-opacity="0.13" />
+        <circle cx="30" cy="200" r="2" fill="#9fb0ff" fill-opacity="0.13" />
       </pattern>
     </defs>
     <rect width="100%" height="100%" fill="url(#shp)" />
@@ -4557,12 +4705,13 @@
         <button class="tab-btn" data-tab="dashboards">Dashboards</button>
       </div>
     </div>
-    <button class="info-btn" id="info-btn" onclick="toggleInfo()" aria-haspopup="dialog" aria-expanded="false"
+    <button class="export-btn nav-btn-eq" id="info-btn" onclick="toggleInfo()" aria-haspopup="dialog" aria-expanded="false"
+      style="margin-right:20px;background:rgba(0,0,0,0.28);border-color:rgba(255,255,255,0.28);color:var(--text)"
       title="Legend and how this page works">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="12" cy="12" r="10" />
-        <line x1="12" y1="16" x2="12" y2="11" />
-        <line x1="12" y1="8" x2="12" y2="8.01" />
+        <path d="M9.5 9.2a2.5 2.5 0 1 1 3.7 2.2c-.9.5-1.2 1-1.2 2" stroke-linecap="round" />
+        <circle cx="12" cy="17" r="0.9" fill="currentColor" stroke="none" />
       </svg>
       <span class="info-btn-label">Legend</span>
     </button>
@@ -4754,6 +4903,25 @@
             </svg>
             Filters
           </button>
+          <div class="views-wrap" id="views-wrap">
+            <button class="export-btn nav-btn-eq" id="views-toggle" onclick="toggleViewsMenu(event)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px">
+                <path d="M12 20v-6M12 14l-5-3M12 14l5-3M12 14V4" />
+                <circle cx="12" cy="4" r="1.6" fill="currentColor" stroke="none" />
+                <circle cx="7" cy="11" r="1.6" fill="currentColor" stroke="none" />
+                <circle cx="17" cy="11" r="1.6" fill="currentColor" stroke="none" />
+              </svg>
+              Views
+            </button>
+            <div class="export-menu" id="views-menu" onclick="event.stopPropagation()">
+              <div class="export-menu-head">Saved views</div>
+              <div id="saved-views-list"></div>
+              <div class="views-save-row">
+                <input type="text" id="view-name-input" placeholder="Name this view…" class="view-name-input">
+                <button class="views-save-btn" onclick="saveCurrentView()">Save</button>
+              </div>
+            </div>
+          </div>
           <div class="search-input-wrap">
             <svg viewBox="0 0 24 24" stroke-width="2">
               <circle cx="11" cy="11" r="8" />
@@ -4775,7 +4943,7 @@
             <span class="kbd">&crarr;</span> open
           </span>
           <div class="export-wrap">
-            <button class="export-btn" id="export-btn" onclick="toggleExportMenu(event)">
+            <button class="export-btn nav-btn-eq" id="export-btn" onclick="toggleExportMenu(event)">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
                 <polyline points="7 10 12 15 17 10" />
@@ -4791,6 +4959,20 @@
                   class="desc">Full metadata</span></div>
               <div class="export-menu-item" onclick="exportView('md')"><span class="ext">MD</span><span
                   class="desc">Markdown table</span></div>
+            </div>
+          </div>
+          <div class="views-wrap" id="columns-wrap">
+            <button class="export-btn nav-btn-eq" id="columns-toggle" onclick="toggleColumnsMenu(event)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px">
+                <line x1="4" y1="4" x2="4" y2="20" />
+                <line x1="12" y1="4" x2="12" y2="20" />
+                <line x1="20" y1="4" x2="20" y2="20" />
+              </svg>
+              Columns
+            </button>
+            <div class="export-menu" id="columns-menu" onclick="event.stopPropagation()">
+              <div class="export-menu-head">Show columns</div>
+              <div id="columns-list"></div>
             </div>
           </div>
         </div>
@@ -6844,6 +7026,8 @@ function renderTable() {
     });
   });
 
+  applyColumnVisibility();
+
   if (selectedPos >= currentView.length) selectedPos = currentView.length - 1;
   paintSelection();
   fadeIn();
@@ -7450,6 +7634,8 @@ function toggleExportMenu(e) {
 
 document.addEventListener('click', () => {
   document.getElementById('export-menu')?.classList.remove('open');
+  document.getElementById('views-menu')?.classList.remove('open');
+  document.getElementById('columns-menu')?.classList.remove('open');
   document.getElementById('nav-export-menu')?.classList.remove('open');
   document.getElementById('nav-verdict-menu')?.classList.remove('open');
 });
@@ -7616,6 +7802,137 @@ function initResizableColumns() {
     });
   });
 }
+
+// ── PREVIEW FEATURE: column customization / saved views ──────────────────
+// Self-contained -- delete this block (+ its HTML in the search-row and its
+// CSS block marked the same way) to fully revert.
+
+
+const ALL_COLS = ['id', 'title', 'category', 'product', 'service', 'tactics', 'techniques', 'severity', 'status', 'verdict'];
+const COL_LABELS = { id: 'Rule ID', title: 'Title', category: 'Category', product: 'Product', service: 'Service', tactics: 'Tactic', techniques: 'Technique', severity: 'Severity', status: 'Status', verdict: 'Verdict' };
+var visibleCols = (() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('ruleLibraryVisibleCols') || 'null');
+    if (saved) return saved;
+  } catch (e) {}
+  const v = {}; ALL_COLS.forEach(c => v[c] = true);
+  v.tactics = false;
+  v.techniques = false;
+  return v;
+})();
+
+function applyColumnVisibility() {
+  const table = document.querySelector('#tab-rules table');
+  if (!table) return;
+  ALL_COLS.forEach((col, i) => {
+    const idx = i + 1; // 1-based nth-child
+    const hide = visibleCols[col] === false;
+    table.querySelectorAll(`th:nth-child(${idx}), td:nth-child(${idx})`).forEach(el => el.classList.toggle('col-hidden', hide));
+  });
+}
+
+function renderColumnsMenu() {
+  const list = document.getElementById('columns-list');
+  if (!list) return;
+  list.innerHTML = ALL_COLS.map(col => `
+    <label class="col-toggle-row">
+      <input type="checkbox" ${visibleCols[col] !== false ? 'checked' : ''} onchange="toggleColumnVisibility('${col}', this.checked)">
+      ${COL_LABELS[col]}
+    </label>`).join('');
+}
+
+function toggleColumnVisibility(col, checked) {
+  visibleCols[col] = checked;
+  localStorage.setItem('ruleLibraryVisibleCols', JSON.stringify(visibleCols));
+  applyColumnVisibility();
+}
+
+function toggleColumnsMenu(e) {
+  e.stopPropagation();
+  document.getElementById('export-menu')?.classList.remove('open');
+  document.getElementById('views-menu')?.classList.remove('open');
+  renderColumnsMenu();
+  document.getElementById('columns-menu').classList.toggle('open');
+}
+
+// Saved views
+function getSavedViews() {
+  try { return JSON.parse(localStorage.getItem('ruleLibrarySavedViews') || '[]'); } catch (e) { return []; }
+}
+
+function setSavedViews(views) {
+  localStorage.setItem('ruleLibrarySavedViews', JSON.stringify(views));
+}
+
+function renderSavedViewsList() {
+  const list = document.getElementById('saved-views-list');
+  if (!list) return;
+  const views = getSavedViews();
+  if (!views.length) {
+    list.innerHTML = '<div class="export-menu-item" style="cursor:default"><span class="desc">No saved views yet</span></div>';
+    return;
+  }
+  list.innerHTML = views.map((v, i) => `
+    <div class="export-menu-item saved-view-row">
+      <span class="desc" onclick="applySavedView(${i})" style="cursor:pointer;flex:1">${escHtml(v.name)}</span>
+      <span class="view-delete" onclick="event.stopPropagation(); deleteSavedView(${i})" title="Delete">&times;</span>
+    </div>`).join('');
+}
+
+function saveCurrentView() {
+  const input = document.getElementById('view-name-input');
+  const name = (input.value || '').trim();
+  if (!name) return;
+  const views = getSavedViews();
+  views.push({
+    name,
+    filters: activeFilters,
+    q: document.getElementById('search-input')?.value || '',
+    sortCol, sortAsc,
+  });
+  setSavedViews(views);
+  input.value = '';
+  renderSavedViewsList();
+}
+
+function applySavedView(i) {
+  const view = getSavedViews()[i];
+  if (!view) return;
+  activeFilters = {};
+  Object.entries(view.filters || {}).forEach(([key, vals]) => { if (vals.length) activeFilters[key] = vals; });
+  Object.keys(activeFilters).forEach(key => {
+    openSections.add(key);
+    const f = FILTER_FIELDS.find(f => f.key === key);
+    if (f && f.group) openGroups.add(f.group);
+  });
+  const si = document.getElementById('search-input');
+  if (si) si.value = view.q || '';
+  document.getElementById('search-clear')?.classList.toggle('show', !!(view.q));
+  sortCol = view.sortCol || 'id';
+  sortAsc = view.sortAsc !== false;
+  renderFilters();
+  renderActiveFilterRow();
+  renderTable();
+  document.getElementById('views-menu')?.classList.remove('open');
+}
+
+function deleteSavedView(i) {
+  const views = getSavedViews();
+  views.splice(i, 1);
+  setSavedViews(views);
+  renderSavedViewsList();
+}
+
+function toggleViewsMenu(e) {
+  e.stopPropagation();
+  document.getElementById('export-menu')?.classList.remove('open');
+  document.getElementById('columns-menu')?.classList.remove('open');
+  renderSavedViewsList();
+  document.getElementById('views-menu').classList.toggle('open');
+}
+
+document.addEventListener('DOMContentLoaded', applyColumnVisibility);
+// ── END PREVIEW FEATURE ───────────────────────────────────────────────
 
 var navTip = document.getElementById('att-tip');
 document.querySelectorAll('.tc[data-rules]').forEach(function (el) {
