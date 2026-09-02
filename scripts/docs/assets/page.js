@@ -26,6 +26,19 @@ const MITRE_PCT = @@MITRE_PCT@@;
 const COVERAGE_HISTORY = @@COVERAGE_HISTORY_JSON@@;
 const RULE_GROWTH_HISTORY = @@RULE_GROWTH_HISTORY_JSON@@;
 
+// Chart.js is handed plain strings, not CSS custom properties, so the axis
+// tick LABELS need their own copy of --text2. Read it off the stylesheet
+// rather than hardcoding a second copy: when --text2 was brightened for
+// contrast (page.css token block), the four literal '#8b949e's that used to
+// live here would otherwise have silently stayed at the old value and left
+// the charts' labels a step dimmer than every other piece of secondary text
+// on the page.
+// This is labels only. The *data marks* below (SEV_HEX.informational,
+// STATUS_HEX.deprecated, the "Never tested" segment fills) keep their literal
+// greys on purpose: they are palette entries identifying a series, not text,
+// and they are not required to track a text token.
+const TEXT2 = getComputedStyle(document.documentElement).getPropertyValue('--text2').trim() || '#a2a9b1';
+
 const SEV_HEX = { critical: '#a4133c', high: '#f85149', medium: '#fb923c', low: '#3fb950', informational: '#8b949e' };
 const STATUS_HEX = { stable: '#3fb950', test: '#d29922', experimental: '#388bfd', deprecated: '#8b949e' };
 const SOURCE_HEX = { sigma: '#00acd7', nativespl: '#ff6600' };
@@ -866,10 +879,10 @@ function buildDashboardCharts() {
         transitions: { active: { animation: { duration: 0 } } },
         interaction: { mode: 'index', intersect: false },
         scales: {
-          x: { grid: { display: false }, ticks: { color: '#8b949e', font: { size: 11 }, maxRotation: 0, autoSkip: true } },
+          x: { grid: { display: false }, ticks: { color: TEXT2, font: { size: 11 }, maxRotation: 0, autoSkip: true } },
           y: {
             grid: { color: 'rgba(139,148,158,0.15)' },
-            ticks: { color: '#8b949e', font: { size: 11 }, callback: (v) => v + '%' },
+            ticks: { color: TEXT2, font: { size: 11 }, callback: (v) => v + '%' },
             suggestedMin: 0, suggestedMax: 100,
           },
         },
@@ -951,11 +964,11 @@ function buildDashboardCharts() {
         transitions: { active: { animation: { duration: 0 } } },
         interaction: { mode: 'index', intersect: false },
         scales: {
-          x: { grid: { display: false }, ticks: { color: '#8b949e', font: { size: 11 }, maxRotation: 0, autoSkip: true } },
+          x: { grid: { display: false }, ticks: { color: TEXT2, font: { size: 11 }, maxRotation: 0, autoSkip: true } },
           y: {
             beginAtZero: true,
             grid: { color: 'rgba(139,148,158,0.15)' },
-            ticks: { color: '#8b949e', font: { size: 11 }, precision: 0 },
+            ticks: { color: TEXT2, font: { size: 11 }, precision: 0 },
           },
         },
         plugins: {
@@ -1698,6 +1711,11 @@ function renderTable() {
     });
   });
 
+  // Rows are rebuilt from scratch on every render, so the per-cell
+  // .col-hidden classes have to be re-applied here or hidden columns would
+  // reappear on the next sort/filter.
+  applyColumnVisibility();
+
   if (selectedPos >= currentView.length) selectedPos = currentView.length - 1;
   paintSelection();
   fadeIn();
@@ -2299,11 +2317,19 @@ window.addEventListener('hashchange', () => {
 
 function toggleExportMenu(e) {
   e.stopPropagation();
+  // Export, Views and Columns are three popovers in the same row: opening one
+  // closes the other two. Views/Columns already do this to each other and to
+  // Export; without the two lines here, Export would be the one menu that
+  // opens on top of an already-open neighbour.
+  closeMenu('views-menu', 'views-toggle');
+  closeMenu('columns-menu', 'columns-toggle');
   document.getElementById('export-menu').classList.toggle('open');
 }
 
 document.addEventListener('click', () => {
   document.getElementById('export-menu')?.classList.remove('open');
+  closeMenu('views-menu', 'views-toggle');
+  closeMenu('columns-menu', 'columns-toggle');
   document.getElementById('nav-export-menu')?.classList.remove('open');
   document.getElementById('nav-verdict-menu')?.classList.remove('open');
 });
@@ -2470,6 +2496,172 @@ function initResizableColumns() {
     });
   });
 }
+
+// ── Column customization / saved views ───────────────────────────────────
+// Both are per-browser preferences held in localStorage: nothing here is
+// generated, and a browser with no stored preference gets the defaults below.
+// The matching markup is the #columns-wrap / #views-wrap blocks in the
+// search-row (page.template.html) and the CSS is the block of the same name
+// in page.css.
+
+// Order matters: applyColumnVisibility() maps a column to a cell by nth-child
+// position, so this list has to stay in step with the <thead> in
+// page.template.html. Adding a column there without adding it here leaves it
+// permanently visible and shifts every later column's toggle by one.
+const ALL_COLS = ['id', 'title', 'category', 'product', 'service', 'tactics', 'techniques', 'severity', 'status', 'verdict'];
+const COL_LABELS = { id: 'Rule ID', title: 'Title', category: 'Category', product: 'Product', service: 'Service', tactics: 'Tactic', techniques: 'Technique', severity: 'Severity', status: 'Status', verdict: 'Verdict' };
+
+// Tactic and Technique are hidden by default: they are the two widest cells
+// (a rule can carry a dozen technique badges) and they dominate the row height
+// when shown. Everything else defaults to visible.
+var visibleCols = (() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('ruleLibraryVisibleCols') || 'null');
+    if (saved) return saved;
+  } catch (e) { /* corrupt/unavailable storage -- fall through to defaults */ }
+  const v = {};
+  ALL_COLS.forEach(c => v[c] = true);
+  v.tactics = false;
+  v.techniques = false;
+  return v;
+})();
+
+function applyColumnVisibility() {
+  const table = document.querySelector('#tab-rules table');
+  if (!table) return;
+  ALL_COLS.forEach((col, i) => {
+    const idx = i + 1; // 1-based nth-child
+    const hide = visibleCols[col] === false;
+    table.querySelectorAll(`th:nth-child(${idx}), td:nth-child(${idx})`).forEach(el => el.classList.toggle('col-hidden', hide));
+  });
+}
+
+function renderColumnsMenu() {
+  const list = document.getElementById('columns-list');
+  if (!list) return;
+  list.innerHTML = ALL_COLS.map(col => `
+    <label class="col-toggle-row">
+      <input type="checkbox" ${visibleCols[col] !== false ? 'checked' : ''} onchange="toggleColumnVisibility('${col}', this.checked)">
+      ${escHtml(COL_LABELS[col])}
+    </label>`).join('');
+}
+
+function toggleColumnVisibility(col, checked) {
+  visibleCols[col] = checked;
+  try { localStorage.setItem('ruleLibraryVisibleCols', JSON.stringify(visibleCols)); } catch (e) { /* storage full or blocked -- the change still applies for this session */ }
+  applyColumnVisibility();
+}
+
+// Saved views -- a named snapshot of the filter set, the search box and the
+// sort, re-applied through the same renderFilters/renderTable path a manual
+// change goes through.
+function getSavedViews() {
+  try { return JSON.parse(localStorage.getItem('ruleLibrarySavedViews') || '[]'); } catch (e) { return []; }
+}
+
+function setSavedViews(views) {
+  try { localStorage.setItem('ruleLibrarySavedViews', JSON.stringify(views)); } catch (e) { /* see toggleColumnVisibility */ }
+}
+
+function renderSavedViewsList() {
+  const list = document.getElementById('saved-views-list');
+  if (!list) return;
+  const views = getSavedViews();
+  if (!views.length) {
+    list.innerHTML = '<div class="export-menu-item" style="cursor:default"><span class="desc">No saved views yet</span></div>';
+    return;
+  }
+  list.innerHTML = views.map((v, i) => `
+    <div class="export-menu-item saved-view-row">
+      <span class="desc" onclick="applySavedView(${i})" style="cursor:pointer;flex:1">${escHtml(v.name)}</span>
+      <span class="view-delete" onclick="event.stopPropagation(); deleteSavedView(${i})" title="Delete">&times;</span>
+    </div>`).join('');
+}
+
+function saveCurrentView() {
+  const input = document.getElementById('view-name-input');
+  const name = (input.value || '').trim();
+  if (!name) return;
+  const views = getSavedViews();
+  views.push({
+    name,
+    // Deep-copied on the way in: activeFilters is mutated in place by the
+    // filter UI, so storing the live reference would make an already-saved
+    // view follow later filter changes.
+    filters: JSON.parse(JSON.stringify(activeFilters)),
+    q: document.getElementById('search-input')?.value || '',
+    sortCol, sortAsc,
+  });
+  setSavedViews(views);
+  input.value = '';
+  renderSavedViewsList();
+}
+
+function applySavedView(i) {
+  const view = getSavedViews()[i];
+  if (!view) return;
+  activeFilters = {};
+  Object.entries(view.filters || {}).forEach(([key, vals]) => { if (vals && vals.length) activeFilters[key] = vals; });
+  // Re-open the sections/groups the saved filters live in, so the restored
+  // state is visible in the filters panel rather than silently applied.
+  Object.keys(activeFilters).forEach(key => {
+    openSections.add(key);
+    const f = FILTER_FIELDS.find(f => f.key === key);
+    if (f && f.group) openGroups.add(f.group);
+  });
+  const si = document.getElementById('search-input');
+  if (si) si.value = view.q || '';
+  document.getElementById('search-clear')?.classList.toggle('show', !!(view.q));
+  sortCol = view.sortCol || 'id';
+  sortAsc = view.sortAsc !== false;
+  renderFilters();
+  renderActiveFilterRow();
+  renderTable();
+  // Same trailing updateHash() every other state mutator does (toggleFilter,
+  // clearFilters, sortBy). Without it the URL still described the previous
+  // view, so copying the link, reloading or pressing Back after applying a
+  // saved view all threw the view away.
+  updateHash();
+  closeMenu('views-menu', 'views-toggle');
+}
+
+function deleteSavedView(i) {
+  const views = getSavedViews();
+  views.splice(i, 1);
+  setSavedViews(views);
+  renderSavedViewsList();
+}
+
+// Shared open/close helpers so the button's aria-expanded never drifts from
+// the menu's actual .open state (it is set in three places: the two toggles
+// and the document-level click handler that closes everything).
+function closeMenu(menuId, btnId) {
+  document.getElementById(menuId)?.classList.remove('open');
+  document.getElementById(btnId)?.setAttribute('aria-expanded', 'false');
+}
+
+function toggleMenu(menuId, btnId) {
+  const open = document.getElementById(menuId).classList.toggle('open');
+  document.getElementById(btnId)?.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function toggleColumnsMenu(e) {
+  e.stopPropagation();
+  document.getElementById('export-menu')?.classList.remove('open');
+  closeMenu('views-menu', 'views-toggle');
+  renderColumnsMenu();
+  toggleMenu('columns-menu', 'columns-toggle');
+}
+
+function toggleViewsMenu(e) {
+  e.stopPropagation();
+  document.getElementById('export-menu')?.classList.remove('open');
+  closeMenu('columns-menu', 'columns-toggle');
+  renderSavedViewsList();
+  toggleMenu('views-menu', 'views-toggle');
+}
+
+document.addEventListener('DOMContentLoaded', applyColumnVisibility);
 
 var navTip = document.getElementById('att-tip');
 document.querySelectorAll('.tc[data-rules]').forEach(function (el) {

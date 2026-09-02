@@ -1594,15 +1594,18 @@ def _read_asset(name: str) -> str:
 # replaced:
 #   favicon-16.png / favicon-32.png / favicon-48.png  -- browser tab favicon
 #   apple-touch-icon.png (180x180)                     -- bookmarks/home-screen
-#   logo-header.png (96x96, displayed at 36px)          -- .strip-logo mark
+#   logo-header.png (96x96, displayed at 40px)          -- .strip-logo mark
 #
 # Because this source is cropped near full-bleed, these exports now carry
 # much more visible logo per pixel than the old padded source did at the
 # same target sizes -- if logo.png changes again, re-check the .strip-logo
 # display size in page.css against a screenshot rather than assuming the
-# old 48px/72px-strip sizing still gives the same visual weight (see the
-# 2026-08-23 branding pass, which dropped .strip-logo from 48px to 36px
-# for exactly this reason).
+# current sizing still gives the same visual weight (see the 2026-08-23
+# branding pass, which dropped .strip-logo from 48px to 36px for exactly
+# this reason; the redesign then set it to 40px against a 60px strip).
+# The display size is governed by page.css; the <img> width/height
+# attributes in page.template.html mirror it as the aspect-ratio/CLS hint
+# and have to be updated alongside it.
 # 2026-08-28 image consolidation: moved from docs/branding/ to
 # docs/pictures/branding/, alongside the team avatars under docs/pictures/
 # (Sienna's surface, per CLAUDE.md), so all image assets live under one
