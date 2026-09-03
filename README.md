@@ -18,15 +18,15 @@ Generated views of where the rule library actually stands right now — regenera
 
 <table>
 <tr>
-<td><img src="docs/pictures/branding/rule_browser.png" width="200" alt="Rule Browser icon"></td>
+<td><img src="docs/pictures/branding/rule_browser.png" width="150" alt="Rule Browser icon"></td>
 <td><strong><a href="https://martonbence.github.io/Detection-Engineering/">Rule Browser</a></strong><br>Every rule in the repo — searchable, filterable, sortable, each carrying the verdict the pipeline last measured for it.</td>
 </tr>
 <tr>
-<td><img src="docs/pictures/branding/mitre_navigator.png" width="200" alt="MITRE Navigator icon"></td>
+<td><img src="docs/pictures/branding/mitre_navigator.png" width="150" alt="MITRE Navigator icon"></td>
 <td><strong><a href="https://martonbence.github.io/Detection-Engineering/#tab=navigator">MITRE Navigator</a></strong><br>The coverage and the gaps, laid over the full ATT&amp;CK matrix — and exportable straight into MITRE's own Navigator.</td>
 </tr>
 <tr>
-<td><img src="docs/pictures/branding/dashboards.png" width="175" alt="Dashboards icon"></td>
+<td><img src="docs/pictures/branding/dashboards.png" width="150" alt="Dashboards icon"></td>
 <td><strong><a href="https://martonbence.github.io/Detection-Engineering/#tab=dashboards">Dashboards</a></strong><br>The big-picture view of the detection program — what the library adds up to today, and how it got there.</td>
 </tr>
 </table>
@@ -37,7 +37,7 @@ When the live views prompt a "but how?", these go down to the mechanics — ever
 
 <table>
 <tr>
-<td><img src="docs/pictures/branding/architecture.png" width="175" alt="Architecture icon"></td>
+<td><img src="docs/pictures/branding/architecture.png" width="150" alt="Architecture icon"></td>
 <td><strong><a href="docs/architecture/">Architecture</a></strong><br>How every moving part actually works, in prose and diagrams — from a Sigma file to a prod deploy.</td>
 </tr>
 </table>
@@ -48,7 +48,7 @@ This repo is maintained largely by a small team of scoped AI agents under a huma
 
 <table>
 <tr>
-<td><img src="docs/pictures/branding/team.png" width="200" alt="Team dashboard icon"></td>
+<td><img src="docs/pictures/branding/team.png" width="150" alt="Team dashboard icon"></td>
 <td><strong><a href="https://martonbence.github.io/Detection-Engineering/team-ops.html">Team Dashboard</a></strong><br>Every agent, their scope, their place in the org chart, and what they've actually shipped.</td>
 </tr>
 </table>
@@ -69,20 +69,27 @@ Nothing here about whether a detection works is self-reported. Every verdict is 
 
 ## How it fits together
 
-The pipeline runs in five phases — Strategic, Development, Continuous Integration, its nested Testing phase, and Measurement & Reporting — with a Tune feedback loop that carries verification results back into Development. The diagram below spans both workflows that implement it: `ci_dev_workflow.yml`, which runs the full validate → deploy → attack → verify → report loop on the `dev` branch, and `ci_prod_workflow.yml`, which deploys already-verified rules to the production Splunk app once a promotion PR merges to `main`.
+The pipeline runs in five phases — Strategic, Development, Validation, its nested Testing phase, and Measurement & Reporting — with a Calibration feedback loop that carries verification results back into Development.
+The diagram below spans both workflows that implement it: `ci_dev_workflow.yml`, which runs the full detection engineering CI/CD pipeline on the `dev` branch, and `ci_prod_workflow.yml`, which deploys already-verified rules to the production Splunk app once a promotion PR merges to `main`.
 
 <p align="center">
   <a href="https://raw.githubusercontent.com/martonbence/Detection-Engineering/dev/docs/pictures/Workflow.drawio.svg" target="_blank" rel="noopener">
-    <img src="docs/pictures/Workflow.drawio.svg" alt="Detection-Engineering pipeline diagram: Strategic Phase feeds the Development Phase (write Sigma/SPL rule, validate syntax, convert), which feeds the Continuous Integration Phase (deploy to dev Splunk, then a nested Testing Phase running Atomic Red Team and script emulation, then a pass/fail verification), which feeds the Measurement &amp; Reporting Phase (update docs and stats, deploy GitHub Pages, open a promotion PR, deploy to dev Splunk, notify Slack) — with a Tune feedback loop running from Verification back into Development." width="900">
+    <img src="docs/pictures/Workflow.drawio.svg" alt="Detection-Engineering pipeline diagram: the Strategic Phase feeds the Development Phase (write a Sigma or native-SPL rule, validate against the schema, convert to SPL), which feeds the Validation Phase (deploy to the dev proving-ground Splunk, then a nested Testing Phase running Atomic Red Team and script-emulation tests on a Windows workstation and/or domain controller, then a pass/fail verification), which feeds the Measurement &amp; Reporting Phase (update docs and stats, deploy GitHub Pages, open a promotion PR to main, notify Slack) — with a Calibration / Tune feedback loop running from Verification back into Development; merging the promotion PR triggers a separate prod workflow that deploys the verified rules to production Splunk." width="900">
   </a>
 </p>
-<p align="center"><sub>Click the diagram to open the full-size vector in a new tab (browser zoom works cleanly on it).</sub></p>
+<p align="center"><sub>Click the diagram to open the full-size vector (browser zoom works cleanly on it).</sub></p>
 
-Underneath, it is a GitHub Actions job graph — every stage a job, every dependency an explicit `needs:` — and a single push drives the `dev` loop from end to end with no manual step.
+Reading the diagram top to bottom:
 
-That green checkmark comes with one caveat: the lab the pipeline deploys to is not always online. A repository variable, `LAB_ONLINE`, gates every lab-dependent stage — the Splunk deploy, the attack tests, and verification. With it set to `false`, a push still validates, converts and commits its SPL, and the run still passes — but nothing is deployed, attacked or re-measured. This is why the rule browser leads with a *last live verification* date and an ATT&CK coverage figure rather than a bare pass count: a green run alone does not mean anything was tested.
+- **Strategic** — the *why* and the *what*: deciding which adversary techniques are worth detecting and threat-modelling the coverage gap. This phase is human and agent judgement, not automation — no workflow runs here.
 
-Verification always runs first in a low-stakes proving-ground environment. Only after a batch of rules clears it does the pipeline open a pull request proposing their promotion — which a human reviews and merges. Nothing reaches production because a script said so.
+- **Development** — the *how*: author the detection as a single Sigma rule or a native-SPL rule, then `ci_dev_workflow.yml` validates it against the JSON schema, checks test routing, MITRE tags and version-bump discipline, and converts it to a deployable `.spl` query plus a metadata sidecar.
+- **Validation** — the *proof*: the rule is deployed as a live saved search in the `dev` proving-ground Splunk, then the nested **Testing** phase runs the real attack against a live host. The rule's own `custom.testing` config independently picks the target host (a domain-joined Windows workstation and/or the domain controller) and the mechanism (an Atomic Red Team test and/or a script-emulation test). Both hosts are VMs running a Splunk Universal Forwarder that ships their Windows Event Log and Sysmon telemetry to the `dev` Splunk instance, so the attack's traces land there for Verification to query for the resulting hit and write a pass/fail verdict per rule.
+- **Measurement & Reporting** — the run folds those verdicts into `outputs/reports/`, regenerates the rule library, the MITRE Navigator and the dashboards, republishes GitHub Pages, opens a **promotion PR** to `main` for the rules that just passed, and sends a Slack summary notification, that contains the result of the workflow and a link to the run.
+<br>When a human merges that PR, `ci_prod_workflow.yml` takes over: it re-verifies each rule's build provenance and deploys the promoted rules to the production Splunk app.
+- **Calibration** — the feedback loop: It exists because a passing verdict decays: editing a rule's logic invalidates its last result and age-out expires a stale one, so the loop re-runs the whole attack-and-measure cycle to keep every "PASS" badge honest.
+
+One caveat: the lab environment — the dev Splunk and the victim VMs (workstation + DC) — isn't always running, so a repository variable, `LAB_ONLINE`, decides the run path — with it true the pipeline deploys, attacks and verifies; with it false a push still validates, converts and commits its SPL and still passes green, but nothing is deployed, attacked or measured. The rule browser therefore leads with a last live verification date and an ATT&CK coverage figure rather than a bare pass count, since a passing run doesn't by itself mean a rule was deployed and exercised.
 
 ## What "pass" actually means here
 
