@@ -19,7 +19,7 @@ Generated views of where the rule library actually stands right now — regenera
 <table>
 <tr>
 <td><img src="docs/pictures/branding/rule_browser.png" width="150" alt="Rule Browser icon"></td>
-<td><strong><a href="https://martonbence.github.io/Detection-Engineering/">Rule Browser</a></strong><br>Every rule in the repo — searchable, filterable, sortable, each carrying the verdict the pipeline last measured for it.</td>
+<td><strong><a href="https://martonbence.github.io/Detection-Engineering/">Rule Library</a></strong><br>Every rule in the repo — searchable, filterable, sortable, each carrying the verdict the pipeline last measured for it.</td>
 </tr>
 <tr>
 <td><img src="docs/pictures/branding/mitre_navigator.png" width="150" alt="MITRE Navigator icon"></td>
@@ -70,7 +70,7 @@ Nothing here about whether a detection works is self-reported. Every verdict is 
 ## How it fits together
 
 The pipeline runs in five phases — Strategic, Development, Validation, its nested Testing phase, and Measurement & Reporting — with a Calibration feedback loop that carries verification results back into Development.
-The diagram below spans both workflows that implement it: `ci_dev_workflow.yml`, which runs the full detection engineering CI/CD pipeline on the `dev` branch, and `ci_prod_workflow.yml`, which deploys already-verified rules to the production Splunk app once a promotion PR merges to `main`.
+The diagram below spans both workflows that implement it: [`ci_dev_workflow.yml`](.github/workflows/ci_dev_workflow.yml), which runs the full detection engineering CI/CD pipeline on the `dev` branch, and [`ci_prod_workflow.yml`](/.github/workflows/ci_prod_workflow.yml), which deploys already-verified rules to the production Splunk app once a promotion PR merges to `main`.
 
 <p align="center">
   <a href="https://raw.githubusercontent.com/martonbence/Detection-Engineering/dev/docs/pictures/Workflow.drawio.svg" target="_blank" rel="noopener">
@@ -83,10 +83,10 @@ Reading the diagram top to bottom:
 
 - **Strategic** — the *why* and the *what*: deciding which adversary techniques are worth detecting and threat-modelling the coverage gap. This phase is human and agent judgement, not automation — no workflow runs here.
 
-- **Development** — the *how*: author the detection as a single Sigma rule or a native-SPL rule, then [`ci_dev_workflow.yml`](workflows/ci_dev_workflow.yml) validates it against the JSON schema, checks test routing, MITRE tags and version-bump discipline, and converts it to a deployable `.spl` query plus a metadata sidecar.
+- **Development** — the *how*: author the detection as a single Sigma rule or a native-SPL rule, then [`ci_dev_workflow.yml`](.github/workflows/ci_dev_workflow.yml) validates it against the JSON schema, checks test routing, MITRE tags and version-bump discipline, and converts it to a deployable `.spl` query plus a metadata sidecar.
 - **Validation** — the *proof*: the rule is deployed as a live saved search in the `dev` proving-ground Splunk, then the nested **Testing** phase runs the real attack against a live host. The rule's own `custom.testing` config independently picks the target host (a domain-joined Windows workstation and/or the domain controller) and the mechanism (an Atomic Red Team test and/or a script-emulation test). Both hosts are VMs running a Splunk Universal Forwarder that ships their Windows Event Log and Sysmon telemetry to the `dev` Splunk instance, so the attack's traces land there for Verification to query for the resulting hit and write a pass/fail verdict per rule.
-- **Measurement & Reporting** — the run folds those verdicts into `outputs/reports/`, regenerates the rule library, the MITRE Navigator and the dashboards, republishes GitHub Pages, opens a **promotion PR** to `main` for the rules that just passed, and sends a Slack summary notification, that contains the result of the workflow and a link to the run.
-<br>When a human merges that PR, `ci_prod_workflow.yml` takes over: it re-verifies each rule's build provenance and deploys the promoted rules to the production Splunk app.
+- **Measurement & Reporting** — the run folds those verdicts into [`outputs/reports/`](outputs/reports/), regenerates the [Rule Library](https://martonbence.github.io/Detection-Engineering/), the [MITRE Navigator](https://martonbence.github.io/Detection-Engineering/#tab=navigator) and the [Dashboards](https://martonbence.github.io/Detection-Engineering/#tab=dashboards), republishes GitHub Pages, opens a **promotion PR** to `main` for the rules that just passed, and sends a Slack summary notification, that contains the result of the workflow and a link to the run.
+<br>When a human merges that PR, [`ci_prod_workflow.yml`](.github/workflows/ci_prod_workflow.yml) takes over: it re-verifies each rule's build provenance and deploys the promoted rules to the production Splunk app.
 - **Calibration** — the feedback loop: It exists because a passing verdict decays: editing a rule's logic invalidates its last result and age-out expires a stale one, so the loop re-runs the whole attack-and-measure cycle to keep every "PASS" badge honest.
 
 One caveat: the lab environment — the dev Splunk and the victim VMs (workstation + DC) — isn't always running, so a repository variable, `LAB_ONLINE`, decides the run path — with it true the pipeline deploys, attacks and verifies; with it false a push still validates, converts and commits its SPL and still passes green, but nothing is deployed, attacked or measured. The rule browser therefore leads with a last live verification date and an ATT&CK coverage figure rather than a bare pass count, since a passing run doesn't by itself mean a rule was deployed and exercised.
