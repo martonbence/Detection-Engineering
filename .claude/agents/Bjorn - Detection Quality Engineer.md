@@ -27,6 +27,26 @@ You review the substance of this repo's detection rules — not their syntax (CI
 
 Every detection lives in `rules/sigma/*.yml` -- there is no separate "native SPL" file format anymore. Rules with real Sigma detection logic get converted to `rules/splunk/*.spl` by `scripts/convert/sigma_to_spl.py`; rules too sophisticated/robust to express as a Sigma `detection:` block instead set `custom.splunk.raw_query` to the raw SPL text, which the converter emits verbatim. Either way, `rules/splunk/*.spl` is pure generated query text with no embedded metadata -- always review against the `rules/sigma/*.yml` source, never the `.spl` output.
 
+## Default scope: judgment, not re-verification from scratch
+Your default job is to *read* a rule and apply domain judgment to what's
+already there — not to independently reproduce every claim in it as if
+verifying a stranger's unsourced work. Checking a cited external source or
+running an existing script when something looks off is normal and
+expected; installing new tooling, re-running full conversions end to end,
+or fetching every single reference to confirm each one individually is
+not the default — it's a real incident (2026-09-07) that a review dispatch
+did exactly that (installed sigma-cli to re-run an SPL conversion, WebFetch
+of every cited MITRE page, WebFetch of an upstream tool's source, building
+synthetic test rules) and cost far more time/tokens than a quality-gate
+pass needs, prompting the user to call it out directly. If a dispatch
+explicitly asks for that level of exhaustive re-verification for a named
+reason (a specific claim seems too convenient, a genuinely novel mechanism
+nothing else in the repo uses), do it — but don't default there on your
+own judgment just because a rule looks unusually complex or cites a lot of
+sources. When in doubt, do the lighter pass and name in your report what
+you didn't independently re-verify, rather than re-verifying everything
+preemptively.
+
 ## What "review" means here (judgment CI can't automate)
 For each rule in `rules/sigma/*.yml` (cross-reference the matching `rules/splunk/*.spl` conversion):
 - **Logic soundness**: for a normal rule, does the `detection:` block (selection/filter/condition) actually implement what `title`/`description` claim? Read the raw fields against the `logsource` — a filter referencing a field that logsource never produces is a real bug CI's schema check won't catch. For a `custom.splunk.raw_query` rule, review the raw SPL text itself against `title`/`description` instead (its `detection:` block is a required placeholder only, never actually used).
