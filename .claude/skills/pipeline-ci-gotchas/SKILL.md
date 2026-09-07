@@ -345,7 +345,50 @@ workflows and confirm each caller's own `Checkout` step carries
 `fetch-depth: 0` rather than assuming the first two fixes covered every
 site.
 
-## I — Register-item citations
+## J — Dependabot-triggered runs
+
+**A Dependabot rebase force-push can fire `ci_dev_workflow.yml` despite the
+diff not matching its `paths:` filter — and then fails for an unrelated
+reason.** Real incident, 2026-09-07, PR #70 (a `.github/requirements-dev.txt`
+ruff bump, dependabot/pip branch). Commenting `@dependabot rebase` made
+Dependabot force-push its branch onto the new `dev` tip. That triggered
+`ci_dev_workflow.yml`'s `push` trigger (`branches-ignore: [main]`, otherwise
+unrestricted) even though the only actual file changed was
+`.github/requirements-dev.txt`, which matches none of the trigger's
+`paths:` entries (`rules/sigma/**`, `scripts/validate/**`, etc.) — because
+GitHub's `paths:` filter can't reliably compute a diff across a
+force-pushed ref with no consistent "before" commit in the branch's own
+history, and falls back to running the workflow rather than skipping it.
+Run confirmed: `34138572509`, job `101795144178`.
+
+The triggered run then failed immediately (~4s) at its own `Checkout` step
+— `Input required and not supplied: token` — because that step passes
+`token: ${{ secrets.GH_PAT_DEV_PUSH }}` (see section F), and **workflow
+runs whose actor is `dependabot[bot]` never get access to repository
+secrets**, by GitHub's own design (a supply-chain protection: a compromised
+dependency's changelog/metadata can't be crafted to exfiltrate secrets
+through an auto-triggered CI run). This isn't a bug to fix in this
+specific step — no secret will ever be available here no matter how the
+token line is written — it's a structural mismatch between "this workflow
+assumes it can always check out with a PAT" and "Dependabot pushes can
+trigger it."
+
+*Failure signature:* a `Prepare, Validate, Convert` (or any other
+secret-consuming job) red X, dying in seconds at `Checkout`, specifically
+on a `dependabot/**` branch, right after a rebase/recreate comment or an
+initial Dependabot PR push.
+
+**Why this hasn't broken anything load-bearing (yet):** `dev`'s branch
+protection has no `required_status_checks` configured (confirmed via `gh
+api repos/.../branches/dev/protection` — the field is simply absent), so
+this red X doesn't block the PR's `mergeStateStatus`; the actual gate for
+a Dependabot bump PR is `ci_code_checks.yml`'s `Static analysis and tests`
+job, which runs independently and did pass. **If `required_status_checks`
+is ever added to `dev` and someone reflexively lists `Prepare, Validate,
+Convert` among them** (it looks like a natural "must pass" candidate), any
+future Dependabot PR that gets rebased even once becomes permanently
+unmergeable through no fault of its own diff — worth remembering before
+tightening branch protection, not just when triggering a rebase.
 
 **A bare "register item N.N" in a comment is ambiguous, and it has already
 misled twice.** This repo runs *two* independent audit registers —
