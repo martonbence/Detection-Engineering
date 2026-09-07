@@ -1476,13 +1476,13 @@ def render_readme_section(stats: dict, repo: str) -> str:
         f"[![Native SPL]({b}&query=%24.total_native_spl_rules&label=Native%20SPL&color=FF6600)](https://github.com/martonbence/Detection-Engineering/tree/main/rules/splunk)",
     ])
     # 2026-08-25 (user's explicit ask): Pass, Fail, Pass Rate, Not Verified,
-    # MITRE Coverage. MITRE Coverage color reuses this repo's established
-    # green->blue->purple->coral phase palette (see the mermaid classDefs
-    # and header badges in README.md, outside this generated block) --
-    # #8f95d6 is the same purple already used for the pipeline status badge,
-    # kept here as a neutral/informational color rather than a pass/fail-style
-    # threshold color, since low MITRE coverage today is expected, not a
-    # failure state.
+    # MITRE Coverage. #8f95d6 is the same purple used elsewhere on this page
+    # (see page.js's GROUP_ACCENT['MITRE ATT&CK']) as a neutral/informational
+    # color rather than a pass/fail-style threshold color, since low MITRE
+    # coverage today is expected, not a failure state. (The mermaid-classDef
+    # "phase palette" this comment used to cite was retired along with
+    # TEAM.md's collaboration diagram on 2026-09-01 -- #8f95d6 is the only
+    # surviving color from it, so this comment no longer points to it.)
     row3 = " ".join([
         f"![Pass]({b}&query=%24.verified_pass_current&label=Pass&color=brightgreen)",
         f"![Fail]({b}&query=%24.verified_fail_current&label=Fail&color=red)",
