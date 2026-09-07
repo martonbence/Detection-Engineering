@@ -659,9 +659,25 @@ TEMPLATE = """<!doctype html>
     --card-bg: #161b22;
     --border: #30363d;
     --text: #e6edf3;
-    --text-dim: #8b949e;
-    --accent: #f0a341;
-    --accent-soft: rgba(240, 163, 65, .12);
+    /* Was #8b949e -- the rule browser's own pre-fix value (page.css measured
+       it at 4.03:1 on its glass-panel surfaces, below WCAG AA). This page has
+       no glass panels -- --text-dim only ever sits on flat, opaque
+       backgrounds (--bg, --card-bg/--sidebar-bg, --hover-bg) -- so the old
+       value actually cleared 4.5:1 here too (measured 4.95:1 on the worst
+       case, --hover-bg). Synced to the rule browser's current --text2
+       (#a2a9b1) anyway for one shared palette; measured against every real
+       surface it renders on here it clears 6.4:1 at the worst (--hover-bg,
+       #21262d), 7.3:1 on --card-bg/--sidebar-bg, 7.98:1 on --bg. */
+    --text-dim: #a2a9b1;
+    /* Matches the rule browser's actual primary brand colour (solid #ffaa00,
+       see page.css's thead th comment) rather than this page's own
+       previously-drifted amber. Only two usages, both text-on-accent-soft
+       (.nav-item.active, .agent-slug) -- both composite to ~rgb(50,44,30)
+       over --card-bg/--sidebar-bg and measure ~7.3:1, comfortably clearing
+       AA. No solid-accent-background usage here (unlike page.css's
+       thead/th:hover), so no black-text-on-amber flip is needed. */
+    --accent: #ffaa00;
+    --accent-soft: rgba(255, 170, 0, .12);
     --blue: #58a6ff;
     --green: #3fb950;
     --hover-bg: #21262d;
@@ -673,7 +689,7 @@ TEMPLATE = """<!doctype html>
     min-height: 100vh;
     background: var(--bg);
     color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   }}
 
   /* --- sidebar --- */
@@ -729,7 +745,7 @@ TEMPLATE = """<!doctype html>
 
   /* --- agents (Ügynökök) tab --- */
   .agent-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1rem; align-items: start; }}
-  .agent-card {{ background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.1rem 1.15rem; display: flex; flex-direction: column; gap: .8rem; height: 100%; }}
+  .agent-card {{ background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1.1rem 1.15rem; display: flex; flex-direction: column; gap: .8rem; height: 100%; }}
   .agent-card-head {{ display: flex; align-items: center; gap: .7rem; }}
   .agent-avatar {{ width: 44px; height: 44px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: var(--hover-bg); border: 1px solid var(--border); }}
   .agent-avatar img {{ width: 100%; height: 100%; object-fit: cover; display: block; }}
@@ -746,13 +762,13 @@ TEMPLATE = """<!doctype html>
 
   /* --- stat cards --- */
   .stat-cards {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.75rem; }}
-  .stat-card {{ background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.05rem 1.25rem; }}
+  .stat-card {{ background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1.05rem 1.25rem; }}
   .stat-card .label {{ font-size: .72rem; color: var(--text-dim); margin-bottom: .5rem; }}
   .stat-card .value {{ font-size: 1.65rem; font-weight: 700; }}
   .stat-card .context {{ font-size: .7rem; color: var(--text-dim); margin-top: .35rem; }}
 
   /* --- panel --- */
-  .panel {{ background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem 1.35rem; }}
+  .panel {{ background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem 1.35rem; }}
   .panel-header {{ display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1.1rem; }}
   .panel-header h2 {{ font-size: .92rem; margin: 0; }}
   .panel-header .hint {{ font-size: .68rem; color: var(--text-dim); }}
