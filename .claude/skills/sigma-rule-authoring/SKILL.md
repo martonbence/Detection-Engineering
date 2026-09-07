@@ -12,7 +12,7 @@ schema-valid and review-ready on the first pass.
 Start from:
 
 ```
-python scripts/new_rule.py --title "..."
+python3 scripts/new_rule.py "Rule Title Here"
 ```
 
 (check `--help` for current flags before assuming the signature). It

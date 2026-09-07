@@ -1462,7 +1462,6 @@ def generate_stats() -> dict:
 
 def render_readme_section(stats: dict, repo: str) -> str:
     lines: list[str] = []
-    gh_pages = f"https://{repo.split('/')[0]}.github.io/{repo.split('/')[1]}/"
 
     # --- Shields.io dynamic badges ---
     raw_base = (
@@ -1493,63 +1492,13 @@ def render_readme_section(stats: dict, repo: str) -> str:
     ])
     for row in [row1, "", row2, "", row3]:
         lines.append(row)
-    lines.append("")
 
-    # Pass Rate is measured over the rules the pipeline actually tries to
-    # test, so when a slice of the library is deliberately out of scope the
-    # badge alone leaves a reader to work out why measured coverage is low --
-    # and the likeliest guess ("the pipeline is broken") is the wrong one.
-    # Written as a line rather than another badge: this needs a clause to be
-    # honest, and a badge has room for a word. (2026-08-25: this paragraph
-    # used to also name a "Verified Current" badge in row3 -- that badge was
-    # dropped; the rendered clause below no longer references it, this
-    # comment now shouldn't either.) Emitted only while such rules exist, so
-    # the row is silent in the normal case instead of carrying a permanent
-    # "0 rules" footnote.
-    scoped_out = stats.get("verified_testing_disabled", 0)
-    if scoped_out:
-        lines += [
-            f"> **{scoped_out} of {stats['total_rules']} rules are currently out of testing "
-            f"scope** — `custom.testing.enabled: false`, so the pipeline skips them rather "
-            f"than failing to measure them. They are excluded from Pass Rate (which would "
-            f"otherwise read them as failures), but still count against how much of the "
-            f"library has actually been measured — what they cost is coverage, not "
-            f"correctness.",
-            "",
-        ]
-
-    # Pairs with the blockquote above rather than standing alone: both answer
-    # "what do the badges above actually mean today". A pass rate or Verified
-    # Current that hasn't moved in a while is easy to misread as regression --
-    # this line is what lets a reader tell that apart from "the lab has been
-    # offline" or "most of the library is temporarily testing-disabled"
-    # without opening outputs/results themselves. See
-    # _last_live_verification()'s docstring in generate_stats.py for exactly
-    # what counts as a live measurement here. Emitted only once the pipeline
-    # has produced at least one real verdict -- silent before that, same as
-    # the scoped-out line above it.
-    last_live_at = stats.get("last_live_verification_at", "")
-    last_live_count = stats.get("last_live_verification_count", 0)
-    if last_live_count:
-        last_live_display = last_live_at[:19].replace("T", " ") + " UTC"
-        lines += [
-            f"> **Last live verification: {last_live_display}** — {last_live_count} of "
-            f"{stats['total_rules']} rules were actually measured in that run. `stats.json` "
-            f"and the badges above are a build-time snapshot; a verdict's standing can "
-            f"change simply because time passed, so the rule browser itself "
-            f"([GitHub Pages]({gh_pages})) recomputes Pass Rate and coverage against the "
-            f"current date on every load.",
-            "",
-        ]
-
-    lines += [
-        f"🗺️ Interactive MITRE Navigator → [GitHub Pages]({gh_pages}#tab=navigator)",
-        "",
-        f"📋 Full rule index → [GitHub Pages]({gh_pages})",
-        "",
-        f"*Generated at {stats['generated_at'][:19]} UTC*",
-    ]
-
+    # No "Generated at" stamp or prose lines here on purpose: since audit item
+    # 4.4 (2026-08-24) the pipeline regenerates this block on every run but no
+    # longer commits README.md, so anything static baked in here goes stale on
+    # the branch while the run's real output ships to Pages as an artifact. The
+    # shields.io badges above sidestep that entirely -- they fetch stats.json
+    # from main at view time -- so the block is deliberately nothing but badges.
     return "\n".join(lines)
 
 
@@ -1645,15 +1594,18 @@ def _read_asset(name: str) -> str:
 # replaced:
 #   favicon-16.png / favicon-32.png / favicon-48.png  -- browser tab favicon
 #   apple-touch-icon.png (180x180)                     -- bookmarks/home-screen
-#   logo-header.png (96x96, displayed at 36px)          -- .strip-logo mark
+#   logo-header.png (96x96, displayed at 40px)          -- .strip-logo mark
 #
 # Because this source is cropped near full-bleed, these exports now carry
 # much more visible logo per pixel than the old padded source did at the
 # same target sizes -- if logo.png changes again, re-check the .strip-logo
 # display size in page.css against a screenshot rather than assuming the
-# old 48px/72px-strip sizing still gives the same visual weight (see the
-# 2026-08-23 branding pass, which dropped .strip-logo from 48px to 36px
-# for exactly this reason).
+# current sizing still gives the same visual weight (see the 2026-08-23
+# branding pass, which dropped .strip-logo from 48px to 36px for exactly
+# this reason; the redesign then set it to 40px against a 60px strip).
+# The display size is governed by page.css; the <img> width/height
+# attributes in page.template.html mirror it as the aspect-ratio/CLS hint
+# and have to be updated alongside it.
 # 2026-08-28 image consolidation: moved from docs/branding/ to
 # docs/pictures/branding/, alongside the team avatars under docs/pictures/
 # (Sienna's surface, per CLAUDE.md), so all image assets live under one

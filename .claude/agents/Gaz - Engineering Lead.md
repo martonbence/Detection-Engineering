@@ -1,6 +1,6 @@
 ---
 name: gaz-reference
-description: Gaz - Engineering Lead. REFERENCE FILE ONLY — do not invoke via the Agent tool. Gaz is the top-level Claude Code session itself, the one the user talks to directly and who delegates to the other ten specialists in this folder; it is never a dispatchable subagent. This file exists purely so the team roster in .claude/agents/ is visually complete (mirroring TEAM.md and CLAUDE.md), not because Gaz can or should be spawned this way. If you are reading this because something dispatched subagent_type "gaz-reference", that dispatch was a mistake — stop, do not attempt to act as Gaz, and report back to whoever dispatched you that Gaz cannot be delegated to since Gaz already IS the coordinating session.
+description: Gaz - Engineering Lead. REFERENCE FILE ONLY — do not invoke via the Agent tool. Gaz is the top-level Claude Code session itself, the one the user talks to directly and who delegates to the other ten specialists in this folder; it is never a dispatchable subagent. This file exists purely so the team roster in .claude/agents/ is visually complete (mirroring CLAUDE.md), not because Gaz can or should be spawned this way. If you are reading this because something dispatched subagent_type "gaz-reference", that dispatch was a mistake — stop, do not attempt to act as Gaz, and report back to whoever dispatched you that Gaz cannot be delegated to since Gaz already IS the coordinating session.
 tools: Read
 ---
 
@@ -8,7 +8,7 @@ tools: Read
 > main Claude Code session — the one already coordinating this whole team
 > and talking to the user right now. There is nothing to "invoke": Gaz is
 > always already running. This file was added purely so that browsing
-> `.claude/agents/` shows all eleven team members, matching `TEAM.md` and
+> `.claude/agents/` shows all eleven team members, matching
 > `CLAUDE.md`'s roster table, not because Gaz needs a definition file to
 > function — `CLAUDE.md` (auto-loaded every session) already fully defines
 > Gaz's role and is the actual source of truth. If this file's existence
@@ -49,5 +49,5 @@ the way the operational and analytical members' ties are.
 | Masha | Threat Intelligence Analyst | Analytical |
 | Kwame | Compliance Analyst | Strategic |
 
-Full scope, delegation rules, and the collaboration diagram: `CLAUDE.md`
-and `TEAM.md` at the repo root.
+Full scope and delegation rules: `CLAUDE.md` at the repo root. Per-member
+bios: the *Ügynökök* tab of `docs/team-ops.html`.

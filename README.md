@@ -1,8 +1,10 @@
 <img src="docs/pictures/branding/logo.png" alt="Detection-Engineering logo" width="200">
 
-# Detection-Engineering
+# Detection Engineering
 
 *<small>What isn't proven is assumption.</small>*
+
+This is a detection-engineering project built around one rule of its own: a detection only counts once the pipeline has proven it. Each rule is authored as a single Sigma file, compiled and deployed to a running Splunk instance, then exercised by a real attack technique — Atomic Red Team or a purpose-built emulation — with the SIEM queried afterwards for the hit. Nothing about whether a detection works is taken on the author's word.
 
 <!-- STATS_START -->
 [![Total Rules](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.total_rules&label=Total%20Rules&color=informational)](https://github.com/martonbence/Detection-Engineering/tree/main/rules)
@@ -10,156 +12,88 @@
 [![Sigma Rules](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.total_compiled_sigma_rules&label=Sigma%20Rules&color=00ACD7)](https://github.com/martonbence/Detection-Engineering/tree/main/rules/sigma) [![Native SPL](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.total_native_spl_rules&label=Native%20SPL&color=FF6600)](https://github.com/martonbence/Detection-Engineering/tree/main/rules/splunk)
 
 ![Pass](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.verified_pass_current&label=Pass&color=brightgreen) ![Fail](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.verified_fail_current&label=Fail&color=red) ![Pass Rate](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.pass_rate_pct&label=Pass%20Rate%20%25&color=brightgreen) ![Not Verified](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.not_verified&label=Not%20Verified&color=lightgrey) ![MITRE Coverage](https://img.shields.io/badge/dynamic/json?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fmartonbence%2FDetection-Engineering%2Fmain%2Foutputs%2Freports%2Fstats.json&query=%24.mitre_coverage_pct&label=MITRE%20Coverage%20%25&color=8f95d6)
-
-> **27 of 28 rules are currently out of testing scope** — `custom.testing.enabled: false`, so the pipeline skips them rather than failing to measure them. They are excluded from Pass Rate (which would otherwise read them as failures), but still count against how much of the library has actually been measured — what they cost is coverage, not correctness.
-
-> **Last live verification: 2026-08-17 20:08:36 UTC** — 1 of 28 rules were actually measured in that run. `stats.json` and the badges above are a build-time snapshot; a verdict's standing can change simply because time passed, so the rule browser itself ([GitHub Pages](https://martonbence.github.io/Detection-Engineering/)) recomputes Pass Rate and coverage against the current date on every load.
-
-🗺️ Interactive MITRE Navigator → [GitHub Pages](https://martonbence.github.io/Detection-Engineering/#tab=navigator)
-
-📋 Full rule index → [GitHub Pages](https://martonbence.github.io/Detection-Engineering/)
-
-*Generated at 2026-08-28T14:55:01 UTC*
 <!-- STATS_END -->
 
-**Live views** — the published rule browser, generated straight from the pipeline's own output:
+## The live picture
 
-| | |
-|---|---|
-| <img src="docs/pictures/branding/rule_browser.png" width="200" alt="Rule Browser icon"> | **[Rule Browser](https://martonbence.github.io/Detection-Engineering/)**<br>Every rule in the repo, searchable and filterable, with its ATT&CK mapping and its current pass/fail verdict. |
-| <img src="docs/pictures/branding/mitre_navigator.png" width="200" alt="MITRE Navigator icon"> | **[MITRE Navigator](https://martonbence.github.io/Detection-Engineering/#tab=navigator)**<br>The same coverage plotted against the full ATT&CK matrix, exportable as a Navigator layer for the official MITRE tool. |
-| <img src="docs/pictures/branding/dashboards.png" width="200" alt="Dashboards icon"> | **[Dashboards](https://martonbence.github.io/Detection-Engineering/#tab=dashboards)**<br>Rule-library breakdowns by type, severity, status and verification outcome, MITRE tactic spread, and coverage/rule-count trends over the repo's own history. |
-| <img src="docs/pictures/branding/team.png" width="200" alt="Team icon"> | **[Team](https://martonbence.github.io/Detection-Engineering/team-ops.html)**<br>The org chart for this repo's own Claude Code subagent team, a logged per-agent dispatch activity feed, and token-usage/dispatch-count stats generated from the agent usage log and this repo's own git history. |
+Generated views of where the rule library actually stands right now — regenerated and published by both the `dev` and `prod` workflows, and recomputed against the current date on every load.
 
-**Reference docs** — deeper technical background, for after the live views raise a question:
+<table>
+<tr>
+<td><img src="docs/pictures/branding/rule_browser.png" width="150" alt="Rule Library icon"></td>
+<td><strong><a href="https://martonbence.github.io/Detection-Engineering/">Rule Library</a></strong><br>Every rule in the repo — searchable, filterable, sortable, each carrying the verdict the pipeline last measured for it.</td>
+</tr>
+<tr>
+<td><img src="docs/pictures/branding/mitre_navigator.png" width="150" alt="MITRE Navigator icon"></td>
+<td><strong><a href="https://martonbence.github.io/Detection-Engineering/#tab=navigator">MITRE Navigator</a></strong><br>The coverage and the gaps, laid over the full ATT&amp;CK matrix — and exportable straight into MITRE's own Navigator.</td>
+</tr>
+<tr>
+<td><img src="docs/pictures/branding/dashboards.png" width="150" alt="Dashboards icon"></td>
+<td><strong><a href="https://martonbence.github.io/Detection-Engineering/#tab=dashboards">Dashboards</a></strong><br>The big-picture view of the detection program — what the library adds up to today, and how it got there.</td>
+</tr>
+</table>
 
-| | |
-|---|---|
-| <img src="docs/pictures/branding/architecture.png" width="90" alt="Architecture icon"> | **[Architecture](docs/architecture/)**<br>Pipeline overview, data flow, threat model, and a per-file scripts reference — all with Mermaid diagrams. |
-| <img src="docs/pictures/branding/wiki.png" width="90" alt="Wiki icon"> | **[Wiki](../../wiki)**<br>Planned newcomer-facing walkthrough — not yet initialized. |
+## Under the hood
+
+When the live views prompt a "but how?", these go down to the mechanics — every stage, the artefacts that move between them, the threat model, and a per-file map of the pipeline.
+
+<table>
+<tr>
+<td><img src="docs/pictures/branding/architecture.png" width="125" alt="Architecture icon"></td>
+<td><strong><a href="docs/architecture/">Architecture</a></strong><br>How every moving part actually works, in prose and diagrams — from a Sigma file to a prod deploy.</td>
+</tr>
+</table>
+
+## The team behind it
+
+This repo is maintained largely by a small team of scoped AI agents under a human lead — each owning one surface. The rules of engagement — every agent's scope, the review gates, and what stays the human's call — are in [CLAUDE.md](CLAUDE.md).
+
+<table>
+<tr>
+<td><img src="docs/pictures/branding/team.png" width="120" alt="Team dashboard icon"></td>
+<td><strong><a href="https://martonbence.github.io/Detection-Engineering/team-ops.html">Team Dashboard</a></strong><br>Every agent, their scope, their place in the org chart, and what they've actually shipped.</td>
+</tr>
+</table>
 
 ## The problem this repo solves
 
-Most "detection as code" projects stop at linting YAML: a rule is considered finished the moment it parses. That answers almost nothing security teams actually care about — does the rule still exist in the SIEM, does it fire when the technique it claims to catch actually happens, and does anyone find out the moment that stops being true?
+Most "detection-as-code" projects stop at the linter: once a rule's YAML parses, it counts as finished. That leaves unanswered the questions that actually matter to a security team — is the rule still live in the SIEM, does it fire when the technique it targets is genuinely executed, and does anyone find out the moment that stops being true?
 
-This repo is an attempt at closing that loop end to end, automatically, on every change:
+This repository closes that loop end to end, automatically, on every change:
 
-- A detection is **written once**, in one format, with everything about it — logic, severity, MITRE ATT&CK mapping, test plan — in a single file.
-- It's **shipped for real**, deployed as a live saved search in an actual SIEM (Splunk), not just validated on paper.
-- It's **attacked on purpose**, using real adversary emulation (Atomic Red Team) against a real host, and then checked for whether the deployed rule actually caught it.
-- Only a rule that survives that whole loop is allowed to move from a proving-ground environment into the one that matters.
-- And because software rots, a "yes, this worked" verdict has a shelf life — it stops counting as evidence once the rule changes or enough time passes, rather than sitting there forever as a stale green checkmark.
+- **Authored once.** Each detection is a single file carrying its full definition: logic, severity, MITRE ATT&CK mapping, and test plan.
+- **Deployed for real.** The rule is installed as a live saved search in a running SIEM (Splunk), not merely validated on paper.
+- **Exercised by a real attack.** The technique the rule targets is executed against a live host — through [Atomic Red Team](https://github.com/redcanaryco/atomic-red-team), or a custom emulation script where the technique needs one — and the SIEM is then queried for the resulting detection.
+- **Promoted only on evidence.** A rule reaches the production environment only after clearing that entire loop in an isolated proving ground first.
+- **Revalidated over time.** A passing verdict has a shelf life: it is invalidated when the rule's logic changes, and it expires when too long passes without a re-test. A stale result does not count as proof.
 
-Nothing about "does this detection work" is self-reported here. It's a measurement the pipeline makes and can show its work for.
+Nothing here about whether a detection works is self-reported. Every verdict is a measurement the pipeline made — and it can show its work.
 
 ## How it fits together
 
-The five-phase shape of the pipeline, end to end — Strategic phase through Development, Continuous Integration (with its nested Testing phase), and Measurement & Reporting, plus the "Tune" feedback loop that runs verification results back into Development:
+The pipeline runs in five phases — Strategic, Development, Validation, its nested Testing phase, and Measurement & Reporting — with a Calibration feedback loop that carries verification results back into Development.
+The diagram below spans both workflows that implement it: [ci_dev_workflow.yml](.github/workflows/ci_dev_workflow.yml), which runs the full detection engineering CI/CD pipeline on the `dev` branch, and [ci_prod_workflow.yml](.github/workflows/ci_prod_workflow.yml), which deploys already-verified rules to the production Splunk app once a promotion PR merges to `main`.
 
 <p align="center">
   <a href="https://raw.githubusercontent.com/martonbence/Detection-Engineering/dev/docs/pictures/Workflow.drawio.svg" target="_blank" rel="noopener">
-    <img src="docs/pictures/Workflow.drawio.svg" alt="Detection-Engineering pipeline diagram: Strategic Phase feeds the Development Phase (write Sigma/SPL rule, validate syntax, convert), which feeds the Continuous Integration Phase (deploy to dev Splunk, then a nested Testing Phase running Atomic Red Team and script emulation, then a pass/fail verification), which feeds the Measurement &amp; Reporting Phase (update docs and stats, deploy GitHub Pages, open a promotion PR, deploy to dev Splunk, notify Slack) — with a Tune feedback loop running from Verification back into Development." width="900">
+    <img src="docs/pictures/Workflow.drawio.svg" alt="Detection-Engineering pipeline diagram: the Strategic Phase feeds the Development Phase (write a Sigma or native-SPL rule, validate against the schema, convert to SPL), which feeds the Validation Phase (deploy to the dev proving-ground Splunk, then a nested Testing Phase running Atomic Red Team and script-emulation tests on a Windows workstation and/or domain controller, then a pass/fail verification), which feeds the Measurement &amp; Reporting Phase (update docs and stats, deploy GitHub Pages, open a promotion PR to main, notify Slack) — with a Calibration / Tune feedback loop running from Verification back into Development; merging the promotion PR triggers a separate prod workflow that deploys the verified rules to production Splunk." width="900">
   </a>
 </p>
-<p align="center"><sub>Click the diagram to open the full-size vector in a new tab (browser zoom works cleanly on it).</sub></p>
+<p align="center"><sub>Click the diagram to open the full-size vector (browser zoom works cleanly on it).</sub></p>
 
-The exact job graph below is the same pipeline drawn from `ci_dev_workflow.yml`'s own dependency structure:
+Reading the diagram left to right:
 
-```mermaid
-flowchart LR
-    A(["Prepare, Validate, Convert"])
-    B(["Deploy to Splunk"])
+- **Strategic** — the *why* and the *what*: deciding which adversary techniques are worth detecting and threat-modelling the coverage gap. This phase is human and agent judgement, not automation — no workflow runs here.
 
-    subgraph tests["Attack &amp; Emulation Tests"]
-        direction TB
-        C(["Atomic Red Team Test"])
-        D(["Atomic Red Team Test (DC)"])
-        E(["Script Emulation Test"])
-    end
+- **Development** — the *how*: author the detection as a single Sigma rule or a native-SPL rule, then [ci_dev_workflow.yml](.github/workflows/ci_dev_workflow.yml) validates it against the JSON schema, checks test routing, MITRE tags and version-bump discipline, and converts it to a deployable `.spl` query plus a metadata sidecar.
+- **Validation** — the *proof*: the rule is deployed as a live saved search in the `dev` proving-ground Splunk, then the nested **Testing** phase runs the real attack against a live host. The rule's own `custom.testing` config independently picks the target host (a domain-joined Windows workstation and/or the domain controller) and the mechanism (an [Atomic Red Team](https://github.com/redcanaryco/atomic-red-team) test and/or a script-emulation test). Both hosts are VMs running a Splunk Universal Forwarder that ships their Windows Event Log and Sysmon telemetry to the `dev` Splunk instance, so the attack's traces land there for Verification to query for the resulting hit and write a pass/fail verdict per rule.
+- **Measurement & Reporting** — the *quality*: the run folds those verdicts into [outputs/reports/](outputs/reports/), regenerates the [Rule Library](https://martonbence.github.io/Detection-Engineering/), the [MITRE Navigator](https://martonbence.github.io/Detection-Engineering/#tab=navigator) and the [Dashboards](https://martonbence.github.io/Detection-Engineering/#tab=dashboards), republishes GitHub Pages, opens a **promotion PR** to `main` for the rules that just passed — auto-labeled `automated-promotion` and added to the project's GitHub Projects board as *In review* — and sends a Slack summary carrying the run's result and a link to it.
+<br>When a human merges that PR, [ci_prod_workflow.yml](.github/workflows/ci_prod_workflow.yml) takes over: it re-verifies each rule's build provenance and deploys the promoted rules to the production Splunk app.
+- **Calibration** — the feedback loop: a passing verdict decays, so it feeds back into Development — editing a rule's logic invalidates its last result and an untested one ages out, and the loop re-runs the whole attack-and-measure cycle to keep every "PASS" badge honest.
 
-    F(["Splunk Verification"])
-    G(["Update Dashboard &amp; Docs"])
-    H(["Persist Verification Results (fallback)"])
+One caveat: the lab environment — the dev Splunk and the victim VMs (workstation + DC) — isn't always running, so a repository variable, `LAB_ONLINE`, decides the run path — with it true the pipeline deploys, attacks and verifies; with it false a push still validates, converts and commits its SPL and still passes green, but nothing is deployed, attacked or measured. The Rule Library therefore leads with a last live verification date and an ATT&CK coverage figure rather than a bare pass count, since a passing run doesn't by itself mean a rule was deployed and exercised.
 
-    subgraph fanout["After Dashboard Update"]
-        direction TB
-        I(["Open Promotion PR"])
-        J(["Deploy GitHub Pages"])
-        K(["Notify Pipeline Status (Slack)"])
-    end
-
-    A --> B
-    A --> C
-    B --> C
-    A --> D
-    B --> D
-    A --> E
-    B --> E
-    A --> F
-    B --> F
-    C --> F
-    D --> F
-    E --> F
-    A --> G
-    F --> G
-    F --> H
-    G --> H
-    F --> I
-    G --> I
-    G --> J
-    F --> K
-    G --> K
-    H --> K
-
-    classDef stage fill:#f0a341,stroke:#8a5a1a,color:#1a1200,font-weight:bold;
-    classDef fallback fill:#f0a341,stroke:#8a5a1a,color:#1a1200,font-weight:bold,stroke-dasharray: 5 5;
-    class A,B,C,D,E,F,G,I,J,K stage
-    class H fallback
-```
-
-This is the real job graph of `ci_dev_workflow.yml` — every node is an actual GitHub Actions job, every arrow an actual `needs:` dependency, including ones that look transitively redundant (e.g. the attack-test jobs each depend on both "Prepare, Validate, Convert" *and* "Deploy to Splunk" even though the latter already depends on the former) — that's how GitHub's own UI draws it, so this does too. "Persist Verification Results (fallback)" has a dashed border because it's conditional: it only does anything if verification ran but the dashboard update didn't succeed, so on a normal green run it executes zero steps. A push to the repo runs this whole graph without a human clicking through any of it.
-
-That whole loop first runs in a low-stakes proving-ground environment. Only once a batch of rules has actually survived it does the repo open a pull request offering to promote them to the environment that matters — a human still has to look at that PR and merge it; nothing ships to production purely because a script said so.
-
-```mermaid
-flowchart LR
-    dev(("proving ground<br/>branch")) -- "verified by the pipeline" --> pr{{"promotion PR"}}
-    pr -- "human review & merge" --> main(("production<br/>branch"))
-
-    classDef auto fill:#f0a341,stroke:#8a5a1a,color:#1a1200,font-weight:bold;
-    classDef human fill:#7a4a12,stroke:#4d2e0a,color:#ffffff,font-weight:bold;
-    class dev,main auto
-    class pr human
-```
-
-## See it live
-
-| | |
-|---|---|
-| 🔍 **[Rule Browser](https://martonbence.github.io/Detection-Engineering/)** | Every rule in the repo, searchable and filterable, with its ATT&CK mapping and its current pass/fail verdict — generated straight from the pipeline's own output, published on GitHub Pages. |
-| 🛡️ **[MITRE ATT&CK Navigator](https://martonbence.github.io/Detection-Engineering/#tab=navigator)** | The same coverage plotted against the full ATT&CK matrix, exportable as a Navigator layer for use in the official MITRE tool. |
-
-*The badges near the top of this page are a live, regenerated snapshot, not something typed by hand — treat them, not any number written into the prose on this page, as current.*
-
-## What "pass" actually means here
-
-A checkmark in this repo is not a claim the rule's author made about their own work. It's the output of a pipeline that deployed the rule for real, ran a real attack technique, and queried the SIEM for a real hit. And a verdict doesn't stay valid forever by default: edit the rule and the old result stops applying to it; let too much time pass without re-testing and the result ages out on its own. A rule only counts as "proven" while there's still a recent measurement that actually matches the logic currently sitting in the file. The exact mechanics of how that's computed — and there's a fair amount of nuance to it — live in [`docs/architecture/`](docs/architecture/) rather than here.
-
-## Building a new detection, in broad strokes
-
-1. **Write** the detection as a single Sigma-format rule file — logic, severity, MITRE mapping, and test plan all live together in that one file. If the underlying idea genuinely can't be expressed in Sigma's own syntax, the same file can carry the raw SIEM query directly instead; either way there is one authoring format and one pipeline, not two.
-2. **Open a pull request.** The pipeline validates and compiles the rule before anything else happens, and shows you the result before it's merged.
-3. **Merge, and the pipeline takes over**: it deploys the rule, runs the attack technique it's meant to catch, and checks whether it actually fired.
-4. **Watch it show up** in the [rule browser](https://martonbence.github.io/Detection-Engineering/) with a real verdict and its place on the ATT&CK matrix.
-5. **Once proven**, the rule becomes eligible to be promoted from the proving-ground branch to production — via a pull request the pipeline opens for a human to review and merge, never automatically.
-
-The full step-by-step version of this — exact filenames, workflow names, job graphs — belongs in the [Wiki](../../wiki) and [`docs/architecture/`](docs/architecture/), not here.
-
-## Built partly by an AI agent team
-
-One thing worth knowing about how this repo itself gets maintained: a chunk of the day-to-day work on it — pipeline changes, rule authoring, quality review, documentation, security auditing — is carried out by a small team of scoped AI agents working under a human lead, each responsible for one surface of the repo rather than one generalist touching everything. That division of labor, and how work moves between agents, is itself documented in the repo (`CLAUDE.md`, `TEAM.md`) — treated as a real engineering practice worth being transparent about, not a hidden implementation detail.
-
-The team even tracks its own activity: an internal dashboard (`.claude/team-ops.html`, viewable after cloning the repo) shows what each agent has been doing. It's deliberately *not* published alongside the public rule browser — it's an internal working tool, not something meant for outside visitors.
+The exact mechanics behind a verdict — and there's real nuance to it — live in [docs/architecture/](docs/architecture/).
 
 ## Repository layout
 
@@ -167,20 +101,18 @@ The team even tracks its own activity: an internal dashboard (`.claude/team-ops.
 |---|---|
 | [`rules/sigma/`](rules/sigma/) | The source of truth — every detection rule, as Sigma YAML |
 | [`rules/splunk/`](rules/splunk/) | The compiled, deployable query for every rule |
-| [`scripts/`](scripts/) | The pipeline itself, one subdirectory per stage (validate, convert, deploy, atomic, verify, docs, state) — see [`docs/architecture/scripts_reference.md`](docs/architecture/scripts_reference.md) for what each file does |
-| [`config/`](config/) | Pipeline configuration as data, not code |
+| [`scripts/`](scripts/) | The pipeline itself, one subdirectory per stage (validate, convert, deploy, atomic, verify, docs, state, lib) — see [`docs/architecture/scripts_reference.md`](docs/architecture/scripts_reference.md) for what each file does |
+| [`config/`](config/) | The converter's backend and per-service pipeline choice — `backends.yml`, data not code |
 | [`tests/`](tests/) | The pipeline's own automated test suite |
-| [`docs/index.html`](https://martonbence.github.io/Detection-Engineering/) | The generated rule browser and MITRE Navigator — live on GitHub Pages |
+| [`docs/index.html`](https://martonbence.github.io/Detection-Engineering/) | The generated Rule Library and MITRE Navigator — live on GitHub Pages |
 | [`docs/architecture/`](docs/architecture/) | Deeper technical references, with diagrams |
+| [`docs/schemas/`](docs/schemas/) | The Draft-07 JSON Schema (`sigma_schema.json`) every rule is validated against |
 | [`outputs/reports/`](outputs/reports/) & [`outputs/results/`](outputs/results/) | Generated stats and per-rule verification results |
-| [`.github/workflows/`](.github/workflows/) | The automation that runs the whole pipeline |
-
-## Run by GitHub's own tooling, too
-
-Part of what this repo is meant to demonstrate is disciplined use of GitHub itself as the engineering platform, not just as a place to host YAML: planned work is tracked as Issues, sequenced on a GitHub Project board, and the pipeline's own promotion pull requests are wired into that same board automatically rather than living in a separate tracker. A GitHub Wiki is planned as the newcomer-facing companion to the technical docs in this repo; it hasn't been switched on for this project yet, which is exactly why the polished starting point right now is the [Rule Browser](https://martonbence.github.io/Detection-Engineering/) plus the docs linked below.
+| [`.github/workflows/`](.github/workflows/) | The four workflows that run the pipeline — `ci_dev_workflow.yml` (the dev loop), `ci_prod_workflow.yml` (deploy to prod), `ci_prod_audit.yml` (manual, live-Splunk state reconcile), `ci_code_checks.yml` (lint + the pytest suite) |
+| [`.claude/`](.claude/) | The AI-agent team's own operating surface — subagent definitions, shared skills, and the team-ops dashboard generator |
 
 ## Further reading
 
-- [`docs/architecture/`](docs/architecture/) — pipeline overview, data flow, threat model, and a per-file scripts reference, all with Mermaid diagrams
-- [GitHub Wiki](../../wiki) — planned newcomer-facing walkthrough (not yet initialized)
-- [`LICENSE`](LICENSE) — MIT
+- [CONTRIBUTING.md](CONTRIBUTING.md) — the end-to-end flow for adding a new detection, plus [how to run the lint + test checks locally](CONTRIBUTING.md#running-the-checks-locally)
+- [docs/architecture/](docs/architecture/) — pipeline overview, data flow, threat model, a per-file scripts reference, and the agent-workflow guide, all with Mermaid diagrams
+- [LICENSE](LICENSE) — MIT

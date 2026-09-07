@@ -12,8 +12,19 @@
       --border: #30363d;
       --border2: #444c56;
       --text: #e6edf3;
-      --text2: #8b949e;
-      --text3: #6e7681;
+      /* --text2/--text3 were brightened one step (was #8b949e / #6e7681) when
+         the redesign's lighter surfaces landed: the glass buttons in the
+         search row (.export-btn, .filters-toggle -- rgba(255,255,255,0.08)
+         over .content) composite to ~rgb(49,50,77), where the old --text2
+         measured 4.03:1 and the old --text3 3.02:1, both short of WCAG AA
+         (register 3.13, color-contrast). Measured against every real surface
+         these two render on -- the glass buttons, .filters-panel, the chips,
+         the Navigator menus, the legend modal -- the values below clear
+         5.22:1 at their worst. Both stay well clear of --text (L 0.40/0.36
+         vs 0.84), so the three-step text hierarchy still reads as three
+         steps. */
+      --text2: #a2a9b1;
+      --text3: #9a9fa7;
       --accent: #58a6ff;
       --accent2: #1f6feb;
       --accent-bg: rgba(88, 166, 255, 0.1);
@@ -37,7 +48,17 @@
     }
 
     body {
-      background: var(--bg);
+      /* PREVIEW v5: the base is no longer near-black #0d1117 -- it's a deep BLUE
+         navy (#0f172a), the tone the top-of-page blue wash was compositing to.
+         So the whole page reads as a blue field, and the transitions never
+         start from black. Two radials only: a broad blue from the top-left that
+         spreads down the page, and a purple on the right. The old bottom
+         near-black->purple band is removed. Legend / drawer / detail-panel use
+         this same recipe so they read as continuous with the page. */
+      background-color: #0f172a;
+      background-image:
+        radial-gradient(1500px 1200px at 8% -10%, rgba(64, 116, 244, 0.26), transparent 72%),
+        radial-gradient(1300px 1100px at 100% 16%, rgba(132, 98, 230, 0.30), transparent 70%);
       color: var(--text);
       font-family: var(--font-ui);
       font-size: 14px;
@@ -45,6 +66,18 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
+    }
+
+    /* PREVIEW: faint "outer-space" shapes, fixed full-bleed layer behind all
+       content. Pattern contents copied verbatim from Main.dc.html. Real content
+       sits above via position/z-index on .stats-strip and <main>. */
+    .bg-shapes {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
     }
 
     a {
@@ -81,17 +114,32 @@
       align-items: center;
       justify-content: space-between;
       gap: 14px;
-      /* Second enlargement pass (register: header logo, round 2) — the row
-         itself now grows with the mark instead of the mark staying pinned
-         to a fixed 48px strip. Kept at 72px through the 2026-08-23
-         branding-crop pass even though .strip-logo's own size dropped to
-         36px below -- this height is the approved layout, not derived from
-         the mark size, so it's left alone; only the mark shrank to keep
-         the same visual weight inside it. */
-      height: 72px;
-      padding: 0 18px;
-      background: var(--bg2);
-      border-bottom: 1px solid var(--border);
+      /* History: an enlargement pass (register: header logo, round 2) grew
+         this row from 48px to 72px so it scaled with the mark rather than
+         pinning it to a fixed strip, and it stayed 72px through the
+         2026-08-23 branding-crop pass. The redesign then tightened it to
+         60px and grew .strip-logo to 40px below, so the mark now fills more
+         of a shorter row. The height is an approved layout decision in its
+         own right, not derived from the mark size -- changing one does not
+         imply changing the other. */
+      height: 60px;
+      padding: 0 16px;
+      /* PREVIEW v3: the "distinct surface" read comes from the EDGES now, not the
+         fill alpha -- on a dark wash a dark translucent fill nets a <3 RGB-point
+         shift vs opaque (measured), which is below perceptual threshold. So:
+         dark-neutral fill pushed more transparent (0.55), a bright 1px hairline
+         top edge + inset highlight, heavier blur, and a deeper float shadow.
+         Fill kept dark (not a white "glass" overlay) so the muted --text2 strip
+         labels keep their >4.5:1 AA contrast -- a white overlay dropped
+         strip-total to ~4.3:1 in testing. */
+      position: relative;
+      background: rgba(20, 25, 34, 0.55);
+      backdrop-filter: blur(16px) saturate(1.3);
+      -webkit-backdrop-filter: blur(16px) saturate(1.3);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 12px 30px -10px rgba(0, 0, 0, 0.6);
     }
 
     .strip-brand {
@@ -102,20 +150,23 @@
     }
 
     /* Decorative brand mark, not the page's identity (the title text still
-       carries that). Exported at 96x96 and displayed at 36px so it stays
-       crisp at 2x device pixel ratio; sized to sit comfortably inside the
-       72px strip alongside the 14px info-btn icon without dominating the
-       row. 36px, not the previous 48px: the 2026-08-23 branding pass moved
-       to a tightly-cropped source (docs/pictures/branding/logo.png went from a
-       2000x2000 file with large transparent margins to a 1233x1299 crop of
-       just the artwork), so the same 48px export now renders the shield
-       edge-to-edge instead of filling ~70% of the box -- keeping the CSS
-       size at 48px would have made the mark visibly heavier than the
-       48px/72px-strip layout the user last approved, even though no CSS
-       number changed. 36px was chosen by rendering both and comparing. */
+       carries that). Exported at 96x96 and displayed at 40px so it stays
+       crisp at 2x device pixel ratio; sized to sit inside the 60px strip
+       alongside the 13px .export-btn icons without dominating the row.
+       It went 48px -> 36px in the 2026-08-23 branding pass, because that
+       pass moved to a tightly-cropped source (docs/pictures/branding/logo.png
+       went from a 2000x2000 file with large transparent margins to a
+       1233x1299 crop of just the artwork) and the same export suddenly
+       rendered the shield edge-to-edge instead of filling ~70% of the box.
+       The redesign then took it 36px -> 40px against the shorter 60px strip.
+       If the source art is ever replaced, re-check this number against a
+       screenshot rather than assuming it still gives the same visual weight.
+       Keep the <img> width/height attributes in page.template.html in step
+       with this value -- they are the aspect-ratio/CLS hint, not the display
+       size, but a stale one is still wrong. */
     .strip-logo {
-      width: 36px;
-      height: 36px;
+      width: 40px;
+      height: 40px;
       flex-shrink: 0;
       display: block;
     }
@@ -142,13 +193,8 @@
          WCAG AA's 4.5:1 for text this size (register 3.12, color-contrast).
          text2 is the same muted-label token already used elsewhere on the
          page (e.g. .tab-btn:hover below) and clears it at 5.62:1. */
-      color: var(--text2);
+      color: var(--text);
       white-space: nowrap;
-    }
-
-    .strip-total strong {
-      color: #ffaa00;
-      font-weight: 700;
     }
 
     .filters-generated {
@@ -177,7 +223,7 @@
          text2 clears 4.5:1 with room to spare; hover escalates further to
          the brightest text token, the same base->hover pattern used by
          .search-clear / .info-close / .nav-qf elsewhere on this page. */
-      color: var(--text2);
+      color: #ffffff;
       padding: 5px 12px;
       border-radius: 20px;
       cursor: pointer;
@@ -208,6 +254,9 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      /* PREVIEW: lift tab content above the fixed .bg-shapes layer (z-index:0). */
+      position: relative;
+      z-index: 1;
     }
 
     .tab-pane {
@@ -231,13 +280,33 @@
       display: flex;
       flex: 1;
       min-height: 0;
+      /* PREVIEW: inset the panels so the filter block and table "float" off the
+         page edges and the background wash shows around them. */
+      gap: 14px;
+      padding: 14px;
     }
 
     .filters-panel {
       width: 250px;
       min-width: 250px;
-      background: var(--bg2);
-      border-right: 1px solid var(--border);
+      /* PREVIEW v3: was rgba(28,33,40,0.68) -- diagnosed as reading "not
+         transparent" because (a) the wash barely reached the panel's lower half
+         and (b) dark-fill-over-dark-wash is a sub-perceptual shift. Fix: pair
+         the widened top-left blue pool (see body) with an edge-led glass
+         treatment -- more-transparent dark-neutral fill (0.55), bright 1px
+         hairline + inset top highlight, blur 8 -> 16, deeper float shadow. With
+         the new wash the panel top now shows ~15 RGB points of blue through
+         (measured); --text2 contrast stays 5.4-5.9:1. */
+      align-self: flex-start;
+      max-height: 100%;
+      background: rgba(20, 25, 34, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      border-radius: var(--radius-lg);
+      backdrop-filter: blur(16px) saturate(1.15);
+      -webkit-backdrop-filter: blur(16px) saturate(1.15);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        0 12px 34px -14px rgba(0, 0, 0, 0.6);
       overflow-y: auto;
       padding: 12px;
       display: flex;
@@ -404,10 +473,15 @@
     }
 
     .filter-supergroup {
-      border: 1px solid var(--border);
+      /* PREVIEW: lifted off the frosted sidebar with a faint translucent-white
+         fill + a light hairline, so each facet box reads as a small raised card
+         inside the glass panel rather than blending into it. Coloured left edge
+         (the facet's identity colour) kept. */
+      border: 1px solid rgba(255, 255, 255, 0.07);
       border-left: 3px solid var(--group-accent, var(--border2));
       border-radius: var(--radius);
-      background: var(--bg3);
+      background: rgba(255, 255, 255, 0.045);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
       overflow: hidden;
       flex-shrink: 0;
     }
@@ -460,16 +534,22 @@
     }
 
     .filter-section {
-      border: 1px solid var(--border);
+      /* PREVIEW: same raised-card treatment as .filter-supergroup -- faint
+         translucent-white fill + light hairline so each filter box stands off
+         the frosted sidebar. Coloured left edge = the facet's identity colour. */
+      border: 1px solid rgba(255, 255, 255, 0.07);
       border-left: 3px solid var(--fc, var(--border2));
       border-radius: var(--radius);
-      background: var(--bg3);
+      background: rgba(255, 255, 255, 0.045);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
       overflow: hidden;
       flex-shrink: 0;
     }
 
     .filter-section.open {
-      border-color: var(--border2);
+      /* the expanded box gets a touch more lift so the active facet reads first */
+      background: rgba(255, 255, 255, 0.065);
+      border-color: rgba(255, 255, 255, 0.12);
       border-left-color: var(--fc, var(--border2));
     }
 
@@ -642,6 +722,7 @@
       cursor: pointer;
       width: 100%;
       flex-shrink: 0;
+      margin-top: 5px;
       transition: all 0.1s;
       font-family: var(--font-ui);
     }
@@ -657,30 +738,71 @@
       min-width: 0;
       min-height: 0;
       overflow-y: auto;
+      /* PREVIEW v3: edge-led glass, same language as .filters-panel. NOTE: this
+         surface sits almost entirely on flat #0d1117 -- the wash does not reach
+         the centre/lower viewport -- so its transparency is effectively
+         decorative; the card read here comes from the hairline + shadow, not
+         see-through. Fill pushed to 0.42 (very transparent, but over flat bg
+         that just means ~equal to bare #0d1117); --text2 table text measures
+         ~5.9:1, better than at 0.68. If the user wants the wash visible behind
+         the table too, that needs a broad centre gradient -- flagged in report,
+         not done (higher "distracting" risk). */
+      background: rgba(20, 25, 34, 0.42);
+      /* PREVIEW item 6: the main table card is "the hero" -- a restrained violet
+         accent (methodology purple #a799e8) on the border + a soft outer bloom,
+         so it reads as primary without a neon ring. The filter panel is left
+         neutral on purpose so the hierarchy is unambiguous.
+         v2: border 1px -> 2px per feedback; alpha nudged 0.35 -> 0.42 because a
+         2px semi-transparent border softens/muddies at the antialiased edge --
+         0.42 keeps it a clean line, not a slab. Bloom kept as-is. */
+      border: 2px solid rgba(167, 153, 232, 0.42);
+      border-radius: var(--radius-lg);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        0 0 0 1px rgba(167, 153, 232, 0.12),
+        0 14px 36px -14px rgba(0, 0, 0, 0.55),
+        0 0 44px -10px rgba(167, 153, 232, 0.18);
       padding: 0 20px 24px;
       display: flex;
       flex-direction: column;
       gap: 0;
     }
 
+    /* PREVIEW: was a flush full-width #0d1117 bar with a hard border-bottom,
+       sitting above .main -- clashed with the floating-panel layout. Now it
+       lives inside .content (see markup note) as a transparent row of
+       dismissible tokens: no fill, no hard rule, just a hairline under it to
+       part it from the search row. Aligns to .content's own 20px inset. */
     .active-filter-row {
       display: flex;
       flex-wrap: wrap;
-      gap: 5px;
-      padding: 8px 20px;
-      background: var(--bg);
-      border-bottom: 1px solid var(--border);
+      align-items: center;
+      gap: 6px;
+      padding: 14px 0 12px;
+      background: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     }
 
     .active-filter-row.hidden {
       display: none;
     }
 
+    /* When the row is actually showing, tighten the search-row's own top margin
+       so the two don't stack to ~30px of dead space. */
+    .active-filter-row:not(.hidden)+.search-row {
+      margin-top: 12px;
+    }
+
+    /* Matches the sidebar .chip.active token (same --fc/--fc-bg/--fc-br vars set
+       by chipFc()), so an active filter reads identically whether you see it in
+       the rail or summarised here. */
     .active-filter-tag {
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      gap: 5px;
-      padding: 2px 8px;
+      gap: 6px;
+      padding: 3px 5px 3px 10px;
       background: var(--fc-bg, var(--accent-bg));
       border: 1px solid var(--fc-br, var(--accent2));
       border-radius: 20px;
@@ -689,19 +811,31 @@
       font-family: var(--font);
     }
 
+    .active-filter-tag strong {
+      font-weight: 700;
+    }
+
     .active-filter-tag button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
       background: none;
       border: none;
-      color: var(--fc, var(--accent));
+      color: currentColor;
       cursor: pointer;
       padding: 0;
-      font-size: 13px;
+      font-size: 12px;
       line-height: 1;
-      opacity: 0.7;
+      opacity: 0.65;
+      transition: all 0.1s;
     }
 
     .active-filter-tag button:hover {
       opacity: 1;
+      background: rgba(255, 255, 255, 0.14);
     }
 
     .search-row {
@@ -715,6 +849,9 @@
     .search-input-wrap {
       position: relative;
       flex: 1;
+      height: 28px;
+      display: flex;
+      align-items: center;
     }
 
     .search-input-wrap svg {
@@ -730,23 +867,39 @@
 
     .search-input {
       width: 100%;
-      background: var(--bg2);
-      border: 1px solid var(--border);
+      /* PREVIEW item 5: glass field -- translucent fill + hairline instead of
+         opaque --bg2, plus a soft inner shadow so it reads as an inset well.
+         Focus moved from #ffaa00 to --accent: amber is now carrying the
+         active-tab / sort-header / Export identity, so a blue focus ring keeps
+         "this input is live" as its own distinct signal (and matches the
+         selected-row / link blue). */
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.10);
       border-radius: var(--radius);
-      padding: 7px 32px 7px 32px;
+      height: 28px;
+      box-sizing: border-box;
+      padding: 0 32px 0 32px;
       font-size: 13px;
       color: var(--text);
       outline: none;
       font-family: var(--font-ui);
-      transition: border-color 0.1s;
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25);
+      transition: border-color 0.12s, box-shadow 0.12s;
     }
 
     .search-input:focus {
+      /* PREVIEW: focus colour reverted to the repo's amber (matches committed
+         docs/index.html). The translucent fill / hairline / inset well on the
+         base .search-input rule are kept -- only the focus ring/border goes
+         back to amber, and the base `inset 0 1px 3px` well carries through
+         focus since this rule no longer overrides box-shadow. */
       border-color: #ffaa00;
     }
 
     .search-input::placeholder {
-      color: var(--text3);
+      /* PREVIEW: text3 was ~3.9:1 on the old opaque field and ~3.65:1 on the new
+         glass one -- under AA. text2 clears it (~5:1). */
+      color: var(--text2);
     }
 
     .search-clear {
@@ -774,7 +927,8 @@
 
     .search-clear:hover {
       color: var(--text);
-      background: var(--bg3);
+      background: rgba(255, 255, 255, 0.08);
+      /* PREVIEW: was opaque --bg3, now translucent to sit on the glass field */
     }
 
     .search-clear svg {
@@ -813,14 +967,15 @@
 
     .kbd {
       display: inline-block;
-      padding: 1px 5px;
-      background: var(--bg3);
-      border: 1px solid var(--border2);
+      padding: 1px 6px;
+      /* PREVIEW: bumped fill/border/text so these read clearly, per feedback. */
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.22);
       border-bottom-width: 2px;
       border-radius: 3px;
       font-family: var(--font);
       font-size: 9px;
-      color: var(--text2);
+      color: var(--text);
       line-height: 1.4;
     }
 
@@ -836,8 +991,11 @@
       gap: 6px;
       height: 28px;
       padding: 0 12px;
-      background: transparent;
-      border: 1px solid var(--border2);
+      /* PREVIEW: stronger fill + a raised hairline/shadow so these read as
+         actual clickable buttons rather than flat labels. */
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
       border-radius: var(--radius);
       color: var(--text2);
       font-size: 12px;
@@ -869,16 +1027,48 @@
       box-shadow: none;
     }
 
+    /* "This menu/panel is open." Same amber edge + brightened label the other
+       two toggles in this page use (.filters-toggle.active,
+       .nav-verdict-btn.has-active), so all three read as one control idiom.
+       Without this rule the .active class that toggleInfo() puts on #info-btn
+       painted nothing at all. */
+    .export-btn.active,
+    .code-copy.active {
+      border-color: #ffaa00;
+      color: var(--text);
+    }
+
+    /* The Legend button in the .stats-strip. It is an .export-btn so it stays
+       the same size and shape as its peers, but it sits on the strip rather
+       than the search row and needs a darker fill and a brighter edge to hold
+       up there. These three declarations used to be an inline style="" on the
+       element -- which silently killed the hover and .active states above,
+       since an inline declaration outranks any class rule. Keeping them in a
+       class keeps them beatable by :hover and .active, which are more
+       specific. */
+    .strip-legend-btn {
+      margin-right: 20px;
+      background: rgba(0, 0, 0, 0.28);
+      border-color: rgba(255, 255, 255, 0.28);
+      color: var(--text);
+    }
+
     .export-menu {
       display: none;
       position: absolute;
       right: 0;
       top: calc(100% + 5px);
       min-width: 210px;
-      background: var(--bg2);
-      border: 1px solid var(--border2);
+      /* PREVIEW: aligned to the main page's glass-strip vocabulary (see
+         .stats-strip) instead of a separate flat popover recipe. */
+      background: rgba(20, 25, 34, 0.75);
+      backdrop-filter: blur(18px) saturate(1.3);
+      -webkit-backdrop-filter: blur(18px) saturate(1.3);
+      border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: var(--radius-lg);
-      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 14px 38px -8px rgba(0, 0, 0, 0.6);
       z-index: 50;
       overflow: hidden;
     }
@@ -892,10 +1082,12 @@
       font-size: 10px;
       letter-spacing: 0.5px;
       text-transform: uppercase;
-      color: #ffffff;
+      color: var(--text);
       font-weight: 700;
-      background: #0d1117;
-      border-bottom: 1px solid var(--border);
+      /* PREVIEW item 4: was a hard #0d1117 bar -- now a faint translucent header
+         band that sits in the frosted menu instead of punching a black hole. */
+      background: rgba(255, 255, 255, 0.045);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     }
 
     .export-menu-item {
@@ -905,11 +1097,12 @@
       padding: 8px 12px;
       cursor: pointer;
       transition: background 0.08s;
-      border-bottom: 1px solid var(--border);
+      /* PREVIEW item 4: hairline dividers instead of opaque --border */
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     }
 
     .export-menu-item:nth-child(even) {
-      background: rgba(255, 255, 255, 0.022);
+      background: rgba(255, 255, 255, 0.03);
     }
 
     .export-menu-item:last-child {
@@ -930,7 +1123,9 @@
 
     .export-menu-item .desc {
       font-size: 11px;
-      color: var(--text3);
+      /* PREVIEW: text3 -> text2, was ~3.9:1 on the menu bg (register 3.12/3.13
+         pattern); text2 clears AA. */
+      color: var(--text);
     }
 
     /* The ATT&CK layer entry is a real link (the file is served from the repo,
@@ -947,12 +1142,103 @@
 
     /* A second head mid-list needs its own top rule to read as a divider. */
     .export-menu-item+.export-menu-head {
-      border-top: 1px solid var(--border);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
     }
 
+    /* ── Column customization / saved views ──────────────────────────────
+       The Views and Columns menus in the search-row. Both reuse .export-btn
+       and .export-menu so the three search-row menus stay one visual family;
+       what is here is only what those two need on top. Matching markup:
+       #views-wrap / #columns-wrap in page.template.html; behaviour: the block
+       of the same name in page.js. */
+    .views-wrap { position: relative; flex-shrink: 0; }
+
+    /* Legend / Views / Export / Columns are four peer buttons in two different
+       rows -- a shared min-width keeps them the same size regardless of label
+       length, so the row does not look ragged. */
+    .nav-btn-eq {
+      min-width: 96px;
+      justify-content: center;
+    }
+
+    #view-name-input {
+      accent-color: #ffaa00;
+    }
+
+    th.col-hidden, td.col-hidden { display: none; }
+
+    .col-toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .col-toggle-row input { accent-color: #ffaa00; }
+
+    .col-toggle-row:hover { background: rgba(255, 255, 255, 0.05); color: var(--text); }
+
+    .saved-view-row { display: flex; align-items: center; }
+    .view-delete { color: var(--text2); cursor: pointer; padding: 0 4px; }
+    .view-delete:hover { color: var(--red, #f85149); }
+
+    .views-save-row {
+      display: flex;
+      gap: 6px;
+      padding: 8px 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .view-name-input {
+      flex: 1;
+      min-width: 0;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 12px;
+      font-family: var(--font-ui);
+      padding: 4px 8px;
+    }
+
+    .views-save-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      color: var(--text2);
+      border-radius: var(--radius);
+      padding: 4px 10px;
+      font-size: 12px;
+      font-family: var(--font-ui);
+      cursor: pointer;
+    }
+
+    .views-save-btn:hover { color: var(--text); }
+
+    #views-menu {
+      position: absolute;
+      left: 0;
+      right: auto;
+      top: calc(100% + 5px);
+    }
+    #columns-menu {
+      position: absolute;
+      right: 0;
+      left: auto;
+      top: calc(100% + 5px);
+    }
+    /* ── end column customization / saved views ──────────────────────────── */
+
     .table-wrap {
-      background: var(--bg2);
-      border: 1px solid var(--border);
+      /* PREVIEW: near-opaque (0.82) so the dense table stays crisp, but a touch
+         of translucency + a faint hairline (was solid --bg2 / --border) so it
+         doesn't fully mask the .content glass + violet bloom around it. Over the
+         flat #0d1117 behind the table this composites within ~2 RGB points of
+         the old opaque value -- no legibility cost. */
+      background: rgba(22, 27, 34, 0.82);
+      border: 1px solid rgba(255, 255, 255, 0.05);
       border-radius: var(--radius-lg);
       overflow: auto;
       clip-path: inset(0 round var(--radius-lg));
@@ -975,6 +1261,8 @@
       box-shadow: 0 6px 14px -4px rgba(0, 0, 0, 0.5);
     }
 
+    /* Solid #ffaa00 is the repo's primary brand colour and the header is meant
+       to carry it -- reverted to match committed docs/index.html. */
     thead th {
       position: sticky;
       top: 0;
@@ -1082,9 +1370,8 @@
       transition: background 0.08s;
     }
 
-    tbody tr:nth-child(even) {
-      background: rgba(255, 255, 255, 0.022);
-    }
+    tbody tr:nth-child(even) { background: oklch(80% 0.03 300 / 0.16); }
+    tbody tr:nth-child(odd)  { background: oklch(80% 0.03 300 / 0.05); }
 
     tbody td {
       border-bottom: 1px solid var(--border);
@@ -1094,13 +1381,16 @@
       border-bottom: none;
     }
 
-    tbody tr:hover,
-    tbody tr.selected {
-      background: rgba(233, 220, 196, 0.10);
+    tbody tr:hover {
+      /* PREVIEW: brighter, clearly-visible cream/white hover per feedback. */
+      background: rgba(245, 242, 235, 0.32);
     }
 
     tbody tr.selected {
-      box-shadow: inset 0 0 0 1px rgba(233, 220, 196, 0.28);
+      /* PREVIEW: matches the hover treatment per feedback -- same wash stays
+         once the row's drawer is closed, no accent bar needed since it's now
+         identical to hover. */
+      background: rgba(245, 242, 235, 0.32);
     }
 
     td {
@@ -1167,6 +1457,30 @@
       white-space: normal;
     }
 
+    /* Every badge fill below is OPAQUE, and that is load-bearing rather than a
+       style preference.
+       These pills used to be a translucent tint (e.g. rgba(248,81,73,0.13)),
+       so the badge's effective background was whatever it sat on. That was
+       already marginal, and the redesign's brighter row treatment broke it:
+       tbody tr:hover / tr.selected is rgba(245,242,235,0.32), which composites
+       the row to rgb(92,95,100) (measured, not estimated -- sampled from a
+       screenshot through the real stack: #0f172a base -> .content
+       rgba(20,25,34,.42) -> .table-wrap rgba(22,27,34,.82) -> row wash). A
+       translucent pill on that lands its text at 1.8-2.9:1.
+       Brightening the badge text cannot fix it. A background at that luminance
+       (L 0.115) needs a foreground at L >= 0.69 for 4.5:1 -- unreachable for a
+       saturated red (pure #f00 is L 0.21) or crimson without turning the badge
+       near-white and destroying the colour coding, and dark text cannot reach
+       it either because the row sits in the middle of the range where neither
+       direction works.
+       So the pill carries its own surface instead. Each fill below is that
+       badge's former tint composited over the at-rest odd row -- i.e. exactly
+       what the badge already looked like on an unstriped row -- which keeps
+       the at-rest design and makes contrast independent of what is behind it:
+       the same ratio on an odd row, an even (zebra) row, a hovered/selected
+       row, in the drawer and in the Navigator panel. That independence is why
+       the per-badge notes below can state one number instead of a range.
+       Borders stay translucent: they are decoration, not a text background. */
     .badge {
       display: inline-block;
       padding: 2px 7px;
@@ -1179,44 +1493,43 @@
     }
 
     .badge-source-sigma {
-      background: rgba(0, 172, 215, 0.1);
+      background: #1b2f3e;
       color: #00acd7;
       border: 1px solid rgba(0, 172, 215, 0.25);
     }
 
     .badge-source-nativespl {
-      background: rgba(255, 102, 0, 0.1);
+      background: #342828;
       color: #ff6600;
       border: 1px solid rgba(255, 102, 0, 0.25);
     }
 
     .badge-category {
-      background: rgba(248, 81, 73, 0.13);
-      /* Base --red (#f85149) on this translucent pill only clears 3.95-4.48:1
-         depending on which background it composites over (table row, its
-         hover state, or the drawer) -- short of WCAG AA in every one of
-         those contexts (register 3.13, color-contrast). #ff7b72 is already
-         used elsewhere on this page as the brighter member of this exact red
-         family (the .t-kw/.t-cond syntax-highlight tokens); reusing it here
-         clears 5.25:1+ in all of them. */
+      background: #3a2731;
+      /* Base --red (#f85149) is short of WCAG AA on this pill (register 3.13,
+         color-contrast). #ff7b72 is already used elsewhere on this page as
+         the brighter member of this exact red family (the .t-kw/.t-cond
+         syntax-highlight tokens); reusing it here measures 5.50:1 -- one
+         number, not a range, because the fill above is opaque (see the note
+         on .badge). */
       color: #ff7b72;
       border: 1px solid rgba(248, 81, 73, 0.3);
     }
 
     .badge-product {
-      background: rgba(251, 146, 60, 0.1);
+      background: #342c2e;
       color: #fb923c;
       border: 1px solid rgba(251, 146, 60, 0.25);
     }
 
     .badge-service {
-      background: var(--green-bg);
-      /* Base --green (#2ea44f) on this translucent pill only clears
-         4.06-4.62:1 depending on background context -- short of WCAG AA in
-         most of them (register 3.13, color-contrast). #3fb950 is already
-         the "service" facet's own accent elsewhere on this page
-         (.fc-service et al.); reusing it here clears 5.14:1+ in every
-         context this badge renders in. */
+      background: #203131;
+      /* Base --green (#2ea44f) is short of WCAG AA on this pill (register
+         3.13, color-contrast). #3fb950 is already the "service" facet's own
+         accent elsewhere on this page (.fc-service et al.); reusing it here
+         measures 5.35:1. Same re-pick is applied to every other green badge
+         below (sev-low, status-stable, verdict-pass), which used to sit on
+         the base --green and failed for the same reason. */
       color: #3fb950;
       border: 1px solid rgba(63, 185, 80, 0.25);
     }
@@ -1234,7 +1547,7 @@
       min-height: 24px;
       min-width: 24px;
       padding: 4px 10px;
-      background: rgba(143, 149, 214, 0.14);
+      background: #2e3145;
       color: #b3b8e8;
       border: 1px solid rgba(143, 149, 214, 0.35);
     }
@@ -1245,80 +1558,97 @@
     }
 
     .sev-critical {
-      background: rgba(128, 20, 50, 0.28);
-      color: #e05575;
+      background: #391d2e;
+      /* #e05575 measured 4.12:1 here -- the one crimson on the page that has
+         no existing brighter sibling to reuse, so this is a new step of the
+         same hue: 5.39:1. */
+      color: #f2708f;
       border: 1px solid rgba(164, 19, 60, 0.55);
     }
 
     .sev-high {
-      background: rgba(248, 81, 73, 0.13);
-      color: #f85149;
+      background: #3a2731;
+      /* --red -> #ff7b72, the same re-pick .badge-category documents: 5.50:1
+         (was 4.14:1 on the base --red). */
+      color: #ff7b72;
       border: 1px solid rgba(248, 81, 73, 0.3);
     }
 
     .sev-medium {
-      background: rgba(251, 146, 60, 0.1);
+      background: #342c2e;
       color: #fb923c;
       border: 1px solid rgba(251, 146, 60, 0.25);
     }
 
     .sev-low {
-      background: var(--green-bg);
-      color: var(--green);
+      background: #203131;
+      /* --green -> #3fb950, the re-pick .badge-service documents: 5.35:1
+         (was 4.23:1 on the base --green). */
+      color: #3fb950;
       border: 1px solid rgba(63, 185, 80, 0.25);
     }
 
     .sev-informational {
-      background: rgba(139, 148, 158, 0.12);
-      color: #8b949e;
+      background: #2b2f3b;
+      /* Was the literal #8b949e; now follows --text2 so the two move together
+         (5.63:1). */
+      color: var(--text2);
       border: 1px solid var(--border);
     }
 
     .status-stable {
-      background: var(--green-bg);
-      color: var(--green);
+      background: #203131;
+      color: #3fb950;
       border: 1px solid rgba(63, 185, 80, 0.25);
     }
 
     .status-test {
-      background: rgba(251, 146, 60, 0.1);
+      background: #342c2e;
       color: #fb923c;
       border: 1px solid rgba(251, 146, 60, 0.25);
     }
 
     .status-experimental {
-      background: rgba(56, 139, 253, 0.15);
-      color: #388bfd;
+      background: #22314c;
+      /* #388bfd measured 3.90:1 -- the worst of the set. --accent (#58a6ff)
+         is this page's own brighter blue and clears 5.16:1. */
+      color: var(--accent);
       border: 1px solid rgba(56, 139, 253, 0.4);
     }
 
     .status-deprecated {
-      background: rgba(139, 148, 158, 0.1);
+      background: #292c38;
+      /* --text3, which is the brightened value now (see the token block):
+         5.14:1, was 3.02:1. */
       color: var(--text3);
       border: 1px solid var(--border);
     }
 
     .verdict-pass {
-      background: var(--green-bg);
-      color: var(--green);
+      background: #203131;
+      color: #3fb950;
       border: 1px solid rgba(63, 185, 80, 0.25);
     }
 
     .verdict-notverified {
-      background: rgba(210, 153, 34, 0.15);
+      background: #39332b;
       color: #d29922;
       border: 1px solid rgba(210, 153, 34, 0.4);
     }
 
     .verdict-fail {
-      background: rgba(248, 81, 73, 0.13);
-      color: #f85149;
+      background: #3a2731;
+      /* Same --red -> #ff7b72 re-pick as .sev-high: 5.50:1. A FAIL badge is
+         the single most important thing on this page to be able to read. */
+      color: #ff7b72;
       border: 1px solid rgba(248, 81, 73, 0.3);
     }
 
     .verdict-na {
-      background: rgba(139, 148, 158, 0.12);
-      color: #8b949e;
+      background: #2b2f3b;
+      /* Was the literal #8b949e; follows --text2 now, same as
+         .sev-informational (5.63:1). */
+      color: var(--text2);
       border: 1px solid var(--border);
     }
 
@@ -1435,10 +1765,31 @@
       bottom: 0;
       width: 560px;
       max-width: 92vw;
-      background: var(--bg2);
-      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      /* PREVIEW v2: self-contained blue->violet fill in the page's family, so
+         the drawer and the legend/Navigator panel read as one surface (and the
+         .bg-shapes SVG does NOT show through -- opaque #0d1117 base). The glow
+         is concentrated top-right + bottom-right and the vertical middle stays
+         near-pure #0d1117, which is where the metadata grid and description sit
+         -- their contrast is essentially unchanged from the old opaque drawer
+         (text2 ~5.6:1 mid-panel, ~4.6:1 in the corners). Violet-heavy on the
+         right is on-theme (matches the page's right-side violet radial).
+         backdrop-filter dropped. Violet left edge + a soft violet bloom leaking
+         onto the page. */
+      /* PREVIEW v5: same recipe as the page body -- deep blue navy base (#0f172a,
+         no near-black), a blue radial from off the left, a purple on the right.
+         The drawer sits at the page's right edge where the page is purple-led,
+         so purple-top-right + blue-from-left reads as a continuation. */
+      background:
+        radial-gradient(900px 800px at 100% -8%, rgba(132, 98, 230, 0.30), transparent 72%),
+        radial-gradient(1200px 1100px at -40% 8%, rgba(64, 116, 244, 0.24), transparent 68%),
+        #0f172a;
+      border-left: 1px solid rgba(167, 153, 232, 0.38);
+      box-shadow:
+        -18px 0 44px -14px rgba(0, 0, 0, 0.6),
+        -2px 0 22px -6px rgba(167, 153, 232, 0.16);
       z-index: 201;
-      overflow-y: auto;
       transform: translateX(100%);
       transition: transform 0.2s ease;
     }
@@ -1449,11 +1800,18 @@
 
     .drawer-header {
       padding: 18px 20px 14px;
-      border-bottom: 1px solid var(--border);
-      position: sticky;
-      top: 0;
-      background: var(--bg2);
-      z-index: 1;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      flex-shrink: 0;
+      /* PREVIEW: header now sits outside the scrolling region (see .drawer-body
+         overflow below) so it always spans the drawer's full width, no
+         scrollbar gutter eating into its right edge. Violet/blue wash instead
+         of amber, for a calmer highlight that still separates it from the body. */
+      background:
+        linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.55)),
+        radial-gradient(900px 800px at 100% -8%, rgba(132, 98, 230, 0.42), transparent 72%),
+        radial-gradient(1200px 1100px at -40% 8%, rgba(64, 116, 244, 0.34), transparent 68%),
+        #0f172a;
+      border-left: 4px solid #a78bfa;
     }
 
     .drawer-header-top {
@@ -1484,8 +1842,10 @@
     }
 
     .drawer-close {
-      background: none;
-      border: 1px solid var(--border2);
+      /* PREVIEW: stronger fill + raised shadow so it reads as an actual button. */
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
       border-radius: var(--radius);
       width: 28px;
       height: 28px;
@@ -1522,11 +1882,16 @@
       display: flex;
       flex-direction: column;
       gap: 14px;
+      overflow-y: auto;
     }
 
     .drawer-body>div {
-      background: var(--bg3);
-      border: 1px solid var(--border);
+      /* PREVIEW v2: drawer section cards aligned to EXACTLY .filter-section's
+         values (fill / hairline / shadow) so the drawer and the left filter
+         rail read as one material. */
+      background: rgba(255, 255, 255, 0.045);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
       border-radius: var(--radius-lg);
       padding: 14px 16px;
     }
@@ -1541,12 +1906,15 @@
       color: #ffffff;
       margin-bottom: 10px;
       padding-bottom: 5px;
-      border-bottom: 2px solid var(--border2);
+      /* PREVIEW: brighter, thicker underline so section labels stand out
+         throughout the drawer. */
+      border-bottom: 2px solid #ffaa00;
     }
 
     .drawer-desc {
+      /* PREVIEW v4: text2 -> text, user asked for more readable drawer text */
       font-size: 13px;
-      color: var(--text2);
+      color: var(--text);
       line-height: 1.6;
     }
 
@@ -1566,7 +1934,10 @@
 
     .meta-key {
       font-size: 12px;
-      color: var(--text3);
+      /* PREVIEW v4: text3 -> #c9d1d9 -- a light grey that stays clearly readable
+         (~11:1) but a notch below the near-white .meta-val, so key/value
+         hierarchy survives while the "grey is hard to read" complaint is fixed. */
+      color: #c9d1d9;
     }
 
     .meta-val {
@@ -1608,8 +1979,10 @@
       font-size: 12px;
       font-family: var(--font);
       color: var(--text2);
-      background: var(--bg3);
-      border: 1px solid var(--border);
+      /* PREVIEW: matched to .rule-body-pre's transparency, bumped more
+         transparent per feedback. */
+      background: rgba(13, 17, 23, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.07);
       border-left: 2px solid #ffaa00;
       border-radius: var(--radius);
       padding: 6px 10px;
@@ -1687,7 +2060,8 @@
       margin-top: 8px;
       font-family: var(--font);
       font-size: 11px;
-      color: var(--text3);
+      /* PREVIEW v4: text3 -> #c9d1d9 (see .meta-key). */
+      color: #c9d1d9;
       line-height: 1.5;
     }
 
@@ -1778,7 +2152,8 @@
     }
 
     .rule-body-pre {
-      background: var(--bg);
+      /* PREVIEW: matched to .drawer-list-item's transparency per feedback. */
+      background: rgba(13, 17, 23, 0.4);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 12px 14px;
@@ -1861,12 +2236,14 @@
     }
 
     ::-webkit-scrollbar-thumb {
-      background: var(--border2);
+      /* PREVIEW: translucent-white thumb reads more cleanly on the glass
+         surfaces than the flat --border2 grey; still unobtrusive. */
+      background: rgba(255, 255, 255, 0.16);
       border-radius: 3px;
     }
 
     ::-webkit-scrollbar-thumb:hover {
-      background: var(--text3);
+      background: rgba(255, 255, 255, 0.30);
     }
 
     ::-webkit-scrollbar-corner {
@@ -1879,8 +2256,14 @@
     }
 
     .dash-section {
-      background: var(--bg3);
-      border: 1px solid var(--border);
+      /* PREVIEW: aligned to the Rule Library's .content card language --
+         violet-tinted border + blur, same see-through tray/inner-card layering
+         model (.dash-section behind, .chart-card in front, like .content vs
+         .filters-panel). */
+      background: rgba(20, 25, 34, 0.48);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 2px solid rgba(167, 153, 232, 0.4);
       border-radius: var(--radius-lg);
       padding: 18px;
     }
@@ -1940,8 +2323,16 @@
     }
 
     .chart-card {
-      background: var(--bg2);
-      border: 1px solid var(--border);
+      /* PREVIEW: aligned to the Rule Library's card language -- near-opaque
+         glass fill, bright hairline + inset top highlight + soft float shadow,
+         same as .filters-panel, instead of a flat --border edge. */
+      background: rgba(22, 27, 34, 0.45);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        0 12px 30px -14px rgba(0, 0, 0, 0.55);
       border-radius: var(--radius-lg);
       padding: 20px;
       display: flex;
@@ -2364,9 +2755,14 @@
 
     /* MITRE Navigator */
     .nav-wrap {
-      background: var(--bg2);
-      border: 1px solid var(--border);
-      border-radius: 6px;
+      /* PREVIEW: aligned to the Rule Library's .content card language --
+         violet-tinted border + more transparent fill, matrix cells keep their
+         own solid verdict colours so cell legibility is unaffected. */
+      background: rgba(20, 25, 34, 0.48);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 2px solid rgba(167, 153, 232, 0.4);
+      border-radius: var(--radius-lg);
       padding: 16px;
       margin: 16px 20px;
     }
@@ -2430,10 +2826,12 @@
 
     .nav-search-input {
       width: 100%;
-      height: 32px;
+      height: 28px;
+      box-sizing: border-box;
       padding: 0 30px 0 32px;
-      background: var(--bg);
-      border: 1px solid var(--border2);
+      /* PREVIEW: matched to the Rule Library search field's glass style. */
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.10);
       border-radius: var(--radius);
       color: var(--text);
       font-family: var(--font-ui);
@@ -2442,8 +2840,8 @@
 
     .nav-search-input:focus {
       outline: none;
-      border-color: #ffaa00;
-      box-shadow: 0 0 0 2px rgba(255, 170, 0, 0.14);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.14);
     }
 
     .nav-search-clear {
@@ -2489,11 +2887,16 @@
     }
 
     .nav-qf {
-      background: none;
+      /* PREVIEW v4: glass vocabulary, same as the Rule Library toolbar buttons */
+      background: rgba(255, 255, 255, 0.035);
       border: none;
-      border-right: 1px solid var(--border2);
+      border-right: 1px solid rgba(255, 255, 255, 0.11);
       color: var(--text2);
-      padding: 5px 13px;
+      height: 28px;
+      box-sizing: border-box;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 13px;
       font-size: 12px;
       font-weight: 600;
       font-family: var(--font-ui);
@@ -2546,11 +2949,13 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: none;
-      border: 1px solid var(--border2);
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.11);
       color: var(--text2);
       border-radius: var(--radius);
-      padding: 5px 10px;
+      height: 28px;
+      box-sizing: border-box;
+      padding: 0 10px;
       font-size: 12px;
       font-family: var(--font-ui);
       font-weight: 600;
@@ -2566,7 +2971,12 @@
       fill: none;
     }
 
-    .nav-verdict-btn:hover,
+    .nav-verdict-btn:hover {
+      border-color: #ffaa00;
+      color: #ffaa00;
+      box-shadow: 0 0 0 2px rgba(255, 170, 0, 0.14);
+    }
+
     .nav-verdict-btn.has-active {
       border-color: #ffaa00;
       color: var(--text);
@@ -3073,19 +3483,22 @@
     }
 
     #expand-all-btn {
-      background: none;
-      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.11);
       color: var(--text2);
       border-radius: 5px;
-      padding: 3px 10px;
+      height: 28px;
+      box-sizing: border-box;
+      padding: 0 12px;
       font-size: 12px;
       cursor: pointer;
       white-space: nowrap;
     }
 
     #expand-all-btn:hover {
-      color: var(--text);
+      color: #ffaa00;
       border-color: #FFAA00;
+      box-shadow: 0 0 0 2px rgba(255, 170, 0, 0.14);
     }
 
     /* Detail panel — mirrors the Rule Library drawer's look (tokens, slide-in,
@@ -3097,12 +3510,22 @@
       bottom: 0;
       width: 340px;
       max-width: 92vw;
-      background: var(--bg2);
-      border-left: 1px solid var(--border);
+      /* PREVIEW v2: same self-contained blue->violet fill as .drawer / the
+         legend modal -- opaque #0d1117 base (no .bg-shapes through it), violet
+         glow top-right + bottom-right, middle stays dark for the rule-list text.
+         backdrop-filter dropped. Violet left edge + bloom, matching .drawer. */
+      /* PREVIEW v5: same recipe as .drawer / the page body, narrower panel. */
+      background:
+        radial-gradient(700px 700px at 100% -8%, rgba(132, 98, 230, 0.30), transparent 72%),
+        radial-gradient(1000px 1000px at -55% 8%, rgba(64, 116, 244, 0.24), transparent 68%),
+        #0f172a;
+      border-left: 1px solid rgba(167, 153, 232, 0.38);
       z-index: 202;
       display: flex;
       flex-direction: column;
-      box-shadow: -4px 0 24px rgba(0, 0, 0, .5);
+      box-shadow:
+        -4px 0 24px rgba(0, 0, 0, .5),
+        -2px 0 20px -6px rgba(167, 153, 232, 0.16);
       transform: translateX(100%);
       transition: transform 0.2s ease;
     }
@@ -3117,7 +3540,11 @@
       align-items: flex-start;
       gap: 12px;
       padding: 18px 20px 14px;
-      border-bottom: 1px solid var(--border);
+      /* PREVIEW: hairline (was --border). No background needed -- this is a
+         flex child, not a sticky overlay; #detail-body scrolls in its own box
+         below, not under the header, so the panel's violet-top glow can show
+         through here directly. */
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
       flex-shrink: 0;
     }
 
@@ -3130,7 +3557,7 @@
 
     #detail-tid {
       font-family: var(--font);
-      color: var(--text2);
+      color: #c9d1d9;
       font-size: 11px;
       margin-top: 3px;
     }
@@ -3175,9 +3602,13 @@
       color: var(--text);
       font-size: 12px;
       line-height: 1.4;
-      background: var(--bg3);
-      border: 1px solid var(--border);
+      /* PREVIEW v2: base fill/hairline/shadow aligned to .filter-section so the
+         detail panel's rule list reads as the same material as the filter rail
+         and drawer cards. Amber left edge kept as the identity cue. */
+      background: rgba(255, 255, 255, 0.045);
+      border: 1px solid rgba(255, 255, 255, 0.07);
       border-left: 2px solid #ffaa00;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
       border-radius: var(--radius);
       padding: 8px 10px;
       cursor: pointer;
@@ -3185,9 +3616,9 @@
     }
 
     .detail-rule:hover {
-      border-color: var(--border2);
+      border-color: rgba(255, 255, 255, 0.14);
       border-left-color: #ffaa00;
-      background: var(--bg4);
+      background: rgba(255, 255, 255, 0.08);
       text-decoration: none;
     }
 
@@ -3200,7 +3631,7 @@
     .detail-rule.sel {
       border-color: #ffaa00;
       border-left-color: #ffaa00;
-      background: var(--bg4);
+      background: rgba(255, 255, 255, 0.08);
       box-shadow: inset 0 0 0 1px rgba(255, 170, 0, 0.25);
     }
 
@@ -3210,8 +3641,10 @@
       gap: 8px;
       font-size: 12px;
       color: var(--text2);
-      background: var(--bg3);
-      border: 1px solid var(--border);
+      /* PREVIEW v2: aligned to .filter-section, same as .detail-rule */
+      background: rgba(255, 255, 255, 0.045);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
       border-radius: var(--radius);
       padding: 8px 10px;
     }
@@ -3382,13 +3815,16 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: none;
-      border: 1px solid var(--border2);
+      /* PREVIEW: stronger fill + raised shadow so it reads as an actual button. */
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
       color: var(--text2);
       border-radius: var(--radius);
-      padding: 5px 11px;
+      height: 28px;
+      padding: 0 12px;
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 400;
       font-family: var(--font-ui);
       cursor: pointer;
       flex-shrink: 0;
@@ -3432,10 +3868,30 @@
       width: 780px;
       max-width: 94vw;
       max-height: 84vh;
-      background: var(--bg2);
-      border: 1px solid var(--border2);
+      /* PREVIEW v2: opaque-ish blue->violet fill in the page's own family (the
+         .bg-shapes SVG must NOT show through, so this is a self-contained
+         painted fill, not a translucent panel). Dark #0d1117 base with a violet
+         glow top-right + a blue glow bottom-left, matching the page's diagonal.
+         Gradient alphas kept low (0.11 / 0.09) so the densest body text still
+         clears the ~5.7:1 it had before -- measured worst case ~5.6:1 in the
+         top-right corner, ~5.75:1 through the centre. backdrop-filter dropped
+         (does nothing behind an opaque fill). Violet outline + bloom to match
+         .content. */
+      /* PREVIEW v7: lightened the flat fill a notch (#0f172a -> #1a2740) per
+         feedback -- still solid, no gradient -- text stays high-contrast
+         since all copy here uses the light --text/--text2 tokens. */
+      /* PREVIEW v8: layered radial wash (violet top-right + blue bottom-left)
+         matching .content/.drawer-header's language, over the same opaque
+         #1a2740 base so text contrast is unchanged. */
+      background:
+        radial-gradient(700px 600px at 100% -10%, rgba(132, 98, 230, 0.16), transparent 70%),
+        radial-gradient(900px 800px at -20% 110%, rgba(64, 116, 244, 0.14), transparent 70%),
+        #1a2740;
+      border: 1px solid rgba(167, 153, 232, 0.35);
       border-radius: var(--radius-lg);
-      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.05),
+        0 22px 60px -12px rgba(0, 0, 0, 0.7);
       flex-direction: column;
       overflow: hidden;
     }
@@ -3450,8 +3906,12 @@
       justify-content: space-between;
       gap: 12px;
       padding: 15px 20px;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
       flex-shrink: 0;
+      /* PREVIEW: same treatment as the rule drawer's header -- dark wash +
+         violet accent bar, so both top sections read consistently. */
+      background: linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.55));
+      border-left: 4px solid #a78bfa;
     }
 
     .info-head-title {
@@ -3480,7 +3940,13 @@
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 22px;
+      gap: 10px;
+    }
+
+    /* PREVIEW v6: each legend section gets a divider + breathing room */
+    .info-body > div:not(:last-child) {
+      padding-bottom: 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.10);
     }
 
     .info-sec-title {
@@ -3499,8 +3965,15 @@
       gap: 9px 14px;
       align-items: start;
       font-size: 12px;
-      color: var(--text2);
+      color: var(--text);
       line-height: 1.5;
+    }
+
+    /* PREVIEW v6: justify the legend prose (value column of the grid + the notes) */
+    .info-grid > span:nth-child(even) {
+      text-align: justify;
+      text-align-last: left;
+      hyphens: none;
     }
 
     .info-grid .k {
@@ -3519,9 +3992,15 @@
     }
 
     .info-note {
+      /* PREVIEW v4: text2 -> text (#e6edf3, near-white) for the legend body --
+         user asked for higher contrast / easier reading here.
+         v6: justified. */
       font-size: 12px;
-      color: var(--text2);
+      color: var(--text);
       line-height: 1.6;
+      text-align: justify;
+      text-align-last: left;
+      hyphens: none;
     }
 
     .info-note+.info-note {
@@ -3532,8 +4011,9 @@
       font-family: var(--font);
       font-size: 11px;
       color: var(--text);
-      background: var(--bg3);
-      border: 1px solid var(--border);
+      /* PREVIEW item 3: translucent inline-code chip to match the glass modal */
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.10);
       border-radius: 3px;
       padding: 1px 5px;
     }
@@ -3614,8 +4094,9 @@
       display: none;
       align-items: center;
       gap: 6px;
-      background: none;
-      border: 1px solid var(--border2);
+      /* PREVIEW item 4: glass fill + hairline (mobile-only control) */
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.11);
       color: var(--text2);
       border-radius: var(--radius);
       padding: 7px 12px;
@@ -3654,6 +4135,10 @@
 
       .main {
         flex-direction: column;
+        /* PREVIEW: floating-block treatment is desktop-only -- drop the inset
+           and let the mobile drawer stack behave exactly as before. */
+        padding: 0;
+        gap: 0;
       }
 
       .filters-panel {
@@ -3661,9 +4146,12 @@
         width: 100%;
         min-width: 0;
         flex: 0 0 auto;
+        align-self: stretch;
         max-height: 55vh;
-        border-right: none;
+        border: none;
         border-bottom: 1px solid var(--border);
+        border-radius: 0;
+        box-shadow: none;
       }
 
       .filters-panel.mobile-open {
@@ -3676,6 +4164,11 @@
 
       .content {
         padding: 0 12px 16px;
+        /* PREVIEW: match .main -- floating surface is desktop-only. */
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        background: transparent;
       }
 
       .search-row {

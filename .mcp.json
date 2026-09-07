@@ -15,7 +15,7 @@
     "playwright": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@playwright/mcp@latest", "--executable-path", "/snap/bin/brave"]
+      "args": ["-y", "@playwright/mcp@0.0.80", "--browser", "chromium"]
     },
     "chrome-devtools": {
       "type": "stdio",
