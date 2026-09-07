@@ -37,7 +37,11 @@ which the converter emits verbatim. Either way, never hand-edit
    field names — a `detection:` selection referencing a field the
    logsource never produces is a bug `validate_sigma.py`'s schema check
    won't catch (that's exactly what Bjorn's review is for, but a rule
-   that's obviously wrong on arrival wastes their pass).
+   that's obviously wrong on arrival wastes their pass). Before finalizing
+   the actual match patterns, use the `technique-research-sources` skill —
+   check whether a public Sigma rule already covers this technique, and
+   pull the real command syntax/tool signature from a live reference
+   rather than guessing from the technique's name.
 4. **Tag technique/tactic using the `mitre-attack-mapping` skill** — this
    repo's tactic vocabulary and revoked-technique handling diverge from
    upstream ATT&CK; don't tag from memory.
