@@ -1,5 +1,5 @@
 title: Reverse Shell Execution via PowerShell or Netcat
-detect_id: DETECT-2026-0033
+detect_id: DETECT-2026-0001
 status: experimental
 description: >
   Detects reverse-shell establishment or payload staging via four
