@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://martonbence.github.io/Detection-Engineering/sitemap.xml
