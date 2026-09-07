@@ -16,6 +16,7 @@ because ATT&CK never reuses a sub-technique number.
 """
 
 import json
+from datetime import UTC, datetime
 
 import pytest
 import yaml
@@ -81,8 +82,20 @@ def reasons(findings):
     return [f["reason"] for f in findings]
 
 
-def write_cache(tmp_path, techniques=None, fetched_at="2026-08-01T00:00:00+00:00"):
+def write_cache(tmp_path, techniques=None, fetched_at=None):
+    """Write a fake technique-map cache.
+
+    `fetched_at` defaults to "now" rather than a fixed calendar date, so a
+    cache built for a "clean run" test stays under CACHE_STALE_DAYS no matter
+    when the suite actually runs -- a hardcoded date here previously aged past
+    the 30-day staleness threshold and made check_mitre_tags.py's own stale-cache
+    warning start firing in an unrelated "clean run" test. Pass an explicit
+    (e.g. old) `fetched_at` when a test specifically wants to exercise the
+    staleness path.
+    """
     path = tmp_path / "map.json"
+    if fetched_at is None:
+        fetched_at = datetime.now(UTC).isoformat()
     payload = {"fetched_at": fetched_at, "techniques": FAKE_TECHNIQUES if techniques is None else techniques}
     path.write_text(json.dumps(payload), encoding="utf-8")
     return path
@@ -400,7 +413,11 @@ def test_a_rule_without_tags_is_left_to_the_schema(tmp_path):
 
 
 def test_json_output_records_the_cache_and_the_findings(tmp_path):
-    cache = write_cache(tmp_path)
+    # An explicit fetched_at here, not write_cache's default: this test is
+    # about the cache's timestamp round-tripping into the JSON output, not
+    # about freshness, so it pins its own value rather than depending on
+    # whatever "now" write_cache defaults to.
+    cache = write_cache(tmp_path, fetched_at="2026-08-01T00:00:00+00:00")
     r = write_rule(tmp_path, ["attack.credential_access", "attack.t1003.002"])
     out = tmp_path / "out" / "mitre.json"
 
