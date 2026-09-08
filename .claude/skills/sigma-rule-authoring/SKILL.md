@@ -51,6 +51,74 @@ sophisticated for Sigma's block syntax to express. Even then, keep the
 `detection:` block populated with its required placeholder — the schema
 demands it, but it is never actually evaluated for a `raw_query` rule.
 
+## Testing: prefer a real Atomic Red Team test over writing a custom command
+
+`custom.testing.type` is `atomic` or `emulation`. Default to `atomic` and
+cite a real test from `redcanaryco/atomic-red-team` — reach for `emulation`
+(a hand-written `custom[]` command) only when no atomic exists for the
+technique, or a real check (below) rules every existing one out. A
+hand-written command is more code to trust and re-verify than a test the
+community has already run; don't default to it out of habit when a real
+atomic is sitting right there.
+
+"A real atomic exists for this technique" is not the bar, though —
+**"this specific atomic produces the telemetry this specific rule's
+detection logic keys on"** is. Use [[technique-research-sources]]'s
+guidance to open the actual atomic YAML/Markdown and read what the test's
+command really does before citing its number, then check that against what
+the rule matches, not just against the technique ID both share. A test can
+be entirely real and on-topic for the technique and still be the wrong
+fit for a *particular* rule:
+
+- **DETECT-2026-0033** (T1557.001, victim-side detection: a DNS failure
+  immediately followed by an SMB connection) is `type: emulation` on
+  purpose, not from having skipped this check. T1557.001's real atomic
+  (test 1, "LLMNR Poisoning with Inveigh") is a genuine, correctly-scoped
+  atomic for the technique — it just detects the wrong side of it for this
+  rule. It stands up the *poisoner* on the runner it executes on; it does
+  not make that same host (or any other) issue the *victim* query the
+  rule's correlation needs, and this repo's pipeline runs every rule's
+  test against exactly one runner (`atomic_verify`/`atomic_verify_dc` in
+  `ci_dev_workflow.yml` — no job orchestrates two hosts attacking each
+  other for a single rule's test). That atomic is the right citation for a
+  *different*, tool-execution-based rule instead — and indeed is exactly
+  what **DETECT-2026-0034** (Network Sniffing and AiTM Tooling Execution,
+  a Sysmon EID 1 rule) cites it for: run alone on one runner, "start
+  Inveigh" is precisely the process-creation event that rule's
+  `selection_inveigh` matches, no second host required.
+- The general shape: an atomic that reproduces the **attacker's own
+  action** fits a rule that detects that action. A rule that detects the
+  **victim's or a bystander's resulting behavior** (a downstream log
+  failure, a second host's reaction, an environmental side effect) usually
+  has no matching atomic, because Atomic Red Team tests are single-host
+  attacker actions by design — that gap is a legitimate, real reason to
+  write a custom emulation command instead, not a shortcut taken to avoid
+  the research.
+
+When you do fall back to `emulation`, the custom command should still be
+the minimal, safe reproduction of *only* the telemetry the rule's
+detection logic actually consumes (see the LSASS rules' emulation tests
+for the established pattern) — not a scaled-down attempt at the real
+attack chain.
+
+**A real atomic covering only "the attacker's half" of a multi-host chain
+is not necessarily wasted — it just doesn't belong in `custom.testing`.**
+DETECT-2026-0033's case again: the lab this repo targets happens to have
+both a DC and a victim host on the same segment, so the *actual* attack
+chain (Atomic Red Team's real Inveigh test on one host, a genuine
+NetBIOS-name lookup forced on the other) can be run for real, by hand —
+just not encoded as `custom.testing.atomics`, because CI only ever
+executes one rule's test against one runner, so citing it there would
+have CI run the atomic alone and get a guaranteed, uninformative FAIL. The
+right move in that situation: keep `custom.testing.type: emulation` (what
+CI actually runs), and add a plain YAML comment above `testing:` spelling
+out the manual two-host procedure — which host does what, what to check
+in Sysmon on the victim side, and the cleanup step (stop the poisoner
+promptly — it answers every broadcast on the segment while running, not
+just the test's). This gets the real atomic used where it's genuinely
+applicable (a one-time manual confirmation) without corrupting the
+automated test field with something that cannot pass automatically.
+
 ## `version:` — auto-bumped when the detection changes, not when the words do
 
 Every rule carries an explicit `version:` field (`"MAJOR.MINOR"`, e.g.
@@ -99,3 +167,11 @@ bump on an existing rule is handled automatically by `.githooks/pre-commit`
 at commit time — see above — so there's normally nothing to run for that
 yourself), then hand the rule to the Detection Quality Engineer for review.
 A newly authored rule is never self-approved or merged straight through.
+
+## Linking a finished rule to the ATT&CK notes vault
+
+Separate from the pipeline, this repo carries a personal Obsidian study
+vault at `personal/MITRE-Notes/`. Whenever a rule is created, finished, reviewed, or
+has its `attack.*` tags or detection logic changed, use the
+[[mitre-notes-vault]] skill to check whether the vault needs a
+cross-reference update — do this on your own, not only when asked.

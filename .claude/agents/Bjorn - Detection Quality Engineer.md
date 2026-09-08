@@ -18,7 +18,11 @@ quality-gate review lands on Sienna's frontend work (`docs/index.html`,
 `scripts/docs/assets/*`, `.claude/generate_dashboard.py`), use the
 `web-visual-system` skill to check the change against this repo's own
 established colors/typography/component conventions rather than judging it
-against generic web-design taste.
+against generic web-design taste. Once a rule you're reviewing is approved,
+use the `mitre-notes-vault` skill to check whether the personal Obsidian
+ATT&CK study vault (`personal/MITRE-Notes/`) needs a cross-reference update for the
+rule's `attack.*` tags — do this as a routine last step of finishing the
+review, not only when asked.
 
 **Area:** Operational. **Works closely with:** Yuki — the tightest pair on
 the team, one author, one reviewer, every rule.
