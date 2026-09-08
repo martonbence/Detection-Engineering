@@ -1,0 +1,124 @@
+title: Network Sniffing and AiTM Tooling Execution
+detect_id: DETECT-2026-0034
+status: experimental
+description: >
+  Detects execution of network-sniffing and adversary-in-the-middle tooling on the monitored
+  host itself: Windows-native packet capture (netsh trace, pktmon, the PowerShell
+  NetEventPacketCapture cmdlets, Wireshark/tshark) for T1040, and LLMNR/NBT-NS poisoning /
+  SMB relay tooling (Inveigh, Responder, Impacket ntlmrelayx) for T1557.001. This is the
+  attacker-side counterpart to DETECT-2026-0033, which detects a victim's downstream reaction
+  to poisoning rather than the tool itself — this rule only fires if the tool runs on a host
+  this pipeline actually watches, which in practice means an insider or an already-compromised
+  internal host, since an external attacker's own infrastructure is not instrumented.
+references:
+  - https://attack.mitre.org/techniques/T1040/
+  - https://attack.mitre.org/techniques/T1557/001/
+author: Bence Marton
+date: 2026-09-08
+modified: 2026-09-08
+version: "1.0"
+tags:
+  - attack.credential_access
+  - attack.discovery       # T1040's second tactic in this repo's own ATT&CK cache
+  - attack.collection      # T1557.001's second tactic in this repo's own ATT&CK cache
+  - attack.t1040
+  - attack.t1557.001
+
+logsource:
+  product_category: os
+  product: windows
+  service: sysmon
+  event_type: process_creation
+
+detection:
+  selection_netsh_trace:
+    Image|endswith: '\netsh.exe'
+    CommandLine|contains|all:
+      - "trace"
+      - "start"
+
+  selection_pktmon:
+    Image|endswith: '\pktmon.exe'
+    CommandLine|contains:
+      - "start"
+      - "filter"
+
+  selection_wireshark_capture:
+    Image|endswith:
+      - '\dumpcap.exe'
+      - '\tshark.exe'
+
+  selection_powershell_capture:
+    CommandLine|contains|all:
+      - "NetEventSession"
+      - "NetEventPacketCaptureProvider"
+
+  selection_inveigh:
+    CommandLine|contains: "Invoke-Inveigh"
+
+  selection_responder:
+    CommandLine|contains:
+      - "Responder.py"
+      - "responder.py"
+
+  selection_ntlmrelayx:
+    CommandLine|contains: "ntlmrelayx"
+
+  condition: 1 of selection_*
+
+fields:
+  - _time
+  - ComputerName
+  - User
+  - Image
+  - CommandLine
+  - ParentImage
+  - ProcessId
+
+falsepositives:
+  - Legitimate network troubleshooting by IT/support staff using netsh trace, pktmon, or
+    Wireshark/tshark — these are the dominant false positive source for the T1040 branch;
+    Microsoft support engineers commonly instruct netsh trace during case work. Consider a
+    SourceImage/parent-process or user-group allowlist if this is common in the environment.
+  - Authorized internal penetration testing or red-team exercises deliberately running
+    Inveigh, Responder, or ntlmrelayx — the T1557.001 branch is otherwise very low-FP, since
+    these tool names have essentially no legitimate administrative use.
+  - Security tooling that legitimately captures traffic for its own detection purposes (some
+    NDR/EDR agents use pktmon or ETW packet capture internally) — allowlist the vendor's
+    process path if observed.
+
+level: high
+
+custom:
+  splunk:
+    index: sysmon
+    mode: alert
+    cron: "*/5 * * * *"
+    earliest: "-5m"
+    latest: "now"
+    severity: high
+
+  testing:
+    enabled: false
+    runner: windows-victim
+    type: atomic
+    atomics:
+      - technique: T1040
+        test_numbers: [5, 6, 7, 16]
+        # Tests 5 (netsh trace), 6+7 (pktmon capture / pktmon filter set), 16 (PowerShell
+        # NetEventPacketCapture cmdlets). Test 4 (tshark.exe) deliberately excluded: it
+        # requires Wireshark installed as a prerequisite, an external-tool dependency this
+        # rule doesn't otherwise need -- same reasoning as this repo already applies to
+        # Mimikatz-download atomics (docs/credential-access-buildout.md Group C). Tests 1-3
+        # and 8-15 are Linux/macOS/FreeBSD and out of scope.
+      - technique: T1557.001
+        test_numbers: [1]
+        # "LLMNR Poisoning with Inveigh" -- the correct rule for this atomic (see
+        # sigma-rule-authoring skill's testing section): it validates process execution on
+        # the single runner it runs on, which is exactly what selection_inveigh matches.
+        # DETECT-2026-0033 is the rule this same atomic would NOT reliably validate.
+    # Not covered by an atomic: selection_responder and selection_ntlmrelayx. Neither tool
+    # has a published Atomic Red Team test for T1557.001 (only test 1, Inveigh, exists) --
+    # a legitimate "no matching atomic" gap per the sigma-rule-authoring skill, not a
+    # shortcut. Manual verification: run `python responder.py -I <iface> -wrf` or
+    # `ntlmrelayx.py -tf targets.txt` on the victim runner and confirm the rule fires.
