@@ -25,3 +25,16 @@ __pycache__/
 # package.json in this repo -- see ci_code_checks.yml's "Install Playwright"
 # step -- so nothing else already keeps this out.
 node_modules/
+
+# Obsidian vault (personal/MITRE-Notes/). The notes themselves are versioned -- they are
+# the point -- but a few files under .obsidian/ describe the editor session
+# rather than the notes: workspace.json is rewritten every time a pane is
+# opened, closed or resized, so on a multi-device setup it produces a commit
+# per session and a merge conflict per sync, none of which say anything about
+# the content. The rest of .obsidian/ (app.json, appearance.json,
+# core-plugins.json, graph.json, templates.json) is deliberately kept: those
+# are real settings that should follow the vault to the other machine.
+personal/MITRE-Notes/.obsidian/workspace.json
+personal/MITRE-Notes/.obsidian/workspace-mobile.json
+personal/MITRE-Notes/.obsidian/cache
+personal/MITRE-Notes/.trash/
