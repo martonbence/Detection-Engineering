@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-07T19:35:33.827780+00:00",
+  "generated_at": "2026-09-08T12:01:25.522308+00:00",
   "total_rules": 29,
   "total_sigma_rules": 29,
   "total_compiled_sigma_rules": 28,
@@ -25,10 +25,10 @@
   "confirmed_working_pct": 21,
   "last_live_verification_at": "2026-09-07T15:11:08.633837+00:00",
   "last_live_verification_count": 1,
-  "mitre_covered_techniques": 13,
+  "mitre_covered_techniques": 14,
   "mitre_total_techniques": 222,
   "mitre_total_fetched_at": "2026-09-07T15:04:55.548837+00:00",
-  "mitre_coverage_pct": 5.9,
+  "mitre_coverage_pct": 6.3,
   "by_level": {
     "critical": 14,
     "high": 10,
@@ -36,8 +36,8 @@
     "medium": 3
   },
   "by_status": {
-    "experimental": 2,
-    "stable": 25,
+    "experimental": 1,
+    "stable": 26,
     "test": 2
   },
   "by_tactic": {
@@ -54,9 +54,9 @@
     {
       "detect_id": "DETECT-2026-0001",
       "title": "Reverse Shell Execution via PowerShell or Netcat",
-      "description": "Detects reverse-shell establishment or payload staging via four complementary command-line patterns on Windows process creation. Three are scoped to a genuine PowerShell process (Image or PE OriginalFileName, to survive a renamed binary): (1) named offensive tooling -- the Nishang PowerShell-TCP/UDP/ICMP reverse-shell family (Invoke-PowerShellTcp, Invoke-PowerShellTcpOneLine, Invoke-PowerShellTcpOneLineBind, Invoke-PowerShellUdp, Invoke-PowerShellUdpOneLine, Invoke-PowerShellIcmp), its HTTP/WMI/ LOLBin-proxied siblings (Invoke-PoshRatHttp, Invoke-PowerShellWmi, Invoke-JSRatRegsvr, Invoke-JSRatRundll, Out-RundllCommand), Invoke-ConPtyShell, and the powercat toolkit (its `powercat` wrapper cmdlet and its internal Start-PowerCat/Connect-PowerCat functions, in case a script calls those directly instead of the wrapper) -- or bare .NET socket-class names (New-Object Net.Sockets.TCPClient / System.Net.Sockets.TCPClient / System.Net.Sockets.NetworkStream) appearing in the command line, catching a recognizable tool invocation even when its own internals aren't inline; (2) the raw TCPClient -> GetStream() -> Write() call sequence appearing together, regardless of tool name, catching bespoke/homebrew socket-shell code that never calls a named helper at all -- this exact selection_img + selection_cli pairing matches SigmaHQ's own community rule for this technique (proc_creation_win_powershell_ reverse_shell_connection.yml), which cites real-world use of the Invoke-PowerShellTcpOneLine variant during the 2021 HAFNIUM Exchange Server exploitation campaign (see references). The other two are gated only on the process being Windows rather than PowerShell specifically: (3) nc/ncat/nc64/netcat (Image|endswith, not a CommandLine guess -- SigmaHQ's own proc_creation_win_pua_netcat.yml notes OriginalFileName is empty for these binaries, so Image is the only reliable identity signal) combined with either an exec-style flag (-e, --exec, and Ncat's --lua-exec/ --sh-exec extensions, which pipe a shell -- cmd.exe by default for -e -- directly into the socket) or a bind-listener flag (-lvp, -lvnp, opening a listening port for the attacker to connect back into -- a bind shell rather than a reverse shell, but the same tool and the same outcome); (4) msfvenom invoked locally with -p (payload selection) -- msfvenom is a payload *generator*, normally run on the attacker's own machine, so its presence in a CommandLine on a monitored endpoint at all is a strong signal regardless of which payload was requested. Ported and adapted from a workplace RSA NetWitness Esper rule; the Image/OriginalFileName gate, the GetStream()/Write() idiom, and the msfvenom selection were added during Sigma conversion, not present in the source rule. The source rule's two payload-identifier strings (meterpreter/reverse_tcp, shell_reverse_tcp) don't appear in a spawned process's CommandLine -- they're msfvenom's own -p argument values -- so selection_msfvenom is the corrected place to catch that same signal, rather than dropping it outright. Complements DETECT-2026-0007 (encoded-command execution) and DETECT-2026-0009 (inline Base64 decode-and-execute), which cover PowerShell obfuscation rather than this rule's plaintext socket/tool signatures. Every selection_netcat_flag entry carries a leading space deliberately: even gated on a confirmed nc/ncat/nc64/netcat process, a bare \"-e\" (or \"-lvp\") can still appear as a substring inside an unrelated hostname or argument (e.g. \"test-example.com\" contains \"-e\" right after the hyphen in \"-example\") -- the leading space requires it to actually be a standalone flag token, not a coincidental substring.\n",
+      "description": "Detects reverse-shell establishment via PowerShell (Nishang/powercat toolkit, raw .NET TCPClient socket usage), netcat/ncat exec or bind listener flags, and local msfvenom payload generation. Covers both named-tool signatures and generic PowerShell socket idioms to catch bespoke reverse-shell scripts. Complements DETECT-2026-0007 and DETECT-2026-0009 for obfuscated/encoded PowerShell execution.\n",
       "level": "high",
-      "status": "experimental",
+      "status": "stable",
       "source": "sigma",
       "verdict": "N/A",
       "run_id": "",
@@ -69,7 +69,8 @@
       ],
       "techniques": [
         "T1059.001",
-        "T1095"
+        "T1095",
+        "T1071.001"
       ],
       "file_path": "rules/sigma/DETECT-2026-0001_Reverse-Shell-Execution-via-PowerShell-or-Netcat.yml",
       "logsource": {

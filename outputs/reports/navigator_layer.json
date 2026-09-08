@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-09-07T19:35:33 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
+  "description": "Auto-generated detection coverage. 2026-09-08T12:01:25 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
   "filters": {
     "platforms": [
       "Windows",
@@ -44,6 +44,14 @@
     },
     {
       "techniqueID": "T1095",
+      "color": "#6E7681",
+      "comment": "DETECT-2026-0001: Reverse Shell Execution via PowerShell or Netcat (N/A)",
+      "enabled": true,
+      "score": 25,
+      "showSubtechniques": true
+    },
+    {
+      "techniqueID": "T1071.001",
       "color": "#6E7681",
       "comment": "DETECT-2026-0001: Reverse Shell Execution via PowerShell or Netcat (N/A)",
       "enabled": true,
