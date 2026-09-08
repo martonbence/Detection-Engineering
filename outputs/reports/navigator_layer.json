@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-09-08T12:01:25 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
+  "description": "Auto-generated detection coverage. 2026-09-08T20:31:01 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
   "filters": {
     "platforms": [
       "Windows",
@@ -208,6 +208,22 @@
       "comment": "DETECT-2026-0032: Pipeline Test Rule - Tasklist Process Discovery (PASS)",
       "enabled": true,
       "score": 100,
+      "showSubtechniques": true
+    },
+    {
+      "techniqueID": "T1557.001",
+      "color": "#6E7681",
+      "comment": "DETECT-2026-0033: Name Resolution Poisoning and SMB Relay via Correlated DNS Failure (N/A)\nDETECT-2026-0034: Network Sniffing and AiTM Tooling Execution (N/A)",
+      "enabled": true,
+      "score": 25,
+      "showSubtechniques": true
+    },
+    {
+      "techniqueID": "T1040",
+      "color": "#6E7681",
+      "comment": "DETECT-2026-0034: Network Sniffing and AiTM Tooling Execution (N/A)",
+      "enabled": true,
+      "score": 25,
       "showSubtechniques": true
     }
   ],
