@@ -22,7 +22,9 @@ from lib.rules import (
     discover,
     is_deprecated,
     load_rule,
+    split_status_list,
     status,
+    status_in,
     title,
 )
 
@@ -168,6 +170,45 @@ def test_status_is_lowercased():
 )
 def test_is_deprecated(value, expected):
     assert is_deprecated({"status": value}) is expected
+
+
+@pytest.mark.parametrize(
+    ("rule_status", "wanted", "expected"),
+    [
+        ("experimental", ["experimental"], True),
+        ("EXPERIMENTAL", ["experimental"], True),
+        ("experimental", ["experimental", "test"], True),
+        ("stable", ["experimental", "test"], False),
+        ("experimental", [], False),  # empty set is never a match
+        ("experimental", ["  Experimental  "], True),  # wanted side normalised too
+        (None, ["experimental"], False),
+        ("experimental", ["", "  "], False),  # blank entries are dropped
+    ],
+)
+def test_status_in(rule_status, wanted, expected):
+    assert status_in({"status": rule_status}, wanted) is expected
+
+
+def test_status_in_accepts_any_iterable():
+    """A set, tuple or generator all work -- callers pass whatever they have."""
+    assert status_in({"status": "test"}, {"test", "experimental"}) is True
+    assert status_in({"status": "test"}, (s for s in ["test"])) is True
+
+
+@pytest.mark.parametrize(
+    ("values", "expected"),
+    [
+        (["experimental"], ["experimental"]),
+        (["a,b", "c"], ["a", "b", "c"]),
+        (["  Experimental , TEST "], ["experimental", "test"]),
+        (["a", "", "  ", "b"], ["a", "b"]),
+        ([], []),
+        (None, []),
+        (["a,a"], ["a", "a"]),  # order preserved, de-dup left to the caller
+    ],
+)
+def test_split_status_list(values, expected):
+    assert split_status_list(values) == expected
 
 
 # --------------------------------------------------------------------------

@@ -109,6 +109,41 @@ def test_a_failed_rule_does_not_overwrite_its_known_version(tmp_path):
     assert data["environments"]["dev"]["last_deploy"]["totals"] == {"failed": 1}
 
 
+def test_a_status_excluded_rule_is_not_recorded_as_deployed(tmp_path):
+    """Prod passes --exclude-status experimental; the skipped rule must not get
+    a per-rule entry, or the deployment panel would render it as 'current' in
+    prod -- the misleading state the exclusion exists to prevent."""
+    report = deploy_report(
+        rules=[
+            {"detect_id": "DETECT-2026-0007", "rule_version": "1.2", "outcome": "updated"},
+            {"detect_id": "DETECT-2026-0033", "rule_version": "1.0", "outcome": "skipped_excluded"},
+        ],
+        totals={"updated": 1, "skipped_excluded": 1},
+    )
+    _, data = run(tmp_path, "prod", deploy=report)
+
+    prod = data["environments"]["prod"]["last_deploy"]
+    assert list(prod["rules"]) == ["DETECT-2026-0007"]
+    assert prod["totals"] == {"updated": 1, "skipped_excluded": 1}
+
+
+def test_a_status_excluded_rule_keeps_its_last_known_entry(tmp_path):
+    """If the rule was deployed here before (as a non-experimental status), the
+    prior entry stays until the reconcile reports the object actually gone --
+    same restraint as a `failed` outcome."""
+    run(tmp_path, "prod", deploy=deploy_report(
+        rules=[{"detect_id": "DETECT-2026-0033", "rule_version": "1.0", "outcome": "updated"}],
+        totals={"updated": 1},
+    ))
+    _, data = run(tmp_path, "prod", deploy=deploy_report(
+        rules=[{"detect_id": "DETECT-2026-0033", "rule_version": "1.0", "outcome": "skipped_excluded"}],
+        totals={"skipped_excluded": 1},
+    ))
+
+    prod = data["environments"]["prod"]["last_deploy"]
+    assert prod["rules"]["DETECT-2026-0033"]["outcome"] == "updated"
+
+
 def test_missing_rules_are_named_not_just_counted(tmp_path):
     """A per-rule table cannot point at a row from a count alone."""
     report = reconcile_report(
@@ -129,6 +164,26 @@ def test_splunk_state_is_recorded_separately_from_the_deploy(tmp_path):
     assert dev["splunk_state"]["in_sync"] == 27
     assert dev["splunk_state"]["has_drift"] is False
     assert dev["splunk_state"]["checked_at"]
+
+
+def test_status_excluded_rules_are_carried_into_splunk_state(tmp_path):
+    """The committed inventory's only trace of an exclusion was
+    totals.skipped_excluded (a bare count). state_section now carries the ids +
+    the status list, mirroring missing_ids, so a later panel change can use it.
+    Not drift."""
+    report = reconcile_report({"desired": 26, "in_sync": 26, "excluded": 2})
+    report["exclude_status"] = ["experimental"]
+    report["excluded"] = [
+        {"detect_id": "DETECT-2026-0012", "status": "experimental", "live": True, "objects": [{}]},
+        {"detect_id": "DETECT-2026-0034", "status": "experimental", "live": False, "objects": []},
+    ]
+    _, data = run(tmp_path, "prod", reconcile=report)
+
+    state = data["environments"]["prod"]["splunk_state"]
+    assert state["excluded"] == 2
+    assert state["exclude_status"] == ["experimental"]
+    assert state["excluded_ids"] == ["DETECT-2026-0012", "DETECT-2026-0034"]
+    assert state["has_drift"] is False
 
 
 def test_a_file_with_no_detect_id_stays_out_of_the_per_rule_map(tmp_path):

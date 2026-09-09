@@ -43,6 +43,7 @@ built to run unattended and --apply-removals is not.
 import argparse
 import json
 import sys
+from collections.abc import Iterable
 from datetime import date
 from pathlib import Path
 
@@ -55,8 +56,9 @@ from lib.rule_naming import saved_search_name
 # Aliased: load_desired() keeps local `detect_id` and `title` variables that
 # the rest of the function reads several times, and importing the helpers under
 # their own names would shadow them.
-from lib.rules import RuleLoadError, discover, is_deprecated, load_rule
+from lib.rules import RuleLoadError, discover, is_deprecated, load_rule, split_status_list, status_in
 from lib.rules import detect_id as rule_detect_id
+from lib.rules import status as rule_status
 from lib.rules import title as rule_title
 from lib.splunk_client import build_session
 from lib.splunk_ns import ALL_OWNERS, saved_search_url, saved_searches_url
@@ -93,10 +95,16 @@ def _fail(msg: str) -> None:
 env_required = env_reader(_fail)
 
 
-def load_desired(rules_dir: Path) -> dict[str, dict]:
+def load_desired(
+    rules_dir: Path, exclude_status: Iterable[str] = ()
+) -> tuple[dict[str, dict], dict[str, dict]]:
     """
-    Desired state: the saved-search name every Sigma rule in the repo would
-    deploy under, keyed by that name.
+    Return ``(desired, excluded)`` -- two disjoint views of the repo.
+
+    `desired` is the saved-search name every Sigma rule in the repo would
+    deploy under in this environment, keyed by that name. `excluded` is the
+    same shape, for rules that are in the repo and schema-valid but whose
+    `status` this environment holds out of its deploy (see `exclude_status`).
 
     Derived from the Sigma YAML rather than the .meta.json sidecars on purpose:
     the sidecars are generated during a run and gitignored (`.gitignore:1`), so
@@ -104,8 +112,21 @@ def load_desired(rules_dir: Path) -> dict[str, dict]:
     top-level Sigma fields, and saved_search_name() is the same function the
     deploy uses, so this reproduces the deploy's naming exactly without needing
     to run a conversion first.
+
+    `exclude_status` names statuses this environment does not deploy -- the
+    prod audit passes `experimental`, dev passes nothing. Such a rule is put
+    in `excluded`, NOT dropped on the floor: it is neither "desired" (its live
+    object would then read as unexpected) nor "removed from the repo" (a lie --
+    it is right there). `reconcile()` gives it its own bucket. `deprecated` is
+    different: it is genuinely on its way out of Splunk, so it is dropped
+    entirely and its live object is a real removal orphan.
+
+    Materialised to a tuple so a one-shot iterable (a generator) is not
+    exhausted by the first rule.
     """
+    exclude_status = tuple(exclude_status)
     desired: dict[str, dict] = {}
+    excluded: dict[str, dict] = {}
 
     for path in discover(rules_dir):
         try:
@@ -121,11 +142,11 @@ def load_desired(rules_dir: Path) -> dict[str, dict]:
         title = rule_title(rule)
 
         # A deprecated rule is still in the repo but is no longer wanted in
-        # Splunk -- the deploy skips it (deploy_spl_to_splunk.py), so leaving it
-        # in the desired state here would report it as permanently "missing" and
-        # ask for a deployment that will never happen. Dropping it instead makes
-        # any object that still exists show up as a removal orphan, which is the
-        # accurate description: it is live, and it should not be.
+        # Splunk -- the deploy skips it (deploy_spl_to_splunk.py), and it is
+        # meant to leave production eventually (--apply-removals). Dropping it
+        # from every view here makes any object that still exists show up as a
+        # removal orphan, which is the accurate description: it is live, and it
+        # should not be.
         if is_deprecated(rule):
             continue
 
@@ -137,9 +158,20 @@ def load_desired(rules_dir: Path) -> dict[str, dict]:
             continue
 
         name = saved_search_name({"detect_id": detect_id, "title": title})
-        desired[name] = {"detect_id": detect_id, "title": title, "path": str(path)}
+        entry = {"detect_id": detect_id, "title": title, "path": str(path)}
 
-    return desired
+        # Held out of THIS environment's deploy by status (prod: experimental).
+        # Unlike deprecated, an excluded rule's live object is retained on
+        # purpose -- an unpromoted rule keeps whatever version this env already
+        # had -- so it goes in its own bucket rather than being dropped and
+        # mis-reported as "not in the repo at all".
+        if status_in(rule, exclude_status):
+            excluded[name] = {**entry, "status": rule_status(rule)}
+            continue
+
+        desired[name] = entry
+
+    return desired, excluded
 
 
 def fetch_actual(
@@ -244,7 +276,12 @@ def is_retired(info: dict) -> bool:
     ).lstrip().startswith(RETIRED_MARKER)
 
 
-def reconcile(desired: dict[str, dict], actual: dict[str, dict]) -> dict:
+def reconcile(
+    desired: dict[str, dict],
+    actual: dict[str, dict],
+    excluded: dict[str, dict] | None = None,
+    exclude_status: Iterable[str] = (),
+) -> dict:
     """
     Sort every name into exactly one bucket.
 
@@ -256,11 +293,26 @@ def reconcile(desired: dict[str, dict], actual: dict[str, dict]) -> dict:
     detect_id is gone entirely is a *removal* (audit 1.7), which deserves a look
     before anything is deleted, because a rule vanishing from the repo is not
     always intentional.
+
+    `excluded` (from load_desired) is a THIRD category, added 2026-09-09: rules
+    that ARE in the repo but whose status this environment holds out of its
+    deploy. A live object for one of these is neither a removal (the "not in
+    the repo" line would be false) nor drift (it is retained on purpose until
+    the rule is promoted). It gets its own report section and is never offered
+    to --apply-removals.
     """
+    excluded = excluded or {}
+    excluded_ids = {info["detect_id"] for info in excluded.values() if info.get("detect_id")}
+
     desired_by_id = {info["detect_id"]: name for name, info in desired.items()}
     desired_ids = set(desired_by_id)
 
     in_sync, missing, renamed, removed, unmanaged = [], [], [], [], []
+    # detect_id -> every managed live object for an excluded rule. A LIST, not a
+    # single dict: an excluded rule can have an old-title object plus a
+    # new-title one, and collapsing them by detect_id would make the bucket
+    # counts stop summing to `actual` -- the 2026-08-07 test3 shape.
+    excluded_live: dict[str, list[dict]] = {}
 
     for name, info in sorted(desired.items()):
         if name in actual:
@@ -282,6 +334,20 @@ def reconcile(desired: dict[str, dict], actual: dict[str, dict]) -> dict:
         # Names are "<detect_id>_<title-slug>", so the prefix up to the first
         # underscore identifies the rule independently of its title.
         detect_id = name.split("_", 1)[0]
+
+        if detect_id in excluded_ids:
+            # In the repo, held out of this env's deploy by status. Each managed
+            # object for it is retained deliberately -- not a removal, not a
+            # rename, not drift. Recorded in report["excluded"] below.
+            excluded_live.setdefault(detect_id, []).append({
+                "name": name,
+                "disabled": is_disabled(info.get("disabled", "")),
+                "is_scheduled": str(info.get("is_scheduled", "")).strip() in ("1", "true", "True"),
+                # So an already-[RETIRED] object is not narrated as a live one
+                # "keeping whatever version this app had".
+                "retired": is_retired(info),
+            })
+            continue
 
         if detect_id in desired_ids:
             # Whether the successor is actually live decides if this is safe to
@@ -325,6 +391,30 @@ def reconcile(desired: dict[str, dict], actual: dict[str, dict]) -> dict:
         if len(info.get("copies") or []) > 1
     ]
 
+    # One entry per repo rule this environment holds out by status, whether or
+    # not it currently has a live object. `objects` is every managed live
+    # object found for it (0..n): a non-empty list is a rule legitimately
+    # retained (frozen at whatever version the env already had); an empty one
+    # is simply the expected state. Neither is drift, neither is a removal
+    # orphan.
+    excluded_report = []
+    for name, info in sorted(excluded.items()):
+        did = info["detect_id"]
+        objects = sorted(excluded_live.get(did, []), key=lambda o: o["name"])
+        excluded_report.append({
+            "name": name,
+            "detect_id": did,
+            "status": info.get("status", ""),
+            "path": info.get("path", ""),
+            "live": bool(objects),
+            "objects": objects,
+        })
+
+    # Objects, not rules: needed so in_sync + orphan_* + unmanaged +
+    # excluded_objects still reconciles against `actual` when a renamed
+    # excluded rule has two live objects.
+    excluded_object_count = sum(len(v) for v in excluded_live.values())
+
     return {
         "in_sync": in_sync,
         "missing": missing,
@@ -332,6 +422,10 @@ def reconcile(desired: dict[str, dict], actual: dict[str, dict]) -> dict:
         "orphan_removed": removed,
         "unmanaged": unmanaged,
         "duplicates": duplicates,
+        "excluded": excluded_report,
+        # The statuses that were held out, echoed so a reader can see WHY
+        # `desired` is lower than the repo's rule count (Finding 2).
+        "exclude_status": sorted({s.strip().lower() for s in exclude_status if str(s).strip()}),
         "counts": {
             "desired": len(desired),
             "actual": len(actual),
@@ -342,6 +436,9 @@ def reconcile(desired: dict[str, dict], actual: dict[str, dict]) -> dict:
             "unmanaged": len(unmanaged),
             # Names, not objects: 27 duplicated names means 54 objects.
             "duplicate_names": len(duplicates),
+            # Rules held out, and the live objects they still have.
+            "excluded": len(excluded_report),
+            "excluded_objects": excluded_object_count,
         },
     }
 
@@ -352,6 +449,12 @@ def has_drift(report: dict) -> bool:
     removal: disabled, marked, and deliberately kept for reversibility. Counting
     them would leave the report permanently red after the first --apply-removals
     and train everyone to ignore it.
+
+    `report["excluded"]` is deliberately absent from this check: a repo rule
+    this environment holds out by status, whose live object is retained on
+    purpose, is a known and stable state -- exactly the kind of standing
+    condition that would train everyone to ignore the colour if it lit the
+    dashboard red on every scheduled audit (Finding 1, 2026-09-09).
     """
     counts = report["counts"]
     if counts["missing"] or counts["orphan_renamed"]:
@@ -468,8 +571,14 @@ def apply_changes(
 def print_report(report: dict, app: str) -> None:
     counts = report["counts"]
 
+    excluded = report.get("excluded") or []
+    excl_statuses = report.get("exclude_status") or sorted({e.get("status", "") for e in excluded if e.get("status")})
+
     print(f"\n=== Splunk state reconciliation (app: {app}) ===")
-    print(f"Repo wants : {counts['desired']} saved search(es)")
+    held_note = (
+        f"  (+{len(excluded)} held out by status: {', '.join(excl_statuses)})" if excluded else ""
+    )
+    print(f"Repo wants : {counts['desired']} saved search(es){held_note}")
     print(f"Splunk has : {counts['actual']} distinct name(s) in this app")
     print(f"In sync    : {counts['in_sync']}")
 
@@ -522,6 +631,29 @@ def print_report(report: dict, app: str) -> None:
                 print("      It is not scheduled, so it fires nothing on its own -- but it is")
                 print("      still there, and still says CI manages it.")
 
+    if excluded:
+        print(
+            f"\nEXCLUDED BY STATUS -- in the repo, held out of this app's deploy "
+            f"({counts.get('excluded', len(excluded))}; status: {', '.join(excl_statuses)}):"
+        )
+        for item in excluded:
+            print(f"  - {item['detect_id']}  ({item['status']})")
+            if not item["objects"]:
+                print("      No live object here -- the expected state for an excluded rule.")
+                continue
+            for obj in item["objects"]:
+                where = "" if obj["name"] == item["name"] else f" as '{obj['name']}'"
+                if obj["retired"]:
+                    print(f"      A live object{where} is already [RETIRED] (disabled) -- left as-is.")
+                else:
+                    state = "disabled" if obj["disabled"] else "enabled"
+                    sched = "scheduled" if obj["is_scheduled"] else "unscheduled"
+                    print(
+                        f"      A live object{where} ({state}, {sched}) is retained as-is -- an "
+                        "unpromoted rule keeps whatever version this app already had."
+                    )
+            print("      Not a removal and not drift. It leaves by being promoted (status change), not by --apply-removals.")
+
     if report["unmanaged"]:
         print(f"\nNOT MANAGED BY CI -- reported only, never actioned ({counts['unmanaged']}):")
         for item in report["unmanaged"]:
@@ -547,6 +679,19 @@ def main(argv: list[str] | None = None) -> int:
         "--json",
         dest="json_path",
         help="Also write the full report as JSON to this path (feeds audit item 4.7)",
+    )
+    parser.add_argument(
+        "--exclude-status",
+        action="append",
+        metavar="STATUS",
+        help=(
+            "Hold rules with one of these statuses out of this environment's desired "
+            "state -- they are listed in an 'excluded by status' section and their live "
+            "objects are retained, not flagged as removals. Repeatable / comma-separated. "
+            "The prod audit (ci_prod_audit.yml) passes `experimental`; dev's reconcile "
+            "passes nothing. `deprecated` is handled separately (always dropped -- it is "
+            "meant to leave Splunk)."
+        ),
     )
     parser.add_argument(
         "--fail-on-drift",
@@ -593,7 +738,8 @@ def main(argv: list[str] | None = None) -> int:
 
         session = build_session(username, password, verify_tls)
 
-        desired = load_desired(Path(args.rules_dir))
+        exclude_status = split_status_list(args.exclude_status or [])
+        desired, excluded = load_desired(Path(args.rules_dir), exclude_status=exclude_status)
         actual = fetch_actual(session, base_url, app)
     except ReconcileError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
@@ -602,7 +748,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: could not reach Splunk: {exc}", file=sys.stderr)
         return 2
 
-    report = reconcile(desired, actual)
+    report = reconcile(desired, actual, excluded=excluded, exclude_status=exclude_status)
     print_report(report, app)
 
     applied = None

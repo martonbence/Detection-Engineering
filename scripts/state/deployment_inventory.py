@@ -134,10 +134,30 @@ def deploy_section(
             # keyed by an id that does not exist.
             continue
         outcome = str(entry.get("outcome") or "")
-        if outcome == "failed":
-            # A failed deploy did not change what is running, so recording it as
-            # the rule's state would replace a true version with a false one.
-            # The totals still carry the failure.
+        if outcome in ("failed", "skipped_excluded"):
+            # Neither outcome should mint a fresh per-rule "deployed" entry, but
+            # for DIFFERENT reasons -- this is not a considered symmetry, just
+            # two cases that happen to want the same "don't write a new entry"
+            # behaviour here:
+            #   `failed` -- the deploy tried and could not, so what is running is
+            #     unchanged; recording a version it did not actually reach would
+            #     be a lie.
+            #   `skipped_excluded` -- the deploy deliberately did not send this
+            #     rule to this environment (prod passes --exclude-status
+            #     experimental). Its real state in this environment is "held out
+            #     by status", which the reconcile report's `excluded` section
+            #     describes; a per-rule "deployed at vX" entry here would just
+            #     shadow that with a version number.
+            # A rule that WAS legitimately deployed here before keeps its prior
+            # entry (the merge above copied it) -- same as `failed`. The totals
+            # still carry the outcome either way.
+            #
+            # `skipped_deprecated` is deliberately NOT in this list: a deprecated
+            # rule's object stays deployed until reconcile --apply-removals
+            # retires it, so keeping its last-known entry is the same "last
+            # known" behaviour applied to `failed`. Nothing here rewrites that
+            # entry once the object is retired -- the reconcile report's
+            # orphan_removed / missing_ids is what a reader leans on then.
             continue
         rules[detect_id] = {
             "rule_version": str(entry.get("rule_version") or ""),
@@ -203,6 +223,22 @@ def state_section(reconcile: dict, checked_at: str) -> dict:
         for item in (reconcile.get("missing") or [])
         if str(item.get("detect_id") or "").strip()
     )
+
+    # Rules the repo has but this environment holds out of its deploy by status
+    # (prod: experimental -- register (d) follow-up, 2026-09-09). NOT drift, and
+    # NOT in DRIFT_COUNTS / has_drift. Carried as ids + the status list, same
+    # shape as missing_ids, so a later dashboard change (the per-rule "held out
+    # of prod" visual) has the data without another reconcile-schema pass. The
+    # committed inventory otherwise records an exclusion only as a bare
+    # `totals.skipped_excluded` count with no ids.
+    section["excluded"] = counts.get("excluded", 0)
+    section["exclude_status"] = list(reconcile.get("exclude_status") or [])
+    section["excluded_ids"] = sorted(
+        str(item.get("detect_id") or "").strip()
+        for item in (reconcile.get("excluded") or [])
+        if str(item.get("detect_id") or "").strip()
+    )
+
     section["has_drift"] = bool(
         counts.get("missing")
         or counts.get("orphan_renamed")
