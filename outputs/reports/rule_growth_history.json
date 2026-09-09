@@ -370,8 +370,8 @@
     },
     {
       "date": "2026-09-09",
-      "timestamp": "2026-09-09T14:43:21.444615+00:00",
-      "git_sha": "4931803f67f6c92d97b4063058bf14c5198f30b6",
+      "timestamp": "2026-09-09T18:21:00.795564+00:00",
+      "git_sha": "2aadb4b8c33c9992642efc547bdc886813525b62",
       "total_rules": 31,
       "total_sigma_rules": 31,
       "total_native_spl_rules": 2
