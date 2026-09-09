@@ -1,56 +1,113 @@
 {
-  "generated_at": "2026-09-07T15:11:41.052373+00:00",
-  "total_rules": 28,
-  "total_sigma_rules": 28,
-  "total_compiled_sigma_rules": 27,
-  "total_splunk_rules": 28,
-  "total_native_spl_rules": 1,
-  "verified_pass": 6,
+  "generated_at": "2026-09-09T18:21:00.795550+00:00",
+  "total_rules": 31,
+  "total_sigma_rules": 31,
+  "total_compiled_sigma_rules": 29,
+  "total_splunk_rules": 31,
+  "total_native_spl_rules": 2,
+  "verified_pass": 7,
   "verified_fail": 0,
   "verified_not_verified": 22,
   "verified_testing_disabled": 22,
   "verified_testing_disabled_current": 22,
-  "never_tested": 0,
-  "not_verified": 22,
+  "never_tested": 2,
+  "not_verified": 24,
   "verified_stale": 0,
   "verified_superseded": 0,
   "verified_expired": 0,
-  "verified_pass_current": 6,
+  "verified_pass_current": 7,
   "verified_fail_current": 0,
-  "verified_current": 6,
+  "verified_current": 7,
   "pass_rate_pct": 100,
   "pass_rate_color": "brightgreen",
-  "verification_current_pct": 21,
+  "verification_current_pct": 23,
   "verification_current_color": "red",
-  "confirmed_working_pct": 21,
-  "last_live_verification_at": "2026-09-07T15:11:08.633837+00:00",
+  "confirmed_working_pct": 23,
+  "last_live_verification_at": "2026-09-09T18:20:31.957225+00:00",
   "last_live_verification_count": 1,
-  "mitre_covered_techniques": 12,
+  "mitre_covered_techniques": 16,
   "mitre_total_techniques": 222,
   "mitre_total_fetched_at": "2026-09-07T15:04:55.548837+00:00",
-  "mitre_coverage_pct": 5.4,
+  "mitre_coverage_pct": 7.2,
   "by_level": {
     "critical": 14,
-    "high": 9,
+    "high": 12,
     "low": 2,
     "medium": 3
   },
   "by_status": {
-    "experimental": 1,
-    "stable": 25,
+    "experimental": 3,
+    "stable": 26,
     "test": 2
   },
   "by_tactic": {
-    "Execution": 14,
-    "Credential Access": 13,
+    "Execution": 15,
+    "Credential Access": 15,
     "Stealth": 8,
+    "Command & Control": 2,
     "Persistence": 2,
     "Defense Impairment": 2,
-    "Command & Control": 1,
-    "Initial Access": 1,
-    "Discovery": 1
+    "Discovery": 2,
+    "Collection": 2,
+    "Initial Access": 1
   },
   "rules": [
+    {
+      "detect_id": "DETECT-2026-0001",
+      "title": "Reverse Shell Execution via PowerShell or Netcat",
+      "description": "Detects reverse-shell establishment via PowerShell (Nishang/powercat toolkit, raw .NET TCPClient socket usage), netcat/ncat exec or bind listener flags, and local msfvenom payload generation. Covers both named-tool signatures and generic PowerShell socket idioms to catch bespoke reverse-shell scripts. Complements DETECT-2026-0007 and DETECT-2026-0009 for obfuscated/encoded PowerShell execution.\n",
+      "level": "high",
+      "status": "stable",
+      "source": "sigma",
+      "verdict": "PASS",
+      "run_id": "34388214023",
+      "verdict_at": "2026-09-09T18:20:31.957225+00:00",
+      "verdict_rule_version": "1.1",
+      "verdict_testing_disabled": false,
+      "tactics": [
+        "Execution",
+        "Command & Control"
+      ],
+      "techniques": [
+        "T1059.001",
+        "T1095",
+        "T1071.001"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0001_Reverse-Shell-Execution-via-PowerShell-or-Netcat.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-09-07",
+      "modified": "2026-09-09",
+      "references": [
+        "https://attack.mitre.org/techniques/T1059/001/",
+        "https://attack.mitre.org/techniques/T1095/",
+        "https://github.com/SigmaHQ/sigma/blob/master/rules/windows/process_creation/proc_creation_win_powershell_reverse_shell_connection.yml",
+        "https://github.com/SigmaHQ/sigma/blob/master/rules/windows/process_creation/proc_creation_win_pua_netcat.yml",
+        "https://www.volexity.com/blog/2021/03/02/active-exploitation-of-microsoft-exchange-zero-day-vulnerabilities/",
+        "https://www.microsoft.com/security/blog/2021/03/02/hafnium-targeting-exchange-servers/",
+        "https://github.com/samratashok/nishang/blob/master/Shells/Invoke-PowerShellTcpOneLine.ps1"
+      ],
+      "falsepositives": [
+        "Bespoke internal automation or monitoring tooling that opens a raw .NET TCP socket directly (uncommon, but not unheard of in custom scripts)",
+        "Authorized penetration testing or red-team engagements running msfvenom, powercat, or a netcat/ncat -e reverse shell directly on the target host as part of a sanctioned exercise -- expected, not a false positive, but worth cross-checking against the current test calendar before escalating",
+        "Legitimate ncat/netcat use for connectivity testing or ad-hoc file transfer that happens to use a listener flag (-lvp/-lvnp) without ever piping a shell into it -- selection_netcat_flag treats a bare listener the same as an exec flag (matching SigmaHQ's own proc_creation_win_pua_netcat.yml, which rates bare netcat listener use \"high\" on Windows since the tool isn't native and its mere presence is already notable), so a truly benign listener-only session still fires this rule; check whether a shell was actually piped in before assuming compromise",
+        "A renamed or path-relocated netcat/ncat binary, or an msfvenom invocation that does not put \"msfvenom\", \" -p \" and a recognised payload-family token (\"reverse_tcp\", \"bind_tcp\", \"shell_reverse\", ...) together in the same CommandLine -- a wrapper script, a non-default payload name, or a payload string built up from a variable -- evades the relevant selection's literal match. This is a known detection gap, not a false positive, but worth remembering when triaging a quiet period"
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "emulation",
+        "atomics": []
+      },
+      "rule_body": "detection:\n  selection_img:\n  - OriginalFileName:\n    - PowerShell.EXE\n    - pwsh.dll\n  - Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_named_tool:\n    CommandLine|contains:\n    - New-Object Net.Sockets.TCPClient\n    - System.Net.Sockets.TCPClient\n    - System.Net.Sockets.NetworkStream\n    - Invoke-PowerShellTcp\n    - Invoke-PowerShellTcpOneLine\n    - Invoke-PowerShellTcpOneLineBind\n    - Invoke-PowerShellUdp\n    - Invoke-PowerShellUdpOneLine\n    - Invoke-PowerShellIcmp\n    - Invoke-ConPtyShell\n    - Invoke-PoshRatHttp\n    - Invoke-PowerShellWmi\n    - Invoke-JSRatRegsvr\n    - Invoke-JSRatRundll\n    - Out-RundllCommand\n    - powercat\n    - Start-PowerCat\n    - Connect-PowerCat\n  selection_raw_socket_idiom:\n    CommandLine|contains|all:\n    - ' Net.Sockets.TCPClient'\n    - .GetStream(\n    - .Write(\n  selection_netcat_img:\n    Image|endswith:\n    - \\nc.exe\n    - \\ncat.exe\n    - \\nc64.exe\n    - \\netcat.exe\n  selection_netcat_flag:\n    CommandLine|contains:\n    - ' -e '\n    - ' --exec '\n    - ' --lua-exec '\n    - ' --sh-exec '\n    - ' -lvp '\n    - ' -lvnp '\n    - ' -l -v -p '\n    - ' -lv -p '\n  selection_msfvenom_tool:\n    CommandLine|contains|all:\n    - msfvenom\n    - ' -p '\n  selection_msfvenom_intent:\n    CommandLine|contains:\n    - reverse_tcp\n    - reverse_http\n    - reverse_https\n    - reverse_powershell\n    - bind_tcp\n    - shell_reverse\n    - shell_bind\n  condition: (selection_img and (selection_named_tool or selection_raw_socket_idiom)) or (selection_netcat_img\n    and selection_netcat_flag) or (selection_msfvenom_tool and selection_msfvenom_intent)",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.1"
+    },
     {
       "detect_id": "DETECT-2026-0003",
       "title": "Test3",
@@ -1594,6 +1651,120 @@
       "rule_body": "detection:\n  selection:\n    Image|endswith:\n    - \\tasklist.exe\n    - \\qwinsta.exe\n    - \\pslist.exe\n  condition: selection",
       "rule_body_lang": "yaml",
       "rule_version": "1.2"
+    },
+    {
+      "detect_id": "DETECT-2026-0033",
+      "title": "Name Resolution Poisoning and SMB Relay via Correlated DNS Failure",
+      "description": "Detects the victim-side telemetry pattern left behind by LLMNR/NBT-NS poisoning (Responder, Inveigh) and its SMB relay follow-up (Impacket ntlmrelayx): a DNS query that fails to resolve (Sysmon EID 22, QueryStatus != 0), immediately followed on the same host by an outbound SMB connection attempt (Sysmon EID 3, port 445) — the OS falling back to a broadcast-poisoned name resolution and then authenticating to whatever answered it. Neither event alone is meaningful (DNS failures and SMB connections are both common); the two occurring back-to-back within a few seconds on the same host is not. This does not detect the poisoning itself (that happens on the wire, outside what a Windows host's own Sysmon can see) or the attacker's tooling (see DETECT-2026-0034 for Responder/Inveigh process execution) — it detects a host that just fell for it.\n",
+      "level": "high",
+      "status": "experimental",
+      "source": "native_spl",
+      "verdict": "N/A",
+      "run_id": "",
+      "verdict_at": "",
+      "verdict_rule_version": "",
+      "verdict_testing_disabled": false,
+      "tactics": [
+        "Credential Access",
+        "Collection"
+      ],
+      "techniques": [
+        "T1557.001"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0033_Name-Resolution-Poisoning-and-SMB-Relay-via-Correlated-DNS-Failure.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "network_connection"
+      },
+      "author": "Bence Marton",
+      "date": "2026-09-08",
+      "modified": "2026-09-08",
+      "references": [
+        "https://attack.mitre.org/techniques/T1557/001/"
+      ],
+      "falsepositives": [
+        "Legitimate legacy NetBIOS-name (non-FQDN) SMB access — a user or script opening \\\\SERVER01\\share where SERVER01 has no DNS record produces the exact same DNS-failure-then- SMB-connect sequence, entirely benignly. This is the dominant false positive and is handled by the known_smb_servers.csv lookup the raw_query calls — populate it with every legitimate file/print server IP in the environment before enabling; a hit against a listed IP is suppressed. Un-tuned, this rule will be noisy in any environment with real legacy NetBIOS share usage.",
+        "Backup, inventory, or patch-management tools that legitimately resolve and connect to many hosts by short name in quick succession.",
+        "Coincidental timing — an unrelated DNS failure and an unrelated SMB connection from the same host landing within the correlation window by chance. Narrow custom.splunk.raw_query's maxspan (currently 10s) if this shows up in practice.",
+        "A DNS-failure/SMB-connect pair that straddles two consecutive 5-minute search windows will not correlate and will be missed — a known gap of the scheduled-search approach, not a logic error."
+      ],
+      "testing": {
+        "enabled": false,
+        "runner": "windows-victim",
+        "type": "emulation",
+        "atomics": []
+      },
+      "rule_body": "index=sysmon (EventCode=22 QueryStatus!=0) OR (EventCode=3 DestinationPort=445 Initiated=\"true\") | transaction ComputerName startswith=(EventCode=22) endswith=(EventCode=3) maxspan=10s | where eventcount=2 | eval QueryName=mvindex(QueryName,0), DestinationIp=mvindex(DestinationIp,0), DestinationPort=mvindex(DestinationPort,0), Image=mvindex(Image,0), User=mvindex(User,0) | lookup known_smb_servers.csv ip AS DestinationIp OUTPUT is_known_server | where isnull(is_known_server) | table _time, ComputerName, User, QueryName, DestinationIp, DestinationPort, Image",
+      "rule_body_lang": "spl",
+      "rule_version": "1.0"
+    },
+    {
+      "detect_id": "DETECT-2026-0034",
+      "title": "Network Sniffing and AiTM Tooling Execution",
+      "description": "Detects execution of network-sniffing and adversary-in-the-middle tooling on the monitored host itself: Windows-native packet capture (netsh trace, pktmon, the PowerShell NetEventPacketCapture cmdlets, Wireshark/tshark) for T1040, and LLMNR/NBT-NS poisoning / SMB relay tooling (Inveigh, Responder, Impacket ntlmrelayx) for T1557.001. This is the attacker-side counterpart to DETECT-2026-0033, which detects a victim's downstream reaction to poisoning rather than the tool itself — this rule only fires if the tool runs on a host this pipeline actually watches, which in practice means an insider or an already-compromised internal host, since an external attacker's own infrastructure is not instrumented.\n",
+      "level": "high",
+      "status": "experimental",
+      "source": "sigma",
+      "verdict": "N/A",
+      "run_id": "",
+      "verdict_at": "",
+      "verdict_rule_version": "",
+      "verdict_testing_disabled": false,
+      "tactics": [
+        "Credential Access",
+        "Discovery",
+        "Collection"
+      ],
+      "techniques": [
+        "T1040",
+        "T1557.001"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0034_Network-Sniffing-and-AiTM-Tooling-Execution.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-09-08",
+      "modified": "2026-09-08",
+      "references": [
+        "https://attack.mitre.org/techniques/T1040/",
+        "https://attack.mitre.org/techniques/T1557/001/"
+      ],
+      "falsepositives": [
+        "Legitimate network troubleshooting by IT/support staff using netsh trace, pktmon, or Wireshark/tshark — these are the dominant false positive source for the T1040 branch; Microsoft support engineers commonly instruct netsh trace during case work. Consider a SourceImage/parent-process or user-group allowlist if this is common in the environment.",
+        "Authorized internal penetration testing or red-team exercises deliberately running Inveigh, Responder, or ntlmrelayx — the T1557.001 branch is otherwise very low-FP, since these tool names have essentially no legitimate administrative use.",
+        "Security tooling that legitimately captures traffic for its own detection purposes (some NDR/EDR agents use pktmon or ETW packet capture internally) — allowlist the vendor's process path if observed."
+      ],
+      "testing": {
+        "enabled": false,
+        "runner": "windows-victim",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1040",
+            "test_numbers": [
+              5,
+              6,
+              7,
+              16
+            ]
+          },
+          {
+            "technique": "T1557.001",
+            "test_numbers": [
+              1
+            ]
+          }
+        ]
+      },
+      "rule_body": "detection:\n  selection_netsh_trace:\n    Image|endswith: \\netsh.exe\n    CommandLine|contains|all:\n    - trace\n    - start\n  selection_pktmon:\n    Image|endswith: \\pktmon.exe\n    CommandLine|contains:\n    - start\n    - filter\n  selection_wireshark_capture:\n    Image|endswith:\n    - \\dumpcap.exe\n    - \\tshark.exe\n  selection_powershell_capture:\n    CommandLine|contains|all:\n    - NetEventSession\n    - NetEventPacketCaptureProvider\n  selection_inveigh:\n    CommandLine|contains: Invoke-Inveigh\n  selection_responder:\n    CommandLine|contains:\n    - Responder.py\n    - responder.py\n  selection_ntlmrelayx:\n    CommandLine|contains: ntlmrelayx\n  condition: 1 of selection_*",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.0"
     }
   ]
 }

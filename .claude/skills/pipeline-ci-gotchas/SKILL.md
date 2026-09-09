@@ -345,6 +345,101 @@ workflows and confirm each caller's own `Checkout` step carries
 `fetch-depth: 0` rather than assuming the first two fixes covered every
 site.
 
+## J — Dependabot-triggered runs
+
+**A Dependabot rebase force-push can fire `ci_dev_workflow.yml` despite the
+diff not matching its `paths:` filter — and then fails for an unrelated
+reason.** Real incident, 2026-09-07, PR #70 (a `.github/requirements-dev.txt`
+ruff bump, dependabot/pip branch). Commenting `@dependabot rebase` made
+Dependabot force-push its branch onto the new `dev` tip. That triggered
+`ci_dev_workflow.yml`'s `push` trigger (`branches-ignore: [main]`, otherwise
+unrestricted) even though the only actual file changed was
+`.github/requirements-dev.txt`, which matches none of the trigger's
+`paths:` entries (`rules/sigma/**`, `scripts/validate/**`, etc.) — because
+GitHub's `paths:` filter can't reliably compute a diff across a
+force-pushed ref with no consistent "before" commit in the branch's own
+history, and falls back to running the workflow rather than skipping it.
+Run confirmed: `34138572509`, job `101795144178`.
+
+The triggered run then failed immediately (~4s) at its own `Checkout` step
+— `Input required and not supplied: token` — because that step passes
+`token: ${{ secrets.GH_PAT_DEV_PUSH }}` (see section F), and **workflow
+runs whose actor is `dependabot[bot]` never get access to repository
+secrets**, by GitHub's own design (a supply-chain protection: a compromised
+dependency's changelog/metadata can't be crafted to exfiltrate secrets
+through an auto-triggered CI run). This isn't a bug to fix in this
+specific step — no secret will ever be available here no matter how the
+token line is written — it's a structural mismatch between "this workflow
+assumes it can always check out with a PAT" and "Dependabot pushes can
+trigger it."
+
+*Failure signature:* a `Prepare, Validate, Convert` (or any other
+secret-consuming job) red X, dying in seconds at `Checkout`, specifically
+on a `dependabot/**` branch, right after a rebase/recreate comment or an
+initial Dependabot PR push.
+
+**Why this hasn't broken anything load-bearing (yet):** `dev`'s branch
+protection has no `required_status_checks` configured (confirmed via `gh
+api repos/.../branches/dev/protection` — the field is simply absent), so
+this red X doesn't block the PR's `mergeStateStatus`; the actual gate for
+a Dependabot bump PR is `ci_code_checks.yml`'s `Static analysis and tests`
+job, which runs independently and did pass. **If `required_status_checks`
+is ever added to `dev` and someone reflexively lists `Prepare, Validate,
+Convert` among them** (it looks like a natural "must pass" candidate), any
+future Dependabot PR that gets rebased even once becomes permanently
+unmergeable through no fault of its own diff — worth remembering before
+tightening branch protection, not just when triggering a rebase.
+
+## K — Sigma-to-SPL boolean grouping
+
+**A nested `(A or B) and (C or D)`-shaped Sigma `condition:` converts to SPL
+*without* explicit parentheses around the inner OR groups — and that's
+correct, not a bug, only because of a Splunk `search`-command precedence
+rule easy to not know.** Real incident, 2026-09-07, reviewing
+DETECT-2026-0033 (`condition: (selection_img and (selection_named_tool or
+selection_raw_socket_idiom)) or (selection_netcat_img and
+selection_netcat_flag) or selection_msfvenom`). Running the repo's own
+`scripts/convert/sigma_to_spl.py` on it emits (backend Image/OriginalFileName
+list collapsed for brevity):
+
+```
+index=sysmon (OriginalFileName IN (...) OR Image IN (...)
+  CommandLine IN (<named_tool list>) OR (CommandLine="* Net.Sockets.TCPClient*" ...))
+  OR (Image IN (<nc list>) CommandLine IN (<flags>))
+  OR (CommandLine="*msfvenom*" CommandLine="*-p*")
+```
+
+On sight this looks broken — the `selection_img` OR-pair (`OriginalFileName
+IN (...) OR Image IN (...)`) isn't wrapped before it's implicitly ANDed
+(bare juxtaposition) against the next clause. It isn't broken: Splunk's
+`search` command evaluates **OR before AND** — the opposite of `eval`/
+`where`, confirmed against Splunk's own docs, whose own worked example
+(`host="www1" AND status=200 OR action="addtocart"` →
+`host="www1" AND (status=200 OR action="addtocart")`) is exactly this
+shape. Applying that precedence to the full emitted string resolves to
+precisely the Sigma source's intended grouping.
+
+**Why this is a trap, not just a fun fact:** every rule in this repo that
+predates DETECT-2026-0033 uses a flat `1 of selection_*` or `all of
+selection_*` condition, so this precedence quirk has never mattered before
+and won't be familiar. A future author writing a nested boolean condition
+who eyeballs the resulting SPL and "fixes" the apparent missing parens (by
+restructuring the Sigma `condition:`, or by hand-editing generated SPL) is
+liable to guess the wrong grouping and silently broaden or narrow the
+rule. And the correctness here is contingent, not structural: it depends
+on this SPL running as a saved-search `search` command specifically
+(`custom.splunk.mode: alert`, deployed via
+`scripts/deploy/deploy_spl_to_splunk.py`'s `saved/searches` path,
+dispatched via `/saved/searches/{name}/dispatch`) — the identical string
+pasted into an `eval`/`where` context would evaluate under the opposite
+precedence and mean something else.
+
+*If you write a Sigma `condition:` with nested OR-inside-AND groupings*,
+verify the emitted SPL's real grouping against Splunk's documented
+`search`-command precedence before trusting or "correcting" it — don't
+assume missing parentheses means broken logic, and don't assume pySigma
+adds parens defensively; it doesn't.
+
 ## I — Register-item citations
 
 **A bare "register item N.N" in a comment is ambiguous, and it has already

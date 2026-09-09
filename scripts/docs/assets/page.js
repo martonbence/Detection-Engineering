@@ -3188,3 +3188,165 @@ document.addEventListener('keydown', function (e) {
 renderStripTotal();
 applyState(decodeState(location.hash));
 initResizableColumns();
+
+
+// ── Ambient background: violet dots drifting bottom → top ────────────────
+// Replaces the old static SVG "constellation" pattern (design/brand-canvas
+// heritage). Soft, slow, circular dots that rise from the bottom of the
+// viewport to the top with a slight horizontal drift, gently twinkling —
+// feel modelled on hacktricks.wiki's rising-particle background. No library:
+// a small <canvas id="bg-particles"> + requestAnimationFrame.
+//   • colour: "methodology purple" #a799e8 == rgb(167,153,232) — the same
+//     violet as the main table card's outline (--brand-violet). Meant to
+//     read as clearly that violet, not a subliminal wash: PEAK_ALPHA ~0.4,
+//     each dot has a soft halo, twinkle only dims to MIN_ALPHA_F of peak
+//     (never winks out). Still fades to nothing over the top/bottom
+//     FADE_FRAC of the viewport. The main table card is opaque + blurred, so
+//     nothing meaningful shows through the content — the dots live in the
+//     header, the panel gutters and the 14px insets around the panels.
+//   • stacking: <canvas> is position:fixed z-index:0; <main> (which wraps
+//     the tab panes) is position:relative z-index:1 and fully transparent
+//     wherever there's no panel, so the canvas shows through every gutter —
+//     including the tall empty area below a short filter list. Content
+//     (.filters-panel / .content) has its own opaque-ish glass fill and
+//     sits above, so particles never render over the controls or table.
+//   • prefers-reduced-motion: no animation at all — one static dot field,
+//     redrawn only on resize / mode change.
+//   • pauses the rAF loop while document.hidden; canvas sized to DPR (capped
+//     at 2 for fill-rate); pointer-events:none and z-index:0 via CSS.
+(function bgParticles() {
+  var canvas = document.getElementById('bg-particles');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  // ── Tunables — nudge these if the user wants the effect louder/quieter ──
+  var VIOLET      = '167, 153, 232'; // #a799e8, matches the table card border
+  var PEAK_ALPHA  = 0.40;   // composite alpha of a fully-faded-in dot at its brightest
+  var MIN_ALPHA_F = 0.72;   // twinkle floor as a fraction of a dot's own ceiling
+  var HALO_SCALE  = 2.6;    // halo radius = dot radius × this  (0 disables the halo)
+  var HALO_ALPHA_F = 0.28;  // halo alpha as a fraction of the dot's current alpha
+  var R_MIN = 1.1, R_MAX = 3.0;          // dot radius range, CSS px
+  var RISE_MIN = 6, RISE_MAX = 20;       // upward speed range, px/s
+  var DENSITY_DIV = 22000;               // one dot per this many viewport px² (lower = more)
+  var DOT_MIN = 30, DOT_MAX = 110;       // clamp on the resulting count
+  var FADE_FRAC = 0.14;                  // top/bottom fraction over which dots fade to 0
+  // ───────────────────────────────────────────────────────────────────────
+
+  var DPR = Math.min(window.devicePixelRatio || 1, 2);
+  var W = 0, H = 0;               // viewport size in CSS px
+  var particles = [];
+  var rafId = null;
+  var lastT = 0;
+  var motionMQ = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  function rand(a, b) { return a + Math.random() * (b - a); }
+
+  // initial=true  → scatter over the whole column (established field on load)
+  // initial=false → re-spawn just below the fold so it enters from the bottom
+  function makeParticle(initial) {
+    return {
+      x: rand(0, W),
+      y: initial ? rand(0, H) : H + rand(4, H * 0.4),
+      r: rand(R_MIN, R_MAX),
+      vy: rand(RISE_MIN, RISE_MAX),     // px/s, upward
+      driftAmp: rand(6, 18),           // px, horizontal sine amplitude
+      driftW: rand(0.0003, 0.0009),    // rad/ms
+      driftPhase: rand(0, Math.PI * 2),
+      maxA: rand(PEAK_ALPHA * 0.6, PEAK_ALPHA),   // per-dot opacity ceiling
+      twPhase: rand(0, Math.PI * 2),
+      twW: rand(0.0004, 0.0012)        // twinkle angular speed, rad/ms
+    };
+  }
+
+  function resize() {
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    var target = Math.max(DOT_MIN, Math.min(DOT_MAX, Math.round(W * H / DENSITY_DIV)));
+    if (target > particles.length) {
+      while (particles.length < target) particles.push(makeParticle(true));
+    } else if (target < particles.length) {
+      particles.length = target;
+    }
+  }
+
+  function edgeFade(y) {
+    var f = Math.min(y, H - y) / (H * FADE_FRAC);
+    return f < 0 ? 0 : (f > 1 ? 1 : f);
+  }
+
+  function dot(x, y, r, a) {
+    if (a <= 0.002) return;
+    if (HALO_SCALE > 0) {
+      ctx.beginPath();
+      ctx.arc(x, y, r * HALO_SCALE, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(' + VIOLET + ', ' + (a * HALO_ALPHA_F).toFixed(3) + ')';
+      ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(' + VIOLET + ', ' + a.toFixed(3) + ')';
+    ctx.fill();
+  }
+
+  function frame(t) {
+    if (!lastT) lastT = t;
+    var dt = Math.min(t - lastT, 50);   // clamp: no lurch after a tab switch
+    lastT = t;
+    ctx.clearRect(0, 0, W, H);
+    for (var i = 0; i < particles.length; i++) {
+      var p = particles[i];
+      p.y -= p.vy * dt / 1000;
+      if (p.y < -R_MAX * HALO_SCALE) { particles[i] = makeParticle(false); continue; }
+      var x = p.x + Math.sin(t * p.driftW + p.driftPhase) * p.driftAmp;
+      var tw = MIN_ALPHA_F + (1 - MIN_ALPHA_F) * (0.5 + 0.5 * Math.sin(t * p.twW + p.twPhase));
+      dot(x, p.y, p.r, p.maxA * edgeFade(p.y) * tw);
+    }
+    rafId = requestAnimationFrame(frame);
+  }
+
+  function start() {
+    if (rafId != null || document.hidden || motionMQ.matches) return;
+    lastT = 0;
+    rafId = requestAnimationFrame(frame);
+  }
+
+  function stop() {
+    if (rafId != null) { cancelAnimationFrame(rafId); rafId = null; }
+  }
+
+  function drawStaticField() {
+    ctx.clearRect(0, 0, W, H);
+    for (var i = 0; i < particles.length; i++) {
+      var p = particles[i];
+      dot(p.x, p.y, p.r, p.maxA * edgeFade(p.y));
+    }
+  }
+
+  function applyMode() {
+    stop();
+    resize();
+    if (motionMQ.matches) drawStaticField();
+    else start();
+  }
+
+  var resizeTimer = null;
+  window.addEventListener('resize', function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(applyMode, 200);
+  });
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) stop(); else start();
+  });
+
+  if (motionMQ.addEventListener) motionMQ.addEventListener('change', applyMode);
+  else if (motionMQ.addListener) motionMQ.addListener(applyMode);
+
+  applyMode();
+})();

@@ -1476,13 +1476,13 @@ def render_readme_section(stats: dict, repo: str) -> str:
         f"[![Native SPL]({b}&query=%24.total_native_spl_rules&label=Native%20SPL&color=FF6600)](https://github.com/martonbence/Detection-Engineering/tree/main/rules/splunk)",
     ])
     # 2026-08-25 (user's explicit ask): Pass, Fail, Pass Rate, Not Verified,
-    # MITRE Coverage. MITRE Coverage color reuses this repo's established
-    # green->blue->purple->coral phase palette (see the mermaid classDefs
-    # and header badges in README.md, outside this generated block) --
-    # #8f95d6 is the same purple already used for the pipeline status badge,
-    # kept here as a neutral/informational color rather than a pass/fail-style
-    # threshold color, since low MITRE coverage today is expected, not a
-    # failure state.
+    # MITRE Coverage. #8f95d6 is the same purple used elsewhere on this page
+    # (see page.js's GROUP_ACCENT['MITRE ATT&CK']) as a neutral/informational
+    # color rather than a pass/fail-style threshold color, since low MITRE
+    # coverage today is expected, not a failure state. (The mermaid-classDef
+    # "phase palette" this comment used to cite was retired along with
+    # TEAM.md's collaboration diagram on 2026-09-01 -- #8f95d6 is the only
+    # surviving color from it, so this comment no longer points to it.)
     row3 = " ".join([
         f"![Pass]({b}&query=%24.verified_pass_current&label=Pass&color=brightgreen)",
         f"![Fail]({b}&query=%24.verified_fail_current&label=Fail&color=red)",
@@ -2154,7 +2154,15 @@ def render_html_summary(stats: dict, repo: str) -> str:
     html = html.replace("@@LAYER_URL@@", layer_url)
     html = html.replace("@@REVIEW_DAYS@@", str(REVIEW_INTERVAL_DAYS))
     owner, name = repo.split("/", 1)
-    html = html.replace("@@PAGE_URL@@", f"https://{owner}.github.io/{name}/")
+    page_url = f"https://{owner}.github.io/{name}/"
+    html = html.replace("@@PAGE_URL@@", page_url)
+    # Real linked file, not a data URI (see the template comment by
+    # og:image/twitter:image) -- docs/pictures/branding/social_preview.png is
+    # served by GitHub Pages at this same path relative to the docs/ root,
+    # same pattern as every other branding image README.md links to.
+    html = html.replace(
+        "@@OG_IMAGE_URL@@", f"{page_url}pictures/branding/social_preview.png"
+    )
     # Plain text, no markup: this lands inside a double-quoted meta attribute,
     # so a stray quote would end the attribute early. Nothing here is
     # user-supplied, but the escape keeps that true if the wording ever is.
@@ -2193,6 +2201,38 @@ def update_html_summary(content: str) -> None:
     out_path.write_text(content, encoding="utf-8")
 
 
+def write_seo_files(repo: str) -> None:
+    """robots.txt + sitemap.xml for the GitHub Pages root (docs/).
+
+    Deliberately minimal: one <url> per real HTML document actually served
+    under docs/ (index.html's hash-based tabs -- #tab=navigator etc. -- are
+    client-side views of the same document, not separate crawlable pages, so
+    they don't get their own <url> entry; team-ops.html does because it's a
+    second, distinct HTML file GitHub Pages serves at its own path).
+    """
+    owner, name = repo.split("/", 1)
+    base_url = f"https://{owner}.github.io/{name}/"
+    docs_dir = REPO_ROOT / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    robots_txt = f"User-agent: *\nAllow: /\n\nSitemap: {base_url}sitemap.xml\n"
+    (docs_dir / "robots.txt").write_text(robots_txt, encoding="utf-8")
+
+    today = datetime.now(UTC).date().isoformat()
+    pages = [base_url, f"{base_url}team-ops.html"]
+    url_entries = "\n".join(
+        f"  <url>\n    <loc>{page}</loc>\n    <lastmod>{today}</lastmod>\n  </url>"
+        for page in pages
+    )
+    sitemap_xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        f"{url_entries}\n"
+        "</urlset>\n"
+    )
+    (docs_dir / "sitemap.xml").write_text(sitemap_xml, encoding="utf-8")
+
+
 def main() -> int:
     repo = "martonbence/Detection-Engineering"
 
@@ -2226,6 +2266,9 @@ def main() -> int:
     html_page = render_html_summary(stats, repo)
     update_html_summary(html_page)
     print("docs/index.html updated.")
+
+    write_seo_files(repo)
+    print("docs/robots.txt and docs/sitemap.xml updated.")
 
     return 0
 

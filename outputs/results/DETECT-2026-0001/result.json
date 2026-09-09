@@ -1,0 +1,16 @@
+{
+  "detect_id": "DETECT-2026-0001",
+  "title": "Reverse Shell Execution via PowerShell or Netcat",
+  "verdict": "PASS",
+  "reason": "Event count 4 within expected range [1–10]",
+  "disabled": false,
+  "event_count": 4,
+  "min_pass": 1,
+  "max_pass": 10,
+  "earliest": "1788977930",
+  "latest": "now",
+  "run_timestamp": "2026-09-09T18:20:31.957225+00:00",
+  "rule_version": "1.1",
+  "git_sha": "8b5b0f7be333c6c60605c9fc7d5b23560d9db1f5",
+  "run_id": "34388214023"
+}

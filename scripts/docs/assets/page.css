@@ -36,6 +36,12 @@
       --red-bg: rgba(248, 81, 73, 0.12);
       --purple: #8f95d6;
       --purple-bg: rgba(143, 149, 214, 0.12);
+      /* "Methodology purple" -- the exact violet on the main table card's
+         outline (page.css .main border, literal rgba(167,153,232,...) in ~11
+         places). Tokenised here only for the background particle layer
+         (#bg-particles, drawn in page.js); the existing literal usages are
+         deliberately left as-is, not refactored onto this token. */
+      --brand-violet: #a799e8;
       --radius: 6px;
       --radius-lg: 10px;
       --font: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
@@ -68,10 +74,13 @@
       overflow: hidden;
     }
 
-    /* PREVIEW: faint "outer-space" shapes, fixed full-bleed layer behind all
-       content. Pattern contents copied verbatim from Main.dc.html. Real content
-       sits above via position/z-index on .stats-strip and <main>. */
-    .bg-shapes {
+    /* Ambient background: violet dots drifting bottom-to-top of the viewport,
+       drawn by the bg-particles IIFE in page.js. Fixed full-bleed layer behind
+       all content -- real content sits above via position/z-index on
+       .stats-strip and <main>. Colour is "methodology purple" (--brand-violet,
+       #a799e8) at low alpha so it stays quiet in the margins/gutters/header and
+       never fights foreground content (the main table card is opaque). */
+    #bg-particles {
       position: fixed;
       inset: 0;
       width: 100%;
@@ -254,7 +263,7 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      /* PREVIEW: lift tab content above the fixed .bg-shapes layer (z-index:0). */
+      /* PREVIEW: lift tab content above the fixed #bg-particles layer (z-index:0). */
       position: relative;
       z-index: 1;
     }
@@ -1769,7 +1778,7 @@
       flex-direction: column;
       /* PREVIEW v2: self-contained blue->violet fill in the page's family, so
          the drawer and the legend/Navigator panel read as one surface (and the
-         .bg-shapes SVG does NOT show through -- opaque #0d1117 base). The glow
+         #bg-particles layer does NOT show through -- opaque #0d1117 base). The glow
          is concentrated top-right + bottom-right and the vertical middle stays
          near-pure #0d1117, which is where the metadata grid and description sit
          -- their contrast is essentially unchanged from the old opaque drawer
@@ -3511,7 +3520,7 @@
       width: 340px;
       max-width: 92vw;
       /* PREVIEW v2: same self-contained blue->violet fill as .drawer / the
-         legend modal -- opaque #0d1117 base (no .bg-shapes through it), violet
+         legend modal -- opaque #0d1117 base (no #bg-particles through it), violet
          glow top-right + bottom-right, middle stays dark for the rule-list text.
          backdrop-filter dropped. Violet left edge + bloom, matching .drawer. */
       /* PREVIEW v5: same recipe as .drawer / the page body, narrower panel. */
@@ -3869,7 +3878,7 @@
       max-width: 94vw;
       max-height: 84vh;
       /* PREVIEW v2: opaque-ish blue->violet fill in the page's own family (the
-         .bg-shapes SVG must NOT show through, so this is a self-contained
+         #bg-particles layer must NOT show through, so this is a self-contained
          painted fill, not a translucent panel). Dark #0d1117 base with a violet
          glow top-right + a blue glow bottom-left, matching the page's diagonal.
          Gradient alphas kept low (0.11 / 0.09) so the densest body text still

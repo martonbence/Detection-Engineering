@@ -158,9 +158,24 @@ concurrency:
   group: detection-pipeline-${{ github.ref }}
   cancel-in-progress: false
 
+# Priya's audit, 2026-09-07: this used to be contents: write + pull-requests:
+# write, inherited by every job that declared no permissions block of its own
+# -- which, until this pass, was most of them (atomic_verify, atomic_verify_dc,
+# emulation_verify, deploy_to_splunk, splunk_verify, update_dashboard,
+# persist_results_fallback, open_promotion_pr, notify_pipeline_status). The
+# actual dev-branch push always goes through secrets.GH_PAT_DEV_PUSH, not this
+# ambient GITHUB_TOKEN, so the wide default was never a direct privilege-
+# escalation path -- but it was unnecessary blast radius: a compromised
+# third-party Action running inside any one of those jobs inherited
+# repo-write it never needed. Every job below now declares its own minimal
+# permissions block (contents: read for read-only jobs, contents: write for
+# the two that push, contents: read + pull-requests: write for the one that
+# opens a PR), so this workflow-level default is now only a safety net for a
+# future job that forgets to declare its own -- narrowed to contents: read
+# rather than left at write, so that failure mode fails closed instead of
+# reproducing the wide default this pass just removed.
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   prepare_validate_convert:
@@ -916,6 +931,15 @@ jobs:
     # genuinely stuck -- 60 would leave next to no margin, so this moved to 75.
     timeout-minutes: 75
     environment: dev
+    # Priya's audit, 2026-09-07: this job never checks the repo out and never
+    # writes back to GitHub -- it only downloads/uploads workflow artifacts
+    # (unaffected by this block; they authenticate with their own runtime
+    # token, not GITHUB_TOKEN) and talks to Splunk over the SPLUNK_* secrets.
+    # contents: read is the repo's conventional floor for a job with no real
+    # GitHub API need, replacing the inherited workflow-level contents:write
+    # + pull-requests:write this job never used.
+    permissions:
+      contents: read
 
     steps:
       - name: Download pipeline bundle
@@ -1098,6 +1122,12 @@ jobs:
     # step timeout leaves the job alive to upload its progress markers, which
     # is what tells pass_fail_eval.py "not measured" rather than "failed".
     timeout-minutes: 25
+    # Priya's audit, 2026-09-07: no checkout, no push, no PR -- this job only
+    # downloads/uploads workflow artifacts (unaffected by this block) and runs
+    # PowerShell against the lab victim host. Same conventional read-only
+    # floor as deploy_to_splunk above.
+    permissions:
+      contents: read
 
     outputs:
       started_at: ${{ steps.mark_start.outputs.started_at }}
@@ -1178,6 +1208,10 @@ jobs:
     # Same reasoning as the victim job: its attack step is capped at 10, and
     # this stays well above it so the step timeout fires first.
     timeout-minutes: 25
+    # Priya's audit, 2026-09-07: same reasoning as atomic_verify above -- no
+    # checkout, no push, no PR, artifacts only.
+    permissions:
+      contents: read
 
     outputs:
       started_at: ${{ steps.mark_start.outputs.started_at }}
@@ -1255,6 +1289,10 @@ jobs:
     # needs. Its attack step had no cap at all (unlike the other two attack
     # jobs); one is added below so the step still fires before the job does.
     timeout-minutes: 25
+    # Priya's audit, 2026-09-07: same reasoning as the two atomic jobs -- no
+    # checkout, no push, no PR, artifacts only.
+    permissions:
+      contents: read
 
     outputs:
       started_at: ${{ steps.mark_start.outputs.started_at }}
@@ -1363,6 +1401,13 @@ jobs:
     # 1.4 and 1.5 were about.
     timeout-minutes: 120
     environment: dev
+    # Priya's audit, 2026-09-07: this job checks the repo out (read-only,
+    # default GITHUB_TOKEN -- see the Checkout step comment on why it carries
+    # no PAT any more) and otherwise only talks to Splunk and to workflow
+    # artifacts. contents: read covers the checkout; it neither pushes nor
+    # opens a PR.
+    permissions:
+      contents: read
 
     steps:
       # audit/feature-and-process-audit.md item 4.4. Both `token:` and
@@ -2027,6 +2072,14 @@ jobs:
     # up -- that independence is the whole point of splitting it out.
     timeout-minutes: 15
     environment: dev
+    # Priya's audit, 2026-09-07: this job's "Merge verification results,
+    # generate stats and commit" step pushes to dev (via secrets.GH_PAT_DEV_PUSH,
+    # same as prepare_validate_convert above) and never opens a PR, so it gets
+    # contents: write and nothing else -- matching prepare_validate_convert's
+    # own re-declared contents: write for the same reason (job-level
+    # permissions replace the workflow-level block rather than add to it).
+    permissions:
+      contents: write
 
     steps:
       # NOT shallow, on purpose -- same reason splunk_verify's own checkout
@@ -2240,6 +2293,11 @@ jobs:
     # (audit/remediation-plan.md item 2.20 -- the active register's section 2
     # stops at 2.14 and has no 2.20).
     environment: dev
+    # Priya's audit, 2026-09-07: this job's "Commit verification results" step
+    # pushes to dev (same GH_PAT_DEV_PUSH channel as update_dashboard), never
+    # opens a PR -- contents: write, nothing else.
+    permissions:
+      contents: write
 
     steps:
       # Shallow is fine: nothing here runs generate_stats.py, so its
@@ -2376,6 +2434,17 @@ jobs:
     # handful of gh CLI calls.
     timeout-minutes: 15
     environment: dev
+    # Priya's audit, 2026-09-07: this job's "Checkout" step uses the default
+    # GITHUB_TOKEN (contents: read covers it), and open_promotion_pr.py opens
+    # a real PR and edits its Project #3 status via `gh` -- but authenticates
+    # those calls with GH_TOKEN: secrets.GH_PAT_DEV_PUSH (see the step's env:
+    # below), not the ambient GITHUB_TOKEN this block governs. pull-requests:
+    # write is still declared here to say what this job actually does, same
+    # as update_dashboard/persist_results_fallback re-declaring contents:
+    # write above for their PAT-driven pushes.
+    permissions:
+      contents: read
+      pull-requests: write
 
     steps:
       # Shallow is fine: this job never calls generate_stats.py, so its
@@ -2462,6 +2531,15 @@ jobs:
     # SPLUNK_APP/SPLUNK_VERIFY_TLS hit (audit/remediation-plan.md item 2.20 --
     # the active register's section 2 stops at 2.14 and has no 2.20).
     environment: dev
+    # Priya's audit, 2026-09-07: unlike open_promotion_pr, this job's `gh api`
+    # read of outputs/reports/stats.json runs with GH_TOKEN: ${{ github.token }}
+    # -- the real ambient GITHUB_TOKEN, not a PAT -- so contents: read here is
+    # load-bearing, not just descriptive: drop it and the API call itself
+    # starts failing (degrading gracefully to a verdict-only Slack message,
+    # per the step's own fallback, but not to full functionality). No push, no
+    # PR, so nothing else is granted.
+    permissions:
+      contents: read
 
     steps:
       - name: Post pipeline summary to Slack

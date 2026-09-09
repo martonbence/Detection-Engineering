@@ -27,44 +27,40 @@
        then decide whether to open it, and an unfurled card with no text is a
        worse pitch than one sentence of it. Counts are baked in at generation
        time — a preview is a snapshot by nature, so a stale number here is not
-       the problem it would be in the page body. -->
+       the problem it would be in the page body. og:image/twitter:image point
+       at a real linked file (docs/pictures/branding/social_preview.png), not
+       a data URI like the favicons above -- link-preview scrapers (Slack,
+       Twitter/X, LinkedIn, iMessage) fetch the image over HTTP themselves and
+       don't reliably render inline data URIs, so this is the one image on
+       the page that has to stay a normal linked asset. It's a dedicated
+       1280x640 (2:1, GitHub/OpenGraph's recommended ratio) export with a
+       solid background -- the raw shield logo.png is transparent and square,
+       which crops/pads badly in an unfurled card. -->
+  <link rel="canonical" href="@@PAGE_URL@@">
   <meta name="description" content="@@META_DESC@@">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Detection Engineering">
   <meta property="og:title" content="Detection Engineer Console">
   <meta property="og:description" content="@@META_DESC@@">
   <meta property="og:url" content="@@PAGE_URL@@">
-  <meta name="twitter:card" content="summary">
+  <meta property="og:image" content="@@OG_IMAGE_URL@@">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Detection Engineer Console">
   <meta name="twitter:description" content="@@META_DESC@@">
+  <meta name="twitter:image" content="@@OG_IMAGE_URL@@">
   <style>
     @@INLINE_CSS@@
   </style>
 </head>
 
 <body>
-  <!-- "Outer-space" shapes layer. Fixed, behind everything, non-interactive.
-       Pattern contents copied verbatim from design/brand-canvas/Main.dc.html. -->
-  <svg class="bg-shapes" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <pattern id="shp" width="260" height="260" patternUnits="userSpaceOnUse" patternTransform="rotate(6)">
-        <line x1="30" y1="34" x2="112" y2="70" stroke="#9fb0ff" stroke-opacity="0.09" stroke-width="1" />
-        <line x1="112" y1="70" x2="102" y2="164" stroke="#9fb0ff" stroke-opacity="0.08" stroke-width="1" />
-        <line x1="112" y1="70" x2="200" y2="52" stroke="#b79bf0" stroke-opacity="0.08" stroke-width="1" />
-        <line x1="200" y1="52" x2="228" y2="140" stroke="#9fb0ff" stroke-opacity="0.07" stroke-width="1" />
-        <line x1="102" y1="164" x2="182" y2="210" stroke="#9fb0ff" stroke-opacity="0.07" stroke-width="1" />
-        <line x1="102" y1="164" x2="30" y2="200" stroke="#b79bf0" stroke-opacity="0.07" stroke-width="1" />
-        <circle cx="30" cy="34" r="2.4" fill="#9fb0ff" fill-opacity="0.15" />
-        <circle cx="112" cy="70" r="3.2" fill="#c7a6f4" fill-opacity="0.17" />
-        <circle cx="200" cy="52" r="2.2" fill="#9fb0ff" fill-opacity="0.14" />
-        <circle cx="228" cy="140" r="2" fill="#b79bf0" fill-opacity="0.13" />
-        <circle cx="102" cy="164" r="2.8" fill="#9fb0ff" fill-opacity="0.15" />
-        <circle cx="182" cy="210" r="2" fill="#c7a6f4" fill-opacity="0.13" />
-        <circle cx="30" cy="200" r="2" fill="#9fb0ff" fill-opacity="0.13" />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#shp)" />
-  </svg>
+  <!-- Ambient background layer: violet dots drifting from the bottom of the
+       viewport upward, drawn on a custom <canvas> by the bg-particles IIFE at
+       the end of page.js. Fixed, behind everything, non-interactive. Falls
+       back to a static faint dot field under prefers-reduced-motion. -->
+  <canvas id="bg-particles" aria-hidden="true"></canvas>
   <div class="stats-strip">
     <div class="strip-brand">
       <img class="strip-logo" src="data:image/png;base64,@@HEADER_LOGO_DATA@@" width="40" height="40" alt="">
@@ -693,8 +689,8 @@
   <div id="att-tip"></div>
   <div id="chart-tip"></div>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2/dist/chartjs-plugin-datalabels.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js" integrity="sha384-y49Zu59jZHJL/PLKgZPv3k2WI9c0Yp3pWB76V8OBVCb0QBKS8l4Ff3YslzHVX76Y" crossorigin="anonymous"></script>
   <script>
     @@INLINE_JS@@
   </script>

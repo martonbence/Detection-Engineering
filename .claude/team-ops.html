@@ -11,9 +11,25 @@
     --card-bg: #161b22;
     --border: #30363d;
     --text: #e6edf3;
-    --text-dim: #8b949e;
-    --accent: #f0a341;
-    --accent-soft: rgba(240, 163, 65, .12);
+    /* Was #8b949e -- the rule browser's own pre-fix value (page.css measured
+       it at 4.03:1 on its glass-panel surfaces, below WCAG AA). This page has
+       no glass panels -- --text-dim only ever sits on flat, opaque
+       backgrounds (--bg, --card-bg/--sidebar-bg, --hover-bg) -- so the old
+       value actually cleared 4.5:1 here too (measured 4.95:1 on the worst
+       case, --hover-bg). Synced to the rule browser's current --text2
+       (#a2a9b1) anyway for one shared palette; measured against every real
+       surface it renders on here it clears 6.4:1 at the worst (--hover-bg,
+       #21262d), 7.3:1 on --card-bg/--sidebar-bg, 7.98:1 on --bg. */
+    --text-dim: #a2a9b1;
+    /* Matches the rule browser's actual primary brand colour (solid #ffaa00,
+       see page.css's thead th comment) rather than this page's own
+       previously-drifted amber. Only two usages, both text-on-accent-soft
+       (.nav-item.active, .agent-slug) -- both composite to ~rgb(50,44,30)
+       over --card-bg/--sidebar-bg and measure ~7.3:1, comfortably clearing
+       AA. No solid-accent-background usage here (unlike page.css's
+       thead/th:hover), so no black-text-on-amber flip is needed. */
+    --accent: #ffaa00;
+    --accent-soft: rgba(255, 170, 0, .12);
     --blue: #58a6ff;
     --green: #3fb950;
     --hover-bg: #21262d;
@@ -25,7 +41,7 @@
     min-height: 100vh;
     background: var(--bg);
     color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   }
 
   /* --- sidebar --- */
@@ -81,7 +97,7 @@
 
   /* --- agents (Ügynökök) tab --- */
   .agent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1rem; align-items: start; }
-  .agent-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.1rem 1.15rem; display: flex; flex-direction: column; gap: .8rem; height: 100%; }
+  .agent-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1.1rem 1.15rem; display: flex; flex-direction: column; gap: .8rem; height: 100%; }
   .agent-card-head { display: flex; align-items: center; gap: .7rem; }
   .agent-avatar { width: 44px; height: 44px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: var(--hover-bg); border: 1px solid var(--border); }
   .agent-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -98,13 +114,13 @@
 
   /* --- stat cards --- */
   .stat-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.75rem; }
-  .stat-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.05rem 1.25rem; }
+  .stat-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1.05rem 1.25rem; }
   .stat-card .label { font-size: .72rem; color: var(--text-dim); margin-bottom: .5rem; }
   .stat-card .value { font-size: 1.65rem; font-weight: 700; }
   .stat-card .context { font-size: .7rem; color: var(--text-dim); margin-top: .35rem; }
 
   /* --- panel --- */
-  .panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem 1.35rem; }
+  .panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem 1.35rem; }
   .panel-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1.1rem; }
   .panel-header h2 { font-size: .92rem; margin: 0; }
   .panel-header .hint { font-size: .68rem; color: var(--text-dim); }
@@ -278,17 +294,17 @@
     <div class="stat-cards">
       <div class="stat-card">
         <div class="label">Aktív ügynökök ma</div>
-        <div class="value">0</div>
+        <div class="value">5</div>
         <div class="context">10 specialista összesen</div>
       </div>
       <div class="stat-card">
         <div class="label">Ma futott dispatch</div>
-        <div class="value">0</div>
-        <div class="context">87 naplózott dispatch összesen</div>
+        <div class="value">7</div>
+        <div class="context">103 naplózott dispatch összesen</div>
       </div>
       <div class="stat-card">
         <div class="label">Token napló</div>
-        <div class="value">94.25M</div>
+        <div class="value">96.43M</div>
         <div class="context">8/10 tagnál van adat</div>
       </div>
       <div class="stat-card">
@@ -523,6 +539,36 @@
           <span class="hint">git log, friss</span>
         </div>
         <div class="activity-list">
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(generate_stats): fix stale mermaid-classDef color-model citation</span><span class="activity-meta"><span class="activity-hash">eee93e7</span> · 2026-09-07 17:59</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">feat(seo): add og:image/twitter:image/canonical, social preview, robots.txt+sitemap.xml</span><span class="activity-meta"><span class="activity-hash">6356815</span> · 2026-09-07 17:49</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(skill): add Dependabot-triggered-run gotcha to pipeline-ci-gotchas</span><span class="activity-meta"><span class="activity-hash">95aaafb</span> · 2026-09-07 17:35</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(tests): stop hardcoding fetched_at in check_mitre_tags cache fixture</span><span class="activity-meta"><span class="activity-hash">7899f11</span> · 2026-09-07 17:24</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(inventory): prod state as deployed [skip ci]</span><span class="activity-meta"><span class="activity-hash">6ff04cf</span> · 2026-09-07 15:14</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(pipeline): verification results and dashboard [skip ci]</span><span class="activity-meta"><span class="activity-hash">43b7337</span> · 2026-09-07 15:11</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(convert): update SPL outputs and prune deleted-rule artefacts [skip ci]</span><span class="activity-meta"><span class="activity-hash">78adac3</span> · 2026-09-07 15:09</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(rule): enable testing for PowerShell Base64 Decode and Execute rule</span><span class="activity-meta"><span class="activity-hash">15bfaf7</span> · 2026-09-07 17:09</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(pipeline): verification results and dashboard [skip ci]</span><span class="activity-meta"><span class="activity-hash">f1a621c</span> · 2026-09-07 15:04</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(convert): update SPL outputs and prune deleted-rule artefacts [skip ci]</span><span class="activity-meta"><span class="activity-hash">d1a2525</span> · 2026-09-07 15:04</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(README): correct project title formatting and enhance project description</span><span class="activity-meta"><span class="activity-hash">82ad422</span> · 2026-09-07 16:53</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(README): update terminology from "Rule Browser" to "Rule Library" and enhance descriptions</span><span class="activity-meta"><span class="activity-hash">da3ee97</span> · 2026-09-05 18:42</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(README): update links to Atomic Red Team and clarify measurement reporting section</span><span class="activity-meta"><span class="activity-hash">e6333e9</span> · 2026-09-03 16:52</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(README): update references to workflows and correct terminology from "Rule Browser" to "Rule Library"</span><span class="activity-meta"><span class="activity-hash">77f287e</span> · 2026-09-03 16:43</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(README): update link to ci_dev_workflow.yml for clarity</span><span class="activity-meta"><span class="activity-hash">6f348e1</span> · 2026-09-03 16:35</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(README): adjust image sizes for architecture and team dashboard icons</span><span class="activity-meta"><span class="activity-hash">d922b96</span> · 2026-09-03 16:31</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(README): reduce image sizes for architecture and team dashboard icons</span><span class="activity-meta"><span class="activity-hash">e11c7e6</span> · 2026-09-03 16:30</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(README): adjust image sizes for better layout and clarity</span><span class="activity-meta"><span class="activity-hash">00f62a3</span> · 2026-09-03 16:28</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore: log this session's agent dispatches</span><span class="activity-meta"><span class="activity-hash">1ff65d4</span> · 2026-09-02 21:42</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">feat(rule-browser): fold locked redesign + saved views/columns into generator</span><span class="activity-meta"><span class="activity-hash">a5d4b3b</span> · 2026-09-02 21:42</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(rule-browser): latest preview iteration, design now locked</span><span class="activity-meta"><span class="activity-hash">26fec75</span> · 2026-09-02 21:41</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">wip(rule-browser): full visual-redesign preview</span><span class="activity-meta"><span class="activity-hash">5a43955</span> · 2026-09-01 22:35</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore: log this session's agent dispatches</span><span class="activity-meta"><span class="activity-hash">237bc8b</span> · 2026-09-01 22:35</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(mcp): point playwright MCP at its bundled chromium</span><span class="activity-meta"><span class="activity-hash">a4eddab</span> · 2026-09-01 22:35</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(readme): clarify pipeline description and verification process</span><span class="activity-meta"><span class="activity-hash">1526ad8</span> · 2026-09-01 21:46</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(readme): update team description and clarify detection process</span><span class="activity-meta"><span class="activity-hash">67274ed</span> · 2026-09-01 20:53</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(readme): adjust image widths for dashboards and architecture sections</span><span class="activity-meta"><span class="activity-hash">637e4b6</span> · 2026-09-01 20:18</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(readme): reduce image widths for dashboards and architecture sections</span><span class="activity-meta"><span class="activity-hash">6c6b83a</span> · 2026-09-01 20:17</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">refactor(team): retire TEAM.md, repoint references</span><span class="activity-meta"><span class="activity-hash">bb89305</span> · 2026-09-01 19:42</span></div></div>
+      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">feat(team-ops): add Ügynökök tab with per-member bios</span><span class="activity-meta"><span class="activity-hash">0057c27</span> · 2026-09-01 19:42</span></div></div>
       <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(readme): adjust image widths for architecture and team dashboard sections</span><span class="activity-meta"><span class="activity-hash">c962850</span> · 2026-08-30 14:46</span></div></div>
       <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(readme): punchier one-line descriptions for the four view cards</span><span class="activity-meta"><span class="activity-hash">37366bd</span> · 2026-08-30 14:44</span></div></div>
       <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">Revise README.md to enhance live views section and improve team documentation</span><span class="activity-meta"><span class="activity-hash">0eb5956</span> · 2026-08-30 14:13</span></div></div>
@@ -533,36 +579,6 @@
       <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">Update Workflow.drawio.svg</span><span class="activity-meta"><span class="activity-hash">6081f13</span> · 2026-08-30 12:43</span></div></div>
       <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(readme): note the diagram covers both CI workflows; drop the dev job-graph mermaid</span><span class="activity-meta"><span class="activity-hash">3eab091</span> · 2026-08-30 12:07</span></div></div>
       <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">increase size from 120 to 130</span><span class="activity-meta"><span class="activity-hash">3fd742c</span> · 2026-08-30 11:53</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs: sync ci_code_checks paths list in scripts_reference</span><span class="activity-meta"><span class="activity-hash">1a872bf</span> · 2026-08-30 11:52</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">ci: watch .claude dashboard files in ci_code_checks paths filter</span><span class="activity-meta"><span class="activity-hash">2b66ec7</span> · 2026-08-30 11:51</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">increase architecture icon size to 120</span><span class="activity-meta"><span class="activity-hash">4cffffa</span> · 2026-08-30 11:43</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs: drop 'Generated at' stamp from README STATS block</span><span class="activity-meta"><span class="activity-hash">a5efa02</span> · 2026-08-30 11:40</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(dashboard): correct malformed agent_usage_log entries, regenerate team-ops</span><span class="activity-meta"><span class="activity-hash">0a2258a</span> · 2026-08-30 11:30</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(docs): regenerate Console and stats [skip ci]</span><span class="activity-meta"><span class="activity-hash">4c157fb</span> · 2026-08-30 09:26</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs: trim generated README STATS block to badges + timestamp</span><span class="activity-meta"><span class="activity-hash">181fd8d</span> · 2026-08-30 11:23</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore: delete orphaned wiki.png, drop wiki mention from Chloe agent file</span><span class="activity-meta"><span class="activity-hash">c3e0012</span> · 2026-08-30 11:04</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(audit): close 2.7 — retire the GitHub Wiki (50/52)</span><span class="activity-meta"><span class="activity-hash">e35e322</span> · 2026-08-30 10:52</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(audit): close 2.2, 2.5, 2.6 in feature-and-process-audit (49/52)</span><span class="activity-meta"><span class="activity-hash">41c14a5</span> · 2026-08-30 10:29</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(skills): correct new_rule.py invocation in sigma-rule-authoring</span><span class="activity-meta"><span class="activity-hash">535f5ce</span> · 2026-08-29 16:58</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(audit): close 2.3, 2.13, 2.14 in feature-and-process-audit (46/52)</span><span class="activity-meta"><span class="activity-hash">0971a50</span> · 2026-08-29 16:57</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs: close audit 2.3, 2.13, 2.14</span><span class="activity-meta"><span class="activity-hash">21498a6</span> · 2026-08-29 16:55</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(audit): close 1.3 + 2.1 in feature-and-process-audit (43/52)</span><span class="activity-meta"><span class="activity-hash">2913759</span> · 2026-08-29 15:56</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(architecture): close audit 1.3 + 2.1</span><span class="activity-meta"><span class="activity-hash">8bc3dc6</span> · 2026-08-29 15:54</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(audit): close 1.1, 1.2, 2.4 in feature-and-process-audit (41/52)</span><span class="activity-meta"><span class="activity-hash">aa53ae3</span> · 2026-08-29 15:34</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(architecture): fix repo-terkep.hu.md structural drift</span><span class="activity-meta"><span class="activity-hash">f7bec42</span> · 2026-08-29 15:31</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(audit): log Kwame register re-verification + drift findings</span><span class="activity-meta"><span class="activity-hash">9ac799a</span> · 2026-08-29 15:21</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(audit): log 3.5 follow-up in remediation-plan.md</span><span class="activity-meta"><span class="activity-hash">532d3d6</span> · 2026-08-29 15:05</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(usage-log): log Priya's Dependabot investigation dispatch</span><span class="activity-meta"><span class="activity-hash">5b8eecc</span> · 2026-08-29 15:03</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">docs(architecture): sync select_unverified.py section to the fixed version scheme</span><span class="activity-meta"><span class="activity-hash">5fe6244</span> · 2026-08-29 15:03</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(usage-log): add Gaz's own session usage alongside specialist dispatches</span><span class="activity-meta"><span class="activity-hash">99f3f6c</span> · 2026-08-29 14:58</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(inventory): prod state as deployed [skip ci]</span><span class="activity-meta"><span class="activity-hash">86d33e4</span> · 2026-08-29 12:43</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(pipeline): verification results and dashboard [skip ci]</span><span class="activity-meta"><span class="activity-hash">6568504</span> · 2026-08-29 12:41</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(convert): update SPL outputs and prune deleted-rule artefacts [skip ci]</span><span class="activity-meta"><span class="activity-hash">4051689</span> · 2026-08-29 12:39</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">test(pipeline): extend DETECT-2026-0032 detection to exercise version-bump hook</span><span class="activity-meta"><span class="activity-hash">ed8ab35</span> · 2026-08-29 14:37</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(inventory): prod state as deployed [skip ci]</span><span class="activity-meta"><span class="activity-hash">a8d5089</span> · 2026-08-29 12:34</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(pipeline): verification results and dashboard [skip ci]</span><span class="activity-meta"><span class="activity-hash">56edab9</span> · 2026-08-29 12:32</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">chore(convert): update SPL outputs and prune deleted-rule artefacts [skip ci]</span><span class="activity-meta"><span class="activity-hash">896d923</span> · 2026-08-29 12:30</span></div></div>
-      <div class="activity-item"><span class="activity-dot"></span><div class="activity-body"><span class="activity-msg">fix(tests): enable testing for PowerShell Download Cradle Execution rule</span><span class="activity-meta"><span class="activity-hash">360369a</span> · 2026-08-29 14:29</span></div></div>
         </div>
       </div>
     </section>
@@ -582,11 +598,11 @@
       <tr><td>Kwame</td><td>Compliance Analyst</td><td>11</td><td>1.43M</td><td>321</td><td>43m</td><td>2026-08-29</td></tr>
       <tr class="row-empty"><td>Masha</td><td>Threat Intelligence Analyst</td><td colspan="5">nincs naplózott munka</td></tr>
       <tr class="row-empty"><td>Yuki</td><td>Detection Engineer</td><td colspan="5">nincs naplózott munka</td></tr>
-      <tr><td>Bjorn</td><td>Detection Quality Engineer</td><td>9</td><td>661.9K</td><td>226</td><td>29m</td><td>2026-08-29</td></tr>
+      <tr><td>Bjorn</td><td>Detection Quality Engineer</td><td>13</td><td>988.6K</td><td>333</td><td>44m</td><td>2026-09-07</td></tr>
       <tr><td>Chloe</td><td>Technical Writer</td><td>28</td><td>1.59M</td><td>416</td><td>1.1h</td><td>2026-08-30</td></tr>
-      <tr><td>Jamal</td><td>DevOps Engineer</td><td>14</td><td>1.70M</td><td>688</td><td>1.6h</td><td>2026-08-30</td></tr>
-      <tr><td>Sienna</td><td>Frontend Engineer</td><td>18</td><td>1.75M</td><td>520</td><td>1.8h</td><td>2026-08-30</td></tr>
-      <tr><td>Kai</td><td>Platform Engineer</td><td>5</td><td>264.1K</td><td>46</td><td>6m</td><td>2026-08-28</td></tr>
+      <tr><td>Jamal</td><td>DevOps Engineer</td><td>15</td><td>1.75M</td><td>706</td><td>1.7h</td><td>2026-09-07</td></tr>
+      <tr><td>Sienna</td><td>Frontend Engineer</td><td>27</td><td>3.51M</td><td>1126</td><td>3.3h</td><td>2026-09-07</td></tr>
+      <tr><td>Kai</td><td>Platform Engineer</td><td>6</td><td>312.4K</td><td>57</td><td>8m</td><td>2026-09-07</td></tr>
       <tr><td>Priya</td><td>Application Security Engineer</td><td>1</td><td>44.4K</td><td>9</td><td>1m</td><td>2026-08-29</td></tr>
           </tbody>
         </table>
@@ -619,7 +635,7 @@
     </section>
 
   <footer>
-    Generálva 2026-09-01 17:28 UTC &middot; <code>.claude/generate_dashboard.py</code>-vel,
+    Generálva 2026-09-07 16:00 UTC &middot; <code>.claude/generate_dashboard.py</code>-vel,
     a <code>.claude/agent_usage_log.jsonl</code> naplóból és a repo <code>git log</code>-jából.
     A napló frissítése után futtasd újra a scriptet.
   </footer>

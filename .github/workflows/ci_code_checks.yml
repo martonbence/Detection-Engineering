@@ -32,6 +32,7 @@ on:
       - "pyproject.toml"
       - ".github/requirements.txt"
       - ".github/requirements-dev.txt"
+      - ".github/requirements-deploy.txt"
       - ".github/workflows/**"
       - ".github/PSScriptAnalyzerSettings.psd1"
       - ".github/actionlint.yaml"
@@ -61,6 +62,7 @@ on:
       - "pyproject.toml"
       - ".github/requirements.txt"
       - ".github/requirements-dev.txt"
+      - ".github/requirements-deploy.txt"
       - ".github/workflows/**"
       - ".github/PSScriptAnalyzerSettings.psd1"
       - ".github/actionlint.yaml"
@@ -484,10 +486,14 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pip-audit==2.10.1
 
-      # Both files, because both get installed somewhere: requirements.txt is
-      # what dev and prod run the pipeline with, requirements-dev.txt is what
-      # this workflow runs its own checks with. A vulnerability in the second
-      # is lower stakes but not zero -- it still executes in CI with a checkout
+      # All three files, because all three get installed somewhere:
+      # requirements.txt is dev's full conversion toolchain (pyyaml,
+      # jsonschema, sigma-cli, pySigma, pysigma-backend-splunk),
+      # requirements-deploy.txt is prod's much narrower runtime pin
+      # (requests only, ci_prod_workflow.yml) that actually executes against
+      # the live Splunk instance, and requirements-dev.txt is what this
+      # workflow runs its own checks with. A vulnerability in the third is
+      # lower stakes but not zero -- it still executes in CI with a checkout
       # of the repo present.
       - name: Audit pinned dependencies
         shell: bash
@@ -502,7 +508,7 @@ jobs:
           # running this step locally litters the repo with untracked files.
           reports=$(mktemp -d)
 
-          for req in .github/requirements.txt .github/requirements-dev.txt; do
+          for req in .github/requirements.txt .github/requirements-dev.txt .github/requirements-deploy.txt; do
             echo "=== $req ==="
             out="${reports}/$(basename "$req")"
 
