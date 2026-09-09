@@ -92,8 +92,6 @@ A .002 és .003 detekciója **nem SIEM-probléma**: az ARP-mérgezés a helyi sz
 
 ## Kapcsolódó jegyzetek
 
-- **Taktika:** [[TA0006 - Credential Access]]
-- **Altechnikák:** [[T1557.001 - LLMNR-NBT-NS Poisoning and SMB Relay|LLMNR/NBT-NS Poisoning and SMB Relay]] · [[T1557.002 - ARP Cache Poisoning]] · [[T1557.003 - DHCP Spoofing]]
 - **Rokon technikák:** [[T1187 - Forced Authentication]] — mindkettő a cél NTLM-hitelesítésének kikényszerítéséről szól, csak a .001 a *válaszokat* hamisítja, a T1187 magát a *kezdeményezést* csalja ki (pl. egy SMB útvonal megnyitásával); [[T1003 - OS Credential Dumping]] — alternatíva ugyanarra a célra (domain hitelesítő adat), végponti memóriaolvasás helyett hálózati pozícióból
 - **MITRE:** https://attack.mitre.org/techniques/T1557/
 

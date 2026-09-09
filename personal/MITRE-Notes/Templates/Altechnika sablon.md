@@ -83,11 +83,9 @@ Amit NE tegyél ide: általános biztonságtudatossági képzés, compliance-ker
 
 ## Kapcsolódó jegyzetek
 
-Navigáció a jegyzet-hálóban (szabály-linkek külön, a "Kapcsolódó szabályok" szekcióban). Csak hierarchia- és rokon-jegyzet linkek.
+Csak azok a fogalom-jegyzetek, amik a technika megértéséhez vagy sikeres kihasználásához tényleges háttértudást adnak — nem navigáció. A szülő technikára a `parent_technique:` frontmatter mutat; a testvér altechnikákat a technika-jegyzet "Altechnikák" / "Összehasonlítás" szekciója sorolja fel és hasonlítja össze.
 
-- **Szülő technika:** [[Txxxx - <technika>]]
-- **Testvér altechnikák:** [[Txxxx.002 - <név>]] — <mikor merül fel együtt a kettő>
-- **Fogalmak:** [[<Alapfogalom>]]
+- **Fogalmak:** [[<Alapfogalom>]] — <mit ad hozzá: pl. a kihasznált protokoll működése, a megkerült bizalmi feltevés, egy előfeltétel-jogosultság>
 - **MITRE:** <url>
 
 ## Saját feljegyzések

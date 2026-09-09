@@ -97,8 +97,19 @@ existing rule's `detection:` / `custom.splunk.raw_query` changes, its
   tactic reference, per the rule above.
 - **Two distinct "Kapcsolódó ..." sections, never merged:**
   "Kapcsolódó szabályok" (this repo's actual Sigma rules, as a table with
-  GitHub-linked `detect_id`) and "Kapcsolódó jegyzetek" (note-to-note
-  navigation — parent/sibling notes and related concepts, no rule content).
+  GitHub-linked `detect_id`) and "Kapcsolódó jegyzetek" (note-to-note links,
+  no rule content). On a **sub-technique** note (2026-09-09) the latter holds
+  substance only: `Alapfogalmak/` concept links that carry real prerequisite
+  knowledge for exploiting the technique, plus the MITRE URL. **No
+  parent-technique link** — it's already in `parent_technique:` frontmatter —
+  and **no sibling-sub-technique links** — they belong in the technique
+  note's "Altechnikák"/"Összehasonlítás", which is the single place
+  cross-sub comparison lives; don't duplicate it per sibling. **Technique
+  notes** get the same trim (2026-09-09): drop the "Taktika" link (it's in
+  `tactic:` frontmatter) and the "Altechnikák" list (it's the body
+  "## Altechnikák" section) — keep "Rokon technikák" (real cross-technique
+  relationships), "Fogalmak", and the MITRE URL. Tactic notes have no
+  "Kapcsolódó jegyzetek" section, so nothing changes there.
 - **"Mitigáció" stays, but framed for detection engineering, not hardening
   compliance** (2026-09-08 — this is a DE repo, not a hardening one). A
   control only belongs in this section if it answers a question the

@@ -75,12 +75,10 @@ A technika eredményét a támadó tipikusan a [TAxxxx - <következő taktika>] 
 
 ## Kapcsolódó jegyzetek
 
-Navigáció a jegyzet-hálóban (szabály-linkek külön, a "Kapcsolódó szabályok" szekcióban). Csak hierarchia- és rokon-jegyzet linkek — taktikát taktikával továbbra se köss össze.
+Csak érdemi kapcsolatok — nem navigáció. A taktikára a `tactic:` frontmatter mutat; az altechnikákat a fenti "## Altechnikák" szekció sorolja fel. Taktikát taktikával továbbra se köss össze.
 
-- **Taktika:** [[TAxxxx - <taktika>]]
-- **Altechnikák:** [[Txxxx.001 - <név>]] · [[Txxxx.002 - <név>]]
 - **Rokon technikák:** [[Txxxx - <rokon technika>]] — <miért kapcsolódik (átfedő eszköz, közös telemetria, gyakori lánc)>
-- **Fogalmak:** [[<Alapfogalom>]]
+- **Fogalmak:** [[<Alapfogalom>]] — <mit ad hozzá a technika megértéséhez>
 - **MITRE:** <url>
 
 ## Saját feljegyzések
