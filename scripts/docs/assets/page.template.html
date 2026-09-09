@@ -56,28 +56,11 @@
 </head>
 
 <body>
-  <!-- "Outer-space" shapes layer. Fixed, behind everything, non-interactive.
-       Pattern contents copied verbatim from design/brand-canvas/Main.dc.html. -->
-  <svg class="bg-shapes" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <pattern id="shp" width="260" height="260" patternUnits="userSpaceOnUse" patternTransform="rotate(6)">
-        <line x1="30" y1="34" x2="112" y2="70" stroke="#9fb0ff" stroke-opacity="0.09" stroke-width="1" />
-        <line x1="112" y1="70" x2="102" y2="164" stroke="#9fb0ff" stroke-opacity="0.08" stroke-width="1" />
-        <line x1="112" y1="70" x2="200" y2="52" stroke="#b79bf0" stroke-opacity="0.08" stroke-width="1" />
-        <line x1="200" y1="52" x2="228" y2="140" stroke="#9fb0ff" stroke-opacity="0.07" stroke-width="1" />
-        <line x1="102" y1="164" x2="182" y2="210" stroke="#9fb0ff" stroke-opacity="0.07" stroke-width="1" />
-        <line x1="102" y1="164" x2="30" y2="200" stroke="#b79bf0" stroke-opacity="0.07" stroke-width="1" />
-        <circle cx="30" cy="34" r="2.4" fill="#9fb0ff" fill-opacity="0.15" />
-        <circle cx="112" cy="70" r="3.2" fill="#c7a6f4" fill-opacity="0.17" />
-        <circle cx="200" cy="52" r="2.2" fill="#9fb0ff" fill-opacity="0.14" />
-        <circle cx="228" cy="140" r="2" fill="#b79bf0" fill-opacity="0.13" />
-        <circle cx="102" cy="164" r="2.8" fill="#9fb0ff" fill-opacity="0.15" />
-        <circle cx="182" cy="210" r="2" fill="#c7a6f4" fill-opacity="0.13" />
-        <circle cx="30" cy="200" r="2" fill="#9fb0ff" fill-opacity="0.13" />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#shp)" />
-  </svg>
+  <!-- Ambient background layer: violet dots drifting from the bottom of the
+       viewport upward, drawn on a custom <canvas> by the bg-particles IIFE at
+       the end of page.js. Fixed, behind everything, non-interactive. Falls
+       back to a static faint dot field under prefers-reduced-motion. -->
+  <canvas id="bg-particles" aria-hidden="true"></canvas>
   <div class="stats-strip">
     <div class="strip-brand">
       <img class="strip-logo" src="data:image/png;base64,@@HEADER_LOGO_DATA@@" width="40" height="40" alt="">
