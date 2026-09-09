@@ -38,3 +38,10 @@ personal/MITRE-Notes/.obsidian/workspace.json
 personal/MITRE-Notes/.obsidian/workspace-mobile.json
 personal/MITRE-Notes/.obsidian/cache
 personal/MITRE-Notes/.trash/
+
+# personal/ itself is NOT a vault -- the vault is personal/MITRE-Notes/. An
+# .obsidian/ directly under personal/ means the parent folder got opened in
+# Obsidian by mistake; nothing under it is worth versioning (unlike the block
+# above, where app/appearance/core-plugins settings deliberately travel), so
+# ignore the whole directory rather than selectively.
+personal/.obsidian/
