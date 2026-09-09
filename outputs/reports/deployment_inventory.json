@@ -342,12 +342,15 @@
         }
       },
       "splunk_state": {
-        "checked_at": "2026-08-08T20:05:45.400128+00:00",
+        "checked_at": "2026-09-09T19:07:54.153576+00:00",
         "duplicate_names": 0,
-        "has_drift": false,
-        "in_sync": 27,
-        "missing": 0,
-        "missing_ids": [],
+        "has_drift": true,
+        "in_sync": 29,
+        "missing": 2,
+        "missing_ids": [
+          "DETECT-2026-0033",
+          "DETECT-2026-0034"
+        ],
         "orphan_removed": 0,
         "orphan_removed_unretired": 0,
         "orphan_renamed": 0,
