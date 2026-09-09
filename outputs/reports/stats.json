@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-09T18:30:14.993436+00:00",
+  "generated_at": "2026-09-09T20:05:40.673979+00:00",
   "total_rules": 31,
   "total_sigma_rules": 31,
   "total_compiled_sigma_rules": 29,
@@ -1655,7 +1655,7 @@
     {
       "detect_id": "DETECT-2026-0033",
       "title": "Name Resolution Poisoning and SMB Relay via Correlated DNS Failure",
-      "description": "Detects the victim-side telemetry pattern left behind by LLMNR/NBT-NS poisoning (Responder, Inveigh) and its SMB relay follow-up (Impacket ntlmrelayx): a DNS query that fails to resolve (Sysmon EID 22, QueryStatus != 0), immediately followed on the same host by an outbound SMB connection attempt (Sysmon EID 3, port 445) — the OS falling back to a broadcast-poisoned name resolution and then authenticating to whatever answered it. Neither event alone is meaningful (DNS failures and SMB connections are both common); the two occurring back-to-back within a few seconds on the same host is not. This does not detect the poisoning itself (that happens on the wire, outside what a Windows host's own Sysmon can see) or the attacker's tooling (see DETECT-2026-0034 for Responder/Inveigh process execution) — it detects a host that just fell for it.\n",
+      "description": "Detects the victim-side telemetry pattern left behind by LLMNR/NBT-NS poisoning (Responder, Inveigh) and its SMB relay follow-up (Impacket ntlmrelayx): a DNS query that fails to resolve (Sysmon EID 22, QueryStatus != 0), immediately followed on the same host by an outbound SMB connection attempt (Sysmon EID 3, port 445) — the OS falling back to a broadcast-poisoned name resolution and then authenticating to whatever answered it. Neither event alone is meaningful (DNS failures and SMB connections are both common); the two occurring back-to-back within a few seconds on the same host is not. This does not detect the poisoning itself (that happens on the wire, outside what a Windows host's own Sysmon can see) or the attacker's tooling (see DETECT-2026-0034 for Responder/Inveigh process execution) — it detects a host that just fell for it. NOTE, while status is experimental: the premise that a poisoned resolution leaves a *failed* EID 22 behind is an unverified assumption, not a confirmed fact — see the OPEN QUESTION comment above custom.splunk.raw_query and the manual two-host procedure above custom.testing.\n",
       "level": "high",
       "status": "experimental",
       "source": "native_spl",
@@ -1680,15 +1680,16 @@
       },
       "author": "Bence Marton",
       "date": "2026-09-08",
-      "modified": "2026-09-08",
+      "modified": "2026-09-09",
       "references": [
-        "https://attack.mitre.org/techniques/T1557/001/"
+        "https://attack.mitre.org/techniques/T1557/001/",
+        "https://blog.didierstevens.com/2021/07/16/sysmons-dns-querystatus-field/"
       ],
       "falsepositives": [
-        "Legitimate legacy NetBIOS-name (non-FQDN) SMB access — a user or script opening \\\\SERVER01\\share where SERVER01 has no DNS record produces the exact same DNS-failure-then- SMB-connect sequence, entirely benignly. This is the dominant false positive and is handled by the known_smb_servers.csv lookup the raw_query calls — populate it with every legitimate file/print server IP in the environment before enabling; a hit against a listed IP is suppressed. Un-tuned, this rule will be noisy in any environment with real legacy NetBIOS share usage.",
+        "Legitimate legacy NetBIOS-name (non-FQDN) SMB access — a user or script opening \\\\SERVER01\\share where SERVER01 has no DNS record produces the exact same DNS-failure-then- SMB-connect sequence, entirely benignly. This is the dominant false positive and is handled by the inline destination allowlist in custom.splunk.raw_query (see the comment above it for what to put there). Un-tuned, this rule will be noisy in any environment with real legacy NetBIOS share usage, and on a domain-joined host the DC's own SMB traffic alone will drive most of the volume.",
         "Backup, inventory, or patch-management tools that legitimately resolve and connect to many hosts by short name in quick succession.",
-        "Coincidental timing — an unrelated DNS failure and an unrelated SMB connection from the same host landing within the correlation window by chance. Narrow custom.splunk.raw_query's maxspan (currently 10s) if this shows up in practice.",
-        "A DNS-failure/SMB-connect pair that straddles two consecutive 5-minute search windows will not correlate and will be missed — a known gap of the scheduled-search approach, not a logic error."
+        "Coincidental timing — an unrelated DNS failure and an unrelated SMB connection from the same host landing within the correlation window by chance. The lag_seconds column in the output is there to triage this; if it shows up often, narrow both the streamstats time_window and the matching numeric guard in custom.splunk.raw_query (currently 10s / 10) together — they must always be changed as a pair.",
+        "A DNS-failure/SMB-connect pair that straddles the boundary between two consecutive scheduled search windows will not correlate and will be missed. The windows are contiguous and non-overlapping by design (5 minutes wide, 5-minute cron), so this costs roughly the correlation window over the search window — about 10s in every 300s of coverage. A known, accepted gap of the scheduled-search approach, not a logic error."
       ],
       "testing": {
         "enabled": false,
@@ -1696,9 +1697,9 @@
         "type": "emulation",
         "atomics": []
       },
-      "rule_body": "index=sysmon (EventCode=22 QueryStatus!=0) OR (EventCode=3 DestinationPort=445 Initiated=\"true\") | transaction ComputerName startswith=(EventCode=22) endswith=(EventCode=3) maxspan=10s | where eventcount=2 | eval QueryName=mvindex(QueryName,0), DestinationIp=mvindex(DestinationIp,0), DestinationPort=mvindex(DestinationPort,0), Image=mvindex(Image,0), User=mvindex(User,0) | lookup known_smb_servers.csv ip AS DestinationIp OUTPUT is_known_server | where isnull(is_known_server) | table _time, ComputerName, User, QueryName, DestinationIp, DestinationPort, Image",
+      "rule_body": "index=sysmon (QueryName=* QueryStatus!=\"0\") OR (DestinationPort=445 Initiated=\"true\" NOT DestinationIp IN (\"192.0.2.10\", \"192.0.2.11\")) | eval evtype=if(isnotnull(QueryStatus), \"dnsfail\", \"smb\") | eval dq_time=if(evtype=\"dnsfail\", _time, null()), dq_name=if(evtype=\"dnsfail\", QueryName, null()), dq_status=if(evtype=\"dnsfail\", QueryStatus, null()), dq_image=if(evtype=\"dnsfail\", Image, null()), dq_user=if(evtype=\"dnsfail\", User, null()) | sort 0 +_time, +evtype | streamstats time_window=10s latest(dq_time) as dnsfail_time, latest(dq_name) as failed_name, latest(dq_status) as failed_status, latest(dq_image) as dns_image, latest(dq_user) as dns_user by ComputerName | where evtype=\"smb\" AND isnotnull(dnsfail_time) AND (_time - dnsfail_time) <= 10 | eval lag_seconds=round(_time - dnsfail_time, 3) | rename Image as smb_image, User as smb_user | dedup ComputerName, DestinationIp | table _time, ComputerName, lag_seconds, failed_name, failed_status, dns_image, dns_user, smb_image, smb_user, DestinationIp, DestinationPort",
       "rule_body_lang": "spl",
-      "rule_version": "1.0"
+      "rule_version": "2.0"
     },
     {
       "detect_id": "DETECT-2026-0034",
