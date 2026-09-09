@@ -18,15 +18,14 @@ references:
   - https://github.com/samratashok/nishang/blob/master/Shells/Invoke-PowerShellTcpOneLine.ps1
 author: Bence Marton
 date: 2026-09-07
-modified: 2026-09-07
-version: "1.0"
+modified: 2026-09-09
+version: "1.1"
 tags:
   - attack.execution
   - attack.t1059.001
   - attack.command_and_control
   - attack.t1095
   - attack.t1071.001
-
 
 logsource:
   product_category: os
@@ -79,19 +78,30 @@ detection:
 
   selection_netcat_flag:
     CommandLine|contains:
-      - " -e"
-      - " --exec"
-      - " --lua-exec"
-      - " --sh-exec"
-      - " -lvp"
-      - " -lvnp"
+      - " -e "
+      - " --exec "
+      - " --lua-exec "
+      - " --sh-exec "
+      - " -lvp "
+      - " -lvnp "
+      - " -l -v -p "
+      - " -lv -p "
 
-  selection_msfvenom:
+  selection_msfvenom_tool:
     CommandLine|contains|all:
       - "msfvenom"
-      - "-p"
+      - " -p "
+  selection_msfvenom_intent:
+    CommandLine|contains:
+      - "reverse_tcp"
+      - "reverse_http"
+      - "reverse_https"
+      - "reverse_powershell"
+      - "bind_tcp"
+      - "shell_reverse"
+      - "shell_bind"
 
-  condition: (selection_img and (selection_named_tool or selection_raw_socket_idiom)) or (selection_netcat_img and selection_netcat_flag) or selection_msfvenom
+  condition: (selection_img and (selection_named_tool or selection_raw_socket_idiom)) or (selection_netcat_img and selection_netcat_flag) or (selection_msfvenom_tool and selection_msfvenom_intent)
 
 fields:
   - _time
@@ -121,11 +131,13 @@ falsepositives:
     already notable), so a truly benign listener-only session still fires
     this rule; check whether a shell was actually piped in before assuming
     compromise
-  - A renamed or path-relocated netcat/ncat binary, or a Metasploit build
-    invoked via a wrapper that never puts "msfvenom" and "-p" in the same
-    CommandLine, evades the relevant selection's literal match -- this is a
-    known detection gap, not a false positive, but worth remembering when
-    triaging a quiet period
+  - A renamed or path-relocated netcat/ncat binary, or an msfvenom invocation
+    that does not put "msfvenom", " -p " and a recognised payload-family token
+    ("reverse_tcp", "bind_tcp", "shell_reverse", ...) together in the same
+    CommandLine -- a wrapper script, a non-default payload name, or a payload
+    string built up from a variable -- evades the relevant selection's literal
+    match. This is a known detection gap, not a false positive, but worth
+    remembering when triaging a quiet period
 
 level: high
 
@@ -179,10 +191,12 @@ custom:
       - name: "msfvenom Payload-Flag CommandLine Keyword"
         description: >
           Spawns a non-interactive powershell.exe process whose CommandLine
-          contains "msfvenom" and "-p" together as a trailing comment after
-          exit 0. No Metasploit tooling is invoked and no payload is
-          generated -- only the CommandLine text selection_msfvenom matches
-          on is produced.
+          contains "msfvenom", " -p " and "reverse_tcp" together as a trailing
+          comment after exit 0. No Metasploit tooling is invoked and no payload
+          is generated -- only the CommandLine text is produced. Satisfies
+          selection_msfvenom_tool ("msfvenom" + " -p ") and
+          selection_msfvenom_intent ("reverse_tcp"), the two selections whose
+          AND forms the msfvenom branch of the condition.
         executor: powershell
         command: >-
           powershell.exe -NonInteractive -Command "exit 0 #msfvenom -p windows/meterpreter/reverse_tcp"
