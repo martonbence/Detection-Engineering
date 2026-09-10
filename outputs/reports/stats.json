@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-10T15:46:55.459830+00:00",
+  "generated_at": "2026-09-10T19:00:41.630001+00:00",
   "total_rules": 30,
   "total_sigma_rules": 30,
   "total_compiled_sigma_rules": 29,
@@ -1696,9 +1696,9 @@
         "type": "emulation",
         "atomics": []
       },
-      "rule_body": "detection:\n  selection_inveigh:\n  - CommandLine|contains:\n    - Invoke-Inveigh\n    - Invoke-InveighRelay\n  - OriginalFileName:\n    - Inveigh.exe\n    - Inveigh.dll\n  selection_inveigh_compiled_img:\n    Image|endswith: \\Inveigh.exe\n  selection_inveigh_compiled_cli:\n    CommandLine|contains: Inveigh\n  selection_responder:\n    CommandLine|contains:\n    - Responder.py\n    - responder.py\n  selection_ntlmrelayx:\n  - CommandLine|contains: ntlmrelayx\n  - Image|endswith: \\ntlmrelayx.exe\n  condition: selection_inveigh or (selection_inveigh_compiled_img and selection_inveigh_compiled_cli)\n    or selection_responder or selection_ntlmrelayx",
+      "rule_body": "detection:\n  selection_inveigh:\n  - CommandLine|contains:\n    - Invoke-Inveigh\n    - Invoke-InveighRelay\n  - OriginalFileName:\n    - Inveigh.exe\n    - Inveigh.dll\n  selection_inveigh_compiled_img:\n    Image|endswith: \\Inveigh.exe\n  selection_inveigh_compiled_cli:\n    CommandLine|contains: Inveigh\n  selection_responder:\n    CommandLine|contains|all:\n    - Responder.py\n    - '-I '\n  selection_ntlmrelayx:\n  - CommandLine|contains: ntlmrelayx\n  - Image|endswith: \\ntlmrelayx.exe\n  condition: selection_inveigh or (selection_inveigh_compiled_img and selection_inveigh_compiled_cli)\n    or selection_responder or selection_ntlmrelayx",
       "rule_body_lang": "yaml",
-      "rule_version": "1.1"
+      "rule_version": "1.2"
     }
   ]
 }
