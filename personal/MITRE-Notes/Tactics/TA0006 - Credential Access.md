@@ -34,7 +34,7 @@ Ezért ez a taktika a támadási lánc fordulópontja: innentől a támadó nem 
 | ---------------------------------------------------------- | :----------- | :---------- | :----------------------------------------------------------------------------- |
 | [[T1003 - OS Credential Dumping]]                          | kritikus     | részleges   | 13 szabály; a Sysmon-oldal kész, a .006 DCSync natív detekciója hiányzik       |
 | [[T1558 - Steal or Forge Kerberos Tickets]]                | kritikus     | nincs       | Kerberoasting / AS-REP roasting — natív DC log (4769/4768), a legnagyobb hiány |
-| [[T1110 - Brute Force]]                                    | magas        | nincs       | Password spraying — natív log (4625/4771/4776), küszöb-alapú                   |
+| [[T1110 - Brute Force]]                                    | magas        | nincs       | .001/.003/.004 natív log (4625/4771/4776), küszöb-alapú, tervezett 0040; .002 (offline törés) strukturálisan láthatatlan |
 | [[T1552 - Unsecured Credentials]]                          | közepes      | nincs       | Fájlban/registryben hagyott jelszó; egy szabályba összevonható                 |
 | [[T1555 - Credentials from Password Stores]]               | közepes      | részleges   | Böngésző, Credential Manager, jelszókezelők                                    |
 | [[T1556 - Modify Authentication Process]]                  | magas        | részleges   | Átfed a Persistence taktikával                                                 |
