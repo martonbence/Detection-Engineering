@@ -20,7 +20,7 @@ references:
 author: Bence Marton
 date: 2026-09-08
 modified: 2026-09-10
-version: "1.1"
+version: "1.2"
 tags:
   - attack.credential_access
   - attack.collection      # T1557.001's second tactic in this repo's own ATT&CK cache
@@ -59,10 +59,21 @@ detection:
 
   selection_responder:
     # Responder ships as a Python script (no PE metadata to match on
-    # OriginalFileName), so match the script name on the command line.
-    CommandLine|contains:
+    # OriginalFileName), so match the script name on the command line. Sigma's
+    # `contains` is case-insensitive, so a single "Responder.py" also covers
+    # "responder.py" -- no need for a separate lowercase entry. "Responder.py"
+    # alone is a generic Python filename any harmless script could share, so
+    # require it alongside "-I " (a space after the flag, not just the
+    # substring "-i"), Responder's one *required* argument per the upstream
+    # README's "Required Arguments" section (`-I eth0, --interface=eth0`) --
+    # every real invocation must specify an interface, and every documented
+    # usage example does so with the short form. Known gap: the long-form
+    # `--interface=` invocation is not matched by this pattern; accepted as a
+    # deliberate tradeoff to cut the generic-filename false-positive rate,
+    # not an oversight.
+    CommandLine|contains|all:
       - "Responder.py"
-      - "responder.py"
+      - "-I "
 
   selection_ntlmrelayx:
     # Impacket's PyInstaller-built Windows binaries carry no reliable
@@ -121,25 +132,81 @@ custom:
     # confirm selection_inveigh fires on the Invoke-Inveigh process-creation
     # event, then stop the poisoner immediately (Stop-Inveigh, or kill the
     # PowerShell process) -- it must not be left answering broadcasts on the
-    # segment. selection_responder and selection_ntlmrelayx have no Atomic Red
-    # Team coverage at all; that test is Inveigh-only.
+    # segment. That live run stays supervised-manual only, per the procedure
+    # above; it is deliberately not wired into custom.testing.atomics because it
+    # would stand up a live poisoner on a CI runner.
     #
-    # What CI actually runs is the emulation stub below: it places the Responder
-    # and ntlmrelayx tool names on a benign command line (the same approach as
-    # DETECT-2026-0018's emulation test) so selection_responder and
-    # selection_ntlmrelayx are exercised without any live man-in-the-middle.
+    # What CI actually runs is the four emulation stubs below: each spawns a
+    # benign powershell.exe whose CommandLine carries one tool's keyword text
+    # (as a trailing comment after `exit 0`, or -- for the compiled-Inveigh AND
+    # pair -- a renamed copy of powershell.exe itself standing in for the
+    # binary) so all four selections -- selection_inveigh, the
+    # selection_inveigh_compiled_img + selection_inveigh_compiled_cli pair,
+    # selection_responder, and selection_ntlmrelayx -- are exercised
+    # individually, without any live poisoning or relay traffic.
     custom:
-      - name: "AiTM tool names explicit in CommandLine (Responder / ntlmrelayx)"
+      - name: "Inveigh PowerShell Function Keyword"
         description: >
-          Spawns a child powershell.exe whose CommandLine carries "responder.py"
-          and "ntlmrelayx" as literal string arguments to a harmless stub that
-          only opens calc.exe. The detection triggers on the tool name in the
-          CommandLine, not on any poisoning or relay behaviour -- nothing binds a
-          socket or touches the network.
+          Spawns a non-interactive powershell.exe process whose CommandLine
+          contains "Invoke-Inveigh" as a trailing comment after exit 0 -- the
+          text after "#" is never evaluated, so no PowerShell Inveigh function
+          actually runs and nothing binds a socket or touches the network.
+          Exercises selection_inveigh.
         executor: powershell
         command: >-
-          & powershell.exe -NonInteractive -Command 'function Invoke-AitmStub { Start-Process calc.exe }; Invoke-AitmStub "responder.py -I eth0 -wrf"; Invoke-AitmStub "ntlmrelayx.py -tf targets.txt -smb2support"'
+          powershell.exe -NonInteractive -Command "exit 0 #Invoke-Inveigh -NBNS Y -LLMNR Y -HTTP Y -ConsoleOutput Y"
+        cleanup: ""
+        prerequisites:
+          - powershell.exe must be available (present by default on Windows)
+
+      - name: "Renamed Inveigh.exe Image + CommandLine Keyword"
+        description: >
+          Copies the real powershell.exe to a temp path literally named
+          Inveigh.exe, then runs it non-interactively with "Inveigh" tucked
+          into a trailing comment after exit 0. Because it's really
+          powershell.exe underneath, -NonInteractive -Command guarantees an
+          immediate, predictable exit -- no compiled Inveigh binary is ever
+          invoked and no poisoning or relay behaviour occurs. Sysmon still
+          records Image ending in \Inveigh.exe (satisfying
+          selection_inveigh_compiled_img) and a CommandLine containing
+          "Inveigh" (satisfying selection_inveigh_compiled_cli), exercising
+          the combined AND condition without the hang risk a real renamed
+          Inveigh binary given unrecognised arguments would carry.
+        executor: powershell
+        command: >-
+          $inv = Join-Path $env:TEMP 'Inveigh.exe';
+          Copy-Item "$PSHOME\powershell.exe" $inv -Force;
+          & $inv -NonInteractive -Command "exit 0 # Inveigh"
         cleanup: >-
-          Stop-Process -Name calculator -Force -ErrorAction SilentlyContinue
+          Remove-Item (Join-Path $env:TEMP 'Inveigh.exe') -Force -ErrorAction SilentlyContinue
+        prerequisites:
+          - powershell.exe must be available (present by default on Windows)
+
+      - name: "Responder Filename + Required Interface Flag"
+        description: >
+          Spawns a non-interactive powershell.exe process whose CommandLine
+          contains "responder.py" and the required "-I " interface flag
+          together as a trailing comment after exit 0 -- the text after "#" is
+          never evaluated, so no Responder script actually runs and no
+          interface is ever bound or listened on. Exercises
+          selection_responder.
+        executor: powershell
+        command: >-
+          powershell.exe -NonInteractive -Command "exit 0 # responder.py -I eth0 -wrf"
+        cleanup: ""
+        prerequisites:
+          - powershell.exe must be available (present by default on Windows)
+
+      - name: "ntlmrelayx CommandLine Keyword"
+        description: >
+          Spawns a non-interactive powershell.exe process whose CommandLine
+          contains "ntlmrelayx" as a trailing comment after exit 0 -- the text
+          after "#" is never evaluated, so no relay tooling actually runs and
+          no NTLM authentication is ever relayed. Exercises
+          selection_ntlmrelayx.
+        executor: powershell
+        command: >-
+          powershell.exe -NonInteractive -Command "exit 0 # ntlmrelayx.py -tf targets.txt -smb2support"
+        cleanup: ""
         prerequisites:
           - powershell.exe must be available (present by default on Windows)
