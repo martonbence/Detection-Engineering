@@ -63,7 +63,7 @@ Amit ezen a szinten **nem** lehet látni: az offline jelszótörés (T1110.002) 
 
 ## Lefedettség ebben a repóban
 
-Jelenleg **14 szabály**: 13 (DETECT-2026-0019 … 0031) [[T1003 - OS Credential Dumping]] alatt, plusz **DETECT-2026-0033**, az első szabály [[T1557 - Adversary-in-the-Middle]] alatt (`experimental`, még nem élesítve). Ez azt jelenti, hogy a Sysmon-alapú végponti oldal két technikán már megkezdett, a natív DC-log oldal ([[T1558 - Steal or Forge Kerberos Tickets]], DCSync, spraying) viszont teljesen üres.
+Jelenleg **14 szabály**: 13 (DETECT-2026-0019 … 0031) [[T1003 - OS Credential Dumping]] alatt, plusz **DETECT-2026-0034**, az első szabály [[T1557 - Adversary-in-the-Middle]] alatt (`experimental`, folyamatindítás-alapú, T1040-nel közös — a támadó eszközét fogja meg, ha az monitorozott gépen fut). A korábbi DETECT-2026-0033 (DNS-hiba → SMB korreláció) 2026-09-10-én törölve, nem igazolt előfeltevés miatt. Ez azt jelenti, hogy a Sysmon-alapú végponti oldal két technikán már megkezdett, a natív DC-log oldal ([[T1558 - Steal or Forge Kerberos Tickets]], DCSync, spraying) viszont teljesen üres.
 
 A legnagyobb egyedi hiány a **DCSync natív detekciója** (4662 + replikációs GUID-ok): a meglévő 0029-es szabály csak egy eszköz nevét (`Get-ADReplAccount`) fogja meg, tehát bármelyik másik DCSync-implementáció kicsúszik alóla. Utána sorrendben a **Kerberoasting** (4769, RC4) és az **AS-REP roasting** (4768, pre-auth 0) jön — mindkettő natív log, tehát pipeline-oldali előfeltétele van (`service: security` ág).
 

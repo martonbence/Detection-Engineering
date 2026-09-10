@@ -5,11 +5,12 @@ description: >
   Detects execution of network-sniffing and adversary-in-the-middle tooling on the monitored
   host itself: Windows-native packet capture (netsh trace, pktmon, the PowerShell
   NetEventPacketCapture cmdlets, Wireshark/tshark) for T1040, and LLMNR/NBT-NS poisoning /
-  SMB relay tooling (Inveigh, Responder, Impacket ntlmrelayx) for T1557.001. This is the
-  attacker-side counterpart to DETECT-2026-0033, which detects a victim's downstream reaction
-  to poisoning rather than the tool itself — this rule only fires if the tool runs on a host
-  this pipeline actually watches, which in practice means an insider or an already-compromised
-  internal host, since an external attacker's own infrastructure is not instrumented.
+  SMB relay tooling (Inveigh, Responder, Impacket ntlmrelayx) for T1557.001. It detects the
+  attacker's tooling directly, so it only fires if the tool runs on a host this pipeline
+  actually watches — in practice an insider or an already-compromised internal host, since an
+  external attacker's own infrastructure is not instrumented. The poisoning itself is a
+  network-layer event Sysmon cannot see, so this process-execution signal is the endpoint's
+  only view of the technique; the real detection belongs on a network sensor.
 references:
   - https://attack.mitre.org/techniques/T1040/
   - https://attack.mitre.org/techniques/T1557/001/
@@ -116,7 +117,6 @@ custom:
         # "LLMNR Poisoning with Inveigh" -- the correct rule for this atomic (see
         # sigma-rule-authoring skill's testing section): it validates process execution on
         # the single runner it runs on, which is exactly what selection_inveigh matches.
-        # DETECT-2026-0033 is the rule this same atomic would NOT reliably validate.
     # Not covered by an atomic: selection_responder and selection_ntlmrelayx. Neither tool
     # has a published Atomic Red Team test for T1557.001 (only test 1, Inveigh, exists) --
     # a legitimate "no matching atomic" gap per the sigma-rule-authoring skill, not a
