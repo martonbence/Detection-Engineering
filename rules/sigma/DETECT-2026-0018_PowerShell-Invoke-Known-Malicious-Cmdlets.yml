@@ -13,8 +13,8 @@ references:
   - https://github.com/samratashok/nishang
 author: Bence Marton
 date: 2026-05-12
-modified: 2026-08-03
-version: "1.0"
+modified: 2026-09-10
+version: "1.1"
 tags:
   - attack.execution
   - attack.t1059.001
@@ -78,8 +78,10 @@ detection:
       - "Invoke-DCOM"
       - "Invoke-PowerShellTcp"
       - "Invoke-PowerShellUdp"
-      - "Invoke-Inveigh"
-      - "Invoke-InveighRelay"
+      # "Invoke-Inveigh" / "Invoke-InveighRelay" intentionally NOT listed here:
+      # they are LLMNR/NBT-NS poisoning + SMB relay (T1557.001), not generic
+      # PowerShell execution, and are owned by DETECT-2026-0034 which is the
+      # technique-correct rule for them. Removed 2026-09-10 to end the overlap.
       - "Invoke-EventViewer"
       - "Invoke-SilentCleanup"
       - "Invoke-Tater"

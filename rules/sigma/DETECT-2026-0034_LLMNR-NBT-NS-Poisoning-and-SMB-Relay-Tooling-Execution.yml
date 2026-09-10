@@ -1,0 +1,145 @@
+title: LLMNR/NBT-NS Poisoning and SMB Relay Tooling Execution
+detect_id: DETECT-2026-0034
+status: experimental
+description: >
+  Detects execution of LLMNR / NBT-NS / mDNS name-resolution poisoning and SMB
+  relay tooling on a monitored host: Inveigh (the PowerShell Invoke-Inveigh /
+  Invoke-InveighRelay functions and the compiled Inveigh.exe), Responder, and
+  Impacket's ntlmrelayx. It detects the attacker's tooling directly, so it only
+  fires when the tool runs on a host this pipeline actually watches -- in practice
+  an insider or an already-compromised internal host, since an external
+  attacker's own infrastructure is not instrumented. The poisoning itself is a
+  network-layer event Sysmon cannot see, so this process-execution signal is the
+  endpoint's only view of the poisoning half of the technique; the authoritative
+  detection for the on-wire spoofing and relay belongs on a network sensor.
+references:
+  - https://attack.mitre.org/techniques/T1557/001/
+  - https://github.com/Kevin-Robertson/Inveigh
+  - https://github.com/lgandx/Responder
+  - https://github.com/fortra/impacket
+author: Bence Marton
+date: 2026-09-08
+modified: 2026-09-10
+version: "1.1"
+tags:
+  - attack.credential_access
+  - attack.collection      # T1557.001's second tactic in this repo's own ATT&CK cache
+  - attack.t1557.001
+
+logsource:
+  product_category: os
+  product: windows
+  service: sysmon
+  event_type: process_creation
+
+detection:
+  # Every selection below names a purpose-built LLMNR/NBT-NS/mDNS poisoning or
+  # SMB-relay tool. None of these tool names has a legitimate administrative use,
+  # so no filter_ block is included: an authorized red-team or penetration-test
+  # run of these exact tools produces byte-identical process-creation telemetry
+  # and cannot be separated from an adversary at detection time. That false
+  # positive is handled out of band -- the alert is deconflicted against the
+  # engagement calendar / test-schedule when a run is expected (see
+  # falsepositives) -- not with a selection here.
+
+  selection_inveigh:
+    # PowerShell Inveigh, and renamed copies of the compiled build that still
+    # carry the PE OriginalFileName.
+    - CommandLine|contains:
+        - "Invoke-Inveigh"
+        - "Invoke-InveighRelay"
+    - OriginalFileName:
+        - "Inveigh.exe"
+        - "Inveigh.dll"
+
+  selection_inveigh_compiled_img:
+    Image|endswith: '\Inveigh.exe'
+  selection_inveigh_compiled_cli:
+    CommandLine|contains: "Inveigh"
+
+  selection_responder:
+    # Responder ships as a Python script (no PE metadata to match on
+    # OriginalFileName), so match the script name on the command line.
+    CommandLine|contains:
+      - "Responder.py"
+      - "responder.py"
+
+  selection_ntlmrelayx:
+    # Impacket's PyInstaller-built Windows binaries carry no reliable
+    # OriginalFileName (the bootloader's PE version info is generic), so the
+    # compiled variant is matched on Image / CommandLine, not OriginalFileName.
+    - CommandLine|contains: "ntlmrelayx"
+    - Image|endswith: '\ntlmrelayx.exe'
+
+  condition: selection_inveigh or (selection_inveigh_compiled_img and selection_inveigh_compiled_cli) or selection_responder or selection_ntlmrelayx
+
+fields:
+  - _time
+  - ComputerName
+  - User
+  - Image
+  - OriginalFileName
+  - CommandLine
+  - ParentImage
+  - ParentCommandLine
+  - ProcessId
+
+falsepositives:
+  - >-
+    Authorized internal penetration testing or red-team exercises deliberately
+    running Inveigh, Responder, or ntlmrelayx. This is the only realistic
+    false-positive source, because these tool names have essentially no
+    legitimate administrative use -- a hit that does not line up with a
+    scheduled engagement should be treated as a real intrusion. Cross-check the
+    alert against the pentest / red-team calendar rather than filtering it out
+    in the rule.
+
+level: critical
+
+custom:
+  splunk:
+    index: sysmon
+    mode: alert
+    cron: "*/5 * * * *"
+    earliest: "-5m"
+    latest: "now"
+    severity: critical
+
+  testing:
+    enabled: false
+    runner: windows-victim
+    type: emulation
+    # T1557.001 has exactly one published Atomic Red Team test -- test 1, "LLMNR
+    # Poisoning with Inveigh (PowerShell)" -- and running it stands up a LIVE
+    # poisoner: Invoke-Inveigh with -NBNS/-MDNS/-HTTPS/-PROXY answers every
+    # name-resolution broadcast on the lab segment for as long as it runs. That
+    # is unsafe to run unattended, so it is NOT wired into custom.testing.atomics
+    # here (and CI only ever runs one rule's test on one runner anyway).
+    #
+    # Supervised-manual verification of the Inveigh path: on the windows-victim
+    # runner, with an operator watching, execute Atomic Red Team T1557.001 test 1,
+    # confirm selection_inveigh fires on the Invoke-Inveigh process-creation
+    # event, then stop the poisoner immediately (Stop-Inveigh, or kill the
+    # PowerShell process) -- it must not be left answering broadcasts on the
+    # segment. selection_responder and selection_ntlmrelayx have no Atomic Red
+    # Team coverage at all; that test is Inveigh-only.
+    #
+    # What CI actually runs is the emulation stub below: it places the Responder
+    # and ntlmrelayx tool names on a benign command line (the same approach as
+    # DETECT-2026-0018's emulation test) so selection_responder and
+    # selection_ntlmrelayx are exercised without any live man-in-the-middle.
+    custom:
+      - name: "AiTM tool names explicit in CommandLine (Responder / ntlmrelayx)"
+        description: >
+          Spawns a child powershell.exe whose CommandLine carries "responder.py"
+          and "ntlmrelayx" as literal string arguments to a harmless stub that
+          only opens calc.exe. The detection triggers on the tool name in the
+          CommandLine, not on any poisoning or relay behaviour -- nothing binds a
+          socket or touches the network.
+        executor: powershell
+        command: >-
+          & powershell.exe -NonInteractive -Command 'function Invoke-AitmStub { Start-Process calc.exe }; Invoke-AitmStub "responder.py -I eth0 -wrf"; Invoke-AitmStub "ntlmrelayx.py -tf targets.txt -smb2support"'
+        cleanup: >-
+          Stop-Process -Name calculator -Force -ErrorAction SilentlyContinue
+        prerequisites:
+          - powershell.exe must be available (present by default on Windows)

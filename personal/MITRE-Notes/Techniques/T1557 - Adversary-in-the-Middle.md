@@ -85,7 +85,7 @@ A .002 és .003 detekciója **nem SIEM-probléma**: az ARP-mérgezés a helyi sz
 
 | detect_id | Szabály | Altechnika | Telemetria | Szint |
 | --------- | ------- | ---------- | ---------- | ----- |
-| [DETECT-2026-0034](https://github.com/martonbence/Detection-Engineering/blob/main/rules/sigma/DETECT-2026-0034_Network-Sniffing-and-AiTM-Tooling-Execution.yml) | Network Sniffing and AiTM Tooling Execution | .001 | Sysmon EID 1 (folyamatindítás; T1040-nel közös szabály) | high |
+| [DETECT-2026-0034](https://github.com/martonbence/Detection-Engineering/blob/main/rules/sigma/DETECT-2026-0034_LLMNR-NBT-NS-Poisoning-and-SMB-Relay-Tooling-Execution.yml) | LLMNR/NBT-NS Poisoning and SMB Relay Tooling Execution | .001 | Sysmon EID 1 (folyamatindítás; T1557.001-only 2026-09-10 óta) | critical |
 
 *A .002 és .003 továbbra is fedetlen — mindkettőnek gyakorlatilag nincs végponti telemetriája (lásd az Összehasonlítás táblát), a védelmük hálózati eszköz (switch, DHCP szerver) oldali, nem SIEM-szabály kérdése.*
 

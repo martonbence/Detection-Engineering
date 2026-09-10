@@ -38,9 +38,9 @@ Ezért ez a taktika a támadási lánc fordulópontja: innentől a támadó nem 
 | [[T1552 - Unsecured Credentials]]                          | közepes      | nincs       | Fájlban/registryben hagyott jelszó; egy szabályba összevonható                 |
 | [[T1555 - Credentials from Password Stores]]               | közepes      | részleges   | Böngésző, Credential Manager, jelszókezelők                                    |
 | [[T1556 - Modify Authentication Process]]                  | magas        | részleges   | Átfed a Persistence taktikával                                                 |
-| [[T1557 - Adversary-in-the-Middle]]                        | magas        | részleges   | .001 megvan (DNS-hiba → SMB korreláció); .002/.003 hálózati eszköz oldali, nem SIEM-kérdés |
+| [[T1557 - Adversary-in-the-Middle]]                        | magas        | részleges   | .001 megvan (DETECT-2026-0034, AiTM tool-futás, `critical`); .002/.003 hálózati eszköz oldali, nem SIEM-kérdés |
 | [[T1187 - Forced Authentication]]                          | közepes      | nincs       | Kifelé irányuló SMB/WebDAV kényszerített hitelesítés                           |
-| [[T1040 - Network Sniffing]]                               | közepes      | nincs       | `netsh trace`, `pktmon`, `dumpcap`                                             |
+| [[T1040 - Network Sniffing]]                               | közepes      | részleges   | DETECT-2026-0035 (`experimental`): `netsh trace`, `pktmon`, `dumpcap`/`tshark`, NetEventPacketCapture |
 | [[T1539 - Steal Web Session Cookie]]                       | közepes      | nincs       | Böngésző cookie-adatbázis olvasása                                             |
 | [[T1056 - Input Capture]]                                  | alacsony     | nincs       | Keylogging — gyenge detekciós esély bármelyik forrásból                        |
 | [[T1212 - Exploitation for Credential Access]]             | alacsony     | nincs       | Nincs megbízható szignatúra                                                    |
@@ -63,7 +63,7 @@ Amit ezen a szinten **nem** lehet látni: az offline jelszótörés (T1110.002) 
 
 ## Lefedettség ebben a repóban
 
-Jelenleg **14 szabály**: 13 (DETECT-2026-0019 … 0031) [[T1003 - OS Credential Dumping]] alatt, plusz **DETECT-2026-0034**, az első szabály [[T1557 - Adversary-in-the-Middle]] alatt (`experimental`, folyamatindítás-alapú, T1040-nel közös — a támadó eszközét fogja meg, ha az monitorozott gépen fut). A korábbi DETECT-2026-0033 (DNS-hiba → SMB korreláció) 2026-09-10-én törölve, nem igazolt előfeltevés miatt. Ez azt jelenti, hogy a Sysmon-alapú végponti oldal két technikán már megkezdett, a natív DC-log oldal ([[T1558 - Steal or Forge Kerberos Tickets]], DCSync, spraying) viszont teljesen üres.
+Jelenleg **15 szabály**: 13 (DETECT-2026-0019 … 0031) [[T1003 - OS Credential Dumping]] alatt, plusz **DETECT-2026-0034** ([[T1557 - Adversary-in-the-Middle]] .001 — AiTM tool-futás, `critical`) és **DETECT-2026-0035** ([[T1040 - Network Sniffing]] — Windows packet-capture tool-futás, `experimental`). A 0034 eredetileg a kettőt egy szabályban fedte; 2026-09-10-én T1557.001-only szabállyá szűkült, és a T1040 packet-capture ág belőle vált ki a 0035-be. Mindkettő folyamatindítás-alapú, a támadó eszközét fogja meg, ha az monitorozott gépen fut. A korábbi DETECT-2026-0033 (DNS-hiba → SMB korreláció) 2026-09-10-én törölve, nem igazolt előfeltevés miatt. Ez azt jelenti, hogy a Sysmon-alapú végponti oldal három technikán már megkezdett, a natív DC-log oldal ([[T1558 - Steal or Forge Kerberos Tickets]], DCSync, spraying) viszont teljesen üres.
 
 A legnagyobb egyedi hiány a **DCSync natív detekciója** (4662 + replikációs GUID-ok): a meglévő 0029-es szabály csak egy eszköz nevét (`Get-ADReplAccount`) fogja meg, tehát bármelyik másik DCSync-implementáció kicsúszik alóla. Utána sorrendben a **Kerberoasting** (4769, RC4) és az **AS-REP roasting** (4768, pre-auth 0) jön — mindkettő natív log, tehát pipeline-oldali előfeltétele van (`service: security` ág).
 
