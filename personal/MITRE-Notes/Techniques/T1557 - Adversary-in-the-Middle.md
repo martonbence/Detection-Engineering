@@ -47,7 +47,7 @@ A megszerzett NTLM hash-t vagy — sikeres relay esetén — a már hitelesítet
 | **Mit szerez meg** | NTLMv2 hash, vagy — relay esetén — egy élő, már hitelesített SMB session | lehallgatott forgalom, ebből esetlegesen hitelesítő adat          | az elfogadó kliensek teljes forgalmának átirányítását |
 | **Réteg**          | alkalmazás / névfeloldás                                       | hálózati (L2)                                                    | hálózati (DHCP)                                       |
 | **Eszközök**       | Responder, Inveigh, Impacket `ntlmrelayx`                     | Ettercap, Bettercap, `arpspoof`                                  | saját rogue DHCP szerver, Yersinia                     |
-| **Telemetria**     | Sysmon EID 1 (eszköz indítása), EID 3 (szokatlan UDP 5355/137 forgalom); natívan Security 4624 Type 3 a célgépen | gyakorlatilag nincs végponti jel — switch/IDS ARP inspection log | DHCP szerver saját logja (lease-konfliktus, ismeretlen szerver) |
+| **Telemetria**     | Sysmon EID 1 (eszköz indítása); hálózati szenzor az UDP 5355/137 válaszokra (nincs ebben a pipeline-ban); natívan Security 4624 Type 3 a célgépen | gyakorlatilag nincs végponti jel — switch/IDS ARP inspection log | DHCP szerver saját logja (lease-konfliktus, ismeretlen szerver) |
 | **Detekció helye** | végpont (ha a támadó gépe is monitorozott) + a relay célgépe   | hálózati eszköz (switch, IDS)                                    | DHCP szerver                                          |
 | **DE prioritás**   | magas                                                          | alacsony                                                          | alacsony                                              |
 
@@ -68,7 +68,7 @@ A táblázat legfontosabb sora ugyanaz, mint [[T1003 - OS Credential Dumping]]-n
 | Adatforrás                        | Típus    | Megjegyzés                                                                 | Érintett altechnika |
 | ---------------------------------- | -------- | --------------------------------------------------------------------------- | -------------------- |
 | Sysmon EID 1 (ProcessCreate)       | Process  | Responder / Inveigh / `ntlmrelayx` elindulása — csak ha a támadó gépe is monitorozott | .001                 |
-| Sysmon EID 3 (NetworkConnect)      | Network  | szokatlan UDP 5355 (LLMNR) / 137 (NBT-NS) forgalom                          | .001                 |
+| Hálózati szenzor (Zeek/Suricata)   | Network  | LLMNR/NBT-NS kérés (UDP 5355/137), amire nem-autoritatív host válaszol — a mérgezés egyetlen közvetlen jele; nincs ebben a pipeline-ban | .001                 |
 | Windows Security 4624 (Type 3)     | Logon    | NTLM hitelesítés anomális forrásból vagy nem egyező workstation névvel      | .001                 |
 | Switch / IDS ARP inspection log   | Network  | duplikált vagy inkonzisztens MAC–IP párosítás                              | .002                 |
 | DHCP szerver log                   | Network  | ismeretlen szervertől érkező lease-ajánlat, lease-konfliktus                | .003                 |
