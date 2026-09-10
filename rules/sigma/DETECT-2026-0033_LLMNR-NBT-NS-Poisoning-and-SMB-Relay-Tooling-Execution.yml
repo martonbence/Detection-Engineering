@@ -23,7 +23,7 @@ modified: 2026-09-10
 version: "1.2"
 tags:
   - attack.credential_access
-  - attack.collection      # T1557.001's second tactic in this repo's own ATT&CK cache
+  - attack.collection
   - attack.t1557.001
 
 logsource:
@@ -33,18 +33,7 @@ logsource:
   event_type: process_creation
 
 detection:
-  # Every selection below names a purpose-built LLMNR/NBT-NS/mDNS poisoning or
-  # SMB-relay tool. None of these tool names has a legitimate administrative use,
-  # so no filter_ block is included: an authorized red-team or penetration-test
-  # run of these exact tools produces byte-identical process-creation telemetry
-  # and cannot be separated from an adversary at detection time. That false
-  # positive is handled out of band -- the alert is deconflicted against the
-  # engagement calendar / test-schedule when a run is expected (see
-  # falsepositives) -- not with a selection here.
-
   selection_inveigh:
-    # PowerShell Inveigh, and renamed copies of the compiled build that still
-    # carry the PE OriginalFileName.
     - CommandLine|contains:
         - "Invoke-Inveigh"
         - "Invoke-InveighRelay"
@@ -58,27 +47,11 @@ detection:
     CommandLine|contains: "Inveigh"
 
   selection_responder:
-    # Responder ships as a Python script (no PE metadata to match on
-    # OriginalFileName), so match the script name on the command line. Sigma's
-    # `contains` is case-insensitive, so a single "Responder.py" also covers
-    # "responder.py" -- no need for a separate lowercase entry. "Responder.py"
-    # alone is a generic Python filename any harmless script could share, so
-    # require it alongside "-I " (a space after the flag, not just the
-    # substring "-i"), Responder's one *required* argument per the upstream
-    # README's "Required Arguments" section (`-I eth0, --interface=eth0`) --
-    # every real invocation must specify an interface, and every documented
-    # usage example does so with the short form. Known gap: the long-form
-    # `--interface=` invocation is not matched by this pattern; accepted as a
-    # deliberate tradeoff to cut the generic-filename false-positive rate,
-    # not an oversight.
     CommandLine|contains|all:
       - "Responder.py"
       - "-I "
 
   selection_ntlmrelayx:
-    # Impacket's PyInstaller-built Windows binaries carry no reliable
-    # OriginalFileName (the bootloader's PE version info is generic), so the
-    # compiled variant is matched on Image / CommandLine, not OriginalFileName.
     - CommandLine|contains: "ntlmrelayx"
     - Image|endswith: '\ntlmrelayx.exe'
 
@@ -120,30 +93,6 @@ custom:
     enabled: false
     runner: windows-victim
     type: emulation
-    # T1557.001 has exactly one published Atomic Red Team test -- test 1, "LLMNR
-    # Poisoning with Inveigh (PowerShell)" -- and running it stands up a LIVE
-    # poisoner: Invoke-Inveigh with -NBNS/-MDNS/-HTTPS/-PROXY answers every
-    # name-resolution broadcast on the lab segment for as long as it runs. That
-    # is unsafe to run unattended, so it is NOT wired into custom.testing.atomics
-    # here (and CI only ever runs one rule's test on one runner anyway).
-    #
-    # Supervised-manual verification of the Inveigh path: on the windows-victim
-    # runner, with an operator watching, execute Atomic Red Team T1557.001 test 1,
-    # confirm selection_inveigh fires on the Invoke-Inveigh process-creation
-    # event, then stop the poisoner immediately (Stop-Inveigh, or kill the
-    # PowerShell process) -- it must not be left answering broadcasts on the
-    # segment. That live run stays supervised-manual only, per the procedure
-    # above; it is deliberately not wired into custom.testing.atomics because it
-    # would stand up a live poisoner on a CI runner.
-    #
-    # What CI actually runs is the four emulation stubs below: each spawns a
-    # benign powershell.exe whose CommandLine carries one tool's keyword text
-    # (as a trailing comment after `exit 0`, or -- for the compiled-Inveigh AND
-    # pair -- a renamed copy of powershell.exe itself standing in for the
-    # binary) so all four selections -- selection_inveigh, the
-    # selection_inveigh_compiled_img + selection_inveigh_compiled_cli pair,
-    # selection_responder, and selection_ntlmrelayx -- are exercised
-    # individually, without any live poisoning or relay traffic.
     custom:
       - name: "Inveigh PowerShell Function Keyword"
         description: >
