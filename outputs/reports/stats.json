@@ -1,17 +1,17 @@
 {
-  "generated_at": "2026-09-10T14:49:09.837076+00:00",
-  "total_rules": 31,
-  "total_sigma_rules": 31,
-  "total_compiled_sigma_rules": 30,
-  "total_splunk_rules": 31,
+  "generated_at": "2026-09-10T15:46:55.459830+00:00",
+  "total_rules": 30,
+  "total_sigma_rules": 30,
+  "total_compiled_sigma_rules": 29,
+  "total_splunk_rules": 30,
   "total_native_spl_rules": 1,
   "verified_pass": 7,
   "verified_fail": 0,
   "verified_not_verified": 22,
   "verified_testing_disabled": 22,
   "verified_testing_disabled_current": 21,
-  "never_tested": 2,
-  "not_verified": 24,
+  "never_tested": 1,
+  "not_verified": 23,
   "verified_stale": 1,
   "verified_superseded": 1,
   "verified_expired": 0,
@@ -25,30 +25,30 @@
   "confirmed_working_pct": 23,
   "last_live_verification_at": "2026-09-09T18:20:31.957225+00:00",
   "last_live_verification_count": 1,
-  "mitre_covered_techniques": 16,
+  "mitre_covered_techniques": 15,
   "mitre_total_techniques": 222,
   "mitre_total_fetched_at": "2026-09-07T15:04:55.548837+00:00",
-  "mitre_coverage_pct": 7.2,
+  "mitre_coverage_pct": 6.8,
   "by_level": {
     "critical": 15,
     "high": 10,
     "low": 2,
-    "medium": 4
+    "medium": 3
   },
   "by_status": {
-    "experimental": 3,
+    "experimental": 2,
     "stable": 26,
     "test": 2
   },
   "by_tactic": {
     "Execution": 15,
-    "Credential Access": 15,
+    "Credential Access": 14,
     "Stealth": 8,
     "Command & Control": 2,
     "Persistence": 2,
     "Defense Impairment": 2,
-    "Discovery": 2,
     "Initial Access": 1,
+    "Discovery": 1,
     "Collection": 1
   },
   "rules": [
@@ -1653,7 +1653,7 @@
       "rule_version": "1.2"
     },
     {
-      "detect_id": "DETECT-2026-0034",
+      "detect_id": "DETECT-2026-0033",
       "title": "LLMNR/NBT-NS Poisoning and SMB Relay Tooling Execution",
       "description": "Detects execution of LLMNR / NBT-NS / mDNS name-resolution poisoning and SMB relay tooling on a monitored host: Inveigh (the PowerShell Invoke-Inveigh / Invoke-InveighRelay functions and the compiled Inveigh.exe), Responder, and Impacket's ntlmrelayx. It detects the attacker's tooling directly, so it only fires when the tool runs on a host this pipeline actually watches -- in practice an insider or an already-compromised internal host, since an external attacker's own infrastructure is not instrumented. The poisoning itself is a network-layer event Sysmon cannot see, so this process-execution signal is the endpoint's only view of the poisoning half of the technique; the authoritative detection for the on-wire spoofing and relay belongs on a network sensor.\n",
       "level": "critical",
@@ -1671,7 +1671,7 @@
       "techniques": [
         "T1557.001"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0034_LLMNR-NBT-NS-Poisoning-and-SMB-Relay-Tooling-Execution.yml",
+      "file_path": "rules/sigma/DETECT-2026-0033_LLMNR-NBT-NS-Poisoning-and-SMB-Relay-Tooling-Execution.yml",
       "logsource": {
         "product_category": "os",
         "product": "windows",
@@ -1699,64 +1699,6 @@
       "rule_body": "detection:\n  selection_inveigh:\n  - CommandLine|contains:\n    - Invoke-Inveigh\n    - Invoke-InveighRelay\n  - OriginalFileName:\n    - Inveigh.exe\n    - Inveigh.dll\n  selection_inveigh_compiled_img:\n    Image|endswith: \\Inveigh.exe\n  selection_inveigh_compiled_cli:\n    CommandLine|contains: Inveigh\n  selection_responder:\n    CommandLine|contains:\n    - Responder.py\n    - responder.py\n  selection_ntlmrelayx:\n  - CommandLine|contains: ntlmrelayx\n  - Image|endswith: \\ntlmrelayx.exe\n  condition: selection_inveigh or (selection_inveigh_compiled_img and selection_inveigh_compiled_cli)\n    or selection_responder or selection_ntlmrelayx",
       "rule_body_lang": "yaml",
       "rule_version": "1.1"
-    },
-    {
-      "detect_id": "DETECT-2026-0035",
-      "title": "Windows Host Packet Capture Tooling Execution",
-      "description": "Detects execution of packet-capture tooling on a monitored Windows host: the Windows-native capture paths (netsh trace, pktmon, and the PowerShell NetEventPacketCapture cmdlets) plus Wireshark's capture engine (dumpcap/tshark). Capturing traffic on a host the attacker already controls is a sniffing primitive (T1040) used both to harvest credentials in transit and to map the network. It is a noisy signal on its own -- IT and support staff run these same tools for legitimate troubleshooting -- so this rule is experimental and intended to be tuned with a parent-process / user-group allowlist before it is promoted. Split out of DETECT-2026-0034, which now covers only the T1557.001 poisoning / SMB-relay tooling.\n",
-      "level": "medium",
-      "status": "experimental",
-      "source": "sigma",
-      "verdict": "N/A",
-      "run_id": "",
-      "verdict_at": "",
-      "verdict_rule_version": "",
-      "verdict_testing_disabled": false,
-      "tactics": [
-        "Credential Access",
-        "Discovery"
-      ],
-      "techniques": [
-        "T1040"
-      ],
-      "file_path": "rules/sigma/DETECT-2026-0035_Windows-Host-Packet-Capture-Tooling-Execution.yml",
-      "logsource": {
-        "product_category": "os",
-        "product": "windows",
-        "service": "sysmon",
-        "event_type": "process_creation"
-      },
-      "author": "Bence Marton",
-      "date": "2026-09-10",
-      "modified": "2026-09-10",
-      "references": [
-        "https://attack.mitre.org/techniques/T1040/",
-        "https://learn.microsoft.com/en-us/windows-server/networking/technologies/pktmon/pktmon"
-      ],
-      "falsepositives": [
-        "Legitimate network troubleshooting by IT/support staff using netsh trace, pktmon, or Wireshark -- the dominant false-positive source. Microsoft support engineers routinely instruct \"netsh trace start\" during case work. A ParentImage / user-group allowlist is expected before this rule leaves experimental status.",
-        "Security tooling that legitimately captures traffic for its own detection purposes -- some NDR/EDR agents use pktmon or ETW packet capture internally. Allowlist the vendor's process path if observed.",
-        "Automated network diagnostics baked into some laptop-vendor support suites (Dell SupportAssist, Lenovo Vantage) that trigger netsh trace on connectivity faults."
-      ],
-      "testing": {
-        "enabled": false,
-        "runner": "windows-victim",
-        "type": "atomic",
-        "atomics": [
-          {
-            "technique": "T1040",
-            "test_numbers": [
-              5,
-              6,
-              7,
-              16
-            ]
-          }
-        ]
-      },
-      "rule_body": "detection:\n  selection_netsh_trace:\n    Image|endswith: \\netsh.exe\n    CommandLine|contains|all:\n    - trace\n    - start\n  selection_pktmon:\n    Image|endswith: \\pktmon.exe\n    CommandLine|contains:\n    - start\n    - filter\n  selection_wireshark_capture:\n    Image|endswith:\n    - \\dumpcap.exe\n    - \\tshark.exe\n  selection_powershell_capture:\n    CommandLine|contains|all:\n    - NetEventSession\n    - NetEventPacketCaptureProvider\n  condition: 1 of selection_*",
-      "rule_body_lang": "yaml",
-      "rule_version": "1.0"
     }
   ]
 }

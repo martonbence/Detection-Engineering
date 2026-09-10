@@ -1,5 +1,5 @@
 title: LLMNR/NBT-NS Poisoning and SMB Relay Tooling Execution
-detect_id: DETECT-2026-0034
+detect_id: DETECT-2026-0033
 status: experimental
 description: >
   Detects execution of LLMNR / NBT-NS / mDNS name-resolution poisoning and SMB

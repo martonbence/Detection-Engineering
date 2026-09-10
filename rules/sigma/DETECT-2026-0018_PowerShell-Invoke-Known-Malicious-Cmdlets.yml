@@ -80,7 +80,7 @@ detection:
       - "Invoke-PowerShellUdp"
       # "Invoke-Inveigh" / "Invoke-InveighRelay" intentionally NOT listed here:
       # they are LLMNR/NBT-NS poisoning + SMB relay (T1557.001), not generic
-      # PowerShell execution, and are owned by DETECT-2026-0034 which is the
+      # PowerShell execution, and are owned by DETECT-2026-0033 which is the
       # technique-correct rule for them. Removed 2026-09-10 to end the overlap.
       - "Invoke-EventViewer"
       - "Invoke-SilentCleanup"
