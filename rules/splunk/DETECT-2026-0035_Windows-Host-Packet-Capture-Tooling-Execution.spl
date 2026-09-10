@@ -1,0 +1,1 @@
+index=sysmon (Image="*\\netsh.exe" CommandLine="*trace*" CommandLine="*start*") OR (Image="*\\pktmon.exe" CommandLine IN ("*start*", "*filter*")) OR Image IN ("*\\dumpcap.exe", "*\\tshark.exe") OR (CommandLine="*NetEventSession*" CommandLine="*NetEventPacketCaptureProvider*") | table _time,ComputerName,User,Image,CommandLine,ParentImage,ParentCommandLine,ProcessId
