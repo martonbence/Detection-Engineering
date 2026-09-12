@@ -1,54 +1,52 @@
 {
-  "generated_at": "2026-09-12T11:40:19.474602+00:00",
-  "total_rules": 31,
-  "total_sigma_rules": 31,
-  "total_compiled_sigma_rules": 29,
-  "total_splunk_rules": 31,
-  "total_native_spl_rules": 2,
-  "verified_pass": 8,
-  "verified_fail": 0,
+  "generated_at": "2026-09-12T12:24:57.891887+00:00",
+  "total_rules": 29,
+  "total_sigma_rules": 29,
+  "total_compiled_sigma_rules": 28,
+  "total_splunk_rules": 29,
+  "total_native_spl_rules": 1,
+  "verified_pass": 6,
+  "verified_fail": 1,
   "verified_not_verified": 22,
   "verified_testing_disabled": 22,
-  "verified_testing_disabled_current": 21,
-  "never_tested": 1,
-  "not_verified": 23,
-  "verified_stale": 1,
-  "verified_superseded": 1,
+  "verified_testing_disabled_current": 22,
+  "never_tested": 0,
+  "not_verified": 22,
+  "verified_stale": 0,
+  "verified_superseded": 0,
   "verified_expired": 0,
-  "verified_pass_current": 8,
-  "verified_fail_current": 0,
-  "verified_current": 8,
-  "pass_rate_pct": 100,
+  "verified_pass_current": 6,
+  "verified_fail_current": 1,
+  "verified_current": 7,
+  "pass_rate_pct": 86,
   "pass_rate_color": "brightgreen",
-  "verification_current_pct": 26,
+  "verification_current_pct": 24,
   "verification_current_color": "red",
-  "confirmed_working_pct": 26,
-  "last_live_verification_at": "2026-09-12T11:18:19.454620+00:00",
-  "last_live_verification_count": 1,
-  "mitre_covered_techniques": 16,
+  "confirmed_working_pct": 21,
+  "last_live_verification_at": "2026-09-12T12:24:29.702231+00:00",
+  "last_live_verification_count": 2,
+  "mitre_covered_techniques": 15,
   "mitre_total_techniques": 222,
   "mitre_total_fetched_at": "2026-09-07T15:04:55.548837+00:00",
-  "mitre_coverage_pct": 7.2,
+  "mitre_coverage_pct": 6.8,
   "by_level": {
-    "critical": 15,
+    "critical": 14,
     "high": 10,
-    "low": 2,
+    "low": 1,
     "medium": 4
   },
   "by_status": {
     "experimental": 2,
-    "stable": 27,
-    "test": 2
+    "stable": 27
   },
   "by_tactic": {
-    "Execution": 15,
     "Credential Access": 15,
+    "Execution": 14,
     "Stealth": 8,
     "Command & Control": 2,
     "Persistence": 2,
     "Defense Impairment": 2,
     "Initial Access": 1,
-    "Discovery": 1,
     "Collection": 1
   },
   "rules": [
@@ -60,8 +58,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "34388214023",
-      "verdict_at": "2026-09-09T18:20:31.957225+00:00",
+      "run_id": "34693500528",
+      "verdict_at": "2026-09-12T12:24:29.702231+00:00",
       "verdict_rule_version": "1.1",
       "verdict_testing_disabled": false,
       "tactics": [
@@ -115,9 +113,9 @@
       "level": "medium",
       "status": "stable",
       "source": "native_spl",
-      "verdict": "PASS",
-      "run_id": "34690498895",
-      "verdict_at": "2026-09-12T11:18:19.454620+00:00",
+      "verdict": "FAIL",
+      "run_id": "34693500528",
+      "verdict_at": "2026-09-12T12:24:29.702231+00:00",
       "verdict_rule_version": "1.2",
       "verdict_testing_disabled": false,
       "tactics": [
@@ -164,57 +162,6 @@
       "rule_body": "index=wineventlog source=\"wineventlog:security\" (EventCode=4625 Sub_Status=\"0xC000006A\") OR (EventCode=4771 Failure_Code=\"0x18\") OR (EventCode=4776 Error_Code=\"0xC000006A\") | eval target_account=case(EventCode=4625, mvindex(Account_Name, -1), EventCode=4771, Account_Name, EventCode=4776, Logon_Account) | eval target_account=lower(replace(target_account, \"@.*$\", \"\")) | where NOT match(target_account, \"\\$$\") | eval src_identifier=coalesce(if(Source_Network_Address!=\"127.0.0.1\" AND Source_Network_Address!=\"::1\" AND Source_Network_Address!=\"-\", Source_Network_Address, null()), if(Client_Address!=\"::1\" AND Client_Address!=\"127.0.0.1\" AND Client_Address!=\"-\", Client_Address, null()), Workstation_Name, Source_Workstation) | sort 0 _time | streamstats time_window=5m count as failure_count, dc(src_identifier) as distinct_sources, values(src_identifier) as sources, values(EventCode) as event_codes by target_account | where failure_count >= 10 | stats latest(_time) as _time, max(failure_count) as failure_count, max(distinct_sources) as distinct_sources, values(sources) as sources, values(event_codes) as event_codes by target_account | sort - failure_count | table _time, target_account, failure_count, distinct_sources, sources, event_codes",
       "rule_body_lang": "spl",
       "rule_version": "1.2"
-    },
-    {
-      "detect_id": "DETECT-2026-0003",
-      "title": "Test3",
-      "description": "Test Sigma rule for demonstration purposes.",
-      "level": "critical",
-      "status": "test",
-      "source": "native_spl",
-      "verdict": "NOT_VERIFIED",
-      "run_id": "33251116121",
-      "verdict_at": "2026-08-29T11:54:09.559750+00:00",
-      "verdict_rule_version": "1.0",
-      "verdict_testing_disabled": true,
-      "tactics": [
-        "Execution"
-      ],
-      "techniques": [
-        "T1059.001"
-      ],
-      "file_path": "rules/sigma/DETECT-2026-0003_Test3.yml",
-      "logsource": {
-        "product_category": "os",
-        "product": "windows",
-        "service": "security",
-        "event_type": "process_creation"
-      },
-      "author": "Bence Marton",
-      "date": "2026-04-17",
-      "modified": "2026-07-25",
-      "references": [
-        "https://example.com"
-      ],
-      "falsepositives": [
-        "Legitimate administrative scripts using EncodedCommand"
-      ],
-      "testing": {
-        "enabled": false,
-        "runner": "windows-victim",
-        "type": "atomic",
-        "atomics": [
-          {
-            "technique": "T1059.001",
-            "test_numbers": [
-              17
-            ]
-          }
-        ]
-      },
-      "rule_body": "index=sysmon Image=\"*\\\\powershell.exe\" CommandLine IN (\"* -e *\", \"* -enc *\", \"* -encodedcommand *\") | table _time,CommandLine,ParentImage,Image,User,ProcessId",
-      "rule_body_lang": "spl",
-      "rule_version": "1.0"
     },
     {
       "detect_id": "DETECT-2026-0005",
@@ -877,9 +824,9 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "NOT_VERIFIED",
-      "run_id": "33251116121",
-      "verdict_at": "2026-08-29T11:54:09.559750+00:00",
-      "verdict_rule_version": "1.0",
+      "run_id": "34693500528",
+      "verdict_at": "2026-09-12T12:24:29.702231+00:00",
+      "verdict_rule_version": "1.1",
       "verdict_testing_disabled": true,
       "tactics": [
         "Execution"
@@ -1657,70 +1604,17 @@
       "rule_version": "1.0"
     },
     {
-      "detect_id": "DETECT-2026-0032",
-      "title": "Pipeline Test Rule - Tasklist Process Discovery",
-      "description": "Disposable pipeline test rule -- validates the dev workflow's non-lab path (schema validation, MITRE tag checking, Sigma-to-SPL conversion, and committing the converted .spl output) while LAB_ONLINE=false skips the Splunk deploy, atomic execution, and verification jobs. Detection logic deliberately targets a simple, well-understood technique (tasklist.exe process enumeration) purely to exercise the conversion path end to end. Not intended as production detection coverage -- do not tune or promote without re-evaluating it as a real rule first.\n",
-      "level": "low",
-      "status": "test",
-      "source": "sigma",
-      "verdict": "PASS",
-      "run_id": "33253039788",
-      "verdict_at": "2026-08-29T12:40:39.354758+00:00",
-      "verdict_rule_version": "1.2",
-      "verdict_testing_disabled": false,
-      "tactics": [
-        "Discovery"
-      ],
-      "techniques": [
-        "T1057"
-      ],
-      "file_path": "rules/sigma/DETECT-2026-0032_Pipeline-Test-Rule-Tasklist-Process-Discovery.yml",
-      "logsource": {
-        "product_category": "os",
-        "product": "windows",
-        "service": "sysmon",
-        "event_type": "process_creation"
-      },
-      "author": "Bence Marton",
-      "date": "2026-08-15",
-      "modified": "2026-08-21",
-      "references": [
-        "https://attack.mitre.org/techniques/T1057/"
-      ],
-      "falsepositives": [
-        "Routine administrative and monitoring scripts that enumerate running processes (health checks, software inventory agents, help-desk troubleshooting)",
-        "This is a disposable pipeline-test rule and is not intended to be tuned for production FP suppression"
-      ],
-      "testing": {
-        "enabled": true,
-        "runner": "windows-victim",
-        "type": "atomic",
-        "atomics": [
-          {
-            "technique": "T1057",
-            "test_numbers": [
-              2,
-              6
-            ]
-          }
-        ]
-      },
-      "rule_body": "detection:\n  selection:\n    Image|endswith:\n    - \\tasklist.exe\n    - \\qwinsta.exe\n    - \\pslist.exe\n  condition: selection",
-      "rule_body_lang": "yaml",
-      "rule_version": "1.2"
-    },
-    {
       "detect_id": "DETECT-2026-0033",
       "title": "LLMNR/NBT-NS Poisoning and SMB Relay Tooling Execution",
       "description": "Detects execution of LLMNR / NBT-NS / mDNS name-resolution poisoning and SMB relay tooling on a monitored host: Inveigh (the PowerShell Invoke-Inveigh / Invoke-InveighRelay functions and the compiled Inveigh.exe), Responder, and Impacket's ntlmrelayx. It detects the attacker's tooling directly, so it only fires when the tool runs on a host this pipeline actually watches -- in practice an insider or an already-compromised internal host, since an external attacker's own infrastructure is not instrumented. The poisoning itself is a network-layer event Sysmon cannot see, so this process-execution signal is the endpoint's only view of the poisoning half of the technique; the authoritative detection for the on-wire spoofing and relay belongs on a network sensor.\n",
       "level": "critical",
       "status": "experimental",
       "source": "sigma",
-      "verdict": "N/A",
-      "run_id": "",
-      "verdict_at": "",
-      "verdict_rule_version": "",
-      "verdict_testing_disabled": false,
+      "verdict": "NOT_VERIFIED",
+      "run_id": "34693500528",
+      "verdict_at": "2026-09-12T12:24:29.702231+00:00",
+      "verdict_rule_version": "1.2",
+      "verdict_testing_disabled": true,
       "tactics": [
         "Credential Access",
         "Collection"

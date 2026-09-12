@@ -1,6 +1,6 @@
 {
-  "detect_id": "DETECT-2026-0018",
-  "title": "PowerShell Known Malicious Cmdlet Invocation",
+  "detect_id": "DETECT-2026-0033",
+  "title": "LLMNR/NBT-NS Poisoning and SMB Relay Tooling Execution",
   "verdict": "NOT_VERIFIED",
   "reason": "Testing is disabled for this rule (custom.testing.enabled: false)",
   "disabled": true,
@@ -10,7 +10,7 @@
   "earliest": "1789215745",
   "latest": "now",
   "run_timestamp": "2026-09-12T12:24:29.702231+00:00",
-  "rule_version": "1.1",
+  "rule_version": "1.2",
   "git_sha": "8867177c8802e195a3abf74fda4e2b05265e3707",
   "run_id": "34693500528"
 }

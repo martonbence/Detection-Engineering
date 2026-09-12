@@ -26,9 +26,11 @@
 # description of the field) has its real detection logic *there*, verbatim
 # SPL, with `detection:` reduced to a required-but-unused placeholder --
 # sigma_to_spl.py emits the raw text instead of converting anything. Watching
-# only detection:/logsource: would let the one rule that bypasses the
-# converter entirely (DETECT-2026-0003_Test3, as of this check's introduction)
-# rewrite its actual query and never trip the gate.
+# only detection:/logsource: would let a rule that bypasses the converter
+# entirely (DETECT-2026-0002, e.g. -- a raw_query rule, not a coincidence:
+# DETECT-2026-0003_Test3, this comment's example when this check was
+# introduced, was retired 2026-09-12) rewrite its actual query and never
+# trip the gate.
 #
 # Deliberately NOT logic for this check's purposes: description, references,
 # falsepositives, tags (MITRE classification -- check_mitre_tags.py's job,
