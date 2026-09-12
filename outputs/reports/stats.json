@@ -1,17 +1,17 @@
 {
-  "generated_at": "2026-09-10T19:00:41.630001+00:00",
-  "total_rules": 30,
-  "total_sigma_rules": 30,
+  "generated_at": "2026-09-12T11:09:34.668075+00:00",
+  "total_rules": 31,
+  "total_sigma_rules": 31,
   "total_compiled_sigma_rules": 29,
-  "total_splunk_rules": 30,
-  "total_native_spl_rules": 1,
+  "total_splunk_rules": 31,
+  "total_native_spl_rules": 2,
   "verified_pass": 7,
   "verified_fail": 0,
   "verified_not_verified": 22,
   "verified_testing_disabled": 22,
   "verified_testing_disabled_current": 21,
-  "never_tested": 1,
-  "not_verified": 23,
+  "never_tested": 2,
+  "not_verified": 24,
   "verified_stale": 1,
   "verified_superseded": 1,
   "verified_expired": 0,
@@ -25,24 +25,24 @@
   "confirmed_working_pct": 23,
   "last_live_verification_at": "2026-09-09T18:20:31.957225+00:00",
   "last_live_verification_count": 1,
-  "mitre_covered_techniques": 15,
+  "mitre_covered_techniques": 16,
   "mitre_total_techniques": 222,
   "mitre_total_fetched_at": "2026-09-07T15:04:55.548837+00:00",
-  "mitre_coverage_pct": 6.8,
+  "mitre_coverage_pct": 7.2,
   "by_level": {
     "critical": 15,
     "high": 10,
     "low": 2,
-    "medium": 3
+    "medium": 4
   },
   "by_status": {
     "experimental": 2,
-    "stable": 26,
+    "stable": 27,
     "test": 2
   },
   "by_tactic": {
     "Execution": 15,
-    "Credential Access": 14,
+    "Credential Access": 15,
     "Stealth": 8,
     "Command & Control": 2,
     "Persistence": 2,
@@ -106,6 +106,63 @@
       },
       "rule_body": "detection:\n  selection_img:\n  - OriginalFileName:\n    - PowerShell.EXE\n    - pwsh.dll\n  - Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_named_tool:\n    CommandLine|contains:\n    - New-Object Net.Sockets.TCPClient\n    - System.Net.Sockets.TCPClient\n    - System.Net.Sockets.NetworkStream\n    - Invoke-PowerShellTcp\n    - Invoke-PowerShellTcpOneLine\n    - Invoke-PowerShellTcpOneLineBind\n    - Invoke-PowerShellUdp\n    - Invoke-PowerShellUdpOneLine\n    - Invoke-PowerShellIcmp\n    - Invoke-ConPtyShell\n    - Invoke-PoshRatHttp\n    - Invoke-PowerShellWmi\n    - Invoke-JSRatRegsvr\n    - Invoke-JSRatRundll\n    - Out-RundllCommand\n    - powercat\n    - Start-PowerCat\n    - Connect-PowerCat\n  selection_raw_socket_idiom:\n    CommandLine|contains|all:\n    - ' Net.Sockets.TCPClient'\n    - .GetStream(\n    - .Write(\n  selection_netcat_img:\n    Image|endswith:\n    - \\nc.exe\n    - \\ncat.exe\n    - \\nc64.exe\n    - \\netcat.exe\n  selection_netcat_flag:\n    CommandLine|contains:\n    - ' -e '\n    - ' --exec '\n    - ' --lua-exec '\n    - ' --sh-exec '\n    - ' -lvp '\n    - ' -lvnp '\n    - ' -l -v -p '\n    - ' -lv -p '\n  selection_msfvenom_tool:\n    CommandLine|contains|all:\n    - msfvenom\n    - ' -p '\n  selection_msfvenom_intent:\n    CommandLine|contains:\n    - reverse_tcp\n    - reverse_http\n    - reverse_https\n    - reverse_powershell\n    - bind_tcp\n    - shell_reverse\n    - shell_bind\n  condition: (selection_img and (selection_named_tool or selection_raw_socket_idiom)) or (selection_netcat_img\n    and selection_netcat_flag) or (selection_msfvenom_tool and selection_msfvenom_intent)",
       "rule_body_lang": "yaml",
+      "rule_version": "1.1"
+    },
+    {
+      "detect_id": "DETECT-2026-0002",
+      "title": "Windows Password Guessing - Excessive Authentication Failures Against a Single Account",
+      "description": "Detects T1110.001 Password Guessing: one account targeted with many failed authentication attempts in a short window, the classic \"single account, many passwords\" brute-force pattern (e.g. Hydra against RDP/SMB with -l/-P, or CrackMapExec/NetExec spraying one known username across many hosts). Windows Security has no Sysmon equivalent for authentication -- this aggregates native logon-failure events (4625, 4771, 4776), filtered to the sub-status / failure codes that mean \"wrong password\" rather than \"unknown account\" (the latter is username enumeration, a different technique), and thresholds on failure count per TargetUserName in a short window. Domain accounts should be monitored on the DC's forwarded Security channel, not a member server's local log, which only sees attempts against local accounts.\n",
+      "level": "medium",
+      "status": "stable",
+      "source": "native_spl",
+      "verdict": "N/A",
+      "run_id": "",
+      "verdict_at": "",
+      "verdict_rule_version": "",
+      "verdict_testing_disabled": false,
+      "tactics": [
+        "Credential Access"
+      ],
+      "techniques": [
+        "T1110.001"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0002_Windows-Password-Guessing-Excessive-Authentication-Failures-Against-a-Single-Account.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "security",
+        "event_type": "authentication_failure"
+      },
+      "author": "Bence Marton",
+      "date": "2026-09-12",
+      "modified": "2026-09-12",
+      "references": [
+        "https://attack.mitre.org/techniques/T1110/001/",
+        "https://sigmahq.io/docs/meta/correlations.html",
+        "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4625",
+        "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4771",
+        "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4776"
+      ],
+      "falsepositives": [
+        "A user who forgot their password and retries manually -- typically a low attempt count (2-5), from a single source, often the user's own normal office/VPN IP. Below this rule's 10-in-5-minutes threshold in the common case, but a slow, deliberate retyper could still cross it.",
+        "A service or scheduled task running with a stale credential after a password change, retrying persistently against the same account from the same source at a constant cadence -- the most common long-lived FP source in practice. Distinguishable from a real attack by duration and rhythm (days of steady, evenly-spaced failures vs. an attack's faster, shorter burst) but will still cross the count threshold; investigate before excluding, since a compromised service account retrying a *guessed* password would look identical at the SPL level.",
+        "Vulnerability or compliance scanners testing default credentials against an account from a known scanner IP. Allowlistable by source once the scanner's IP range is confirmed."
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1110.001",
+            "test_numbers": [
+              1
+            ]
+          }
+        ]
+      },
+      "rule_body": "index=wineventlog source=\"wineventlog:security\" (EventCode=4625 Sub_Status=\"0xC000006A\") OR (EventCode=4771 Failure_Code=\"0x18\") OR (EventCode=4776 Error_Code=\"0xC000006A\") | eval target_account=case(EventCode=4625, mvindex(Account_Name, -1), EventCode=4771, Account_Name, EventCode=4776, Logon_Account) | eval target_account=lower(replace(target_account, \"@.*$\", \"\")) | where NOT match(target_account, \"\\$$\") | eval src_identifier=coalesce(if(Source_Network_Address!=\"127.0.0.1\" AND Source_Network_Address!=\"::1\" AND Source_Network_Address!=\"-\", Source_Network_Address, null()), if(Client_Address!=\"::1\" AND Client_Address!=\"127.0.0.1\" AND Client_Address!=\"-\", Client_Address, null()), Workstation_Name, Source_Workstation) | bin _time span=5m | stats count as failure_count, dc(src_identifier) as distinct_sources, values(src_identifier) as sources, values(EventCode) as event_codes by target_account, _time | where failure_count >= 10 | sort - failure_count | table _time, target_account, failure_count, distinct_sources, sources, event_codes",
+      "rule_body_lang": "spl",
       "rule_version": "1.1"
     },
     {
