@@ -45,3 +45,8 @@ personal/MITRE-Notes/.trash/
 # above, where app/appearance/core-plugins settings deliberately travel), so
 # ignore the whole directory rather than selectively.
 personal/.obsidian/
+
+# Playwright MCP's own scratch snapshots (accessibility-tree .yml dumps),
+# written to the repo root whenever a session drives it against a local
+# server -- tool-run artefacts, not something anyone authors or reviews.
+.playwright-mcp/
