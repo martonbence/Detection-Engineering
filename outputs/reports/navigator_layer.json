@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-09-12T11:15:47 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
+  "description": "Auto-generated detection coverage. 2026-09-12T11:18:46 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
   "filters": {
     "platforms": [
       "Windows",
@@ -60,17 +60,11 @@
     },
     {
       "techniqueID": "T1110.001",
-      "color": "#CF222E",
-      "comment": "⚠ 1 of 1 covering rule(s) FAILED verification\nDETECT-2026-0002: Windows Password Guessing - Repeated Auth Failures on One Account (FAIL)",
+      "color": "#2EA44F",
+      "comment": "DETECT-2026-0002: Windows Password Guessing - Repeated Auth Failures on One Account (PASS)",
       "enabled": true,
-      "score": 50,
-      "showSubtechniques": true,
-      "metadata": [
-        {
-          "name": "Failing rules",
-          "value": "DETECT-2026-0002"
-        }
-      ]
+      "score": 100,
+      "showSubtechniques": true
     },
     {
       "techniqueID": "T1197",
