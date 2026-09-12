@@ -21,6 +21,7 @@ from reconcile import (
     has_drift,
     load_desired,
     main,
+    print_report,
     reconcile,
     retire_saved_search,
 )
@@ -122,6 +123,8 @@ def test_rename_and_removal_are_distinguished_in_the_same_run():
         "orphan_removed": 1,
         "unmanaged": 1,
         "duplicate_names": 0,
+        "excluded": 0,
+        "excluded_objects": 0,
     }
 
 
@@ -134,13 +137,20 @@ def write_rule(directory, filename, detect_id, title):
     )
 
 
+def write_rule_with_status(directory, filename, detect_id, title, status):
+    (directory / filename).write_text(
+        f"title: {title}\ndetect_id: {detect_id}\nstatus: {status}\n", encoding="utf-8"
+    )
+
+
 def test_desired_state_reproduces_the_deploy_naming(tmp_path):
     write_rule(tmp_path, "r1.yml", "DETECT-2026-0001", "LSASS Dump via ProcDump")
 
-    desired = load_desired(tmp_path)
+    desired, excluded = load_desired(tmp_path)
 
     # Same shape the deploy produces: "<detect_id>_<slugified title>".
     assert "DETECT-2026-0001_LSASS-Dump-via-ProcDump" in desired
+    assert excluded == {}
 
 
 def test_deprecated_rule_is_not_wanted_in_splunk(tmp_path):
@@ -148,16 +158,18 @@ def test_deprecated_rule_is_not_wanted_in_splunk(tmp_path):
     The deploy skips deprecated rules, so keeping one in the desired state would
     report it as forever "missing" and ask for a deployment that never comes.
     Dropping it instead makes any object still live show up as a removal orphan,
-    which is what it is: running, and not supposed to be.
+    which is what it is: running, and not supposed to be. Deprecated is NOT the
+    same as status-excluded -- it does not land in `excluded`.
     """
     write_rule(tmp_path, "live.yml", "DETECT-2026-0001", "Alpha")
     (tmp_path / "parked.yml").write_text(
         "title: Beta\ndetect_id: DETECT-2026-0002\nstatus: deprecated\n", encoding="utf-8"
     )
 
-    desired = load_desired(tmp_path)
+    desired, excluded = load_desired(tmp_path)
 
     assert list(desired) == ["DETECT-2026-0001_Alpha"]
+    assert excluded == {}
 
     report = reconcile(desired, {
         "DETECT-2026-0001_Alpha": managed(),
@@ -167,12 +179,196 @@ def test_deprecated_rule_is_not_wanted_in_splunk(tmp_path):
     assert [i["detect_id"] for i in report["orphan_removed"]] == ["DETECT-2026-0002"]
 
 
+def test_experimental_rule_stays_in_desired_state_by_default(tmp_path):
+    """Dev's reconcile passes no --exclude-status, so experimental rules are
+    reconciled against the lab exactly like any other."""
+    write_rule_with_status(tmp_path, "exp.yml", "DETECT-2026-0001", "Exp", "experimental")
+
+    desired, excluded = load_desired(tmp_path)
+
+    assert "DETECT-2026-0001_Exp" in desired
+    assert excluded == {}
+
+
+def test_exclude_status_moves_experimental_into_the_excluded_view(tmp_path):
+    write_rule_with_status(tmp_path, "live.yml", "DETECT-2026-0001", "Alpha", "stable")
+    write_rule_with_status(tmp_path, "wip.yml", "DETECT-2026-0002", "Beta", "experimental")
+
+    desired, excluded = load_desired(tmp_path, exclude_status=["experimental"])
+
+    assert list(desired) == ["DETECT-2026-0001_Alpha"]
+    assert list(excluded) == ["DETECT-2026-0002_Beta"]
+    assert excluded["DETECT-2026-0002_Beta"]["status"] == "experimental"
+
+
+def test_excluded_rule_with_a_live_object_is_held_not_a_removal_and_not_drift(tmp_path):
+    """Finding 1: DETECT-2026-0012 is experimental AND live in prod. It must not
+    land in orphan_removed with 'not in the repo at all', and must not trip
+    has_drift on every scheduled audit."""
+    write_rule_with_status(tmp_path, "live.yml", "DETECT-2026-0001", "Alpha", "stable")
+    write_rule_with_status(tmp_path, "wip.yml", "DETECT-2026-0012", "AMSI Bypass", "experimental")
+
+    desired, excluded = load_desired(tmp_path, exclude_status=["experimental"])
+
+    report = reconcile(
+        desired,
+        {
+            "DETECT-2026-0001_Alpha": managed(),
+            "DETECT-2026-0012_AMSI-Bypass": managed(),
+        },
+        excluded=excluded,
+        exclude_status=["experimental"],
+    )
+
+    assert report["counts"]["missing"] == 0
+    assert report["orphan_removed"] == []
+    assert report["counts"]["excluded"] == 1
+    assert report["counts"]["excluded_objects"] == 1
+
+    held = report["excluded"][0]
+    assert held["detect_id"] == "DETECT-2026-0012"
+    assert held["status"] == "experimental"
+    assert held["live"] is True
+    assert [o["name"] for o in held["objects"]] == ["DETECT-2026-0012_AMSI-Bypass"]
+    assert held["objects"][0]["retired"] is False
+
+    assert not has_drift(report)
+    assert report["exclude_status"] == ["experimental"]
+
+
+def test_excluded_rule_with_no_live_object_is_the_expected_state(tmp_path):
+    write_rule_with_status(tmp_path, "live.yml", "DETECT-2026-0001", "Alpha", "stable")
+    write_rule_with_status(tmp_path, "wip.yml", "DETECT-2026-0034", "Sniffing", "experimental")
+
+    desired, excluded = load_desired(tmp_path, exclude_status=["experimental"])
+    report = reconcile(desired, {"DETECT-2026-0001_Alpha": managed()}, excluded=excluded)
+
+    assert report["counts"]["missing"] == 0
+    assert report["orphan_removed"] == []
+    assert report["counts"]["excluded_objects"] == 0
+    assert report["excluded"][0]["detect_id"] == "DETECT-2026-0034"
+    assert report["excluded"][0]["live"] is False
+    assert report["excluded"][0]["objects"] == []
+    assert not has_drift(report)
+
+
+def test_excluded_rule_with_two_live_objects_keeps_both_and_the_counts_add_up(tmp_path):
+    """Finding 2: a renamed excluded rule has an old-title and a new-title
+    object. Collapsing them by detect_id would make the buckets stop summing to
+    `actual` -- the 2026-08-07 test3 shape."""
+    write_rule_with_status(tmp_path, "wip.yml", "DETECT-2026-0012", "AMSI Bypass New", "experimental")
+
+    desired, excluded = load_desired(tmp_path, exclude_status=["experimental"])
+    actual = {
+        "DETECT-2026-0012_AMSI-Bypass-New": managed(),
+        "DETECT-2026-0012_AMSI-Bypass-Old": managed(),
+    }
+    report = reconcile(desired, actual, excluded=excluded, exclude_status=["experimental"])
+
+    assert report["orphan_removed"] == []
+    assert report["orphan_renamed"] == []
+    assert report["counts"]["excluded"] == 1
+    assert report["counts"]["excluded_objects"] == 2
+
+    held = report["excluded"][0]
+    # Both objects present, deterministically ordered by name.
+    assert sorted(o["name"] for o in held["objects"]) == [
+        "DETECT-2026-0012_AMSI-Bypass-New",
+        "DETECT-2026-0012_AMSI-Bypass-Old",
+    ]
+
+    # Every actual name is accounted for: 0 desired-in-sync + 0 orphan_* + 0
+    # unmanaged + 2 excluded objects == 2 actual.
+    c = report["counts"]
+    assert c["in_sync"] + c["orphan_renamed"] + c["orphan_removed"] + c["unmanaged"] + c["excluded_objects"] == c["actual"]
+    assert not has_drift(report)
+
+
+def test_already_retired_excluded_object_is_narrated_as_retired(tmp_path, capsys):
+    """Finding 4: an object a previous --apply-removals disabled must not be
+    described as a live one 'keeping whatever version this app had'."""
+    write_rule_with_status(tmp_path, "wip.yml", "DETECT-2026-0012", "AMSI Bypass", "experimental")
+
+    desired, excluded = load_desired(tmp_path, exclude_status=["experimental"])
+    report = reconcile(
+        desired,
+        {"DETECT-2026-0012_AMSI-Bypass": retired()},
+        excluded=excluded,
+        exclude_status=["experimental"],
+    )
+
+    obj = report["excluded"][0]["objects"][0]
+    assert obj["retired"] is True
+    assert obj["disabled"] is True
+
+    print_report(report, "prod_app")
+    out = capsys.readouterr().out
+    assert "already [RETIRED]" in out
+    assert "keeps whatever version" not in out.split("EXCLUDED BY STATUS", 1)[1]
+
+
+def test_print_report_names_a_renamed_excluded_object(tmp_path, capsys):
+    """Finding 3: a renamed excluded rule's live object is under a different
+    name; that mismatch must be visible on stdout, not silent."""
+    write_rule_with_status(tmp_path, "wip.yml", "DETECT-2026-0012", "AMSI Bypass New", "experimental")
+
+    desired, excluded = load_desired(tmp_path, exclude_status=["experimental"])
+    report = reconcile(
+        desired,
+        {"DETECT-2026-0012_AMSI-Bypass-Old": managed()},
+        excluded=excluded,
+        exclude_status=["experimental"],
+    )
+
+    print_report(report, "prod_app")
+    out = capsys.readouterr().out
+    assert "as 'DETECT-2026-0012_AMSI-Bypass-Old'" in out
+
+
+def test_excluded_rule_is_never_offered_to_apply_removals(tmp_path):
+    write_rule_with_status(tmp_path, "wip.yml", "DETECT-2026-0012", "AMSI Bypass", "experimental")
+    desired, excluded = load_desired(tmp_path, exclude_status=["experimental"])
+    report = reconcile(
+        desired, {"DETECT-2026-0012_AMSI-Bypass": managed()}, excluded=excluded
+    )
+
+    session = RecordingSession()
+    result = apply_changes(session, "https://s", "app", report, include_removals=True)
+
+    assert result == {"actions": [], "failures": 0}
+    assert session.deleted == [] and session.posted == []
+
+
+def test_exclude_status_normalises_and_accepts_a_list(tmp_path):
+    write_rule_with_status(tmp_path, "a.yml", "DETECT-2026-0001", "A", "experimental")
+    write_rule_with_status(tmp_path, "b.yml", "DETECT-2026-0002", "B", "test")
+    write_rule_with_status(tmp_path, "c.yml", "DETECT-2026-0003", "C", "stable")
+
+    desired, excluded = load_desired(tmp_path, exclude_status=["  Experimental  ", "TEST"])
+
+    assert list(desired) == ["DETECT-2026-0003_C"]
+    assert sorted(e["detect_id"] for e in excluded.values()) == ["DETECT-2026-0001", "DETECT-2026-0002"]
+
+
+def test_deprecated_is_dropped_regardless_of_exclude_status(tmp_path):
+    write_rule_with_status(tmp_path, "a.yml", "DETECT-2026-0001", "A", "stable")
+    write_rule_with_status(tmp_path, "b.yml", "DETECT-2026-0002", "B", "deprecated")
+
+    # exclude_status names only 'experimental'; 'deprecated' still goes, and it
+    # goes ALL the way out (not into `excluded`) because it is meant to leave.
+    desired, excluded = load_desired(tmp_path, exclude_status=["experimental"])
+
+    assert list(desired) == ["DETECT-2026-0001_A"]
+    assert excluded == {}
+
+
 def test_rule_without_detect_id_is_skipped_not_guessed(tmp_path, capsys):
     (tmp_path / "broken.yml").write_text("title: No Id Here\n", encoding="utf-8")
 
-    desired = load_desired(tmp_path)
+    desired, excluded = load_desired(tmp_path)
 
     assert desired == {}
+    assert excluded == {}
     assert "no detect_id" in capsys.readouterr().err
 
 
@@ -264,6 +460,89 @@ def test_report_is_json_serialisable():
     report = reconcile(desired, {"DETECT-2026-0099_Gone": managed()})
 
     assert json.loads(json.dumps(report))["counts"]["orphan_removed"] == 1
+
+
+def test_excluded_report_is_json_serialisable_and_carries_status(tmp_path):
+    write_rule_with_status(tmp_path, "wip.yml", "DETECT-2026-0012", "AMSI Bypass", "experimental")
+    desired, excluded = load_desired(tmp_path, exclude_status=["experimental"])
+    report = reconcile(
+        desired, {"DETECT-2026-0012_AMSI-Bypass": managed()},
+        excluded=excluded, exclude_status=["experimental"],
+    )
+
+    round_tripped = json.loads(json.dumps(report))
+    assert round_tripped["exclude_status"] == ["experimental"]
+    assert round_tripped["excluded"][0]["detect_id"] == "DETECT-2026-0012"
+    assert round_tripped["counts"]["excluded"] == 1
+
+
+def test_print_report_names_the_excluded_rule_and_its_status(tmp_path, capsys):
+    """Finding 1/2: the audit run's stdout must say, honestly, that 0012 is in
+    the repo, held out of prod by status, and its live object is retained --
+    NOT 'not in the repo at all'."""
+    write_rule_with_status(tmp_path, "wip.yml", "DETECT-2026-0012", "AMSI Bypass", "experimental")
+    desired, excluded = load_desired(tmp_path, exclude_status=["experimental"])
+    report = reconcile(
+        desired, {"DETECT-2026-0012_AMSI-Bypass": managed()},
+        excluded=excluded, exclude_status=["experimental"],
+    )
+
+    print_report(report, "prod_app")
+    out = capsys.readouterr().out
+
+    assert "EXCLUDED BY STATUS" in out
+    assert "DETECT-2026-0012" in out
+    assert "experimental" in out
+    assert "held out by status" in out          # the "Repo wants:" annotation
+    assert "not in the repo at all" not in out  # the lie Finding 1 is about
+    # It must not be RECOMMENDED for retirement (that phrasing is reserved for
+    # real removal orphans); saying "not by --apply-removals" is fine.
+    excluded_block = out.split("EXCLUDED BY STATUS", 1)[1]
+    assert "pass --apply-removals" not in excluded_block
+    assert "not by --apply-removals" in excluded_block
+    assert "Splunk matches the repo" in out     # no drift
+
+
+def test_main_end_to_end_keeps_an_excluded_live_rule_out_of_orphan_removed(tmp_path, monkeypatch):
+    """Finding 1 regression guard at the entry point. `excluded=` is wired into
+    exactly one production reconcile() call (main); if that kwarg were dropped,
+    a live experimental rule falls back into orphan_removed and every unit test
+    still passes. This asserts the JSON main() actually writes."""
+    write_rule_with_status(tmp_path, "live.yml", "DETECT-2026-0001", "Alpha", "stable")
+    write_rule_with_status(tmp_path, "wip.yml", "DETECT-2026-0012", "AMSI Bypass", "experimental")
+
+    for key, value in {
+        "SPLUNK_BASE_URL": "https://splunk.example:8089",
+        "SPLUNK_USERNAME": "svc",
+        "SPLUNK_PASSWORD": "pw",
+        "SPLUNK_APP": "prod_detection_app",
+    }.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.delenv("SPLUNK_VERIFY_TLS", raising=False)
+
+    monkeypatch.setattr("reconcile.build_session", lambda *a, **k: object())
+    monkeypatch.setattr(
+        "reconcile.fetch_actual",
+        lambda *a, **k: {
+            "DETECT-2026-0001_Alpha": managed(),
+            "DETECT-2026-0012_AMSI-Bypass": managed(),
+        },
+    )
+
+    out_json = tmp_path / "prod_reconcile.json"
+    rc = main([
+        "--rules-dir", str(tmp_path),
+        "--exclude-status", "experimental",
+        "--json", str(out_json),
+    ])
+
+    assert rc == 0
+    written = json.loads(out_json.read_text(encoding="utf-8"))
+    assert written["orphan_removed"] == []
+    assert written["counts"]["missing"] == 0
+    assert written["counts"]["excluded"] == 1
+    assert written["excluded"][0]["detect_id"] == "DETECT-2026-0012"
+    assert written["exclude_status"] == ["experimental"]
 
 
 # --- applying: the write path ----------------------------------------------

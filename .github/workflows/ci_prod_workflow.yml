@@ -321,8 +321,20 @@ jobs:
           # outlives this log, and the script renders the same table into the
           # step summary. Both carry repo-side facts only -- no URL, app name or
           # account -- because the artifact is downloadable from a public repo.
+          #
+          # --exclude-status experimental: durable fix for the 2026-09-09
+          # incident where the workflow_dispatch recovery deployed two
+          # status:experimental WIP rules (0033/0034) to prod that had never
+          # reached dev Splunk. This job's file list is `git ls-files`
+          # (everything on main) with no eligibility filter of its own; the
+          # deploy script only ever skipped `deprecated`. Passed here, NOT in
+          # ci_dev_workflow.yml -- dev deploys experimental rules to the lab on
+          # purpose. One step covers both triggers: this job runs identically
+          # for `push` and `workflow_dispatch`, deriving the same list either
+          # way, so there is no second path to also change.
           python scripts/deploy/deploy_spl_to_splunk.py \
             --report outputs/deploy/prod_deploy_report.json \
+            --exclude-status experimental \
             "${spl_files[@]}"
 
       # always(): a failed deploy is exactly when the record matters most -- it

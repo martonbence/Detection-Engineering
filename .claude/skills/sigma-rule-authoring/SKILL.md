@@ -70,22 +70,33 @@ the rule matches, not just against the technique ID both share. A test can
 be entirely real and on-topic for the technique and still be the wrong
 fit for a *particular* rule:
 
-- **DETECT-2026-0033** (T1557.001, victim-side detection: a DNS failure
-  immediately followed by an SMB connection) is `type: emulation` on
-  purpose, not from having skipped this check. T1557.001's real atomic
-  (test 1, "LLMNR Poisoning with Inveigh") is a genuine, correctly-scoped
-  atomic for the technique — it just detects the wrong side of it for this
-  rule. It stands up the *poisoner* on the runner it executes on; it does
-  not make that same host (or any other) issue the *victim* query the
-  rule's correlation needs, and this repo's pipeline runs every rule's
-  test against exactly one runner (`atomic_verify`/`atomic_verify_dc` in
-  `ci_dev_workflow.yml` — no job orchestrates two hosts attacking each
-  other for a single rule's test). That atomic is the right citation for a
-  *different*, tool-execution-based rule instead — and indeed is exactly
-  what **DETECT-2026-0034** (Network Sniffing and AiTM Tooling Execution,
-  a Sysmon EID 1 rule) cites it for: run alone on one runner, "start
-  Inveigh" is precisely the process-creation event that rule's
-  `selection_inveigh` matches, no second host required.
+- **The original DETECT-2026-0033** — T1557.001, victim-side detection: a
+  DNS failure immediately followed by an SMB connection; deleted
+  2026-09-10 as an unproven, unworkable approach (see
+  [[technique-research-sources]] and the rule's own removal commit) — was
+  `type: emulation` on purpose, not from having skipped this check.
+  T1557.001's real atomic (test 1, "LLMNR Poisoning with Inveigh") is a
+  genuine, correctly-scoped atomic for the technique — it just detected the
+  wrong side of it for this rule. It stands up the *poisoner* on the
+  runner it executes on; it does not make that same host (or any other)
+  issue the *victim* query the rule's correlation needed, and this repo's
+  pipeline runs every rule's test against exactly one runner
+  (`atomic_verify`/`atomic_verify_dc` in `ci_dev_workflow.yml` — no job
+  orchestrates two hosts attacking each other for a single rule's test).
+  That atomic was the right citation for a *different*, tool-execution-based
+  rule instead — and indeed is exactly what the tool-execution rule now
+  numbered **DETECT-2026-0033** cites it for (a Sysmon EID 1 rule — at the
+  time of this original writing it was DETECT-2026-0034, titled "Network
+  Sniffing and AiTM Tooling Execution" and covering both T1557.001 tooling
+  and T1040 packet-capture together; the 2026-09-10 split moved the T1040
+  half out to DETECT-2026-0035 and retitled it "LLMNR/NBT-NS Poisoning and
+  SMB Relay Tooling Execution", and it was renumbered to DETECT-2026-0033
+  the same day, reusing the ID the deleted DNS-correlation rule above had
+  just freed up — the two DETECT-2026-0033s named in this file are
+  unrelated rules that happen to share an ID at different points in time,
+  never confuse them): run alone on one runner, "start Inveigh" is
+  precisely the process-creation event that rule's `selection_inveigh`
+  matches, no second host required.
 - The general shape: an atomic that reproduces the **attacker's own
   action** fits a rule that detects that action. A rule that detects the
   **victim's or a bystander's resulting behavior** (a downstream log

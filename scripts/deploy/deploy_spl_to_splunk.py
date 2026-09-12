@@ -54,6 +54,37 @@ def extract_meta(path: Path) -> dict:
         die(f"Invalid meta JSON in {meta_sidecar_path(path)}: {e}")
 
 
+def _rule_status(meta: dict) -> str:
+    """Lower-cased `status` from the meta sidecar.
+
+    Deliberately a local one-liner rather than importing `lib.rules.status`:
+    the prod deploy installs `.github/requirements-deploy.txt` (requests only)
+    and `lib.rules` imports pyyaml, which prod does not have -- register item
+    3.2 stage C, the same reason ci_prod_workflow.yml stopped installing the
+    full toolchain. This must stay the same normalisation `lib.rules.status()`
+    uses (strip + lower); `reconcile.py` reads the identical field the other
+    way (through lib.rules) and the two have to agree on which rules a target
+    wants.
+    """
+    return str(meta.get("status") or "").strip().lower()
+
+
+def _parse_exclude_status(values: list[str] | None) -> set[str]:
+    """`--exclude-status` is repeatable AND each value may be comma-separated,
+    so `--exclude-status experimental` and `--exclude-status a,b` and
+    `--exclude-status a --exclude-status b` all work. Normalised to match
+    `_rule_status`. `None`/empty -> empty set -> nothing extra is skipped,
+    which is what dev relies on.
+    """
+    out: set[str] = set()
+    for chunk in values or []:
+        for part in str(chunk).split(","):
+            part = part.strip().lower()
+            if part:
+                out.add(part)
+    return out
+
+
 def _norm_mode(v: str) -> str:
     v = (v or "").strip().lower()
     return v if v in ("report", "alert") else ""
@@ -337,6 +368,7 @@ OUTCOME_LABELS = {
     "created": "created",
     "updated": "updated",
     "skipped_deprecated": "skipped (deprecated)",
+    "skipped_excluded": "skipped (status excluded)",
     "failed": "FAILED",
 }
 
@@ -346,6 +378,7 @@ OUTCOME_MARKS = {
     "created": MARK_PASS,
     "updated": MARK_PASS,
     "skipped_deprecated": MARK_INFO,
+    "skipped_excluded": MARK_INFO,
     "failed": MARK_FAIL,
 }
 
@@ -396,8 +429,23 @@ def write_step_summary(records: list[dict]) -> None:
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Deploy .spl files to Splunk as saved searches.")
     parser.add_argument("--report", help="Write a JSON record of what was deployed to this path")
+    parser.add_argument(
+        "--exclude-status",
+        action="append",
+        metavar="STATUS",
+        help=(
+            "Skip rules whose Sigma `status` is one of these. Repeatable, and each "
+            "value may itself be a comma-separated list. `deprecated` is always "
+            "skipped regardless of this flag. The prod deploy passes "
+            "`--exclude-status experimental` so a work-in-progress rule never reaches "
+            "production; dev passes nothing, so the lab still gets it. Unset (the "
+            "default) changes nothing."
+        ),
+    )
     parser.add_argument("files", nargs="*", help="The .spl files to deploy")
     args = parser.parse_args(argv)
+
+    exclude_status = _parse_exclude_status(args.exclude_status)
 
     # Every rule's outcome, in the order they were attempted.
     records: list[dict] = []
@@ -470,9 +518,27 @@ def main(argv: list[str]) -> int:
         # and `--apply-removals` disables it. Deleting from here would be the
         # wrong place for it -- this script deploys one file at a time and has
         # no view of the whole desired state.
-        if str(meta.get("status") or "").strip().lower() == "deprecated":
+        rule_status = _rule_status(meta)
+
+        if rule_status == "deprecated":
             print(f"SKIP: {search_name} is deprecated -- not deployed (retire it with reconcile.py --apply-removals)")
             record("skipped_deprecated", f, meta, search_name)
+            continue
+
+        # Durable fix for "prod ended up broader than dev" (2026-09-09): the
+        # prod deploy passes --exclude-status experimental, so a rule that is
+        # schema-valid and converts but is still WIP is not (re)created in
+        # production. Same shape as the deprecated skip above -- it only stops
+        # this deploy touching the object; an object already live is retired by
+        # reconcile.py --apply-removals, which the prod audit now also excludes
+        # experimental from so it reads as a removal orphan, not a phantom
+        # "missing". Dev passes no --exclude-status, so nothing changes there.
+        if rule_status and rule_status in exclude_status:
+            print(
+                f"SKIP: {search_name} has status '{rule_status}' -- excluded by "
+                "--exclude-status, not deployed"
+            )
+            record("skipped_excluded", f, meta, search_name, f"status '{rule_status}' excluded")
             continue
 
         try:

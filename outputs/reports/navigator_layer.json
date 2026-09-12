@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-09-09T18:21:00 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
+  "description": "Auto-generated detection coverage. 2026-09-12T11:40:19 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
   "filters": {
     "platforms": [
       "Windows",
@@ -54,6 +54,14 @@
       "techniqueID": "T1071.001",
       "color": "#2EA44F",
       "comment": "DETECT-2026-0001: Reverse Shell Execution via PowerShell or Netcat (PASS)",
+      "enabled": true,
+      "score": 100,
+      "showSubtechniques": true
+    },
+    {
+      "techniqueID": "T1110.001",
+      "color": "#2EA44F",
+      "comment": "DETECT-2026-0002: Windows Password Guessing - Repeated Auth Failures on One Account (PASS)",
       "enabled": true,
       "score": 100,
       "showSubtechniques": true
@@ -213,15 +221,7 @@
     {
       "techniqueID": "T1557.001",
       "color": "#6E7681",
-      "comment": "DETECT-2026-0033: Name Resolution Poisoning and SMB Relay via Correlated DNS Failure (N/A)\nDETECT-2026-0034: Network Sniffing and AiTM Tooling Execution (N/A)",
-      "enabled": true,
-      "score": 25,
-      "showSubtechniques": true
-    },
-    {
-      "techniqueID": "T1040",
-      "color": "#6E7681",
-      "comment": "DETECT-2026-0034: Network Sniffing and AiTM Tooling Execution (N/A)",
+      "comment": "DETECT-2026-0033: LLMNR/NBT-NS Poisoning and SMB Relay Tooling Execution (N/A)",
       "enabled": true,
       "score": 25,
       "showSubtechniques": true

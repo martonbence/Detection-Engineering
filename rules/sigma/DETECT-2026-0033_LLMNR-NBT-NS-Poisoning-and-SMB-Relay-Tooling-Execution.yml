@@ -1,0 +1,161 @@
+title: LLMNR/NBT-NS Poisoning and SMB Relay Tooling Execution
+detect_id: DETECT-2026-0033
+status: experimental
+description: >
+  Detects execution of LLMNR / NBT-NS / mDNS name-resolution poisoning and SMB
+  relay tooling on a monitored host: Inveigh (the PowerShell Invoke-Inveigh /
+  Invoke-InveighRelay functions and the compiled Inveigh.exe), Responder, and
+  Impacket's ntlmrelayx. It detects the attacker's tooling directly, so it only
+  fires when the tool runs on a host this pipeline actually watches -- in practice
+  an insider or an already-compromised internal host, since an external
+  attacker's own infrastructure is not instrumented. The poisoning itself is a
+  network-layer event Sysmon cannot see, so this process-execution signal is the
+  endpoint's only view of the poisoning half of the technique; the authoritative
+  detection for the on-wire spoofing and relay belongs on a network sensor.
+references:
+  - https://attack.mitre.org/techniques/T1557/001/
+  - https://github.com/Kevin-Robertson/Inveigh
+  - https://github.com/lgandx/Responder
+  - https://github.com/fortra/impacket
+author: Bence Marton
+date: 2026-09-08
+modified: 2026-09-10
+version: "1.2"
+tags:
+  - attack.credential_access
+  - attack.collection
+  - attack.t1557.001
+
+logsource:
+  product_category: os
+  product: windows
+  service: sysmon
+  event_type: process_creation
+
+detection:
+  selection_inveigh:
+    - CommandLine|contains:
+        - "Invoke-Inveigh"
+        - "Invoke-InveighRelay"
+    - OriginalFileName:
+        - "Inveigh.exe"
+        - "Inveigh.dll"
+
+  selection_inveigh_compiled_img:
+    Image|endswith: '\Inveigh.exe'
+  selection_inveigh_compiled_cli:
+    CommandLine|contains: "Inveigh"
+
+  selection_responder:
+    CommandLine|contains|all:
+      - "Responder.py"
+      - "-I "
+
+  selection_ntlmrelayx:
+    - CommandLine|contains: "ntlmrelayx"
+    - Image|endswith: '\ntlmrelayx.exe'
+
+  condition: selection_inveigh or (selection_inveigh_compiled_img and selection_inveigh_compiled_cli) or selection_responder or selection_ntlmrelayx
+
+fields:
+  - _time
+  - ComputerName
+  - User
+  - Image
+  - OriginalFileName
+  - CommandLine
+  - ParentImage
+  - ParentCommandLine
+  - ProcessId
+
+falsepositives:
+  - >-
+    Authorized internal penetration testing or red-team exercises deliberately
+    running Inveigh, Responder, or ntlmrelayx. This is the only realistic
+    false-positive source, because these tool names have essentially no
+    legitimate administrative use -- a hit that does not line up with a
+    scheduled engagement should be treated as a real intrusion. Cross-check the
+    alert against the pentest / red-team calendar rather than filtering it out
+    in the rule.
+
+level: critical
+
+custom:
+  splunk:
+    index: sysmon
+    mode: alert
+    cron: "*/5 * * * *"
+    earliest: "-5m"
+    latest: "now"
+    severity: critical
+
+  testing:
+    enabled: false
+    runner: windows-victim
+    type: emulation
+    custom:
+      - name: "Inveigh PowerShell Function Keyword"
+        description: >
+          Spawns a non-interactive powershell.exe process whose CommandLine
+          contains "Invoke-Inveigh" as a trailing comment after exit 0 -- the
+          text after "#" is never evaluated, so no PowerShell Inveigh function
+          actually runs and nothing binds a socket or touches the network.
+          Exercises selection_inveigh.
+        executor: powershell
+        command: >-
+          powershell.exe -NonInteractive -Command "exit 0 #Invoke-Inveigh -NBNS Y -LLMNR Y -HTTP Y -ConsoleOutput Y"
+        cleanup: ""
+        prerequisites:
+          - powershell.exe must be available (present by default on Windows)
+
+      - name: "Renamed Inveigh.exe Image + CommandLine Keyword"
+        description: >
+          Copies the real powershell.exe to a temp path literally named
+          Inveigh.exe, then runs it non-interactively with "Inveigh" tucked
+          into a trailing comment after exit 0. Because it's really
+          powershell.exe underneath, -NonInteractive -Command guarantees an
+          immediate, predictable exit -- no compiled Inveigh binary is ever
+          invoked and no poisoning or relay behaviour occurs. Sysmon still
+          records Image ending in \Inveigh.exe (satisfying
+          selection_inveigh_compiled_img) and a CommandLine containing
+          "Inveigh" (satisfying selection_inveigh_compiled_cli), exercising
+          the combined AND condition without the hang risk a real renamed
+          Inveigh binary given unrecognised arguments would carry.
+        executor: powershell
+        command: >-
+          $inv = Join-Path $env:TEMP 'Inveigh.exe';
+          Copy-Item "$PSHOME\powershell.exe" $inv -Force;
+          & $inv -NonInteractive -Command "exit 0 # Inveigh"
+        cleanup: >-
+          Remove-Item (Join-Path $env:TEMP 'Inveigh.exe') -Force -ErrorAction SilentlyContinue
+        prerequisites:
+          - powershell.exe must be available (present by default on Windows)
+
+      - name: "Responder Filename + Required Interface Flag"
+        description: >
+          Spawns a non-interactive powershell.exe process whose CommandLine
+          contains "responder.py" and the required "-I " interface flag
+          together as a trailing comment after exit 0 -- the text after "#" is
+          never evaluated, so no Responder script actually runs and no
+          interface is ever bound or listened on. Exercises
+          selection_responder.
+        executor: powershell
+        command: >-
+          powershell.exe -NonInteractive -Command "exit 0 # responder.py -I eth0 -wrf"
+        cleanup: ""
+        prerequisites:
+          - powershell.exe must be available (present by default on Windows)
+
+      - name: "ntlmrelayx CommandLine Keyword"
+        description: >
+          Spawns a non-interactive powershell.exe process whose CommandLine
+          contains "ntlmrelayx" as a trailing comment after exit 0 -- the text
+          after "#" is never evaluated, so no relay tooling actually runs and
+          no NTLM authentication is ever relayed. Exercises
+          selection_ntlmrelayx.
+        executor: powershell
+        command: >-
+          powershell.exe -NonInteractive -Command "exit 0 # ntlmrelayx.py -tf targets.txt -smb2support"
+        cleanup: ""
+        prerequisites:
+          - powershell.exe must be available (present by default on Windows)

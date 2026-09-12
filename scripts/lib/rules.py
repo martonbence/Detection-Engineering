@@ -62,6 +62,7 @@ case their own comments say must not be guessed at.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
 
 import yaml
@@ -147,11 +148,50 @@ def status(rule: dict) -> str:
     return str(rule.get("status") or "").strip().lower()
 
 
+def split_status_list(values: Iterable[str]) -> list[str]:
+    """Flatten a repeatable + comma-separated CLI option into a clean list.
+
+    `--exclude-status a,b --exclude-status c` -> ``["a", "b", "c"]``. Each part
+    is stripped and lower-cased and blanks are dropped -- the same
+    normalisation `status_in()` applies to the compare, kept here so callers
+    do not each re-implement the split. Order is preserved (first-seen);
+    de-duplication is left to the caller since a report may want to show
+    exactly what was passed.
+    """
+    out: list[str] = []
+    for chunk in values or []:
+        for part in str(chunk).split(","):
+            part = part.strip().lower()
+            if part:
+                out.append(part)
+    return out
+
+
+def status_in(rule: dict, statuses: Iterable[str]) -> bool:
+    """True when the rule's status is one of `statuses`.
+
+    Both sides are normalised the way `status()` already does (stripped,
+    lower-cased), so a caller excluding a set of statuses from some deploy
+    target uses one definition rather than its own `.strip().lower()` that
+    could drift from this module's. An empty `statuses` is never a match.
+    """
+    wanted = {str(s).strip().lower() for s in statuses if str(s).strip()}
+    return bool(wanted) and status(rule) in wanted
+
+
 def is_deprecated(rule: dict) -> bool:
     """True for a rule that is still in the repo but no longer wanted in Splunk.
 
     The deploy skips these and the reconcile drops them from desired state, so
     that a still-live object shows up as a removal orphan -- which is the
-    accurate description of it.
+    accurate description of it. Always skipped, in every target.
+
+    `status_in()` above is the general form -- this stays a named predicate
+    because it is the one status the pipeline acts on unconditionally, in more
+    than one script, and a name is worth more than `status_in(rule,
+    ("deprecated",))` at each of those sites. An `experimental` exclusion, by
+    contrast, is target-specific (prod yes, dev no) and configuration-driven,
+    so it goes through `status_in()` with a passed-in set rather than getting
+    its own predicate here.
     """
     return status(rule) == "deprecated"

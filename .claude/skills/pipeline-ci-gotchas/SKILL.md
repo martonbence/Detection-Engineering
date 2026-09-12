@@ -468,3 +468,93 @@ workflows that cites either register, not just new comments — pre-existing
 bare citations found but deliberately left alone during the 2026-08-22 pass
 (e.g. `.github/requirements.txt:34`'s "register item 4.10") are still real
 drift, just out of scope for whoever last touched them.
+
+## L — Promotion merge strategy and prod-scope
+
+Both entries are 2026-09-09 incidents on the DETECT-2026-0001 promotion
+(PR #73). They chain: the first stopped prod deploying, the manual recovery
+for the first exposed the second. Anchors verified 2026-09-09.
+
+**Squash-merging the `dev`→`main` promotion PR suppresses the *entire* prod
+deploy workflow — no run, not a skipped run.** The `open_promotion_pr` job
+opens one PR per passing dev run, titled *"Promote verified detections from
+dev to main"*. If it is **squash-merged** instead of merge-committed, GitHub
+builds the squash commit body by concatenating every `dev`-branch commit
+message — and this repo's CI writes back to `dev` with `[skip ci]` in nearly
+every automated commit (`chore(convert): ... [skip ci]`, `chore(pipeline):
+verification results and dashboard [skip ci]`, `chore(inventory): ...
+[skip ci]`). The squash HEAD commit that lands on `main` therefore carries
+`[skip ci]` many times (PR #73's `bfa99f7`: 10 occurrences, all in the body
+— the squash *title* is clean). GitHub Actions honors a skip string
+(`[skip ci]` / `[ci skip]` / `[no ci]` / `[skip actions]` / `[actions skip]`)
+matched **anywhere in a push's HEAD commit message, title or body**, and
+**creates no workflow run at all** — `ci_prod_workflow.yml` (`CI - Prod
+Deploy`) never starts. `announce_lab_offline` and every other in-workflow
+guard are unreachable because the workflow never initializes. Skip strings
+affect only `push`/`pull_request`, so `workflow_dispatch` is unaffected —
+which is the recovery. *Evidence:* every promotion #58–#71 was a merge
+commit (`Merge pull request #NN from martonbence/dev`, 2 parents, no skip
+string) and prod deployed each time; #73 was the first squash (1 parent,
+`git rev-list --parents -n1 bfa99f7`), and `gh run list --branch main
+--workflow ci_prod_workflow.yml --json headSha,event` has no `push` entry
+for `bfa99f7`. `scripts/state/open_promotion_pr.py` generates a clean PR
+title (`:437`) and body (templates `:119-127`, `:173-188`, `:222-265`) —
+no skip string — so a **merge commit** (message = PR title + body only)
+fully closes this; the permanent fix is disabling squash + rebase merge at
+the repo level (done 2026-09-09: `allow_squash_merge=false`,
+`allow_rebase_merge=false`). Rebase-merge has the same defect (the new
+`main` HEAD becomes a `dev` `[skip ci]` writeback commit). Branch
+protection *cannot* pin merge method — no such rule in classic protection
+or the rulesets API; the repo `allow_*_merge` toggles are the only lever.
+Tie-in: `ci_dev_workflow.yml:659-669` already documents that squash/rebase
+on this PR break the build-provenance ancestry walk — same root cause,
+different subsystem; merge-commit-only is the mode that comment already
+wants. *Failure signature:* promotion PR shows Merged, `main` HEAD advanced,
+but no new `CI - Prod Deploy` run whose `headSha` is the new `main` HEAD;
+`git log -1 --format=%B <main HEAD>` shows a skip string and
+`git rev-list --parents -n1 <main HEAD>` shows one parent. *Recovery:* run
+`ci_prod_workflow.yml` via `workflow_dispatch` — deploys the full `main`
+library from `git ls-files`, no diff needed. Worked here (run
+`34389283647`, 7 min after the bad merge).
+
+**Prod deploy has no `status`/verdict filter — a `workflow_dispatch`
+recovery deploys every non-`deprecated` `.spl` on `main`, enabled,
+including experimental rules that never reached dev Splunk.** `ci_prod_
+workflow.yml`'s deploy step (`~:277-326`) hands `git ls-files "rules/splunk/
+*.spl"` — the whole library — to `scripts/deploy/deploy_spl_to_splunk.py`,
+which applies exactly one eligibility filter: `status == "deprecated"` skip
+(`:473-476`, via `lib.rules.is_deprecated`). `status: experimental`,
+`testing.enabled: false`, and verification verdict are all ignored, and the
+runtime payload hard-codes `disabled: "0"` (`:105`, `:117`) with the alert
+schedule from `custom.splunk.mode`. So a dispatched prod run **creates
+experimental rules in prod as live, enabled, every-5-min, severity-high
+alerting saved searches.** The dev deploy is narrower only by accident, not
+policy — it deploys `determine_changed_rules.py`'s *changed-rule* list, so a
+rule committed to `dev` while `LAB_ONLINE=false` (dev deploy skipped) can
+sit undeployed in dev indefinitely while a `git ls-files` prod dispatch
+sweeps it in. `prod ⊆ dev` is **not an enforced invariant anywhere**.
+*Evidence:* run `34389283647` deployed DETECT-2026-0033 and -0034
+(both `status: experimental`, never Bjorn-reviewed, not in dev Splunk) to
+prod — deploy report `totals: {created: 3, updated: 28}`. 0033's SPL
+`| lookup known_smb_servers.csv ...` references a lookup that exists nowhere
+in the repo → hard search error every run. No gate catches this: the dev
+deploy job that runs `check_spl_syntax.py` was skipped for the run that
+added it, but even a non-skipped run would not have caught it —
+`check_spl_syntax.py:15-19` passes `parse_only=true`, which deliberately
+skips lookup/macro/eventtype expansion. Nothing in this pipeline validates
+that a referenced Splunk object (lookup, macro, eventtype) actually exists.
+`reconcile.py` does not self-heal this: `load_desired()` (`:96-142`) drops
+only `is_deprecated` rules, so an `experimental` rule is "desired" and a
+prod audit treats it as legitimately present. *Remediation when it happens:*
+there is no repo-native delete for this kind of orphan — `reconcile.py
+--apply-removals` only disables + `[RETIRED]`-relabels, and only for rules
+absent from desired state. Delete the stray saved searches directly
+(`servicesNS/nobody/<SPLUNK_APP>/saved/searches/<name>`), then dispatch
+`ci_prod_audit.yml` to re-sync `deployment_inventory.json`. *Durable fix
+(in progress 2026-09-09):* a `--exclude-status experimental` flag on both
+`deploy_spl_to_splunk.py` and `reconcile.py load_desired()`, passed only by
+`ci_prod_workflow.yml` / `ci_prod_audit.yml` (never by dev — dev
+legitimately tests experimental rules in the lab). *Failure signature:* a
+prod deploy report with unexpected `created` entries; a rule live in prod
+Splunk that dev Splunk doesn't have; `ci_prod_audit.yml` reporting "N
+rule(s) on main not in prod app" for rules you know are experimental.

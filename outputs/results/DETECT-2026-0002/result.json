@@ -1,0 +1,16 @@
+{
+  "detect_id": "DETECT-2026-0002",
+  "title": "Windows Password Guessing - Repeated Auth Failures on One Account",
+  "verdict": "PASS",
+  "reason": "Event count 1 within expected range [1–10]",
+  "disabled": false,
+  "event_count": 1,
+  "min_pass": 1,
+  "max_pass": 10,
+  "earliest": "1789211622",
+  "latest": "now",
+  "run_timestamp": "2026-09-12T11:18:19.454620+00:00",
+  "rule_version": "1.2",
+  "git_sha": "38907c2f064f38319ccb5edcbcb6cd38dc22312e",
+  "run_id": "34690498895"
+}

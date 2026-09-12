@@ -101,6 +101,13 @@ jobs:
           # decide on its own that a live detection should go away. Reporting is
           # the whole job.
           #
+          # --exclude-status experimental: matches ci_prod_workflow.yml's deploy
+          # step. Prod is not supposed to contain experimental (WIP) rules, so
+          # they are dropped from desired state here too -- otherwise, once such
+          # a rule is cleaned out of the prod app, this audit would report it as
+          # "missing from prod" forever (2026-09-09 incident follow-up). Dev's
+          # own reconcile (via reconcile_step.py) passes nothing, on purpose.
+          #
           # The exit code is deliberately swallowed: reconcile.py exits non-zero
           # on drift, and this workflow reports drift rather than failing on it.
           # The verdict is read back out of the JSON by the annotation step,
@@ -108,6 +115,7 @@ jobs:
           # the dashboard cannot disagree.
           if ! python scripts/state/reconcile.py \
             --rules-dir rules/sigma \
+            --exclude-status experimental \
             --json outputs/state/prod_reconcile.json \
             | tee prod_reconcile.txt; then
             echo "reconcile.py exited non-zero -- see the comparison above and the annotation below."
