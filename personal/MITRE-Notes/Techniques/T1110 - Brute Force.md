@@ -12,14 +12,14 @@ subtechnique_count: 4
 platforms:
   - Windows
 de_priority: magas
-coverage: nincs
+coverage: részleges
 status: kész
 ---
 # T1110 — Brute Force
 
 ## Lényeg
 
-A támadó **nem ismer érvényes hitelesítő adatot** (vagy csak egy hash-t, jelszó nélkül), és ezt szisztematikus próbálgatással próbálja pótolni — ellentétben a [[T1557 - Adversary-in-the-Middle]]-lel, ahol a hitelesítő adat egy hamis hálózati pozícióból *érkezik hozzá*. A közös nevező a négy altechnikában nem egy protokoll, hanem a **próbálgatás iránya és forrása**: vagy közvetlenül egy élő hitelesítési szolgáltatás ellen fut sok kísérlet (online), vagy egy már megszerzett hash ellen, a támadó saját gépén, kapcsolat nélkül (offline).
+A támadó **nem ismer érvényes hitelesítő adatot** (vagy csak egy hash-t, jelszó nélkül), és ezt szisztematikus próbálgatással próbálja pótolni. A közös nevező a négy altechnikában nem egy protokoll, hanem a **próbálgatás iránya és forrása**: vagy közvetlenül egy élő hitelesítési szolgáltatás ellen fut sok kísérlet (online), vagy egy már megszerzett hash ellen, a támadó saját gépén, kapcsolat nélkül (offline).
 
 Ez az irány-különbség a legfontosabb DE-tanulság: az **online** altechnikák (.001, .003, .004) mindegyike **sok sikertelen hitelesítési kísérletet** hagy a célrendszeren vagy a domain controlleren — ez natívan naplózott, jól detektálható jel. Az **offline** (.002) viszont a támadó saját infrastruktúráján zajlik, semmilyen forgalmat nem generál a védett környezet felé, amíg a feltört jelszót ténylegesen fel nem használja — az pedig egy darab, teljesen normálisnak látszó sikeres bejelentkezés.
 
@@ -73,21 +73,24 @@ A legfontosabb sor a **Minta**: a `.001` és a `.003` ugyanazt a jelenséget né
 
 ### Detekciós lehetőség
 
-Ez a taktika-rész strukturálisan **fordítottja** annak, amit a [[T1557 - Adversary-in-the-Middle]] jegyzet mutat: ott csak a `.001`-nek volt végponti lába, itt viszont **három a négyből** (`.001`, `.003`, `.004`) natívan, jól naplózott — csak nem Sysmonon, hanem a domain controller Security logján. A repo saját `docs/credential-access-buildout.md` tervező dokumentuma ezt már fel is mérte (N4 sor): a szükséges `auditpol` alkategóriák ismertek, a hiányzó láncszem a `service: security` log-forrás pipeline-beli bekötése, nem a detekciós logika.
+Ez a taktika jól naplózott — csak nem Sysmonon, hanem a domain controller Security logján.
 
-**A `.001` és a `.003` ugyanazt a jelet nézi, két ellentétes tengelyen — ezért nem egy szabály.** A `.001` küszöbe *egy fiókra* vetített hibaszám (sok hiba, ugyanaz a `TargetUserName`); a `.003` küszöbe *egy forrásra* vetített, *különböző fiókok száma* (kevés hiba fiókonként, de sok különböző fiók, azonos forrásból/időablakban). A két aggregáció más SPL-alakot igényel (`stats count by user` vs. `stats dc(user) by src_ip`), ezért a `docs/credential-access-buildout.md` is két külön szabályt tervez (0040 alatt, "likely two rules in practice").
+**A `.001` és a `.003` ugyanazt a jelet nézi, két ellentétes tengelyen — ezért nem egy szabály.** A `.001` küszöbe *egy fiókra* vetített hibaszám (sok hiba, ugyanaz a `TargetUserName`); a `.003` küszöbe *egy forrásra* vetített, *különböző fiókok száma* (kevés sikertelen authentikáció fiókonként, de sok különböző fiók, azonos forrásból/időablakban). A két aggregáció más SPL-alakot igényel (`stats count by user` vs. `stats dc(user) by src_ip`).
 
 **A spray/guessing megkülönböztethető az egyszerű fiók-enumerációtól is** — a Windows a `SubStatus` mezőben eltérő kódot ad rossz jelszóra (`0xC000006A`) és nem létező felhasználónévre (`0xC0000064`). Egy támadó, aki csak azt teszteli, mely felhasználónevek léteznek (nem a jelszót próbálja), túlnyomórészt `0xC0000064`-et generál — ez más minta, mint a valódi `.001`/`.003`, ahol a felhasználónév helyes, csak a jelszó nem.
 
 **A `.004` a fentiekkel azonos telemetrián él, de a mintája eltér**: nem *egy* gyakori jelszó sok fiókon (mint `.003`), hanem *sok, egymáshoz nem hasonló* jelszó, fiókonként *pontosan egy*, valós (nem találgatott) párosítással — ez a magasabb sikerarányban (4624/4625 arány) és gyakran az elosztott forrás-IP-kben (rezidenciális proxy-pool, hogy az IP-alapú rate-limitet is kikerülje) látszik.
 
-**A `.002`-nél nincs mit építeni** — ez teljesen a támadó saját infrastruktúráján zajlik, a védett környezet felé semmilyen forgalmat nem generál. Az egyetlen detektálható lépés a hash *megszerzése* (LSASS-dump, NTDS.dit-kiolvasás), ami már [[T1003 - OS Credential Dumping]] és [[T1558 - Steal or Forge Kerberos Tickets]] hatásköre — a `.002` maga strukturálisan láthatatlan, ugyanúgy, ahogy a [[T1557 - Adversary-in-the-Middle]] `.002`/`.003`/`.004` altechnikái is azok, csak más okból (ott hálózati réteg, itt offline számítás).
+**A `.002`-nél nincs mit építeni** — ez teljesen a támadó saját infrastruktúráján zajlik, a védett környezet felé semmilyen forgalmat nem generál. Az egyetlen detektálható lépés a hash *megszerzése* (LSASS-dump, NTDS.dit-kiolvasás), ami már [[T1003 - OS Credential Dumping]] és [[T1558 - Steal or Forge Kerberos Tickets]] hatásköre — a `.002` maga strukturálisan láthatatlan.
 
-**Pipeline-oldali megkötés, amit érdemes fejben tartani:** ez a repo Sigma-korrelációs szabályokat (multi-document YAML) **nem tud betölteni/futtatni** — a `scripts/lib/rules.py`/`sigma_to_spl.py` egy-fájl-egy-`detect_id` feltevésre épül, és a séma sem enged `name:`-alapú korrelációs referenciát. Emiatt egy jövőbeli `.001`/`.003`/`.004` szabály nem natív Sigma `correlation:` blokkal, hanem a `custom.splunk.raw_query` fallback-kal fog aggregálni (lásd [[sigma-rule-authoring]]) — ugyanaz a mechanizmus, amit a repo már a Kerberoasting-tervnél (0039) is használ.
 
 ## Kapcsolódó szabályok
 
-*Nincs még megépített szabály erre a technikára.* A `docs/credential-access-buildout.md` Track B terve **0040** néven ütemezi ("Password Spraying and Brute Force", T1110.001/.003/.004, 4625+4771+4776, `raw_query` aggregáció), a `service: security` log-forrás pipeline-beli bevezetése után (0037 DCSync a "proof point" előtte). A `.002`-re nincs és nem is tervezett szabály — lásd Detekciós lehetőség.
+| detect_id | Szabály | Altechnika | Telemetria | Szint |
+| --------- | ------- | ---------- | ---------- | ----- |
+| [DETECT-2026-0002](https://github.com/martonbence/Detection-Engineering/blob/main/rules/sigma/DETECT-2026-0002_Windows-Password-Guessing-Excessive-Authentication-Failures-Against-a-Single-Account.yml) | Windows Password Guessing - Excessive Authentication Failures Against a Single Account | `.001` | Windows Security 4625/4771/4776 (natív, `custom.splunk.raw_query`) | medium |
+
+`.003`/`.004`-re még nincs szabály — a `docs/credential-access-buildout.md` Track B terve eredetileg egy közös, **0040** azonosítójú aggregációban ütemezte mindhármat (T1110.001/.003/.004, 4625+4771+4776, `raw_query` aggregáció), a `service: security` log-forrás pipeline-beli bevezetése után (0037 DCSync a "proof point" előtte); a végül elkészült DETECT-2026-0002 ehelyett önállóan, csak `.001`-re épül (lásd a sub-technika jegyzet "Kapcsolódó szabályok" szakasza), úgyhogy `.003`/`.004` továbbra is nyitott. A `.002`-re nincs és nem is tervezett szabály — lásd Detekciós lehetőség.
 
 ## Kapcsolódó jegyzetek
 
