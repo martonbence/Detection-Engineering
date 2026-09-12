@@ -1,43 +1,43 @@
 {
-  "generated_at": "2026-09-09T18:21:00.795550+00:00",
+  "generated_at": "2026-09-12T11:40:19.474602+00:00",
   "total_rules": 31,
   "total_sigma_rules": 31,
   "total_compiled_sigma_rules": 29,
   "total_splunk_rules": 31,
   "total_native_spl_rules": 2,
-  "verified_pass": 7,
+  "verified_pass": 8,
   "verified_fail": 0,
   "verified_not_verified": 22,
   "verified_testing_disabled": 22,
-  "verified_testing_disabled_current": 22,
-  "never_tested": 2,
-  "not_verified": 24,
-  "verified_stale": 0,
-  "verified_superseded": 0,
+  "verified_testing_disabled_current": 21,
+  "never_tested": 1,
+  "not_verified": 23,
+  "verified_stale": 1,
+  "verified_superseded": 1,
   "verified_expired": 0,
-  "verified_pass_current": 7,
+  "verified_pass_current": 8,
   "verified_fail_current": 0,
-  "verified_current": 7,
+  "verified_current": 8,
   "pass_rate_pct": 100,
   "pass_rate_color": "brightgreen",
-  "verification_current_pct": 23,
+  "verification_current_pct": 26,
   "verification_current_color": "red",
-  "confirmed_working_pct": 23,
-  "last_live_verification_at": "2026-09-09T18:20:31.957225+00:00",
+  "confirmed_working_pct": 26,
+  "last_live_verification_at": "2026-09-12T11:18:19.454620+00:00",
   "last_live_verification_count": 1,
   "mitre_covered_techniques": 16,
   "mitre_total_techniques": 222,
   "mitre_total_fetched_at": "2026-09-07T15:04:55.548837+00:00",
   "mitre_coverage_pct": 7.2,
   "by_level": {
-    "critical": 14,
-    "high": 12,
+    "critical": 15,
+    "high": 10,
     "low": 2,
-    "medium": 3
+    "medium": 4
   },
   "by_status": {
-    "experimental": 3,
-    "stable": 26,
+    "experimental": 2,
+    "stable": 27,
     "test": 2
   },
   "by_tactic": {
@@ -47,9 +47,9 @@
     "Command & Control": 2,
     "Persistence": 2,
     "Defense Impairment": 2,
-    "Discovery": 2,
-    "Collection": 2,
-    "Initial Access": 1
+    "Initial Access": 1,
+    "Discovery": 1,
+    "Collection": 1
   },
   "rules": [
     {
@@ -107,6 +107,63 @@
       "rule_body": "detection:\n  selection_img:\n  - OriginalFileName:\n    - PowerShell.EXE\n    - pwsh.dll\n  - Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_named_tool:\n    CommandLine|contains:\n    - New-Object Net.Sockets.TCPClient\n    - System.Net.Sockets.TCPClient\n    - System.Net.Sockets.NetworkStream\n    - Invoke-PowerShellTcp\n    - Invoke-PowerShellTcpOneLine\n    - Invoke-PowerShellTcpOneLineBind\n    - Invoke-PowerShellUdp\n    - Invoke-PowerShellUdpOneLine\n    - Invoke-PowerShellIcmp\n    - Invoke-ConPtyShell\n    - Invoke-PoshRatHttp\n    - Invoke-PowerShellWmi\n    - Invoke-JSRatRegsvr\n    - Invoke-JSRatRundll\n    - Out-RundllCommand\n    - powercat\n    - Start-PowerCat\n    - Connect-PowerCat\n  selection_raw_socket_idiom:\n    CommandLine|contains|all:\n    - ' Net.Sockets.TCPClient'\n    - .GetStream(\n    - .Write(\n  selection_netcat_img:\n    Image|endswith:\n    - \\nc.exe\n    - \\ncat.exe\n    - \\nc64.exe\n    - \\netcat.exe\n  selection_netcat_flag:\n    CommandLine|contains:\n    - ' -e '\n    - ' --exec '\n    - ' --lua-exec '\n    - ' --sh-exec '\n    - ' -lvp '\n    - ' -lvnp '\n    - ' -l -v -p '\n    - ' -lv -p '\n  selection_msfvenom_tool:\n    CommandLine|contains|all:\n    - msfvenom\n    - ' -p '\n  selection_msfvenom_intent:\n    CommandLine|contains:\n    - reverse_tcp\n    - reverse_http\n    - reverse_https\n    - reverse_powershell\n    - bind_tcp\n    - shell_reverse\n    - shell_bind\n  condition: (selection_img and (selection_named_tool or selection_raw_socket_idiom)) or (selection_netcat_img\n    and selection_netcat_flag) or (selection_msfvenom_tool and selection_msfvenom_intent)",
       "rule_body_lang": "yaml",
       "rule_version": "1.1"
+    },
+    {
+      "detect_id": "DETECT-2026-0002",
+      "title": "Windows Password Guessing - Repeated Auth Failures on One Account",
+      "description": "Detects T1110.001 Password Guessing: one account targeted with many failed authentication attempts in a short window, the classic \"single account, many passwords\" brute-force pattern (e.g. Hydra against RDP/SMB with -l/-P, or CrackMapExec/NetExec spraying one known username across many hosts). Windows Security has no Sysmon equivalent for authentication -- this aggregates native logon-failure events (4625, 4771, 4776) across whichever host(s) they land on (a domain account's failed logon produces a local 4625 on the targeted host AND a DC-side 4771/4776 for the same attempt -- both are combined into one per-account total, not monitored as alternatives), filtered to the sub-status/failure codes that mean \"wrong password\" rather than \"unknown account\" (the latter is username enumeration, a different technique), and thresholds on failure count per targeted account within a sliding 5-minute window.\n",
+      "level": "medium",
+      "status": "stable",
+      "source": "native_spl",
+      "verdict": "PASS",
+      "run_id": "34690498895",
+      "verdict_at": "2026-09-12T11:18:19.454620+00:00",
+      "verdict_rule_version": "1.2",
+      "verdict_testing_disabled": false,
+      "tactics": [
+        "Credential Access"
+      ],
+      "techniques": [
+        "T1110.001"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0002_Windows-Password-Guessing-Excessive-Authentication-Failures-Against-a-Single-Account.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "security",
+        "event_type": "authentication_failure"
+      },
+      "author": "Bence Marton",
+      "date": "2026-09-12",
+      "modified": "2026-09-12",
+      "references": [
+        "https://attack.mitre.org/techniques/T1110/001/",
+        "https://sigmahq.io/docs/meta/correlations.html",
+        "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4625",
+        "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4771",
+        "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4776"
+      ],
+      "falsepositives": [
+        "A user who forgot their password and retries manually -- typically a low attempt count (2-5), from a single source, often the user's own normal office/VPN IP. Below this rule's 10-in-5-minutes threshold in the common case, but a slow, deliberate retyper could still cross it.",
+        "A service or scheduled task running with a stale credential after a password change, retrying persistently against the same account from the same source at a constant cadence -- the most common long-lived FP source in practice. Distinguishable from a real attack by duration and rhythm (days of steady, evenly-spaced failures vs. an attack's faster, shorter burst) but will still cross the count threshold; investigate before excluding, since a compromised service account retrying a *guessed* password would look identical at the SPL level.",
+        "Vulnerability or compliance scanners testing default credentials against an account from a known scanner IP. Allowlistable by source once the scanner's IP range is confirmed."
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1110.001",
+            "test_numbers": [
+              1
+            ]
+          }
+        ]
+      },
+      "rule_body": "index=wineventlog source=\"wineventlog:security\" (EventCode=4625 Sub_Status=\"0xC000006A\") OR (EventCode=4771 Failure_Code=\"0x18\") OR (EventCode=4776 Error_Code=\"0xC000006A\") | eval target_account=case(EventCode=4625, mvindex(Account_Name, -1), EventCode=4771, Account_Name, EventCode=4776, Logon_Account) | eval target_account=lower(replace(target_account, \"@.*$\", \"\")) | where NOT match(target_account, \"\\$$\") | eval src_identifier=coalesce(if(Source_Network_Address!=\"127.0.0.1\" AND Source_Network_Address!=\"::1\" AND Source_Network_Address!=\"-\", Source_Network_Address, null()), if(Client_Address!=\"::1\" AND Client_Address!=\"127.0.0.1\" AND Client_Address!=\"-\", Client_Address, null()), Workstation_Name, Source_Workstation) | sort 0 _time | streamstats time_window=5m count as failure_count, dc(src_identifier) as distinct_sources, values(src_identifier) as sources, values(EventCode) as event_codes by target_account | where failure_count >= 10 | stats latest(_time) as _time, max(failure_count) as failure_count, max(distinct_sources) as distinct_sources, values(sources) as sources, values(event_codes) as event_codes by target_account | sort - failure_count | table _time, target_account, failure_count, distinct_sources, sources, event_codes",
+      "rule_body_lang": "spl",
+      "rule_version": "1.2"
     },
     {
       "detect_id": "DETECT-2026-0003",
@@ -839,7 +896,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-05-12",
-      "modified": "2026-08-03",
+      "modified": "2026-09-10",
       "references": [
         "https://attack.mitre.org/techniques/T1059/001/",
         "https://github.com/PowerShellMafia/PowerSploit",
@@ -855,9 +912,9 @@
         "type": "emulation",
         "atomics": []
       },
-      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_cmdlets:\n    CommandLine|contains:\n    - Add-Persistence\n    - Find-AVSignature\n    - Get-GPPAutologon\n    - Get-GPPPassword\n    - Get-HttpStatus\n    - Get-Keystrokes\n    - Get-SecurityPackages\n    - Get-TimedScreenshot\n    - Get-VaultCredential\n    - Get-VolumeShadowCopy\n    - Install-SSP\n    - Invoke-CredentialInjection\n    - Invoke-DllInjection\n    - Invoke-Mimikatz\n    - Invoke-NinjaCopy\n    - Invoke-Portscan\n    - Invoke-ReflectivePEInjection\n    - Invoke-ReverseDnsLookup\n    - Invoke-Shellcode\n    - Invoke-TokenManipulation\n    - Invoke-WmiCommand\n    - Mount-VolumeShadowCopy\n    - New-ElevatedPersistenceOption\n    - New-UserPersistenceOption\n    - New-VolumeShadowCopy\n    - Out-CompressedDll\n    - Out-EncodedCommand\n    - Out-EncryptedScript\n    - Out-Minidump\n    - PowerUp\n    - PowerView\n    - Remove-Comments\n    - Remove-VolumeShadowCopy\n    - Set-CriticalProcess\n    - Set-MasterBootRecord\n    - Invoke-Kerberoast\n    - Invoke-ASREPRoast\n    - Invoke-DCSync\n    - Invoke-BloodHound\n    - Invoke-TheHash\n    - Invoke-WMIExec\n    - Invoke-SMBExec\n    - Invoke-DCOM\n    - Invoke-PowerShellTcp\n    - Invoke-PowerShellUdp\n    - Invoke-Inveigh\n    - Invoke-InveighRelay\n    - Invoke-EventViewer\n    - Invoke-SilentCleanup\n    - Invoke-Tater\n    - Invoke-Obfuscation\n    - Get-PassHashes\n  condition: selection_image and selection_cmdlets",
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_cmdlets:\n    CommandLine|contains:\n    - Add-Persistence\n    - Find-AVSignature\n    - Get-GPPAutologon\n    - Get-GPPPassword\n    - Get-HttpStatus\n    - Get-Keystrokes\n    - Get-SecurityPackages\n    - Get-TimedScreenshot\n    - Get-VaultCredential\n    - Get-VolumeShadowCopy\n    - Install-SSP\n    - Invoke-CredentialInjection\n    - Invoke-DllInjection\n    - Invoke-Mimikatz\n    - Invoke-NinjaCopy\n    - Invoke-Portscan\n    - Invoke-ReflectivePEInjection\n    - Invoke-ReverseDnsLookup\n    - Invoke-Shellcode\n    - Invoke-TokenManipulation\n    - Invoke-WmiCommand\n    - Mount-VolumeShadowCopy\n    - New-ElevatedPersistenceOption\n    - New-UserPersistenceOption\n    - New-VolumeShadowCopy\n    - Out-CompressedDll\n    - Out-EncodedCommand\n    - Out-EncryptedScript\n    - Out-Minidump\n    - PowerUp\n    - PowerView\n    - Remove-Comments\n    - Remove-VolumeShadowCopy\n    - Set-CriticalProcess\n    - Set-MasterBootRecord\n    - Invoke-Kerberoast\n    - Invoke-ASREPRoast\n    - Invoke-DCSync\n    - Invoke-BloodHound\n    - Invoke-TheHash\n    - Invoke-WMIExec\n    - Invoke-SMBExec\n    - Invoke-DCOM\n    - Invoke-PowerShellTcp\n    - Invoke-PowerShellUdp\n    - Invoke-EventViewer\n    - Invoke-SilentCleanup\n    - Invoke-Tater\n    - Invoke-Obfuscation\n    - Get-PassHashes\n  condition: selection_image and selection_cmdlets",
       "rule_body_lang": "yaml",
-      "rule_version": "1.0"
+      "rule_version": "1.1"
     },
     {
       "detect_id": "DETECT-2026-0019",
@@ -1654,57 +1711,9 @@
     },
     {
       "detect_id": "DETECT-2026-0033",
-      "title": "Name Resolution Poisoning and SMB Relay via Correlated DNS Failure",
-      "description": "Detects the victim-side telemetry pattern left behind by LLMNR/NBT-NS poisoning (Responder, Inveigh) and its SMB relay follow-up (Impacket ntlmrelayx): a DNS query that fails to resolve (Sysmon EID 22, QueryStatus != 0), immediately followed on the same host by an outbound SMB connection attempt (Sysmon EID 3, port 445) — the OS falling back to a broadcast-poisoned name resolution and then authenticating to whatever answered it. Neither event alone is meaningful (DNS failures and SMB connections are both common); the two occurring back-to-back within a few seconds on the same host is not. This does not detect the poisoning itself (that happens on the wire, outside what a Windows host's own Sysmon can see) or the attacker's tooling (see DETECT-2026-0034 for Responder/Inveigh process execution) — it detects a host that just fell for it.\n",
-      "level": "high",
-      "status": "experimental",
-      "source": "native_spl",
-      "verdict": "N/A",
-      "run_id": "",
-      "verdict_at": "",
-      "verdict_rule_version": "",
-      "verdict_testing_disabled": false,
-      "tactics": [
-        "Credential Access",
-        "Collection"
-      ],
-      "techniques": [
-        "T1557.001"
-      ],
-      "file_path": "rules/sigma/DETECT-2026-0033_Name-Resolution-Poisoning-and-SMB-Relay-via-Correlated-DNS-Failure.yml",
-      "logsource": {
-        "product_category": "os",
-        "product": "windows",
-        "service": "sysmon",
-        "event_type": "network_connection"
-      },
-      "author": "Bence Marton",
-      "date": "2026-09-08",
-      "modified": "2026-09-08",
-      "references": [
-        "https://attack.mitre.org/techniques/T1557/001/"
-      ],
-      "falsepositives": [
-        "Legitimate legacy NetBIOS-name (non-FQDN) SMB access — a user or script opening \\\\SERVER01\\share where SERVER01 has no DNS record produces the exact same DNS-failure-then- SMB-connect sequence, entirely benignly. This is the dominant false positive and is handled by the known_smb_servers.csv lookup the raw_query calls — populate it with every legitimate file/print server IP in the environment before enabling; a hit against a listed IP is suppressed. Un-tuned, this rule will be noisy in any environment with real legacy NetBIOS share usage.",
-        "Backup, inventory, or patch-management tools that legitimately resolve and connect to many hosts by short name in quick succession.",
-        "Coincidental timing — an unrelated DNS failure and an unrelated SMB connection from the same host landing within the correlation window by chance. Narrow custom.splunk.raw_query's maxspan (currently 10s) if this shows up in practice.",
-        "A DNS-failure/SMB-connect pair that straddles two consecutive 5-minute search windows will not correlate and will be missed — a known gap of the scheduled-search approach, not a logic error."
-      ],
-      "testing": {
-        "enabled": false,
-        "runner": "windows-victim",
-        "type": "emulation",
-        "atomics": []
-      },
-      "rule_body": "index=sysmon (EventCode=22 QueryStatus!=0) OR (EventCode=3 DestinationPort=445 Initiated=\"true\") | transaction ComputerName startswith=(EventCode=22) endswith=(EventCode=3) maxspan=10s | where eventcount=2 | eval QueryName=mvindex(QueryName,0), DestinationIp=mvindex(DestinationIp,0), DestinationPort=mvindex(DestinationPort,0), Image=mvindex(Image,0), User=mvindex(User,0) | lookup known_smb_servers.csv ip AS DestinationIp OUTPUT is_known_server | where isnull(is_known_server) | table _time, ComputerName, User, QueryName, DestinationIp, DestinationPort, Image",
-      "rule_body_lang": "spl",
-      "rule_version": "1.0"
-    },
-    {
-      "detect_id": "DETECT-2026-0034",
-      "title": "Network Sniffing and AiTM Tooling Execution",
-      "description": "Detects execution of network-sniffing and adversary-in-the-middle tooling on the monitored host itself: Windows-native packet capture (netsh trace, pktmon, the PowerShell NetEventPacketCapture cmdlets, Wireshark/tshark) for T1040, and LLMNR/NBT-NS poisoning / SMB relay tooling (Inveigh, Responder, Impacket ntlmrelayx) for T1557.001. This is the attacker-side counterpart to DETECT-2026-0033, which detects a victim's downstream reaction to poisoning rather than the tool itself — this rule only fires if the tool runs on a host this pipeline actually watches, which in practice means an insider or an already-compromised internal host, since an external attacker's own infrastructure is not instrumented.\n",
-      "level": "high",
+      "title": "LLMNR/NBT-NS Poisoning and SMB Relay Tooling Execution",
+      "description": "Detects execution of LLMNR / NBT-NS / mDNS name-resolution poisoning and SMB relay tooling on a monitored host: Inveigh (the PowerShell Invoke-Inveigh / Invoke-InveighRelay functions and the compiled Inveigh.exe), Responder, and Impacket's ntlmrelayx. It detects the attacker's tooling directly, so it only fires when the tool runs on a host this pipeline actually watches -- in practice an insider or an already-compromised internal host, since an external attacker's own infrastructure is not instrumented. The poisoning itself is a network-layer event Sysmon cannot see, so this process-execution signal is the endpoint's only view of the poisoning half of the technique; the authoritative detection for the on-wire spoofing and relay belongs on a network sensor.\n",
+      "level": "critical",
       "status": "experimental",
       "source": "sigma",
       "verdict": "N/A",
@@ -1714,14 +1723,12 @@
       "verdict_testing_disabled": false,
       "tactics": [
         "Credential Access",
-        "Discovery",
         "Collection"
       ],
       "techniques": [
-        "T1040",
         "T1557.001"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0034_Network-Sniffing-and-AiTM-Tooling-Execution.yml",
+      "file_path": "rules/sigma/DETECT-2026-0033_LLMNR-NBT-NS-Poisoning-and-SMB-Relay-Tooling-Execution.yml",
       "logsource": {
         "product_category": "os",
         "product": "windows",
@@ -1730,41 +1737,25 @@
       },
       "author": "Bence Marton",
       "date": "2026-09-08",
-      "modified": "2026-09-08",
+      "modified": "2026-09-10",
       "references": [
-        "https://attack.mitre.org/techniques/T1040/",
-        "https://attack.mitre.org/techniques/T1557/001/"
+        "https://attack.mitre.org/techniques/T1557/001/",
+        "https://github.com/Kevin-Robertson/Inveigh",
+        "https://github.com/lgandx/Responder",
+        "https://github.com/fortra/impacket"
       ],
       "falsepositives": [
-        "Legitimate network troubleshooting by IT/support staff using netsh trace, pktmon, or Wireshark/tshark — these are the dominant false positive source for the T1040 branch; Microsoft support engineers commonly instruct netsh trace during case work. Consider a SourceImage/parent-process or user-group allowlist if this is common in the environment.",
-        "Authorized internal penetration testing or red-team exercises deliberately running Inveigh, Responder, or ntlmrelayx — the T1557.001 branch is otherwise very low-FP, since these tool names have essentially no legitimate administrative use.",
-        "Security tooling that legitimately captures traffic for its own detection purposes (some NDR/EDR agents use pktmon or ETW packet capture internally) — allowlist the vendor's process path if observed."
+        "Authorized internal penetration testing or red-team exercises deliberately running Inveigh, Responder, or ntlmrelayx. This is the only realistic false-positive source, because these tool names have essentially no legitimate administrative use -- a hit that does not line up with a scheduled engagement should be treated as a real intrusion. Cross-check the alert against the pentest / red-team calendar rather than filtering it out in the rule."
       ],
       "testing": {
         "enabled": false,
         "runner": "windows-victim",
-        "type": "atomic",
-        "atomics": [
-          {
-            "technique": "T1040",
-            "test_numbers": [
-              5,
-              6,
-              7,
-              16
-            ]
-          },
-          {
-            "technique": "T1557.001",
-            "test_numbers": [
-              1
-            ]
-          }
-        ]
+        "type": "emulation",
+        "atomics": []
       },
-      "rule_body": "detection:\n  selection_netsh_trace:\n    Image|endswith: \\netsh.exe\n    CommandLine|contains|all:\n    - trace\n    - start\n  selection_pktmon:\n    Image|endswith: \\pktmon.exe\n    CommandLine|contains:\n    - start\n    - filter\n  selection_wireshark_capture:\n    Image|endswith:\n    - \\dumpcap.exe\n    - \\tshark.exe\n  selection_powershell_capture:\n    CommandLine|contains|all:\n    - NetEventSession\n    - NetEventPacketCaptureProvider\n  selection_inveigh:\n    CommandLine|contains: Invoke-Inveigh\n  selection_responder:\n    CommandLine|contains:\n    - Responder.py\n    - responder.py\n  selection_ntlmrelayx:\n    CommandLine|contains: ntlmrelayx\n  condition: 1 of selection_*",
+      "rule_body": "detection:\n  selection_inveigh:\n  - CommandLine|contains:\n    - Invoke-Inveigh\n    - Invoke-InveighRelay\n  - OriginalFileName:\n    - Inveigh.exe\n    - Inveigh.dll\n  selection_inveigh_compiled_img:\n    Image|endswith: \\Inveigh.exe\n  selection_inveigh_compiled_cli:\n    CommandLine|contains: Inveigh\n  selection_responder:\n    CommandLine|contains|all:\n    - Responder.py\n    - '-I '\n  selection_ntlmrelayx:\n  - CommandLine|contains: ntlmrelayx\n  - Image|endswith: \\ntlmrelayx.exe\n  condition: selection_inveigh or (selection_inveigh_compiled_img and selection_inveigh_compiled_cli)\n    or selection_responder or selection_ntlmrelayx",
       "rule_body_lang": "yaml",
-      "rule_version": "1.0"
+      "rule_version": "1.2"
     }
   ]
 }
