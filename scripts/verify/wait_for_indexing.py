@@ -19,11 +19,31 @@
 # Advisory by design: on timeout it warns and returns 0. Blocking here would
 # convert a slow indexer into a pipeline failure, when the honest outcome is to
 # go on and let the verification report what it finds.
+#
+# DETECT-2026-0002 exposed a hole in "any event in the relevant indexes"
+# (2026-09-12): every rule before it targeted a Sysmon-dedicated index with
+# little background noise, so "any event landed" was a fine proxy for "our
+# event landed." That rule is the first against `wineventlog`, a shared,
+# high-volume native-log index -- the probe was satisfied by unrelated
+# Windows Security noise within one or two checks, long before the atomic
+# test's own 4625/4771/4776 events had actually finished indexing, and
+# check_saved_search_hits.py then queried too early and reported a FAIL for
+# events that showed up moments later (confirmed live: re-running the
+# identical search minutes after a FAIL run returned the expected 10-event
+# match). So each rule now gets its own probe, narrowed to its actual
+# selection filter (see `leading_filter_clause`) rather than a blanket
+# `index=X` -- "caught up" means "this rule's own matching events exist,"
+# not "the index received any traffic at all." A rule whose .spl opens with
+# a true generating command (`| tstats`, `| inputlookup`, ...) has no
+# extractable filter clause -- sigma_to_spl.py's `_inject_index_prefix()`
+# treats those the same way -- so those still fall back to the old
+# index-level probe.
 
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -65,7 +85,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--since", required=True, help="Epoch seconds: the start of the test phase")
     p.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT, help=f"Seconds (default {DEFAULT_TIMEOUT})")
     p.add_argument("--interval", type=int, default=DEFAULT_INTERVAL, help=f"Seconds (default {DEFAULT_INTERVAL})")
-    p.add_argument("spl_files", nargs="*", help=".spl files whose meta sidecars name the indexes to watch")
+    p.add_argument(
+        "spl_files",
+        nargs="*",
+        help=".spl files to probe -- each rule's own leading filter clause is used where one can be "
+        "extracted, falling back to its meta sidecar's index otherwise",
+    )
     return p.parse_args(argv)
 
 
@@ -88,9 +113,125 @@ def indexes_from_meta(spl_files: list[str]) -> list[str]:
 
 
 def build_probe_search(indexes: list[str], since: str) -> str:
-    """One event is proof enough that the indexer has reached `since`."""
+    """One event *anywhere in the index* is proof the indexer has reached
+    `since`. Kept as the fallback for rules a filter clause can't be
+    extracted from (see `leading_filter_clause`), and for the no-files case.
+    """
     scope = " OR ".join(f"index={i}" for i in indexes) if indexes else "index=*"
     return f"search ({scope}) earliest={since} latest=now | head 1 | stats count as c"
+
+
+# Mirrors sigma_to_spl.py's `_GENERATING_COMMANDS` (scripts/convert/sigma_to_spl.py).
+# Duplicated rather than imported: importing that module pulls in the full
+# conversion toolchain (pySigma, backend_config.yml) just for one constant.
+# Keep in sync if that list changes.
+_GENERATING_COMMANDS = {
+    "tstats",
+    "mstats",
+    "datamodel",
+    "pivot",
+    "metadata",
+    "inputlookup",
+    "inputcsv",
+    "dbxquery",
+    "rest",
+    "from",
+    "mcatalog",
+    "savedsearch",
+    "loadjob",
+    "makeresults",
+    "multisearch",
+    "union",
+    "gentimes",
+}
+
+
+def _opens_with_generating_command(text: str) -> bool:
+    match = re.match(r"\s*\|\s*([A-Za-z][A-Za-z0-9_]*)", text)
+    return bool(match) and match.group(1).lower() in _GENERATING_COMMANDS
+
+
+def _before_first_top_level_pipe(text: str) -> str:
+    """Everything up to the first `|` that isn't inside a quoted string.
+
+    A naive `text.split("|", 1)` would cut a query short at a `|` that's part
+    of a quoted literal (e.g. a regex alternation inside a `rex` pattern).
+    """
+    in_dquote = False
+    in_squote = False
+    for i, ch in enumerate(text):
+        if ch == '"' and not in_squote:
+            in_dquote = not in_dquote
+        elif ch == "'" and not in_dquote:
+            in_squote = not in_squote
+        elif ch == "|" and not in_dquote and not in_squote:
+            return text[:i]
+    return text
+
+
+def leading_filter_clause(spl_text: str) -> str | None:
+    """The rule's own selection/filter clause, or None if there isn't one to
+    extract.
+
+    For both `custom.splunk.raw_query` rules and normal pySigma output, the
+    search text before the first transforming/aggregating pipe (`| eval`,
+    `| stats`, `| bin`, `| streamstats`, etc.) IS the real filter -- it's not
+    something that needs re-deriving from the Sigma source, and
+    sigma_to_spl.py's `enforce_index_prefix()` already puts the index at the
+    front of exactly this leading portion.
+
+    Returns None for a .spl that opens with a true generating command
+    (`| tstats`, `| inputlookup`, ...): those produce their own result set
+    from scratch rather than filtering raw events, so there is no leading
+    filter clause to extract. Callers should fall back to an index-level
+    probe for these.
+    """
+    text = (spl_text or "").strip()
+    if not text or _opens_with_generating_command(text):
+        return None
+
+    clause = _before_first_top_level_pipe(text).strip()
+    return clause or None
+
+
+def build_probes(spl_files: list[str], since: str) -> list[tuple[str, str]]:
+    """One (label, search) probe per rule under test.
+
+    Narrowed to each rule's own filter clause where one can be extracted, so
+    "caught up" means that rule's own matching events exist -- not that its
+    index received any traffic at all (see the module docstring). Falls back
+    to the old index-level probe for rules a filter clause can't be pulled
+    from (a true generating-command opener, or a .spl that couldn't be
+    read). With no files at all -- the legacy call shape -- falls back to a
+    single all-indexes probe exactly as before.
+    """
+    if not spl_files:
+        return [("(no rule files given)", build_probe_search([], since))]
+
+    probes: list[tuple[str, str]] = []
+    for spl in spl_files:
+        path = Path(spl)
+        label = path.stem
+
+        try:
+            meta = read_meta_sidecar(path) or {}
+        except (OSError, json.JSONDecodeError):
+            meta = {}
+        index = str(meta.get("index") or "").strip()
+
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            text = ""
+
+        clause = leading_filter_clause(text)
+        if clause:
+            search = f"search ({clause}) earliest={since} latest=now | head 1 | stats count as c"
+        else:
+            search = build_probe_search([index] if index else [], since)
+
+        probes.append((label, search))
+    return probes
 
 
 def parse_count(payload: object) -> int:
@@ -147,10 +288,11 @@ def main(argv: list[str] | None = None) -> int:
     announce_tls_mode(verify_tls)
 
     indexes = indexes_from_meta(args.spl_files)
-    search = build_probe_search(indexes, str(args.since))
+    probes = build_probes(args.spl_files, str(args.since))
 
     print(f"Waiting for Splunk to index events at or after epoch {args.since}.")
     print(f"Indexes under test: {', '.join(indexes) if indexes else '(none resolved -- probing all)'}")
+    print(f"Probing {len(probes)} rule(s) individually: {', '.join(label for label, _ in probes)}")
     print(f"Giving it up to {args.timeout}s, checking every {args.interval}s.")
 
     session = build_session(username, password, verify_tls)
@@ -163,22 +305,31 @@ def main(argv: list[str] | None = None) -> int:
 
     started = time.monotonic()
     attempts = 0
+    satisfied: set[str] = set()
 
     while True:
         attempts += 1
         elapsed = time.monotonic() - started
 
-        if probe(session, url, search) > 0:
-            print(f"Indexer has caught up after {elapsed:.0f}s ({attempts} check(s)).")
+        for label, search in probes:
+            if label in satisfied:
+                continue
+            if probe(session, url, search) > 0:
+                satisfied.add(label)
+                print(f"  {label}: caught up after {elapsed:.0f}s.")
+
+        if len(satisfied) == len(probes):
+            print(f"Indexer has caught up on all {len(probes)} rule(s) after {elapsed:.0f}s ({attempts} check(s)).")
             return 0
 
         if elapsed + args.interval >= args.timeout:
             # Not a failure: the verification below will report what it finds,
             # and a rule with no events becomes NOT_VERIFIED rather than a FAIL.
+            pending = [label for label, _ in probes if label not in satisfied]
             print(
                 f"::warning title=Splunk indexing not confirmed::No events at or after the test window "
-                f"start appeared within {args.timeout}s. Continuing anyway -- if rules come back with zero "
-                f"hits, a slow indexer is the first thing to rule out."
+                f"start appeared within {args.timeout}s for: {', '.join(pending)}. Continuing anyway -- if "
+                f"these rules come back with zero hits, a slow indexer is the first thing to rule out."
             )
             return 0
 

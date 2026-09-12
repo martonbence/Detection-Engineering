@@ -440,6 +440,40 @@ verify the emitted SPL's real grouping against Splunk's documented
 assume missing parentheses means broken logic, and don't assume pySigma
 adds parens defensively; it doesn't.
 
+**Re-running failed jobs within a run that already reached `deploy_pages`
+breaks the Pages deploy, every time.** Real incident, twice in one session,
+2026-09-12 (`ci_dev_workflow.yml` runs `34690498895` and `34696370915`).
+`actions/upload-pages-artifact` always uploads under the fixed name
+`github-pages`; GitHub does not let a re-run of a job replace or supersede
+an artifact a prior attempt of the *same run* already uploaded under that
+name. So if `deploy_pages` (or anything upstream of it, e.g. `update_dashboard`
+via `needs:`) runs more than once inside one workflow run — which "Re-run
+failed jobs" does deliberately, since it re-runs a failed job *and every job
+that depends on it* — the second attempt's `actions/deploy-pages` step dies
+with:
+```
+Error: Multiple artifacts named "github-pages" were unexpectedly found for this workflow run. Artifact count is 2.
+```
+Both incidents had a real, unrelated upstream failure (`Splunk Verification`
+FAILing because the atomic's events hadn't finished indexing yet) get
+"Re-run failed jobs"'d, which correctly re-ran `Splunk Verification` (this
+time it PASSed — a genuine fix) but *also* re-ran the already-`success`
+`update_dashboard`/`deploy_pages` chain as a `needs:` dependent, producing
+the second `github-pages` artifact and failing Pages on both attempts.
+**Not a bug in this repo's workflow logic** — the real fix (Splunk
+catching up, verification re-passing) worked exactly as intended; Pages
+failing is a structural GitHub Actions/`actions/deploy-pages` limitation
+around artifact re-upload within one run, not something `ci_dev_workflow.yml`
+can guard against from the workflow-author side. *Recovery:* don't keep
+re-running failed jobs chasing the Pages step specifically — either accept
+the site staying on its previous deploy until the *next* fresh run (a new
+push or a new `workflow_dispatch`, which starts a clean run with no
+accumulated artifact), or trigger a full fresh run immediately if the
+Console needs to be current right away. *Failure signature:* `deploy_pages`
+red X with exactly the "Multiple artifacts named github-pages... Artifact
+count is 2" error, specifically on a run's second-or-later attempt, never
+on a run's first attempt.
+
 ## I — Register-item citations
 
 **A bare "register item N.N" in a comment is ambiguous, and it has already

@@ -13,7 +13,14 @@ import json
 
 import pytest
 import wait_for_indexing as wait
-from wait_for_indexing import build_probe_search, indexes_from_meta, main, parse_count
+from wait_for_indexing import (
+    build_probe_search,
+    build_probes,
+    indexes_from_meta,
+    leading_filter_clause,
+    main,
+    parse_count,
+)
 
 
 class FakeResponse:
@@ -165,6 +172,168 @@ def test_it_never_sleeps_past_the_timeout(splunk):
 
 
 # --- the probe failing is not the same as an answer --------------------------
+
+
+# --- per-rule filter extraction (DETECT-2026-0002 fix) -----------------------
+#
+# DETECT-2026-0002 is the first rule against `wineventlog`, a shared,
+# high-volume native index -- "any event in the index" is satisfied almost
+# instantly by unrelated noise there, long before the rule's own atomic-test
+# events (4625/4771/4776) have actually been indexed. The probe must be
+# specific to what each rule is actually looking for.
+
+
+def test_leading_filter_clause_stops_at_first_top_level_pipe():
+    spl = (
+        'index=wineventlog source="wineventlog:security" (EventCode=4625 '
+        'Sub_Status="0xC000006A") OR (EventCode=4771 Failure_Code="0x18") '
+        "| eval target_account=case(EventCode=4625, mvindex(Account_Name, -1)) "
+        "| stats count by target_account"
+    )
+
+    clause = leading_filter_clause(spl)
+
+    assert clause == (
+        'index=wineventlog source="wineventlog:security" (EventCode=4625 '
+        'Sub_Status="0xC000006A") OR (EventCode=4771 Failure_Code="0x18")'
+    )
+    assert "eval" not in clause
+    assert "stats" not in clause
+
+
+def test_leading_filter_clause_ignores_a_pipe_inside_a_quoted_literal():
+    spl = 'index=sysmon CommandLine="*a|b*" | table _time'
+
+    clause = leading_filter_clause(spl)
+
+    assert clause == 'index=sysmon CommandLine="*a|b*"'
+
+
+def test_leading_filter_clause_is_none_for_a_true_generating_command():
+    """`| tstats ...` produces its own result set -- there is no filter clause
+    to extract, and sigma_to_spl.py's own index-injection treats it the same
+    way (register: `_inject_index_prefix`'s generating-command branch)."""
+    assert leading_filter_clause("| tstats count from datamodel=Endpoint.Processes") is None
+    assert leading_filter_clause("| inputlookup my_lookup.csv") is None
+
+
+def test_leading_filter_clause_handles_empty_input():
+    assert leading_filter_clause("") is None
+    assert leading_filter_clause("   ") is None
+
+
+def test_build_probes_narrows_to_each_rules_own_filter(tmp_path):
+    spl = tmp_path / "DETECT-2026-0002.spl"
+    spl.write_text(
+        'index=wineventlog (EventCode=4625 Sub_Status="0xC000006A") '
+        "| eval target_account=lower(Account_Name) | stats count by target_account",
+        encoding="utf-8",
+    )
+    (tmp_path / "DETECT-2026-0002.meta.json").write_text(
+        json.dumps({"index": "wineventlog"}), encoding="utf-8"
+    )
+
+    probes = build_probes([str(spl)], "100")
+
+    assert len(probes) == 1
+    label, search = probes[0]
+    assert label == "DETECT-2026-0002"
+    assert 'EventCode=4625 Sub_Status="0xC000006A"' in search
+    assert "eval" not in search
+    assert "target_account" not in search  # the rule's own transforming logic, not its filter
+    assert "earliest=100" in search
+
+
+def test_build_probes_falls_back_to_index_level_for_generating_commands(tmp_path):
+    spl = tmp_path / "DETECT-tstats.spl"
+    spl.write_text("| tstats count from datamodel=Endpoint.Processes", encoding="utf-8")
+    (tmp_path / "DETECT-tstats.meta.json").write_text(json.dumps({"index": "sysmon"}), encoding="utf-8")
+
+    probes = build_probes([str(spl)], "100")
+
+    assert len(probes) == 1
+    label, search = probes[0]
+    assert label == "DETECT-tstats"
+    assert "index=sysmon" in search
+    assert "tstats" not in search
+
+
+def test_build_probes_with_no_files_falls_back_to_the_legacy_all_index_probe():
+    probes = build_probes([], "100")
+
+    assert len(probes) == 1
+    assert "index=*" in probes[0][1]
+
+
+class KeyedFakeSession:
+    """A fake Splunk that answers differently per probe search text.
+
+    Models the real bug: a noisy shared index (`wineventlog`) satisfies a
+    blanket `index=X` probe almost immediately, while the specific rule's own
+    matching events take longer to actually appear.
+    """
+
+    def __init__(self, response_queues: dict[str, list[int]]):
+        self.headers = {}
+        self.verify = True
+        self.auth = None
+        self.calls = []
+        self._queues = {k: list(v) for k, v in response_queues.items()}
+
+    def post(self, url, data=None, timeout=None):
+        search = data["search"]
+        self.calls.append(search)
+        for key, queue in self._queues.items():
+            if key in search:
+                count = queue.pop(0) if len(queue) > 1 else queue[0]
+                return FakeResponse(count=count)
+        return FakeResponse(count=0)
+
+
+def test_it_waits_for_every_rules_own_probe_not_just_any_index_hit(splunk, tmp_path, monkeypatch):
+    """The regression this whole fix is for: with a blanket `index=wineventlog`
+    probe, noise alone would have declared victory on the first check. The
+    per-rule probe must keep waiting until DETECT-2026-0002's own narrow
+    filter clause -- not just any event in the shared index -- returns a hit.
+    """
+    noisy_filter = "EventCode=4624"  # some other rule's own filter -- matches fast
+    target_filter = 'EventCode=4625 Sub_Status="0xC000006A"'  # this rule's own filter -- slow
+
+    noisy_spl = tmp_path / "DETECT-noisy.spl"
+    noisy_spl.write_text(f"index=wineventlog {noisy_filter} | table _time", encoding="utf-8")
+    (tmp_path / "DETECT-noisy.meta.json").write_text(json.dumps({"index": "wineventlog"}), encoding="utf-8")
+
+    target_spl = tmp_path / "DETECT-2026-0002.spl"
+    target_spl.write_text(f"index=wineventlog {target_filter} | table _time", encoding="utf-8")
+    (tmp_path / "DETECT-2026-0002.meta.json").write_text(json.dumps({"index": "wineventlog"}), encoding="utf-8")
+
+    # `splunk` fixture fakes env vars, time.sleep and time.monotonic, and also
+    # wires up its own FakeSession -- swap that for the keyed one afterwards.
+    _, slept = splunk([])
+
+    session = KeyedFakeSession({noisy_filter: [1], target_filter: [0, 0, 5]})
+    monkeypatch.setattr(wait.requests, "Session", lambda: session)
+
+    result = main(
+        [
+            "--since",
+            "100",
+            "--interval",
+            "10",
+            "--timeout",
+            "60",
+            str(noisy_spl),
+            str(target_spl),
+        ]
+    )
+
+    assert result == 0
+    # It kept polling past the point the noisy rule's own probe was already
+    # satisfied -- the old blanket `index=wineventlog` probe would have
+    # returned success on the very first check instead.
+    assert len(slept) >= 2
+    assert any(target_filter in call for call in session.calls)
+    assert any(noisy_filter in call for call in session.calls)
 
 
 def test_an_http_error_is_treated_as_not_ready_rather_than_ready(splunk):
