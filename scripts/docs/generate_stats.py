@@ -324,7 +324,7 @@ def fetch_mitre_techniques(
 ) -> tuple[int, list, bool]:
     """Returns (total_main_count, technique_map, was_freshly_fetched).
 
-    technique_map: [{id, name, tactics, subs:[{id, name, tactics}]}]
+    technique_map: [{id, name, tactics, platforms, subs:[{id, name, tactics, platforms}]}]
     Caches the full map in MITRE_MAP_CACHE_PATH (7-day TTL).
     Falls back to cached values on any error.
     """
@@ -377,7 +377,13 @@ def fetch_mitre_techniques(
                     tname = STIX_TACTIC_MAP.get(phase.get("phase_name", ""), "")
                     if tname:
                         tactics.append(tname)
-            entry = {"id": tech_id, "name": obj.get("name", ""), "tactics": tactics}
+            platforms = sorted(obj.get("x_mitre_platforms", []) or [])
+            entry = {
+                "id": tech_id,
+                "name": obj.get("name", ""),
+                "tactics": tactics,
+                "platforms": platforms,
+            }
             if "." in tech_id:
                 sub_techs[tech_id] = entry
             else:
@@ -650,6 +656,11 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
         c = technique_coverage.get(tid)
         return " fail-flag" if c and c.get("has_fail") else ""
 
+    def pattr(platforms: list) -> str:
+        if not platforms:
+            return ""
+        return " data-platforms=\"" + _html.escape(",".join(platforms)) + "\""
+
     def rattr(tid: str) -> str:
         c = technique_coverage.get(tid)
         if not c:
@@ -714,7 +725,7 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
             )
             cells.append(
                 "<div class=\"tc " + cls + has_cov + fail_cls + "\" data-id=\"" + tid + "\""
-                + inherit_tip + rattr(tid) + ">"
+                + inherit_tip + rattr(tid) + pattr(tech.get("platforms", [])) + ">"
                 "<div class=\"tc-row1\">"
                 "<a class=\"ti\" href=\"" + tech_url + "\" target=\"_blank\">" + tid + "</a>"
                 + expand +
@@ -731,7 +742,8 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
                 surl = "https://attack.mitre.org/techniques/" + tid + "/" + suffix + "/"
                 cells.append(
                     "<div class=\"tc sub " + vcls(sid) + fcls(sid) + " subs-" + tid + "\""
-                    " style=\"display:none\" data-id=\"" + sid + "\"" + rattr(sid) + ">"
+                    " style=\"display:none\" data-id=\"" + sid + "\"" + rattr(sid)
+                    + pattr(sub.get("platforms", [])) + ">"
                     "<div class=\"tc-row1\">"
                     "<a class=\"ti\" href=\"" + surl + "\" target=\"_blank\">." + suffix + "</a>"
                     "</div>"
@@ -761,6 +773,36 @@ def _build_matrix_html(technique_map: list, technique_coverage: dict) -> str:
             + "</div>"
         )
     return "<div class=\"att-matrix\">" + "".join(cols) + "</div>"
+
+
+def _build_platform_menu_html(technique_map: list) -> str:
+    """Multi-select dropdown items for the Navigator's platform filter, one
+    per distinct x_mitre_platforms value seen across the fetched technique
+    map (parents and sub-techniques both contribute). Same markup shape as
+    the existing verdict menu (`nav-verdict-item`) so it picks up that
+    component's styling/interaction pattern rather than inventing a new one.
+    Selection indicator is a plain checkbox (`.nav-platform-cb`), styled
+    like the Columns dropdown's `.col-toggle-row` checkbox — Platform values
+    have no inherent color semantics, unlike Verdict's swatch/tick, so it
+    doesn't borrow that treatment. `tabindex="-1"` keeps the row itself (not
+    the checkbox) as the one tab stop, matching this row's current lack of
+    its own keyboard focus handling.
+    """
+    platforms: set[str] = set()
+    for tech in technique_map:
+        platforms.update(tech.get("platforms", []) or [])
+        for sub in tech.get("subs", []):
+            platforms.update(sub.get("platforms", []) or [])
+    items = []
+    for plat in sorted(platforms):
+        esc = _html.escape(plat)
+        items.append(
+            "<div class=\"nav-verdict-item nav-platform-item\" data-platform=\""
+            + esc + "\"><input type=\"checkbox\" class=\"nav-platform-cb\" tabindex=\"-1\">"
+            "<span class=\"lbl\">" + esc + "</span>"
+            "<span class=\"nav-legend-count\" data-platform-count=\"" + esc + "\"></span></div>"
+        )
+    return "".join(items)
 
 
 # ── Historical trend mining (Dashboards "Trends Over Time" section) ────────
@@ -2102,6 +2144,7 @@ def render_html_summary(stats: dict, repo: str) -> str:
     rules_detail_inner = stats.get("_rules_detail", stats.get("rules", []))
     technique_coverage = build_technique_coverage(rules_detail_inner, repo)
     matrix_html = _build_matrix_html(technique_map, technique_coverage)
+    platform_menu_html = _build_platform_menu_html(technique_map)
     # Raw URL, not the blob page: this is what you paste into the official
     # Navigator's "Open Existing Layer → Load from URL" (raw.githubusercontent
     # serves it with CORS), and it still saves fine straight from the browser.
@@ -2151,6 +2194,7 @@ def render_html_summary(stats: dict, repo: str) -> str:
     html = html.replace("@@COVERAGE_HISTORY_JSON@@", coverage_history_json)
     html = html.replace("@@RULE_GROWTH_HISTORY_JSON@@", rule_growth_history_json)
     html = html.replace("@@MATRIX_HTML@@", matrix_html)
+    html = html.replace("@@PLATFORM_MENU_HTML@@", platform_menu_html)
     html = html.replace("@@LAYER_URL@@", layer_url)
     html = html.replace("@@REVIEW_DAYS@@", str(REVIEW_INTERVAL_DAYS))
     owner, name = repo.split("/", 1)
