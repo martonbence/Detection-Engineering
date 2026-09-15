@@ -1062,7 +1062,16 @@
       color: var(--text);
     }
 
-    .export-menu {
+    /* ── The one dropdown-menu frame ──────────────────────────────────────
+       Five menus share it: Export / Views / Columns (Rule Library) and
+       Verdict / Platform (Navigator), plus the Navigator's own Export.
+       This used to be two matched copies -- .export-menu here and
+       .nav-verdict-menu in the Navigator block -- kept in step by hand
+       "because that one is left-aligned". Alignment is a one-line override
+       (see #views-menu below, which is left-aligned off this very rule), so
+       the frame is now genuinely shared and cannot drift again. */
+    .export-menu,
+    .nav-verdict-menu {
       display: none;
       position: absolute;
       right: 0;
@@ -1073,16 +1082,25 @@
       background: rgba(20, 25, 34, 0.75);
       backdrop-filter: blur(18px) saturate(1.3);
       -webkit-backdrop-filter: blur(18px) saturate(1.3);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      /* Same "methodology purple" frame as the main table card (.content) --
+         a restrained violet border + a soft outward bloom -- so all five
+         dropdowns read as the same visual family as the table/matrix they
+         act on, not separately-styled popovers.
+         PREVIEW: border-width bumped 1px -> 2px (one step thicker) so the
+         frame reads clearly against the glass fill; color/glow unchanged. */
+      border: 2px solid rgba(167, 153, 232, 0.42);
       border-radius: var(--radius-lg);
       box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.08),
-        0 14px 38px -8px rgba(0, 0, 0, 0.6);
+        0 0 0 1px rgba(167, 153, 232, 0.12),
+        0 14px 38px -8px rgba(0, 0, 0, 0.6),
+        0 0 24px -8px rgba(167, 153, 232, 0.18);
       z-index: 50;
       overflow: hidden;
     }
 
-    .export-menu.open {
+    .export-menu.open,
+    .nav-verdict-menu.open {
       display: block;
     }
 
@@ -1099,26 +1117,60 @@
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     }
 
-    .export-menu-item {
+    /* ── The one dropdown-row recipe ──────────────────────────────────────
+       Every row in all five menus: the Export/Views action rows
+       (.export-menu-item), the Columns checklist (.col-toggle-row) and the
+       Navigator's Verdict/Platform checklists (.nav-verdict-item, which the
+       platform items also carry). Grouped rather than copied per menu --
+       when these were three separate rules they drifted on four properties
+       at once: the Navigator rows rendered their labels in var(--text2)
+       instead of var(--text), separated them with an opaque var(--border)
+       (#30363d) line that reads as a dark smear on the frosted fill instead
+       of the bright hairline used everywhere else, and the Columns rows had
+       their own 6px padding and a white hover wash instead of the cream one.
+       Anything below this block is a genuine per-variant difference, and
+       says why. */
+    .export-menu-item,
+    .col-toggle-row,
+    .nav-verdict-item {
       display: flex;
       align-items: baseline;
       gap: 8px;
       padding: 8px 12px;
       cursor: pointer;
+      color: var(--text);
       transition: background 0.08s;
       /* PREVIEW item 4: hairline dividers instead of opaque --border */
       border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     }
 
-    .export-menu-item:nth-child(even) {
+    /* The two checklist variants centre their swatch/checkbox against the
+       label; only the Export/Views rows carry the .ext + .desc text pair
+       that needs a shared text baseline. */
+    .col-toggle-row,
+    .nav-verdict-item {
+      align-items: center;
+      font-size: 12px;
+    }
+
+    .export-menu-item:nth-child(even),
+    .col-toggle-row:nth-child(even),
+    .nav-verdict-item:nth-child(even) {
       background: rgba(255, 255, 255, 0.03);
     }
 
-    .export-menu-item:last-child {
+    .export-menu-item:last-child,
+    .col-toggle-row:last-child,
+    .nav-verdict-item:last-child,
+    /* The Navigator menus hide zero-count rows, so :last-child can land on a
+       hidden row; page.js marks the last visible one (markLastVisibleRow). */
+    .nav-verdict-item.last-visible {
       border-bottom: none;
     }
 
-    .export-menu-item:hover {
+    .export-menu-item:hover,
+    .col-toggle-row:hover,
+    .nav-verdict-item:hover {
       background: rgba(233, 220, 196, 0.10);
     }
 
@@ -1176,19 +1228,17 @@
 
     th.col-hidden, td.col-hidden { display: none; }
 
-    .col-toggle-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 12px;
-      font-size: 12px;
-      color: var(--text);
-      cursor: pointer;
-    }
-
+    /* Layout/padding/colour/hover all come from the shared dropdown-row rule
+       above -- only the checkbox tint is specific to this variant. */
     .col-toggle-row input { accent-color: #ffaa00; }
 
-    .col-toggle-row:hover { background: rgba(255, 255, 255, 0.05); color: var(--text); }
+    /* "Select all" sits above the per-column rows and toggles them together;
+       the heavier divider (0.08 vs the rows' 0.06 hairline) + weight
+       distinguish it as the group control rather than a column of its own. */
+    .col-toggle-all {
+      font-weight: 700;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
 
     .saved-view-row { display: flex; align-items: center; }
     .view-delete { color: var(--text2); cursor: pointer; padding: 0 4px; }
@@ -1213,6 +1263,19 @@
       padding: 4px 8px;
     }
 
+    /* Same amber focus rule as .search-input:focus -- the page's one
+       focus-outline colour, reused identically rather than re-derived. */
+    .view-name-input:focus {
+      outline: none;
+      border-color: #ffaa00;
+    }
+
+    .view-name-input::placeholder {
+      /* Same colour as .search-input::placeholder (Rule Library search box)
+         -- kept identical across every free-text search input on the page. */
+      color: var(--text2);
+    }
+
     .views-save-btn {
       background: rgba(255, 255, 255, 0.08);
       border: 1px solid rgba(255, 255, 255, 0.16);
@@ -1222,9 +1285,15 @@
       font-size: 12px;
       font-family: var(--font-ui);
       cursor: pointer;
+      transition: all 0.1s;
     }
 
-    .views-save-btn:hover { color: var(--text); }
+    /* Same amber hover idiom as .export-btn:hover / .code-copy:hover. */
+    .views-save-btn:hover {
+      border-color: #ffaa00;
+      color: #ffaa00;
+      box-shadow: 0 0 0 2px rgba(255, 170, 0, 0.14);
+    }
 
     #views-menu {
       position: absolute;
@@ -2175,6 +2244,18 @@
       tab-size: 2;
     }
 
+    /* Native SPL bodies (custom.splunk.raw_query) are hand-written single
+       long lines with no natural line breaks -- unlike Sigma YAML, which is
+       already multi-line and reads fine under the default `pre`. Wrapping is
+       purely visual (this class never touches currentRuleBody, the string
+       Copy actually copies), so the raw SPL still pastes into Splunk's search
+       bar with no injected newlines. */
+    .rule-body-pre.rule-body-wrap {
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-x: hidden;
+    }
+
     /* ── Rule body syntax highlight (Sigma YAML / SPL) ── */
     .t-kw {
       color: #ff7b72;
@@ -2848,9 +2929,16 @@
     }
 
     .nav-search-input:focus {
+      /* Same amber focus rule as .search-input:focus (Rule Library search
+         box) -- reused identically rather than re-derived. */
       outline: none;
-      border-color: var(--accent);
-      box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.14);
+      border-color: #ffaa00;
+    }
+
+    .nav-search-input::placeholder {
+      /* Same colour as .search-input::placeholder (Rule Library search box)
+         -- kept identical across every free-text search input on the page. */
+      color: var(--text2);
     }
 
     .nav-search-clear {
@@ -2918,8 +3006,11 @@
     }
 
     .nav-qf:hover {
-      color: var(--text);
+      /* Same amber hover idiom as .export-btn:hover, contained with an inset
+         ring since this sits inside an overflow:hidden segmented control. */
+      color: #ffaa00;
       background: rgba(255, 170, 0, .08);
+      box-shadow: inset 0 0 0 1px rgba(255, 170, 0, 0.35);
     }
 
     .nav-qf.active {
@@ -2951,6 +3042,12 @@
 
     /* Verdict filter dropdown */
     .nav-verdict-wrap {
+      position: relative;
+    }
+
+    /* Platform filter dropdown -- reuses .nav-verdict-btn/-menu/-item styling
+       (see below), it's the same "multi-select checklist button" component. */
+    .nav-platform-wrap {
       position: relative;
     }
 
@@ -3002,42 +3099,15 @@
       display: none;
     }
 
+    /* Frame, rows, dividers, hover and label colour all come from the shared
+       .export-menu / dropdown-row rules in the search-row block -- this menu
+       is one of the five members of that family, not a look-alike. All that
+       is left here is the alignment flip (these two hang off left-aligned
+       toolbar buttons, the Export menu off a right-aligned one) and the
+       checklist's own swatch/checked state. */
     .nav-verdict-menu {
-      display: none;
-      position: absolute;
       left: 0;
-      top: calc(100% + 5px);
-      min-width: 200px;
-      background: var(--bg2);
-      border: 1px solid var(--border2);
-      border-radius: var(--radius-lg);
-      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
-      z-index: 50;
-      overflow: hidden;
-    }
-
-    .nav-verdict-menu.open {
-      display: block;
-    }
-
-    .nav-verdict-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      cursor: pointer;
-      border-bottom: 1px solid var(--border);
-      font-size: 12px;
-      color: var(--text2);
-      transition: background 0.08s;
-    }
-
-    .nav-verdict-item:last-child {
-      border-bottom: none;
-    }
-
-    .nav-verdict-item:hover {
-      background: rgba(233, 220, 196, 0.10);
+      right: auto;
     }
 
     .nav-verdict-item .nav-legend-dot {
@@ -3048,13 +3118,46 @@
       position: relative;
     }
 
+    /* Both Navigator menus list *values* (PASS / NOT VERIFIED, Windows /
+       Linux / ...), which this page sets in the mono face everywhere else --
+       the .nav-verdict-active readout in the buttons right above them, the
+       verdict badges in the table, the technique IDs. Only the Platform
+       items used to get it; the Verdict ones fell back to the UI face, so
+       the two sibling menus did not even match each other. */
     .nav-verdict-item .lbl {
       flex: 1;
+      font-family: var(--font);
     }
 
     .nav-verdict-item.checked {
       color: var(--text);
       background: rgba(255, 170, 0, 0.10);
+    }
+
+    /* Without this, .checked (2 classes, later in the file) swallowed the
+       shared row :hover and a selected row gave no hover feedback at all. */
+    .nav-verdict-item.checked:hover {
+      background: rgba(255, 170, 0, 0.17);
+    }
+
+    /* Platform values (Windows, Linux, macOS...) have no inherent color
+       semantics the way a verdict swatch does, so this menu's selection
+       indicator is a plain checkbox instead of the Verdict dropdown's
+       swatch/tick -- the same treatment as the Rule Library's Columns
+       checklist (.col-toggle-row input), reused rather than re-derived. */
+    .nav-platform-item input.nav-platform-cb {
+      accent-color: #ffaa00;
+      flex-shrink: 0;
+      pointer-events: none;
+    }
+
+    /* Platform dropdown's "Select all" row: a real (not pointer-events:none)
+       checkbox inside a <label>, same mechanism as the Columns dropdown's
+       .col-toggle-all -- clicking anywhere in the row toggles it natively,
+       no click-listener plumbing needed like the per-platform rows below it. */
+    #nav-platform-toggle-all-cb {
+      accent-color: #ffaa00;
+      flex-shrink: 0;
     }
 
     .nav-verdict-item.checked .nav-legend-dot::after {
