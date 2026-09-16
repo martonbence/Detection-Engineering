@@ -1,17 +1,17 @@
 {
-  "generated_at": "2026-09-15T19:25:50.465810+00:00",
-  "total_rules": 29,
-  "total_sigma_rules": 29,
+  "generated_at": "2026-09-16T18:48:41.104138+00:00",
+  "total_rules": 30,
+  "total_sigma_rules": 30,
   "total_compiled_sigma_rules": 28,
-  "total_splunk_rules": 29,
-  "total_native_spl_rules": 1,
+  "total_splunk_rules": 30,
+  "total_native_spl_rules": 2,
   "verified_pass": 6,
   "verified_fail": 1,
   "verified_not_verified": 22,
   "verified_testing_disabled": 22,
   "verified_testing_disabled_current": 22,
-  "never_tested": 0,
-  "not_verified": 22,
+  "never_tested": 1,
+  "not_verified": 23,
   "verified_stale": 0,
   "verified_superseded": 0,
   "verified_expired": 0,
@@ -20,9 +20,9 @@
   "verified_current": 7,
   "pass_rate_pct": 86,
   "pass_rate_color": "brightgreen",
-  "verification_current_pct": 24,
+  "verification_current_pct": 23,
   "verification_current_color": "red",
-  "confirmed_working_pct": 21,
+  "confirmed_working_pct": 20,
   "last_live_verification_at": "2026-09-12T13:26:40.933286+00:00",
   "last_live_verification_count": 1,
   "mitre_covered_techniques": 15,
@@ -33,14 +33,14 @@
     "critical": 14,
     "high": 10,
     "low": 1,
-    "medium": 4
+    "medium": 5
   },
   "by_status": {
     "experimental": 2,
-    "stable": 27
+    "stable": 28
   },
   "by_tactic": {
-    "Credential Access": 15,
+    "Credential Access": 16,
     "Execution": 14,
     "Stealth": 8,
     "Command & Control": 2,
@@ -162,6 +162,64 @@
       "rule_body": "index=wineventlog source=\"wineventlog:security\" (EventCode=4625 Sub_Status=\"0xC000006A\") OR (EventCode=4771 Failure_Code=\"0x18\") OR (EventCode=4776 Error_Code=\"0xC000006A\") | eval target_account=case(EventCode=4625, mvindex(Account_Name, -1), EventCode=4771, Account_Name, EventCode=4776, Logon_Account) | eval target_account=lower(replace(target_account, \"@.*$\", \"\")) | where NOT match(target_account, \"\\$$\") | eval src_identifier=coalesce(if(Source_Network_Address!=\"127.0.0.1\" AND Source_Network_Address!=\"::1\" AND Source_Network_Address!=\"-\", Source_Network_Address, null()), if(Client_Address!=\"::1\" AND Client_Address!=\"127.0.0.1\" AND Client_Address!=\"-\", Client_Address, null()), Workstation_Name, Source_Workstation) | sort 0 _time | streamstats time_window=5m count as failure_count, dc(src_identifier) as distinct_sources, values(src_identifier) as sources, values(EventCode) as event_codes by target_account | where failure_count >= 10 | stats latest(_time) as _time, max(failure_count) as failure_count, max(distinct_sources) as distinct_sources, values(sources) as sources, values(event_codes) as event_codes by target_account | sort - failure_count | table _time, target_account, failure_count, distinct_sources, sources, event_codes",
       "rule_body_lang": "spl",
       "rule_version": "1.2"
+    },
+    {
+      "detect_id": "DETECT-2026-0003",
+      "title": "Windows Password Spraying - Multiple Accounts Single Password Short Window",
+      "description": "Detects T1110.003 Password Spraying: a single source attempting logons against many distinct accounts with a (presumed) single password in a short window -- the \"one password, many accounts\" pattern used to stay under per-account lockout thresholds (e.g. DomainPasswordSpray, Kerbrute, or a plain `net use` loop against IPC$). Mirrors DETECT-2026-0002's log sourcing (native Windows logon-failure events 4625/4771/4776, since Windows Security has no Sysmon equivalent for authentication) but inverts the aggregation: DETECT-2026-0002 groups by target account and counts failures; this rule groups by source and counts *distinct target accounts*, because spraying deliberately keeps the per-account attempt count low (often 1) to avoid lockout -- the account fan-out from one source is the actual signal, not the raw failure volume. Filtered to the same sub-status/failure codes that mean \"wrong password\" (not \"unknown account\", which is username enumeration, a different technique).\n",
+      "level": "medium",
+      "status": "stable",
+      "source": "native_spl",
+      "verdict": "N/A",
+      "run_id": "",
+      "verdict_at": "",
+      "verdict_rule_version": "",
+      "verdict_testing_disabled": false,
+      "tactics": [
+        "Credential Access"
+      ],
+      "techniques": [
+        "T1110.003"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0003_Windows-Password-Spraying-Multiple-Accounts-Single-Password-Short-Window.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "security",
+        "event_type": "authentication_failure"
+      },
+      "author": "Bence Marton",
+      "date": "2026-09-16",
+      "modified": "2026-09-16",
+      "references": [
+        "https://attack.mitre.org/techniques/T1110/003/",
+        "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4625",
+        "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4771",
+        "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4776"
+      ],
+      "falsepositives": [
+        "A shared jump host or admin workstation where a single sysadmin authenticates as themselves against many machines/services with one typo'd password before correcting it -- distinguishable from real spraying by the source being a known admin IP/host and the burst ending after one correction rather than continuing across accounts.",
+        "A misconfigured service or scheduled task running under multiple stale service-account credentials from the same host after a bulk password rotation -- all fail with the same old password from one source. Distinguishable from an attack by recurrence at a fixed cadence over days rather than a single short burst, but will still cross the threshold on first occurrence; investigate before excluding.",
+        "Vulnerability or compliance scanners testing a known default/weak password against a list of discovered accounts from a known scanner IP. Allowlistable by source once the scanner's IP range is confirmed.",
+        "A multi-user system such as a Citrix/RDS farm or terminal server, where one host legitimately authenticates as many different users throughout the day. Distinguishable from spraying by a wider, steadier spread of attempts over the day rather than a short concentrated burst, and by the source being a known, allowlisted multi-user host.",
+        "A NAT gateway, VPN concentrator, or RADIUS/NPS server proxying authentication on behalf of many distinct, legitimate users -- each with their own real password, coincidentally failing (e.g. a mass post-reset confusion) around the same time from what the logs see as one source. Distinct from the Citrix case above: there one host authenticates *as* many users; here many users' *own* auth is funneled through one visible source IP. Allowlistable once the gateway's IP is confirmed as a known aggregation point."
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1110.003",
+            "test_numbers": [
+              1
+            ]
+          }
+        ]
+      },
+      "rule_body": "index=wineventlog source=\"wineventlog:security\" (EventCode=4625 Sub_Status=\"0xC000006A\") OR (EventCode=4771 Failure_Code=\"0x18\") OR (EventCode=4776 Error_Code=\"0xC000006A\") | eval target_account=case(EventCode=4625, mvindex(Account_Name, -1), EventCode=4771, Account_Name, EventCode=4776, Logon_Account) | eval target_account=lower(replace(target_account, \"@.*$\", \"\")) | where NOT match(target_account, \"\\$$\") | eval src_identifier=coalesce(if(Workstation_Name!=\"\" AND Workstation_Name!=\"-\", Workstation_Name, null()), if(Source_Workstation!=\"\" AND Source_Workstation!=\"-\", Source_Workstation, null()), if(Source_Network_Address!=\"127.0.0.1\" AND Source_Network_Address!=\"::1\" AND Source_Network_Address!=\"-\", Source_Network_Address, null()), if(Client_Address!=\"::1\" AND Client_Address!=\"127.0.0.1\" AND Client_Address!=\"-\", Client_Address, null())) | eval src_ip=coalesce(if(Source_Network_Address!=\"127.0.0.1\" AND Source_Network_Address!=\"::1\" AND Source_Network_Address!=\"-\", Source_Network_Address, null()), if(Client_Address!=\"::1\" AND Client_Address!=\"127.0.0.1\" AND Client_Address!=\"-\", Client_Address, null())) | sort 0 _time | streamstats time_window=10m dc(target_account) as distinct_accounts, count as attempt_count, values(target_account) as targeted_accounts, values(src_ip) as src_ip by src_identifier | where distinct_accounts >= 8 | stats latest(_time) as _time, max(distinct_accounts) as distinct_accounts, max(attempt_count) as attempt_count, values(targeted_accounts) as targeted_accounts, values(src_ip) as src_ip by src_identifier | sort - distinct_accounts | table _time, src_identifier, src_ip, distinct_accounts, attempt_count, targeted_accounts",
+      "rule_body_lang": "spl",
+      "rule_version": "1.0"
     },
     {
       "detect_id": "DETECT-2026-0005",
