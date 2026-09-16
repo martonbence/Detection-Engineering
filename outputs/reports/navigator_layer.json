@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-09-16T18:48:41 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
+  "description": "Auto-generated detection coverage. 2026-09-16T18:52:28 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
   "filters": {
     "platforms": [
       "Windows",
@@ -74,11 +74,17 @@
     },
     {
       "techniqueID": "T1110.003",
-      "color": "#6E7681",
-      "comment": "DETECT-2026-0003: Windows Password Spraying - Multiple Accounts Single Password Short Window (N/A)",
+      "color": "#CF222E",
+      "comment": "⚠ 1 of 1 covering rule(s) FAILED verification\nDETECT-2026-0003: Windows Password Spraying - Multiple Accounts Single Password Short Window (FAIL)",
       "enabled": true,
-      "score": 25,
-      "showSubtechniques": true
+      "score": 50,
+      "showSubtechniques": true,
+      "metadata": [
+        {
+          "name": "Failing rules",
+          "value": "DETECT-2026-0003"
+        }
+      ]
     },
     {
       "techniqueID": "T1197",
