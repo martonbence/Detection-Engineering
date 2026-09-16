@@ -1826,10 +1826,14 @@ function highlightSPL(code) {
     return null;
   };
 
-  // Everything from the first top-level pipe onward (the reporting/
-  // transforming stage, e.g. "| table ...") renders as one red block —
-  // comments stay distinct, whitespace is untouched.
-  let afterPipe = false;
+  // Each pipe-delimited stage (search, "| eval ...", "| table ...", etc.)
+  // is tokenized the same way as the base search — the pipe itself renders
+  // as a keyword, but everything after it keeps getting per-token
+  // classification (fields/strings/functions/operators), not a single
+  // solid block. Commands like "eval"/"where" and functions like
+  // "case"/"coalesce" are already in SPL_KEYWORDS/SPL_FUNCS below, so they
+  // still read as keywords/functions without a separate "after a pipe"
+  // special case.
   const isOperatorTok = (tok) => tok && (tok.k === 'op' || SPL_OPERATOR_WORDS.has(tok.t.toLowerCase()));
   let prevSig = null; // last non-whitespace token, for detecting values right after an operator
 
@@ -1838,8 +1842,7 @@ function highlightSPL(code) {
     const { k, t } = tok;
     if (k === 'ws') { out += t; return; }
     if (k === 'comment') { prevSig = tok; out += `<span class="t-com">${escHtml(t)}</span>`; return; }
-    if (k === 'pipe') { afterPipe = true; prevSig = tok; out += `<span class="t-kw">${escHtml(t)}</span>`; return; }
-    if (afterPipe) { out += `<span class="t-kw">${escHtml(t)}</span>`; return; }
+    if (k === 'pipe') { prevSig = tok; out += `<span class="t-kw">${escHtml(t)}</span>`; return; }
 
     if (k === 'string') { prevSig = tok; out += `<span class="t-val">${escHtml(t)}</span>`; return; }
     if (k === 'num') { prevSig = tok; out += `<span class="t-val">${escHtml(t)}</span>`; return; }
@@ -2008,6 +2011,11 @@ function openDrawer(idx) {
   if (r.ruleBody) {
     currentRuleBody = r.ruleBody;
     const langLabel = r.ruleBodyLang === 'spl' ? 'SPL' : 'Sigma YAML';
+    // Wrapping is a display-only concern scoped to native SPL: Sigma YAML is
+    // already multi-line and stays on the default `pre` rendering. The class
+    // never touches currentRuleBody/r.ruleBody, so Copy still yields the
+    // exact original single-line string.
+    const preCls = r.ruleBodyLang === 'spl' ? 'rule-body-pre rule-body-wrap' : 'rule-body-pre';
     body += `<div>
         <div class="code-head">
           <span class="drawer-section-label" style="margin:0">Rule Definition (${langLabel})</span>
@@ -2016,7 +2024,7 @@ function openDrawer(idx) {
             <span class="cc-label">Copy</span>
           </button>
         </div>
-        <pre class="rule-body-pre">${highlightRuleBody(r.ruleBody, r.ruleBodyLang)}</pre>
+        <pre class="${preCls}">${highlightRuleBody(r.ruleBody, r.ruleBodyLang)}</pre>
       </div>`;
   }
 
@@ -2231,6 +2239,9 @@ function encodeState() {
   if (typeof navSearchText !== 'undefined' && navSearchText) {
     parts.push('navq=' + encodeURIComponent(navSearchText));
   }
+  if (typeof navPlatformFilters !== 'undefined' && navPlatformFilters && navPlatformFilters.size) {
+    parts.push('navp=' + Array.from(navPlatformFilters).map(encodeURIComponent).join(','));
+  }
   return parts.join('&');
 }
 
@@ -2238,7 +2249,7 @@ function decodeState(hash) {
   const raw = (hash || '').replace(/^#/, '');
   const state = {
     tab: 'rules', filters: {}, q: '', sortCol: 'id', sortAsc: true, tech: '',
-    navFilters: [], navScope: '', navQ: '',
+    navFilters: [], navScope: '', navQ: '', navPlatforms: [],
   };
   if (!raw) return state;
   const validKeys = new Set(FILTER_FIELDS.map(f => f.key));
@@ -2266,6 +2277,8 @@ function decodeState(hash) {
       state.navScope = (val === 'covered' || val === 'gaps') ? val : '';
     } else if (key === 'navq') {
       state.navQ = decodeURIComponent(val);
+    } else if (key === 'navp') {
+      state.navPlatforms = val.split(',').map(decodeURIComponent).filter(Boolean);
     } else if (validKeys.has(key)) {
       state.filters[key] = val.split(',').map(decodeURIComponent).filter(Boolean);
     }
@@ -2332,6 +2345,7 @@ document.addEventListener('click', () => {
   closeMenu('columns-menu', 'columns-toggle');
   document.getElementById('nav-export-menu')?.classList.remove('open');
   document.getElementById('nav-verdict-menu')?.classList.remove('open');
+  document.getElementById('nav-platform-menu')?.classList.remove('open');
 });
 
 function flat(v, sep) {
@@ -2539,17 +2553,45 @@ function applyColumnVisibility() {
 function renderColumnsMenu() {
   const list = document.getElementById('columns-list');
   if (!list) return;
-  list.innerHTML = ALL_COLS.map(col => `
+  const allChecked = ALL_COLS.every(c => visibleCols[c] !== false);
+  list.innerHTML = `
+    <label class="col-toggle-row col-toggle-all">
+      <input type="checkbox" id="col-toggle-all-cb" ${allChecked ? 'checked' : ''} onchange="toggleAllColumns(this.checked)">
+      Select all
+    </label>` + ALL_COLS.map(col => `
     <label class="col-toggle-row">
-      <input type="checkbox" ${visibleCols[col] !== false ? 'checked' : ''} onchange="toggleColumnVisibility('${col}', this.checked)">
+      <input type="checkbox" class="col-toggle-item" ${visibleCols[col] !== false ? 'checked' : ''} onchange="toggleColumnVisibility('${col}', this.checked)">
       ${escHtml(COL_LABELS[col])}
     </label>`).join('');
+  updateColumnsSelectAllState();
+}
+
+// Keeps the "Select all" checkbox in sync with the individual column
+// checkboxes: checked when every column is visible, unchecked when none
+// are, indeterminate for anything in between -- the standard toggle-all
+// tri-state pattern.
+function updateColumnsSelectAllState() {
+  const allCb = document.getElementById('col-toggle-all-cb');
+  if (!allCb) return;
+  const allChecked = ALL_COLS.every(c => visibleCols[c] !== false);
+  const noneChecked = ALL_COLS.every(c => visibleCols[c] === false);
+  allCb.checked = allChecked;
+  allCb.indeterminate = !allChecked && !noneChecked;
+}
+
+function toggleAllColumns(checked) {
+  ALL_COLS.forEach(c => visibleCols[c] = checked);
+  try { localStorage.setItem('ruleLibraryVisibleCols', JSON.stringify(visibleCols)); } catch (e) { /* see toggleColumnVisibility */ }
+  applyColumnVisibility();
+  document.querySelectorAll('#columns-list .col-toggle-item').forEach(cb => cb.checked = checked);
+  updateColumnsSelectAllState();
 }
 
 function toggleColumnVisibility(col, checked) {
   visibleCols[col] = checked;
   try { localStorage.setItem('ruleLibraryVisibleCols', JSON.stringify(visibleCols)); } catch (e) { /* storage full or blocked -- the change still applies for this session */ }
   applyColumnVisibility();
+  updateColumnsSelectAllState();
 }
 
 // Saved views -- a named snapshot of the filter set, the search box and the
@@ -2748,6 +2790,24 @@ var navActiveFilters = new Set();
 var navScope = null;          // 'covered' | 'gaps' | null
 var navSearchText = '';
 var navAutoExpanded = new Set();
+// Platform filter (ATT&CK x_mitre_platforms, e.g. Windows/Linux/macOS): a
+// separate axis from verdict/scope/search above -- it narrows WHICH
+// techniques are even eligible for the matrix, rather than how a technique
+// that's already shown gets colored or grouped. Empty set = no restriction.
+var navPlatformFilters = new Set();
+function tcPlatforms(tc) {
+  var raw = tc.dataset.platforms;
+  return raw ? raw.split(',') : [];
+}
+// Techniques with no platform data at all (not yet captured, or the STIX
+// object didn't carry x_mitre_platforms) stay visible under any platform
+// filter rather than disappearing for a reason the user can't see or fix.
+function tcMatchesPlatform(tc) {
+  if (navPlatformFilters.size === 0) return true;
+  var plats = tcPlatforms(tc);
+  if (plats.length === 0) return true;
+  return plats.some(function (p) { return navPlatformFilters.has(p); });
+}
 function tcVerdict(tc) {
   if (tc.classList.contains('pass')) return 'pass';
   if (tc.classList.contains('notver')) return 'notver';
@@ -2772,7 +2832,8 @@ function tcMatches(tc) {
     || (navActiveFilters.has('fail') && tcHasFail(tc));
   var okScope = !navScope || (navScope === 'covered' ? tcIsCovered(tc) : !tcIsCovered(tc));
   var okSearch = !navSearchText || tcText(tc).indexOf(navSearchText) >= 0;
-  return okLegend && okScope && okSearch;
+  var okPlatform = tcMatchesPlatform(tc);
+  return okLegend && okScope && okSearch && okPlatform;
 }
 function applyNavVisibility() {
   // Filtering for FAIL is a "show me what's broken" request, and what's broken
@@ -2785,7 +2846,7 @@ function applyNavVisibility() {
     navAutoExpanded.forEach(function (b) { if (b.classList.contains('open')) navDoExpand(b, false); });
     navAutoExpanded.clear();
   }
-  var active = navActiveFilters.size > 0 || !!navScope || !!navSearchText;
+  var active = navActiveFilters.size > 0 || !!navScope || !!navSearchText || navPlatformFilters.size > 0;
   var shown = 0;
   document.querySelectorAll('.tc-col').forEach(function (col) {
     var colVisible = 0;
@@ -2837,6 +2898,7 @@ function clearNavFilters() {
   navActiveFilters.clear();
   navScope = null;
   navSearchText = '';
+  navPlatformFilters.clear();
   var inp = document.getElementById('nav-search');
   if (inp) inp.value = '';
   var clr = document.getElementById('nav-search-clear');
@@ -2844,11 +2906,18 @@ function clearNavFilters() {
   document.querySelectorAll('.nav-verdict-item[data-filter]').forEach(function (item) {
     item.classList.remove('checked');
   });
+  document.querySelectorAll('.nav-platform-item[data-platform]').forEach(function (item) {
+    item.classList.remove('checked');
+    var pcb = item.querySelector('.nav-platform-cb');
+    if (pcb) pcb.checked = false;
+  });
+  updateNavPlatformSelectAllState();
   var cb = document.getElementById('nav-qf-covered');
   var gb = document.getElementById('nav-qf-gaps');
   if (cb) cb.classList.remove('active');
   if (gb) gb.classList.remove('active');
   refreshVerdictBtn();
+  refreshPlatformBtn();
   applyNavVisibility();
   var cnt = document.getElementById('nav-search-count');
   if (cnt) cnt.textContent = '';
@@ -2879,6 +2948,39 @@ function computeNavLegendCounts() {
   var gapEl = document.querySelector('.nav-qf-count[data-count="uncov"]');
   if (covEl) covEl.textContent = total - counts.uncov;
   if (gapEl) gapEl.textContent = counts.uncov;
+  markLastVisibleRow('nav-verdict-menu');
+  computeNavPlatformCounts();
+}
+// Both Navigator menus hide zero-count rows above, so CSS :last-child (which
+// the shared dropdown-row rule uses to drop the trailing divider) can land on
+// a hidden row and leave a hairline hanging under the last row people can
+// actually see. Mark the last *visible* row instead.
+function markLastVisibleRow(menuId) {
+  var rows = Array.prototype.slice.call(
+    document.querySelectorAll('#' + menuId + ' .nav-verdict-item'));
+  var last = null;
+  rows.forEach(function (r) {
+    r.classList.remove('last-visible');
+    if (r.style.display !== 'none') last = r;
+  });
+  if (last) last.classList.add('last-visible');
+}
+// Platform counts are independent of the verdict partition above: a
+// technique with cells in multiple platforms is counted once per platform
+// it lists, so the numbers don't have to sum to the matrix total.
+function computeNavPlatformCounts() {
+  var counts = {};
+  document.querySelectorAll('.att-matrix .tc[data-id]').forEach(function (tc) {
+    tcPlatforms(tc).forEach(function (p) { counts[p] = (counts[p] || 0) + 1; });
+  });
+  document.querySelectorAll('.nav-platform-item[data-platform]').forEach(function (item) {
+    var p = item.dataset.platform;
+    var n = counts[p] || 0;
+    var el = item.querySelector('[data-platform-count]');
+    if (el) el.textContent = n;
+    item.style.display = n === 0 ? 'none' : '';
+  });
+  markLastVisibleRow('nav-platform-menu');
 }
 function refreshVerdictBtn() {
   var n = navActiveFilters.size;
@@ -2886,6 +2988,54 @@ function refreshVerdictBtn() {
   var btn = document.getElementById('nav-verdict-btn');
   if (lbl) lbl.textContent = n ? '(' + n + ')' : '';
   if (btn) btn.classList.toggle('has-active', n > 0);
+}
+function refreshPlatformBtn() {
+  var n = navPlatformFilters.size;
+  var lbl = document.getElementById('nav-platform-active');
+  var btn = document.getElementById('nav-platform-btn');
+  if (lbl) lbl.textContent = n ? '(' + n + ')' : '';
+  if (btn) btn.classList.toggle('has-active', n > 0);
+}
+// Keeps the Platform dropdown's "Select all" checkbox in sync with the
+// individual platform rows -- same tri-state pattern as the Columns
+// dropdown's updateColumnsSelectAllState: checked when every platform row is
+// selected, unchecked when none are, indeterminate in between.
+function updateNavPlatformSelectAllState() {
+  var allCb = document.getElementById('nav-platform-toggle-all-cb');
+  if (!allCb) return;
+  var items = document.querySelectorAll('.nav-platform-item[data-platform]');
+  var total = items.length;
+  var checkedCount = 0;
+  items.forEach(function (item) {
+    if (navPlatformFilters.has(item.dataset.platform)) checkedCount++;
+  });
+  allCb.checked = total > 0 && checkedCount === total;
+  allCb.indeterminate = checkedCount > 0 && checkedCount < total;
+}
+// "Select all"/"clear all" for the Platform dropdown. Resolves to an
+// *explicit* full Set of every platform value currently in the menu (same
+// choice the Columns dropdown makes for ALL_COLS), not to clearing the
+// filter back to size 0 -- so the button shows "(n)" and the filter reads
+// as active, matching what clicking all 11 rows by hand would leave behind.
+// tcMatchesPlatform() treats "every known platform selected" and "no filter"
+// as the same restriction on the matrix itself (a cell only fails the
+// platform check when it lists a platform NOT in the filter set), so the
+// two states are behaviourally identical for what techniques are shown --
+// they just differ in how the toolbar reports "is a filter active."
+function toggleAllNavPlatforms(checked) {
+  var items = document.querySelectorAll('.nav-platform-item[data-platform]');
+  navPlatformFilters.clear();
+  items.forEach(function (item) {
+    var p = item.dataset.platform;
+    if (checked) navPlatformFilters.add(p);
+    item.classList.toggle('checked', checked);
+    var cb = item.querySelector('.nav-platform-cb');
+    if (cb) cb.checked = checked;
+  });
+  refreshPlatformBtn();
+  applyNavVisibility();
+  updateNavPlatformSelectAllState();
+  if (typeof updateHash === 'function') updateHash();
 }
 document.querySelectorAll('.nav-verdict-item[data-filter]').forEach(function (item) {
   item.addEventListener('click', function (e) {
@@ -2903,14 +3053,45 @@ document.querySelectorAll('.nav-verdict-item[data-filter]').forEach(function (it
     if (typeof updateHash === 'function') updateHash();
   });
 });
+document.querySelectorAll('.nav-platform-item[data-platform]').forEach(function (item) {
+  item.addEventListener('click', function (e) {
+    e.stopPropagation();
+    var p = item.dataset.platform;
+    if (navPlatformFilters.has(p)) {
+      navPlatformFilters.delete(p);
+      item.classList.remove('checked');
+    } else {
+      navPlatformFilters.add(p);
+      item.classList.add('checked');
+    }
+    // The checkbox has pointer-events:none (this listener owns the click,
+    // same as the rest of the row), so its checked state is set here
+    // explicitly rather than relying on the browser's native toggle.
+    var cb = item.querySelector('.nav-platform-cb');
+    if (cb) cb.checked = navPlatformFilters.has(p);
+    refreshPlatformBtn();
+    updateNavPlatformSelectAllState();
+    applyNavVisibility();
+    if (typeof updateHash === 'function') updateHash();
+  });
+});
+updateNavPlatformSelectAllState();
 // Restore Navigator narrowing from a deep link (counterpart of encodeState).
 function applyNavState(state) {
   navActiveFilters = new Set(state.navFilters || []);
   navScope = state.navScope || null;
   navSearchText = (state.navQ || '').trim().toLowerCase();
+  navPlatformFilters = new Set(state.navPlatforms || []);
   document.querySelectorAll('.nav-verdict-item[data-filter]').forEach(function (item) {
     item.classList.toggle('checked', navActiveFilters.has(item.dataset.filter));
   });
+  document.querySelectorAll('.nav-platform-item[data-platform]').forEach(function (item) {
+    var isChecked = navPlatformFilters.has(item.dataset.platform);
+    item.classList.toggle('checked', isChecked);
+    var pcb = item.querySelector('.nav-platform-cb');
+    if (pcb) pcb.checked = isChecked;
+  });
+  updateNavPlatformSelectAllState();
   var cb = document.getElementById('nav-qf-covered');
   var gb = document.getElementById('nav-qf-gaps');
   if (cb) cb.classList.toggle('active', navScope === 'covered');
@@ -2920,6 +3101,7 @@ function applyNavState(state) {
   var clr = document.getElementById('nav-search-clear');
   if (clr) clr.classList.toggle('show', !!navSearchText);
   refreshVerdictBtn();
+  refreshPlatformBtn();
   var n = applyNavVisibility();
   var cnt = document.getElementById('nav-search-count');
   if (cnt) cnt.textContent = navSearchText ? (n + ' matching') : '';
@@ -2927,7 +3109,15 @@ function applyNavState(state) {
 function toggleVerdictMenu(e) {
   e.stopPropagation();
   document.getElementById('nav-export-menu').classList.remove('open');
+  document.getElementById('nav-platform-menu').classList.remove('open');
   document.getElementById('nav-verdict-menu').classList.toggle('open');
+}
+function togglePlatformMenu(e) {
+  e.stopPropagation();
+  document.getElementById('nav-export-menu').classList.remove('open');
+  document.getElementById('nav-verdict-menu').classList.remove('open');
+  document.getElementById('nav-platform-menu').classList.toggle('open');
+  updateNavPlatformSelectAllState();
 }
 // Covered / Gaps quick-scope toggles
 function toggleNavScope(scope) {
@@ -2995,6 +3185,7 @@ function navToMarkdown(rows) {
 function toggleNavExportMenu(e) {
   e.stopPropagation();
   document.getElementById('nav-verdict-menu').classList.remove('open');
+  document.getElementById('nav-platform-menu').classList.remove('open');
   var cnt = document.getElementById('nav-export-count');
   if (cnt) cnt.textContent = navViewRows().length;
   document.getElementById('nav-export-menu').classList.toggle('open');

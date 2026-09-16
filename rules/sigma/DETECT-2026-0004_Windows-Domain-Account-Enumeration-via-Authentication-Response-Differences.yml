@@ -1,0 +1,111 @@
+title: Windows Domain Account Enumeration via Authentication Response Differences
+detect_id: DETECT-2026-0004
+status: stable
+description: >
+  Detects T1087.002 Domain Account Discovery performed via an authentication
+  oracle rather than a direct directory query: a single source probing many
+  distinct usernames and receiving "account does not exist" responses,
+  which is how tools like Kerbrute's userenum mode (and similar SMB/NTLM
+  enumerators) discover valid domain accounts before a follow-on brute-force
+  or password-spraying campaign -- without ever submitting a password, so
+  no lockout risk and no "wrong password" event. This is the mirror image
+  of DETECT-2026-0003 (Password Spraying): that rule filters *out*
+  "unknown account" responses because they don't indicate a guessed
+  password; this rule filters *in* only those responses, because account
+  existence is the entire signal here. Windows Security has no Sysmon
+  equivalent for authentication, so this aggregates native logon-failure
+  events (4625 for NTLM/interactive, 4768 for the initial Kerberos AS-REQ,
+  4776 for NTLM credential validation) filtered to the sub-status/result
+  codes that specifically mean "no such account" (not "wrong password",
+  which would mean the account exists and is DETECT-2026-0003/0002's
+  territory), thresholded on distinct target accounts probed per source
+  within a short sliding window. Note: 4771 (Kerberos pre-authentication
+  failed) is deliberately excluded here -- the KDC only reaches the
+  pre-auth stage for accounts that exist, so a 4771 response, unlike a
+  4768 AS-REQ failure with result code 0x6, already confirms the account
+  is real and belongs to DETECT-2026-0002/0003's logic instead.
+references:
+  - https://attack.mitre.org/techniques/T1087/002/
+  - https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4625
+  - https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4768
+  - https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4776
+author: Bence Marton
+date: 2026-09-16
+modified: 2026-09-16
+version: "1.0"
+tags:
+  - attack.discovery
+  - attack.t1087.002
+
+logsource:
+  product_category: os
+  product: windows
+  service: security
+  event_type: authentication_failure
+
+detection:
+  selection:
+    EventCode:
+      - 4625
+      - 4768
+      - 4776
+  condition: selection
+
+fields:
+  - _time
+  - src_identifier
+  - src_ip
+  - dc_host
+  - distinct_invalid_accounts
+  - attempt_count
+  - probed_accounts
+
+falsepositives:
+  - >-
+    A misconfigured application or scheduled task still referencing stale
+    or renamed service-account names after a bulk AD reorganization or
+    rename, retrying them from one host in a burst. Distinguishable from
+    enumeration by recurrence at a fixed cadence from a known application
+    host rather than a single short burst probing many unrelated names.
+  - >-
+    A vulnerability or compliance scanner performing an account-existence
+    audit against a known candidate list from a known scanner IP.
+    Allowlistable by source once the scanner's IP range is confirmed.
+  - >-
+    A help-desk or self-service password-reset portal that validates a
+    submitted username against AD via a real authentication attempt
+    (rather than a direct LDAP lookup) before issuing a reset -- bursty
+    around business hours from the portal's known service host.
+
+level: medium
+
+custom:
+  splunk:
+    index: wineventlog
+    mode: alert
+    cron: "*/5 * * * *"
+    earliest: "-10m"
+    latest: "now"
+    severity: medium
+
+    raw_query: >-
+      index=wineventlog source="wineventlog:security" (EventCode=4625 Sub_Status="0xC0000064") OR (EventCode=4768 Result_Code="0x6") OR (EventCode=4776 Error_Code="0xC0000064")
+      | eval target_account=case(EventCode=4625, mvindex(Account_Name, -1), EventCode=4768, Account_Name, EventCode=4776, Logon_Account)
+      | eval target_account=lower(replace(target_account, "@.*$", ""))
+      | where NOT match(target_account, "\$$")
+      | eval src_identifier=coalesce(if(Workstation_Name!="" AND Workstation_Name!="-", Workstation_Name, null()), if(Source_Workstation!="" AND Source_Workstation!="-", Source_Workstation, null()), if(Source_Network_Address!="127.0.0.1" AND Source_Network_Address!="::1" AND Source_Network_Address!="-", Source_Network_Address, null()), if(Client_Address!="::1" AND Client_Address!="127.0.0.1" AND Client_Address!="-", Client_Address, null()))
+      | eval src_ip=coalesce(if(Source_Network_Address!="127.0.0.1" AND Source_Network_Address!="::1" AND Source_Network_Address!="-", Source_Network_Address, null()), if(Client_Address!="::1" AND Client_Address!="127.0.0.1" AND Client_Address!="-", Client_Address, null()))
+      | sort 0 _time
+      | streamstats time_window=5m dc(target_account) as distinct_invalid_accounts, count as attempt_count, values(target_account) as probed_accounts, values(host) as dc_host, values(src_ip) as src_ip by src_identifier
+      | where distinct_invalid_accounts >= 15
+      | stats latest(_time) as _time, max(distinct_invalid_accounts) as distinct_invalid_accounts, max(attempt_count) as attempt_count, values(probed_accounts) as probed_accounts, values(dc_host) as dc_host, values(src_ip) as src_ip by src_identifier
+      | sort - distinct_invalid_accounts
+      | table _time, src_identifier, src_ip, dc_host, distinct_invalid_accounts, attempt_count, probed_accounts
+
+  testing:
+    enabled: true
+    runner: windows-dc
+    type: atomic
+    atomics:
+      - technique: T1087.002
+        test_numbers: [16]

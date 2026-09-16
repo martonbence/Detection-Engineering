@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-09-12T13:40:48.900106+00:00",
-  "total_rules": 29,
-  "total_sigma_rules": 29,
+  "generated_at": "2026-09-16T19:06:42.548543+00:00",
+  "total_rules": 31,
+  "total_sigma_rules": 31,
   "total_compiled_sigma_rules": 28,
-  "total_splunk_rules": 29,
-  "total_native_spl_rules": 1,
-  "verified_pass": 6,
-  "verified_fail": 1,
+  "total_splunk_rules": 31,
+  "total_native_spl_rules": 3,
+  "verified_pass": 7,
+  "verified_fail": 2,
   "verified_not_verified": 22,
   "verified_testing_disabled": 22,
   "verified_testing_disabled_current": 22,
@@ -15,37 +15,38 @@
   "verified_stale": 0,
   "verified_superseded": 0,
   "verified_expired": 0,
-  "verified_pass_current": 6,
-  "verified_fail_current": 1,
-  "verified_current": 7,
-  "pass_rate_pct": 86,
-  "pass_rate_color": "brightgreen",
-  "verification_current_pct": 24,
+  "verified_pass_current": 7,
+  "verified_fail_current": 2,
+  "verified_current": 9,
+  "pass_rate_pct": 78,
+  "pass_rate_color": "yellow",
+  "verification_current_pct": 29,
   "verification_current_color": "red",
-  "confirmed_working_pct": 21,
-  "last_live_verification_at": "2026-09-12T13:26:40.933286+00:00",
+  "confirmed_working_pct": 23,
+  "last_live_verification_at": "2026-09-16T19:06:14.692483+00:00",
   "last_live_verification_count": 1,
-  "mitre_covered_techniques": 15,
+  "mitre_covered_techniques": 16,
   "mitre_total_techniques": 222,
-  "mitre_total_fetched_at": "2026-09-07T15:04:55.548837+00:00",
-  "mitre_coverage_pct": 6.8,
+  "mitre_total_fetched_at": "2026-09-15T17:57:10.591439+00:00",
+  "mitre_coverage_pct": 7.2,
   "by_level": {
     "critical": 14,
     "high": 10,
     "low": 1,
-    "medium": 4
+    "medium": 6
   },
   "by_status": {
     "experimental": 2,
-    "stable": 27
+    "stable": 29
   },
   "by_tactic": {
-    "Credential Access": 15,
+    "Credential Access": 16,
     "Execution": 14,
     "Stealth": 8,
     "Command & Control": 2,
     "Persistence": 2,
     "Defense Impairment": 2,
+    "Discovery": 1,
     "Initial Access": 1,
     "Collection": 1
   },
@@ -162,6 +163,120 @@
       "rule_body": "index=wineventlog source=\"wineventlog:security\" (EventCode=4625 Sub_Status=\"0xC000006A\") OR (EventCode=4771 Failure_Code=\"0x18\") OR (EventCode=4776 Error_Code=\"0xC000006A\") | eval target_account=case(EventCode=4625, mvindex(Account_Name, -1), EventCode=4771, Account_Name, EventCode=4776, Logon_Account) | eval target_account=lower(replace(target_account, \"@.*$\", \"\")) | where NOT match(target_account, \"\\$$\") | eval src_identifier=coalesce(if(Source_Network_Address!=\"127.0.0.1\" AND Source_Network_Address!=\"::1\" AND Source_Network_Address!=\"-\", Source_Network_Address, null()), if(Client_Address!=\"::1\" AND Client_Address!=\"127.0.0.1\" AND Client_Address!=\"-\", Client_Address, null()), Workstation_Name, Source_Workstation) | sort 0 _time | streamstats time_window=5m count as failure_count, dc(src_identifier) as distinct_sources, values(src_identifier) as sources, values(EventCode) as event_codes by target_account | where failure_count >= 10 | stats latest(_time) as _time, max(failure_count) as failure_count, max(distinct_sources) as distinct_sources, values(sources) as sources, values(event_codes) as event_codes by target_account | sort - failure_count | table _time, target_account, failure_count, distinct_sources, sources, event_codes",
       "rule_body_lang": "spl",
       "rule_version": "1.2"
+    },
+    {
+      "detect_id": "DETECT-2026-0003",
+      "title": "Windows Password Spraying - Multiple Accounts Single Password Short Window",
+      "description": "Detects T1110.003 Password Spraying: a single source attempting logons against many distinct accounts with a (presumed) single password in a short window -- the \"one password, many accounts\" pattern used to stay under per-account lockout thresholds (e.g. DomainPasswordSpray, Kerbrute, or a plain `net use` loop against IPC$). Mirrors DETECT-2026-0002's log sourcing (native Windows logon-failure events 4625/4771/4776, since Windows Security has no Sysmon equivalent for authentication) but inverts the aggregation: DETECT-2026-0002 groups by target account and counts failures; this rule groups by source and counts *distinct target accounts*, because spraying deliberately keeps the per-account attempt count low (often 1) to avoid lockout -- the account fan-out from one source is the actual signal, not the raw failure volume. Filtered to the same sub-status/failure codes that mean \"wrong password\" (not \"unknown account\", which is username enumeration, a different technique).\n",
+      "level": "medium",
+      "status": "stable",
+      "source": "native_spl",
+      "verdict": "FAIL",
+      "run_id": "35137520472",
+      "verdict_at": "2026-09-16T19:00:07.976545+00:00",
+      "verdict_rule_version": "1.0",
+      "verdict_testing_disabled": false,
+      "tactics": [
+        "Credential Access"
+      ],
+      "techniques": [
+        "T1110.003"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0003_Windows-Password-Spraying-Multiple-Accounts-Single-Password-Short-Window.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "security",
+        "event_type": "authentication_failure"
+      },
+      "author": "Bence Marton",
+      "date": "2026-09-16",
+      "modified": "2026-09-16",
+      "references": [
+        "https://attack.mitre.org/techniques/T1110/003/",
+        "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4625",
+        "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4771",
+        "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4776"
+      ],
+      "falsepositives": [
+        "A shared jump host or admin workstation where a single sysadmin authenticates as themselves against many machines/services with one typo'd password before correcting it -- distinguishable from real spraying by the source being a known admin IP/host and the burst ending after one correction rather than continuing across accounts.",
+        "A misconfigured service or scheduled task running under multiple stale service-account credentials from the same host after a bulk password rotation -- all fail with the same old password from one source. Distinguishable from an attack by recurrence at a fixed cadence over days rather than a single short burst, but will still cross the threshold on first occurrence; investigate before excluding.",
+        "Vulnerability or compliance scanners testing a known default/weak password against a list of discovered accounts from a known scanner IP. Allowlistable by source once the scanner's IP range is confirmed.",
+        "A multi-user system such as a Citrix/RDS farm or terminal server, where one host legitimately authenticates as many different users throughout the day. Distinguishable from spraying by a wider, steadier spread of attempts over the day rather than a short concentrated burst, and by the source being a known, allowlisted multi-user host.",
+        "A NAT gateway, VPN concentrator, or RADIUS/NPS server proxying authentication on behalf of many distinct, legitimate users -- each with their own real password, coincidentally failing (e.g. a mass post-reset confusion) around the same time from what the logs see as one source. Distinct from the Citrix case above: there one host authenticates *as* many users; here many users' *own* auth is funneled through one visible source IP. Allowlistable once the gateway's IP is confirmed as a known aggregation point."
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1110.003",
+            "test_numbers": [
+              1
+            ]
+          }
+        ]
+      },
+      "rule_body": "index=wineventlog source=\"wineventlog:security\" (EventCode=4625 Sub_Status=\"0xC000006A\") OR (EventCode=4771 Failure_Code=\"0x18\") OR (EventCode=4776 Error_Code=\"0xC000006A\") | eval target_account=case(EventCode=4625, mvindex(Account_Name, -1), EventCode=4771, Account_Name, EventCode=4776, Logon_Account) | eval target_account=lower(replace(target_account, \"@.*$\", \"\")) | where NOT match(target_account, \"\\$$\") | eval src_identifier=coalesce(if(Workstation_Name!=\"\" AND Workstation_Name!=\"-\", Workstation_Name, null()), if(Source_Workstation!=\"\" AND Source_Workstation!=\"-\", Source_Workstation, null()), if(Source_Network_Address!=\"127.0.0.1\" AND Source_Network_Address!=\"::1\" AND Source_Network_Address!=\"-\", Source_Network_Address, null()), if(Client_Address!=\"::1\" AND Client_Address!=\"127.0.0.1\" AND Client_Address!=\"-\", Client_Address, null())) | eval src_ip=coalesce(if(Source_Network_Address!=\"127.0.0.1\" AND Source_Network_Address!=\"::1\" AND Source_Network_Address!=\"-\", Source_Network_Address, null()), if(Client_Address!=\"::1\" AND Client_Address!=\"127.0.0.1\" AND Client_Address!=\"-\", Client_Address, null())) | sort 0 _time | streamstats time_window=10m dc(target_account) as distinct_accounts, count as attempt_count, values(target_account) as targeted_accounts, values(src_ip) as src_ip by src_identifier | where distinct_accounts >= 8 | stats latest(_time) as _time, max(distinct_accounts) as distinct_accounts, max(attempt_count) as attempt_count, values(targeted_accounts) as targeted_accounts, values(src_ip) as src_ip by src_identifier | sort - distinct_accounts | table _time, src_identifier, src_ip, distinct_accounts, attempt_count, targeted_accounts",
+      "rule_body_lang": "spl",
+      "rule_version": "1.0"
+    },
+    {
+      "detect_id": "DETECT-2026-0004",
+      "title": "Windows Domain Account Enumeration via Authentication Response Differences",
+      "description": "Detects T1087.002 Domain Account Discovery performed via an authentication oracle rather than a direct directory query: a single source probing many distinct usernames and receiving \"account does not exist\" responses, which is how tools like Kerbrute's userenum mode (and similar SMB/NTLM enumerators) discover valid domain accounts before a follow-on brute-force or password-spraying campaign -- without ever submitting a password, so no lockout risk and no \"wrong password\" event. This is the mirror image of DETECT-2026-0003 (Password Spraying): that rule filters *out* \"unknown account\" responses because they don't indicate a guessed password; this rule filters *in* only those responses, because account existence is the entire signal here. Windows Security has no Sysmon equivalent for authentication, so this aggregates native logon-failure events (4625 for NTLM/interactive, 4768 for the initial Kerberos AS-REQ, 4776 for NTLM credential validation) filtered to the sub-status/result codes that specifically mean \"no such account\" (not \"wrong password\", which would mean the account exists and is DETECT-2026-0003/0002's territory), thresholded on distinct target accounts probed per source within a short sliding window. Note: 4771 (Kerberos pre-authentication failed) is deliberately excluded here -- the KDC only reaches the pre-auth stage for accounts that exist, so a 4771 response, unlike a 4768 AS-REQ failure with result code 0x6, already confirms the account is real and belongs to DETECT-2026-0002/0003's logic instead.\n",
+      "level": "medium",
+      "status": "stable",
+      "source": "native_spl",
+      "verdict": "PASS",
+      "run_id": "35138358372",
+      "verdict_at": "2026-09-16T19:06:14.692483+00:00",
+      "verdict_rule_version": "1.0",
+      "verdict_testing_disabled": false,
+      "tactics": [
+        "Discovery"
+      ],
+      "techniques": [
+        "T1087.002"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0004_Windows-Domain-Account-Enumeration-via-Authentication-Response-Differences.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "security",
+        "event_type": "authentication_failure"
+      },
+      "author": "Bence Marton",
+      "date": "2026-09-16",
+      "modified": "2026-09-16",
+      "references": [
+        "https://attack.mitre.org/techniques/T1087/002/",
+        "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4625",
+        "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4768",
+        "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4776"
+      ],
+      "falsepositives": [
+        "A misconfigured application or scheduled task still referencing stale or renamed service-account names after a bulk AD reorganization or rename, retrying them from one host in a burst. Distinguishable from enumeration by recurrence at a fixed cadence from a known application host rather than a single short burst probing many unrelated names.",
+        "A vulnerability or compliance scanner performing an account-existence audit against a known candidate list from a known scanner IP. Allowlistable by source once the scanner's IP range is confirmed.",
+        "A help-desk or self-service password-reset portal that validates a submitted username against AD via a real authentication attempt (rather than a direct LDAP lookup) before issuing a reset -- bursty around business hours from the portal's known service host."
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-dc",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1087.002",
+            "test_numbers": [
+              16
+            ]
+          }
+        ]
+      },
+      "rule_body": "index=wineventlog source=\"wineventlog:security\" (EventCode=4625 Sub_Status=\"0xC0000064\") OR (EventCode=4768 Result_Code=\"0x6\") OR (EventCode=4776 Error_Code=\"0xC0000064\") | eval target_account=case(EventCode=4625, mvindex(Account_Name, -1), EventCode=4768, Account_Name, EventCode=4776, Logon_Account) | eval target_account=lower(replace(target_account, \"@.*$\", \"\")) | where NOT match(target_account, \"\\$$\") | eval src_identifier=coalesce(if(Workstation_Name!=\"\" AND Workstation_Name!=\"-\", Workstation_Name, null()), if(Source_Workstation!=\"\" AND Source_Workstation!=\"-\", Source_Workstation, null()), if(Source_Network_Address!=\"127.0.0.1\" AND Source_Network_Address!=\"::1\" AND Source_Network_Address!=\"-\", Source_Network_Address, null()), if(Client_Address!=\"::1\" AND Client_Address!=\"127.0.0.1\" AND Client_Address!=\"-\", Client_Address, null())) | eval src_ip=coalesce(if(Source_Network_Address!=\"127.0.0.1\" AND Source_Network_Address!=\"::1\" AND Source_Network_Address!=\"-\", Source_Network_Address, null()), if(Client_Address!=\"::1\" AND Client_Address!=\"127.0.0.1\" AND Client_Address!=\"-\", Client_Address, null())) | sort 0 _time | streamstats time_window=5m dc(target_account) as distinct_invalid_accounts, count as attempt_count, values(target_account) as probed_accounts, values(host) as dc_host, values(src_ip) as src_ip by src_identifier | where distinct_invalid_accounts >= 15 | stats latest(_time) as _time, max(distinct_invalid_accounts) as distinct_invalid_accounts, max(attempt_count) as attempt_count, values(probed_accounts) as probed_accounts, values(dc_host) as dc_host, values(src_ip) as src_ip by src_identifier | sort - distinct_invalid_accounts | table _time, src_identifier, src_ip, dc_host, distinct_invalid_accounts, attempt_count, probed_accounts",
+      "rule_body_lang": "spl",
+      "rule_version": "1.0"
     },
     {
       "detect_id": "DETECT-2026-0005",

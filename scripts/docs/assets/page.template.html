@@ -413,6 +413,7 @@
             </svg>
           </button>
           <div class="nav-verdict-menu" id="nav-verdict-menu">
+            <div class="export-menu-head">Filter by verdict</div>
             <div class="nav-verdict-item" data-filter="pass"><span class="nav-legend-dot"
                 style="background:#21262d;border-left:3px solid #2EA44F"></span><span class="lbl">PASS</span><span
                 class="nav-legend-count" data-count="pass"></span></div>
@@ -425,6 +426,22 @@
             <div class="nav-verdict-item" data-filter="nv"><span class="nav-legend-dot"
                 style="background:#21262d;border-left:3px solid #6e7681"></span><span class="lbl">N/A</span><span
                 class="nav-legend-count" data-count="nv"></span></div>
+          </div>
+        </div>
+        <div class="nav-platform-wrap">
+          <button class="nav-verdict-btn" id="nav-platform-btn" onclick="togglePlatformMenu(event)">
+            <span>Platform</span><span class="nav-verdict-active" id="nav-platform-active"></span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+          <div class="nav-verdict-menu" id="nav-platform-menu">
+            <div class="export-menu-head">Filter by platform</div>
+            <label class="nav-verdict-item col-toggle-all" id="nav-platform-toggle-all">
+              <input type="checkbox" id="nav-platform-toggle-all-cb" onchange="toggleAllNavPlatforms(this.checked)">
+              <span class="lbl">Select all</span>
+            </label>
+            @@PLATFORM_MENU_HTML@@
           </div>
         </div>
         <div class="nav-quickfilters">
