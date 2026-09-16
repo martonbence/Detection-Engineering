@@ -1160,7 +1160,7 @@ jobs:
 
       - name: Run Atomic Red Team tests embedded in deployed SPL metadata
         id: run_atomic
-        timeout-minutes: 10
+        timeout-minutes: 18
         shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass
           -Command ". '{0}'"
         env:
@@ -1205,7 +1205,7 @@ jobs:
       needs.prepare_validate_convert.outputs.has_atomic_dc_tests == 'true'
     continue-on-error: true
     runs-on: [ self-hosted, X64, Windows, dc, windows-dc ]
-    # Same reasoning as the victim job: its attack step is capped at 10, and
+    # Same reasoning as the victim job: its attack step is capped at 18, and
     # this stays well above it so the step timeout fires first.
     timeout-minutes: 25
     # Priya's audit, 2026-09-07: same reasoning as atomic_verify above -- no
@@ -1239,7 +1239,7 @@ jobs:
 
       - name: Run Atomic Red Team tests on Domain Controller
         id: run_atomic_dc
-        timeout-minutes: 10
+        timeout-minutes: 18
         shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass
           -Command ". '{0}'"
         env:
@@ -1323,7 +1323,7 @@ jobs:
         # only unbounded attack execution in the pipeline: a rule's own
         # emulation command hanging (a prompt, a wait, a blocked network call)
         # would hold the shared victim runner indefinitely.
-        timeout-minutes: 10
+        timeout-minutes: 18
         shell: powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass
           -Command ". '{0}'"
         env:
@@ -1528,7 +1528,7 @@ jobs:
           # The search window has to cover the whole test phase, and nothing
           # else. The old fixed --earliest=-5m was measured backwards from
           # query time, which lands well after the tests: each atomic job can
-          # run up to its timeout-minutes: 10, the victim runner is shared so
+          # run up to its timeout-minutes: 18, the victim runner is shared so
           # atomic and emulation serialise instead of overlapping, and then
           # this job still waits 60s for indexing. Anything executed more than
           # five minutes before the query fell outside the window and came back

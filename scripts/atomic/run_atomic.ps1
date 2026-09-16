@@ -33,6 +33,20 @@ param(
     # Atomic Red Team's -GetPrereqs pass before each test.
     [string]$SkipPrereqs = $(if ($env:ATOMIC_SKIP_PREREQS) { $env:ATOMIC_SKIP_PREREQS } else { "false" }),
 
+    # Passed through to Invoke-AtomicTest's own -TimeoutSeconds on the Mode =
+    # "Run" pass only (GetPrereqs/Cleanup are fast and left at the module's
+    # default). Invoke-AtomicTest itself defaults this to 120 seconds, which is
+    # fine for a single-command atomic but not for one that loops over many
+    # targets -- confirmed for real against T1110.003's "Password Spray all
+    # Domain Users" test (~16 accounts, ~15-25s per `net use` attempt, so
+    # ~240-400s end to end), which was killed mid-loop under the 120s default
+    # (CI run 35137520472, job 104933765943). 900s leaves comfortable margin
+    # over that measured worst case for any future multi-target atomic, while
+    # staying overridable per-run (env var or explicit param) without needing
+    # a new per-rule metadata field for what is, so far, a single recurring
+    # shape of test rather than a per-technique tuning need.
+    [int]$TimeoutSeconds = $(if ($env:ATOMIC_TEST_TIMEOUT_SECONDS) { [int]$env:ATOMIC_TEST_TIMEOUT_SECONDS } else { 900 }),
+
     [switch]$PreflightOnly,
 
     [switch]$ShowDetails,
@@ -221,6 +235,13 @@ function Invoke-AtomicTestCompat {
 
         [switch]$ShowDetails,
 
+        # Only meaningful for Mode = "Run"; see the top-level -TimeoutSeconds
+        # param comment for why. 0/unset means "let the caller's default apply
+        # below", not "pass 0 through" -- Invoke-AtomicTest treats 0 as "no
+        # timeout" on some versions, which is not what an unset value here
+        # should mean.
+        [int]$TimeoutSeconds = 0,
+
         [switch]$DryRun
     )
 
@@ -266,6 +287,12 @@ function Invoke-AtomicTestCompat {
 
     if (-not [string]::IsNullOrWhiteSpace($AtomicsFolder) -and $parameters.ContainsKey("PathToAtomicsFolder")) {
         $invokeParams["PathToAtomicsFolder"] = $AtomicsFolder
+    }
+
+    # Same compat posture as everything else here: an older module without
+    # -TimeoutSeconds degrades to its own built-in default rather than erroring.
+    if ($Mode -eq "Run" -and $TimeoutSeconds -gt 0 -and $parameters.ContainsKey("TimeoutSeconds")) {
+        $invokeParams["TimeoutSeconds"] = $TimeoutSeconds
     }
 
     if ($DryRun.IsPresent) {
@@ -841,6 +868,7 @@ try {
                     -AtomicsFolder $AtomicsPath `
                     -Mode "Run" `
                     -ShowDetails:$ShowDetails.IsPresent `
+                    -TimeoutSeconds $TimeoutSeconds `
                     -DryRun:$DryRun.IsPresent
             }
             catch {
