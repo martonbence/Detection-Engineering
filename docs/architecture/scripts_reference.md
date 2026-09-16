@@ -570,7 +570,7 @@ What it does beyond "run the test":
 
 - **Progress markers.** Writes a started/completed marker per rule, synchronously. This is what
   lets `pass_fail_eval.py` distinguish "the attack ran and the rule did not fire" (FAIL) from "we
-  never got to this rule" (NOT_VERIFIED) — for instance when the step's 10-minute timeout killed it
+  never got to this rule" (NOT_VERIFIED) — for instance when the step's 18-minute timeout killed it
   halfway through.
 - **Prereqs and cleanup.** Runs Atomic Red Team's `-GetPrereqs` before and `-Cleanup` after each
   test (three separate invocations, since those are mutually exclusive switches). A failure in
