@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-09-16T19:00:32 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
+  "description": "Auto-generated detection coverage. 2026-09-16T19:06:42 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
   "filters": {
     "platforms": [
       "Windows",
@@ -85,6 +85,14 @@
           "value": "DETECT-2026-0003"
         }
       ]
+    },
+    {
+      "techniqueID": "T1087.002",
+      "color": "#2EA44F",
+      "comment": "DETECT-2026-0004: Windows Domain Account Enumeration via Authentication Response Differences (PASS)",
+      "enabled": true,
+      "score": 100,
+      "showSubtechniques": true
     },
     {
       "techniqueID": "T1197",

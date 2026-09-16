@@ -1,0 +1,16 @@
+{
+  "detect_id": "DETECT-2026-0004",
+  "title": "Windows Domain Account Enumeration via Authentication Response Differences",
+  "verdict": "PASS",
+  "reason": "Event count 1 within expected range [1–10]",
+  "disabled": false,
+  "event_count": 1,
+  "min_pass": 1,
+  "max_pass": 10,
+  "earliest": "1789585475",
+  "latest": "now",
+  "run_timestamp": "2026-09-16T19:06:14.692483+00:00",
+  "rule_version": "1.0",
+  "git_sha": "bbf05e6a3ac685dbbd156d4deba7ef3fcb9b09d2",
+  "run_id": "35138358372"
+}
