@@ -1,16 +1,16 @@
 {
   "detect_id": "DETECT-2026-0035",
   "title": "Linux Credential Access via Proc Filesystem Memory Read",
-  "verdict": "NOT_VERIFIED",
-  "reason": "Atomic test did not complete before step timeout",
+  "verdict": "FAIL",
+  "reason": "Too few events: 0 (min expected: 1)",
   "disabled": false,
   "event_count": 0,
   "min_pass": 1,
   "max_pass": 10,
-  "earliest": "1789821678",
+  "earliest": "1789822034",
   "latest": "now",
-  "run_timestamp": "2026-09-19T12:45:41.867372+00:00",
+  "run_timestamp": "2026-09-19T12:51:58.970913+00:00",
   "rule_version": "1.0",
-  "git_sha": "534182bf769bb122b012aa492356b71c785760fa",
-  "run_id": "35443582508"
+  "git_sha": "4773e41af0fb2e5017d9bbbddce24445a1cab88d",
+  "run_id": "35443869828"
 }
