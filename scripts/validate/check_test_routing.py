@@ -188,6 +188,7 @@ def check_rule(path: Path, data: object, matrix: dict[tuple[str, str], str]) -> 
 JOB_OUTPUT_FLAGS = {
     "atomic_verify": "has_atomic_tests",
     "atomic_verify_dc": "has_atomic_dc_tests",
+    "atomic_verify_linux": "has_atomic_linux_tests",
     "emulation_verify": "has_emulation_tests",
 }
 

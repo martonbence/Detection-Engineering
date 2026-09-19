@@ -214,6 +214,7 @@ jobs:
       spl_files: ${{ steps.bundle.outputs.spl_files }}
       has_atomic_tests: ${{ steps.test_types.outputs.has_atomic_tests }}
       has_atomic_dc_tests: ${{ steps.test_types.outputs.has_atomic_dc_tests }}
+      has_atomic_linux_tests: ${{ steps.test_types.outputs.has_atomic_linux_tests }}
       has_emulation_tests: ${{ steps.test_types.outputs.has_emulation_tests }}
 
     steps:
@@ -1276,6 +1277,135 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
 
+  atomic_verify_linux:
+    name: Atomic Red Team Test (Linux)
+    needs: [ prepare_validate_convert, deploy_to_splunk ]
+    # Same has_spl/has_*_tests gating pattern as atomic_verify and
+    # atomic_verify_dc above -- and, until a rule actually sets
+    # custom.testing.runner: linux-victim, has_atomic_linux_tests stays false
+    # and this job never starts. That is check_test_routing.py's own framing
+    # of linux-victim (item 2.17's header comment): the schema allowed the
+    # runner ahead of the VM existing so a rule is never blocked on this job
+    # landing first, and this job is written the same way in reverse -- it
+    # exists ahead of any rule targeting it, and safely does nothing until one
+    # does.
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev' &&
+      needs.prepare_validate_convert.outputs.has_spl == 'true' &&
+      needs.prepare_validate_convert.outputs.has_atomic_linux_tests == 'true'
+    continue-on-error: true
+    runs-on: [ self-hosted, X64, Linux, victim, atomic, linux-victim ]
+    # Same reasoning as atomic_verify: the attack step is capped at 18, this
+    # covers that plus bundle download, so the step timeout fires first and
+    # the job survives long enough to upload its progress markers.
+    timeout-minutes: 25
+    # Priya's audit posture (2026-09-07), applied the same way as the other
+    # two atomic jobs: no checkout, no push, no PR -- artifacts and a run
+    # against the lab victim host only.
+    permissions:
+      contents: read
+
+    outputs:
+      started_at: ${{ steps.mark_start.outputs.started_at }}
+
+    steps:
+      # Same reasoning as atomic_verify's "Mark test-phase start": has to be
+      # first, and has to be stamped even if the attack step itself later hits
+      # its own timeout, since splunk_verify takes the earliest start across
+      # every test job that actually ran.
+      - name: Mark test-phase start
+        id: mark_start
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $epoch = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+          "started_at=$epoch" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host "Atomic (Linux victim) test phase starts at epoch $epoch (UTC $([DateTimeOffset]::FromUnixTimeSeconds($epoch).UtcDateTime))"
+
+      - name: Download pipeline bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: spl-pipeline-bundle
+          path: pipeline_bundle
+
+      # Belt-and-suspenders alongside the git-committed executable bit on
+      # run_atomic_linux.ps1 itself (100755) and shutil.copy2's preservation
+      # of it into the bundle (build_pipeline_bundle.py's FIXED_SCRIPTS) --
+      # GitHub's actions/upload-artifact & download-artifact zip round-trip
+      # is not documented here to reliably preserve POSIX permission bits
+      # across every pinned version, and this repo has already been burned
+      # once by trusting an artifact round-trip's fidelity without checking
+      # (section C of the pipeline-ci-gotchas skill). Re-asserting the bit
+      # explicitly, right after download and before the script is invoked,
+      # costs one cheap step and removes that assumption entirely rather
+      # than relying on upstream behaviour this workflow doesn't control.
+      - name: Ensure run_atomic_linux.ps1 is executable
+        shell: bash
+        run: chmod +x pipeline_bundle/scripts/atomic/run_atomic_linux.ps1
+
+      # run_atomic_linux.ps1 is PowerShell, run via the `pwsh` shell keyword --
+      # Invoke-AtomicRedTeam is itself a cross-platform PowerShell module, not
+      # a native Linux tool, so linux-victim needs pwsh (PowerShell 7+)
+      # installed and Invoke-AtomicRedTeam importable under it. That is lab
+      # infrastructure to provision on the VM, not something this workflow
+      # change can install.
+      #
+      # Deliberately plain `shell: pwsh` -- a prior version of this step
+      # prepended `sudo -n --preserve-env=... ` to a custom `shell:` string
+      # to get T1003.007's elevation-required atomics working (they never
+      # call `sudo` in their own command text -- see run_atomic_linux.ps1's
+      # header comment for why -- so the whole calling process has to already
+      # be root). That broke GitHub Actions' own custom-shell templating
+      # (confirmed via CI run 35452945096: "ResourceUnavailable ... failed to
+      # run", the runner trying to exec its per-step temp script directly
+      # instead of through the intended `sudo ... pwsh` command -- a
+      # different failure class from the permission-denied one it was fixing,
+      # and unrelated to the VM's sudoers policy, which was independently
+      # confirmed correct via `visudo -c`). The elevation now happens *inside*
+      # run_atomic_linux.ps1 instead: it spawns a nested `sudo -n
+      # --preserve-env=... pwsh -File <itself> -ElevatedChild ...` child
+      # process for just the specific (technique, test, mode) calls whose
+      # atomic actually declares `elevation_required: true`, read via
+      # Invoke-AtomicRedTeam's own `Get-AtomicTechnique` accessor -- see that
+      # script's `Test-AtomicTestElevationRequired` / `Invoke-ElevatedAtomicTest`
+      # functions. This step's own `shell:`/`env:` stay exactly as they were
+      # before either sudo attempt.
+      - name: Run Atomic Red Team tests embedded in deployed SPL metadata
+        id: run_atomic
+        timeout-minutes: 18
+        shell: pwsh
+        env:
+          ATOMIC_RUNNER: linux-victim
+          ATOMIC_TESTER_TYPE: atomic
+          ATOMIC_RED_TEAM_MODULE_PATH_LINUX: ${{ vars.ATOMIC_RED_TEAM_MODULE_PATH_LINUX }}
+          ATOMIC_RED_TEAM_PATH_LINUX: ${{ vars.ATOMIC_RED_TEAM_PATH_LINUX }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $splFiles = @'
+          ${{ needs.prepare_validate_convert.outputs.spl_files }}
+          '@ -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+          if ($splFiles.Count -eq 0) {
+            Write-Host "No SPL files selected for Atomic verification."
+            exit 0
+          }
+
+          $bundleSplFiles = $splFiles | ForEach-Object { Join-Path "pipeline_bundle" $_ }
+
+          Write-Host "Running Atomic Red Team verification (Linux victim host) against $($splFiles.Count) SPL file(s)..."
+
+          ./pipeline_bundle/scripts/atomic/run_atomic_linux.ps1 -SplFiles $bundleSplFiles -PreflightOnly
+          ./pipeline_bundle/scripts/atomic/run_atomic_linux.ps1 -SplFiles $bundleSplFiles
+
+      - name: Upload atomic progress markers
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: atomic-progress-linux-${{ github.run_id }}
+          path: outputs/verify/atomic_progress
+          if-no-files-found: ignore
+          retention-days: 1
+
   emulation_verify:
     name: Script Emulation Test
     needs: [ prepare_validate_convert, deploy_to_splunk ]
@@ -1363,7 +1493,7 @@ jobs:
 
   splunk_verify:
     name: Splunk Verification
-    needs: [ prepare_validate_convert, deploy_to_splunk, atomic_verify, atomic_verify_dc, emulation_verify ]
+    needs: [ prepare_validate_convert, deploy_to_splunk, atomic_verify, atomic_verify_dc, atomic_verify_linux, emulation_verify ]
     # Register item 2.1. This used to end with a disjunction over the three test
     # jobs -- `success || skipped` for each, OR'd together -- which read like a
     # gate and was not one: a batch almost never contains all three test types,
@@ -1480,6 +1610,14 @@ jobs:
           name: atomic-progress-dc-${{ github.run_id }}
           path: outputs/verify/atomic_progress
 
+      - name: Download atomic progress markers (Linux)
+        if: needs.prepare_validate_convert.outputs.has_atomic_linux_tests == 'true'
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: atomic-progress-linux-${{ github.run_id }}
+          path: outputs/verify/atomic_progress
+
       # Register item 2.8. Same directory as the two above on purpose: the
       # markers are per-detect_id files, the three jobs cover disjoint sets of
       # rules, and pass_fail_eval.py reads the directory as one pool.
@@ -1545,6 +1683,7 @@ jobs:
           starts=()
           for ts in "${{ needs.atomic_verify.outputs.started_at }}" \
                     "${{ needs.atomic_verify_dc.outputs.started_at }}" \
+                    "${{ needs.atomic_verify_linux.outputs.started_at }}" \
                     "${{ needs.emulation_verify.outputs.started_at }}"; do
             # Skipped jobs render as an empty string; a job that died before
             # its first step leaves the output unset the same way. Both are
@@ -2698,4 +2837,4 @@ jobs:
           path: docs/
 
       - id: deployment
-        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
