@@ -213,6 +213,8 @@ def _make_repo(tmp_path):
     (repo / "scripts" / "deploy").mkdir(parents=True)
     (repo / "scripts" / "lib").mkdir(parents=True)
     (repo / "scripts" / "atomic" / "run_atomic.ps1").write_text("# atomic\n", encoding="utf-8")
+    (repo / "scripts" / "atomic" / "run_atomic_linux.ps1").write_text("#!/usr/bin/env pwsh\n# atomic linux\n", encoding="utf-8")
+    (repo / "scripts" / "atomic" / "run_atomic_linux.ps1").chmod(0o755)
     (repo / "scripts" / "deploy" / "deploy_spl_to_splunk.py").write_text("# deploy\n", encoding="utf-8")
     (repo / "scripts" / "deploy" / "check_spl_syntax.py").write_text("# syntax\n", encoding="utf-8")
     (repo / "scripts" / "lib" / "env.py").write_text("# env\n", encoding="utf-8")
@@ -237,7 +239,7 @@ def test_prepare_bundle_skeleton_wipes_and_recreates(tmp_path):
     assert (bundle / "scripts" / "lib").is_dir()
 
 
-def test_copy_fixed_scripts_copies_all_three_named_files(tmp_path):
+def test_copy_fixed_scripts_copies_all_named_files(tmp_path):
     repo = _make_repo(tmp_path)
     bundle = tmp_path / "pipeline_bundle"
     prepare_bundle_skeleton(bundle)
@@ -245,8 +247,27 @@ def test_copy_fixed_scripts_copies_all_three_named_files(tmp_path):
     copy_fixed_scripts(repo, bundle)
 
     assert (bundle / "scripts" / "atomic" / "run_atomic.ps1").read_text(encoding="utf-8") == "# atomic\n"
+    assert (bundle / "scripts" / "atomic" / "run_atomic_linux.ps1").read_text(encoding="utf-8") == "#!/usr/bin/env pwsh\n# atomic linux\n"
     assert (bundle / "scripts" / "deploy" / "deploy_spl_to_splunk.py").read_text(encoding="utf-8") == "# deploy\n"
     assert (bundle / "scripts" / "deploy" / "check_spl_syntax.py").read_text(encoding="utf-8") == "# syntax\n"
+
+
+def test_copy_fixed_scripts_preserves_the_executable_bit(tmp_path):
+    # Regression guard for the 2026-09-19 incident: run_atomic_linux.ps1 is
+    # invoked on linux-victim as `./run_atomic_linux.ps1`, which requires the
+    # copied file to still be executable, not just present. shutil.copy2
+    # (used by copy_fixed_scripts) preserves POSIX permission bits by
+    # design; this pins that behaviour so a future switch to a
+    # metadata-dropping copy call (e.g. shutil.copyfile) fails a test
+    # instead of failing silently on the self-hosted runner.
+    repo = _make_repo(tmp_path)
+    bundle = tmp_path / "pipeline_bundle"
+    prepare_bundle_skeleton(bundle)
+
+    copy_fixed_scripts(repo, bundle)
+
+    copied = bundle / "scripts" / "atomic" / "run_atomic_linux.ps1"
+    assert copied.stat().st_mode & 0o111, "run_atomic_linux.ps1 lost its executable bit on copy"
 
 
 def test_copy_lib_wholesale_copies_everything_without_double_nesting(tmp_path):

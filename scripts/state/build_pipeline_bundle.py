@@ -14,11 +14,11 @@
 # What this step does, unchanged from the shell:
 #   1. `rm -rf pipeline_bundle`, then recreate the fixed directory skeleton
 #      (scripts/{atomic,deploy,lib}).
-#   2. Copy three named scripts individually (run_atomic.ps1,
-#      deploy_spl_to_splunk.py, check_spl_syntax.py), then copy the whole of
-#      scripts/lib/ wholesale -- see copy_lib_wholesale() below for why
-#      wholesale, not itemised (audit/remediation-plan.md item 3.6, and the
-#      bug it caused).
+#   2. Copy the named scripts individually (run_atomic.ps1,
+#      run_atomic_linux.ps1, deploy_spl_to_splunk.py, check_spl_syntax.py),
+#      then copy the whole of scripts/lib/ wholesale -- see
+#      copy_lib_wholesale() below for why wholesale, not itemised
+#      (audit/remediation-plan.md item 3.6, and the bug it caused).
 #   3. Prune every __pycache__ directory out of the copied scripts/lib/ tree
 #      -- bytecode was never part of the bundle's contract.
 #   4. For every changed rule (RULE_FILES): derive its base name, require
@@ -130,6 +130,18 @@ BUNDLE_SKELETON_DIRS = (
 
 FIXED_SCRIPTS = (
     "scripts/atomic/run_atomic.ps1",
+    # Added 2026-09-19, same-day gap as the run itself surfaced (CI run
+    # 35443023746): the linux-victim job wiring (c97910a) added
+    # atomic_verify_linux and run_atomic_linux.ps1 but never touched this
+    # tuple, so the bundle this job downloads never contained the script it
+    # invokes -- exactly the packaging-omission failure mode
+    # copy_lib_wholesale()'s docstring already warns about (run #67), just
+    # against FIXED_SCRIPTS instead of the lib/ copy list this time. A
+    # missing/non-executable script both surface as pwsh's identical
+    # "is not recognized as a name of a cmdlet, function, script file, or
+    # executable program." error, so this was silent until the Linux job's
+    # very first real run.
+    "scripts/atomic/run_atomic_linux.ps1",
     "scripts/deploy/deploy_spl_to_splunk.py",
     "scripts/deploy/check_spl_syntax.py",
 )
@@ -290,10 +302,16 @@ def prepare_bundle_skeleton(bundle_dir: Path) -> None:
 
 
 def copy_fixed_scripts(repo_root: Path, bundle_dir: Path) -> None:
-    """The three named `cp` calls -- run_atomic.ps1, deploy_spl_to_splunk.py,
-    check_spl_syntax.py. Named deliberately: these are the entry points the
-    bundle exists to ship, not shared library code, so there is no
-    "the next one will be missed" risk the way there was for scripts/lib/.
+    """The named `cp` calls -- run_atomic.ps1, run_atomic_linux.ps1,
+    deploy_spl_to_splunk.py, check_spl_syntax.py. Named deliberately: these
+    are the entry points the bundle exists to ship, not shared library code.
+    "No 'next one will be missed' risk" was the original claim for this
+    approach (vs. scripts/lib/'s wholesale copy) -- run_atomic_linux.ps1
+    landing without a matching addition here (2026-09-19) shows that claim
+    holds only as long as every new entry point's own PR remembers this
+    tuple; it is still not a wholesale copy, because the bundle only ships
+    scripts/atomic/'s and scripts/deploy/'s actual entry points, not every
+    stray file that might land in those directories.
     """
     for rel_path in FIXED_SCRIPTS:
         shutil.copy2(repo_root / rel_path, bundle_dir / rel_path)

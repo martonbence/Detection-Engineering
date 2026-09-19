@@ -1327,6 +1327,21 @@ jobs:
           name: spl-pipeline-bundle
           path: pipeline_bundle
 
+      # Belt-and-suspenders alongside the git-committed executable bit on
+      # run_atomic_linux.ps1 itself (100755) and shutil.copy2's preservation
+      # of it into the bundle (build_pipeline_bundle.py's FIXED_SCRIPTS) --
+      # GitHub's actions/upload-artifact & download-artifact zip round-trip
+      # is not documented here to reliably preserve POSIX permission bits
+      # across every pinned version, and this repo has already been burned
+      # once by trusting an artifact round-trip's fidelity without checking
+      # (section C of the pipeline-ci-gotchas skill). Re-asserting the bit
+      # explicitly, right after download and before the script is invoked,
+      # costs one cheap step and removes that assumption entirely rather
+      # than relying on upstream behaviour this workflow doesn't control.
+      - name: Ensure run_atomic_linux.ps1 is executable
+        shell: bash
+        run: chmod +x pipeline_bundle/scripts/atomic/run_atomic_linux.ps1
+
       # run_atomic_linux.ps1 is PowerShell, run via the `pwsh` shell keyword --
       # Invoke-AtomicRedTeam is itself a cross-platform PowerShell module, not
       # a native Linux tool, so linux-victim needs pwsh (PowerShell 7+)

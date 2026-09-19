@@ -1,3 +1,16 @@
+#!/usr/bin/env pwsh
+#
+# Shebang required for `./run_atomic_linux.ps1 ...` (ci_dev_workflow.yml's
+# atomic_verify_linux job invokes it exactly that way, not `pwsh -File ...`).
+# On Linux, pwsh resolves a relative `./script.ps1` invocation through the
+# same command-discovery path the OS uses for any native command -- it needs
+# both this shebang AND the executable bit (see the file's git mode, and
+# FIXED_SCRIPTS in scripts/state/build_pipeline_bundle.py, which copies this
+# file with shutil.copy2 to preserve that bit into the bundle). `#` is a
+# PowerShell comment character, so this line is inert to the pwsh parser
+# itself -- it only matters to the OS's own exec() resolution. run_atomic.ps1
+# (the Windows counterpart) is deliberately left without this: Windows has
+# no equivalent requirement, so there is nothing to fix there.
 param(
     [Parameter(Mandatory = $true)]
     [string[]]$SplFiles,
