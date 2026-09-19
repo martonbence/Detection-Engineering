@@ -11,9 +11,55 @@
 # itself -- it only matters to the OS's own exec() resolution. run_atomic.ps1
 # (the Windows counterpart) is deliberately left without this: Windows has
 # no equivalent requirement, so there is nothing to fix there.
+[CmdletBinding(DefaultParameterSetName = 'Batch')]
 param(
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory = $true, ParameterSetName = 'Batch')]
     [string[]]$SplFiles,
+
+    # -ElevatedChild and the -Elevated* params below are a second, internal
+    # entry point into this same script file: Invoke-ElevatedAtomicTest (see
+    # below) re-invokes this script as `sudo -n --preserve-env=... pwsh -File
+    # <this file> -ElevatedChild ...` to run exactly one (technique, test,
+    # mode) Invoke-AtomicTest call as root, for atomics whose own metadata
+    # says elevation_required: true. This is not a second script -- it is
+    # the only way to get a *specific* nested pwsh process elevated without
+    # re-touching the workflow step's own `shell:` field, which already
+    # broke once (see ci_dev_workflow.yml's comment on the atomic_verify_linux
+    # job) when `sudo` was prepended to the outer step's shell template
+    # instead. A separate parameter set (rather than adding -ElevatedChild
+    # to the normal -SplFiles set) keeps -SplFiles genuinely mandatory for
+    # the batch entry point while making it a no-op here.
+    [Parameter(Mandatory = $true, ParameterSetName = 'ElevatedChild')]
+    [switch]$ElevatedChild,
+
+    [Parameter(Mandatory = $true, ParameterSetName = 'ElevatedChild')]
+    [string]$ElevatedTechnique,
+
+    # A single test number, not int[] -- every real call site (see
+    # Invoke-ElevatedAtomicTest below) only ever elevates one test at a time,
+    # and a scalar avoids CLI argument-array marshalling entirely: a single
+    # comma-joined string token like "1,3" does not auto-split back into
+    # [int[]] across a process boundary the way an in-process array literal
+    # would, it would just fail to bind. Simpler and correct beats generic
+    # and subtly wrong here.
+    [Parameter(Mandatory = $true, ParameterSetName = 'ElevatedChild')]
+    [int]$ElevatedTestNumber,
+
+    [Parameter(ParameterSetName = 'ElevatedChild')]
+    [string]$ElevatedAtomicsFolder,
+
+    [Parameter(ParameterSetName = 'ElevatedChild')]
+    [string]$ElevatedModulePath,
+
+    [Parameter(ParameterSetName = 'ElevatedChild')]
+    [ValidateSet("GetPrereqs", "Run", "Cleanup")]
+    [string]$ElevatedMode = "Run",
+
+    [Parameter(ParameterSetName = 'ElevatedChild')]
+    [switch]$ElevatedShowDetails,
+
+    [Parameter(ParameterSetName = 'ElevatedChild')]
+    [int]$ElevatedTimeoutSeconds = 0,
 
     [string]$Runner = $(if ($env:ATOMIC_RUNNER) { $env:ATOMIC_RUNNER } else { "linux-victim" }),
 
@@ -90,6 +136,32 @@ param(
 #>
 
 $ErrorActionPreference = "Stop"
+
+# Must match the VM's `/etc/sudoers.d/` env_keep grant for adminben exactly
+# (each of these plus PSModulePath is explicitly `env_keep`-listed there,
+# confirmed via `visudo -c` when that sudoers change was applied) --
+# `sudo -n --preserve-env=<list>` only survives for variables the sudoers
+# policy actually allows a caller to preserve; NOPASSWD alone (the earlier
+# fix, .../90-ci-nopasswd) says nothing about env_reset/env_keep. PSModulePath
+# is in this list even though it's never one of this script's own -Elevated*
+# params: it is pwsh's own module auto-discovery variable, and sudo changes
+# HOME to root's, so Import-AtomicModule's name-based fallback (see
+# Import-AtomicModule below) would stop finding Invoke-AtomicRedTeam under an
+# elevated child unless this specific var survives the sudo boundary.
+$script:ElevatedEnvKeepVars = @(
+    "ATOMIC_RUNNER",
+    "ATOMIC_TESTER_TYPE",
+    "ATOMIC_RED_TEAM_MODULE_PATH_LINUX",
+    "ATOMIC_RED_TEAM_PATH_LINUX",
+    "PSModulePath"
+)
+
+# Per-technique cache of Get-AtomicTechnique's parsed atomic_tests array, so
+# a technique with several matched test numbers only pays for one metadata
+# load. Never reset across techniques in a single script invocation -- there
+# is no correctness reason to, and this script's whole lifetime is one CI
+# step anyway.
+$script:ElevationCache = @{}
 
 function Read-MetaFromSplFile {
     param(
@@ -322,6 +394,216 @@ function Invoke-AtomicTestCompat {
     & $cmd $Technique @invokeParams
 }
 
+function Test-AtomicTestElevationRequired {
+    # Reads whether a specific (technique, test number) atomic declares
+    # `executor.elevation_required: true` via Invoke-AtomicRedTeam's own
+    # Get-AtomicTechnique accessor -- deliberately not a from-scratch YAML
+    # parse of our own, same reasoning as the file header comment gives for
+    # not reimplementing the module's meta-parsing logic a second time.
+    #
+    # Any failure here (cmdlet missing on an older module version, technique
+    # yaml not found, unexpected shape) falls back to "assume not elevation
+    # required" -- i.e. the same unprivileged behaviour this script always
+    # had. That fallback cannot cause a false PASS: if a test genuinely needs
+    # root and doesn't get it, the underlying shell command still fails and
+    # the rule's expected event still never lands in Splunk, so
+    # pass_fail_eval.py still reports the honest FAIL/NOT_VERIFIED verdict --
+    # this function only decides *how* a test is invoked, never whether its
+    # result counts.
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Technique,
+
+        [Parameter(Mandatory = $true)]
+        [int]$TestNumber,
+
+        [string]$AtomicsFolder
+    )
+
+    if (-not $script:ElevationCache.ContainsKey($Technique)) {
+        $script:ElevationCache[$Technique] = $null
+        try {
+            $getTechniqueCmd = Get-Command Get-AtomicTechnique -ErrorAction SilentlyContinue
+            if (-not $getTechniqueCmd) {
+                Write-Warning "Get-AtomicTechnique is not available from the imported Invoke-AtomicRedTeam module; cannot read elevation_required for $Technique. Running its tests unprivileged (existing default)."
+            }
+            else {
+                # Get-AtomicTechnique upstream only has -Path/-Yaml parameter
+                # sets, no by-name -Technique lookup -- so this can only ever
+                # run when $AtomicsFolder actually resolves to a real yaml
+                # file. No by-name fallback is attempted; if the path can't
+                # be built, this falls straight to the catch below via the
+                # explicit `throw`, landing on the same "assume unprivileged"
+                # behaviour as any other detection failure.
+                $yamlPath = $null
+                if ($AtomicsFolder) {
+                    $candidate = Join-Path $AtomicsFolder (Join-Path $Technique "$Technique.yaml")
+                    if (Test-Path -LiteralPath $candidate) {
+                        $yamlPath = $candidate
+                    }
+                }
+
+                if (-not $yamlPath) {
+                    throw "No atomics folder/technique yaml available to resolve elevation_required for $Technique (AtomicsFolder='$AtomicsFolder')."
+                }
+
+                $techniqueObj = Get-AtomicTechnique -Path $yamlPath
+                $script:ElevationCache[$Technique] = @($techniqueObj.atomic_tests)
+            }
+        }
+        catch {
+            Write-Warning "Could not load technique metadata for $Technique to determine elevation requirements: $($_.Exception.Message). Running its tests unprivileged (existing default)."
+        }
+    }
+
+    $tests = $script:ElevationCache[$Technique]
+    if (-not $tests -or $TestNumber -lt 1 -or $TestNumber -gt $tests.Count) {
+        return $false
+    }
+
+    return [bool]($tests[$TestNumber - 1].executor.elevation_required)
+}
+
+function Invoke-ElevatedAtomicTest {
+    # Spawns a nested, elevated pwsh child process for exactly one
+    # (technique, test, mode) Invoke-AtomicTest call -- used only when
+    # Test-AtomicTestElevationRequired says the atomic actually needs it.
+    #
+    # This exists instead of elevating the whole outer step because
+    # prepending `sudo` to the workflow step's own `shell:` field was tried
+    # first and broke GitHub Actions' custom-shell templating outright (see
+    # ci_dev_workflow.yml's atomic_verify_linux job comment, CI run
+    # 35452945096) -- a different, worse failure than the permission-denied
+    # one this is fixing. Spawning our own subprocess here never touches
+    # that mechanism: `sudo`/`pwsh` are just external programs from the
+    # outer script's point of view, identical in kind to the `bash -c "sudo
+    # cat ..."` that T1003.008 already runs successfully today.
+    #
+    # Uses the call operator (`&`) with an argument array, not
+    # Invoke-Expression or a hand-built command string -- every element is
+    # passed as one literal argv entry directly to `sudo`, then to `pwsh
+    # -File`, with no intermediate shell re-parsing/re-quoting either hop
+    # (unlike the workflow step's custom `shell:` field, this is a normal
+    # external-process invocation, so PowerShell's own array-to-argv
+    # marshalling is all that's involved). `-File` (not `-Command` string
+    # concatenation) is used for the same reason: technique IDs and folder
+    # paths reach the child exactly as typed, with no escaping to get wrong.
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Technique,
+
+        [Parameter(Mandatory = $true)]
+        [int[]]$TestNumbers,
+
+        [string]$AtomicsFolder,
+
+        [ValidateSet("GetPrereqs", "Run", "Cleanup")]
+        [string]$Mode = "Run",
+
+        [switch]$ShowDetails,
+
+        [int]$TimeoutSeconds = 0,
+
+        [string]$ModulePath,
+
+        [switch]$DryRun
+    )
+
+    # -ElevatedTestNumber is a scalar on the child's side (see its param
+    # declaration for why) -- this function still accepts $TestNumbers as
+    # int[] to match Invoke-AtomicTestCompat's own signature, but every real
+    # caller here only ever passes a single-element array (the outer loop
+    # already iterates test-by-test), so that is enforced explicitly rather
+    # than silently dropping any extra elements.
+    if ($TestNumbers.Count -ne 1) {
+        throw "Invoke-ElevatedAtomicTest only supports a single test number per call, got: $($TestNumbers -join ',')"
+    }
+
+    $childArgs = @(
+        "-NoLogo", "-NoProfile",
+        "-File", $PSCommandPath,
+        "-ElevatedChild",
+        "-ElevatedTechnique", $Technique,
+        "-ElevatedTestNumber", $TestNumbers[0],
+        "-ElevatedMode", $Mode
+    )
+    if ($AtomicsFolder) {
+        $childArgs += @("-ElevatedAtomicsFolder", $AtomicsFolder)
+    }
+    if ($ModulePath) {
+        $childArgs += @("-ElevatedModulePath", $ModulePath)
+    }
+    if ($ShowDetails.IsPresent) {
+        $childArgs += "-ElevatedShowDetails"
+    }
+    if ($TimeoutSeconds -gt 0) {
+        $childArgs += @("-ElevatedTimeoutSeconds", $TimeoutSeconds)
+    }
+
+    $preserveEnvList = ($script:ElevatedEnvKeepVars -join ",")
+
+    if ($DryRun.IsPresent) {
+        Write-Host "DryRun: would execute (elevated): sudo -n --preserve-env=$preserveEnvList pwsh $($childArgs -join ' ')"
+        return 0
+    }
+
+    $pwshCmd = Get-Command pwsh -ErrorAction Stop
+
+    # Explicitly captured, not a bare unassigned `&` statement: an external
+    # process's uncaptured/unredirected stdout becomes part of whatever this
+    # function returns, exactly like any other emitted value in PowerShell.
+    # The elevated child is verbose (module-import banner,
+    # Invoke-AtomicTest's own command output), so a bare `&` here would make
+    # this function's actual return value an array of every output line plus
+    # the real exit code tacked on at the end -- and the caller's `$rc -ne 0`
+    # would then be PowerShell's array-filter form (matches every element
+    # not equal to 0, which is virtually every text line once compared
+    # against an int), always truthy regardless of what the elevated call
+    # actually did. Captured here and re-emitted via Write-Host instead, so
+    # the elevated child's output still reaches the step log (useful for
+    # debugging a failed elevated run) while this function's own `return` is
+    # a clean scalar exit code and nothing else.
+    $output = & sudo -n "--preserve-env=$preserveEnvList" $pwshCmd.Source @childArgs
+    $exitCode = $LASTEXITCODE
+    if ($output) {
+        Write-Host ($output -join "`n")
+    }
+
+    # $LASTEXITCODE is how PowerShell surfaces an external process's exit
+    # code after `&` -- sudo exits with the elevated pwsh child's own code
+    # (0 success, 2 failure, matching this script's own convention below)
+    # once it has actually started the child; `-n` makes an unexpected auth
+    # failure exit non-zero too, which the caller correctly treats the same
+    # as any other failed elevated call rather than needing to tell them
+    # apart.
+    return $exitCode
+}
+
+if ($ElevatedChild) {
+    # This invocation of the script IS the nested elevated child that
+    # Invoke-ElevatedAtomicTest spawns above. Deliberately skips the entire
+    # $SplFiles-driven batch flow below (meta.json parsing, progress
+    # markers, the technique loop) -- it exists purely to make exactly one
+    # Invoke-AtomicTestCompat call as root and hand the result back to the
+    # unprivileged parent via this process's own exit code, which
+    # Invoke-ElevatedAtomicTest reads via $LASTEXITCODE.
+    try {
+        Import-AtomicModule -ModulePath $ElevatedModulePath
+        Invoke-AtomicTestCompat `
+            -Technique $ElevatedTechnique `
+            -TestNumbers @($ElevatedTestNumber) `
+            -AtomicsFolder $ElevatedAtomicsFolder `
+            -Mode $ElevatedMode `
+            -ShowDetails:$ElevatedShowDetails `
+            -TimeoutSeconds $ElevatedTimeoutSeconds
+        exit 0
+    }
+    catch {
+        Write-Warning "Elevated child failed ($ElevatedMode) for $ElevatedTechnique test $ElevatedTestNumber : $($_.Exception.Message)"
+        exit 2
+    }
+}
+
 $normalizedRunner = $Runner.Trim().ToLowerInvariant()
 $collected = [ordered]@{}
 $collectedCustom = [System.Collections.Generic.List[pscustomobject]]::new()
@@ -516,14 +798,31 @@ foreach ($technique in $collected.Keys) {
     foreach ($testNum in $testNumbers) {
         Write-Host "Invoking Atomic Red Team: $technique test [$testNum]"
 
+        # Decided once per test, applied consistently to GetPrereqs/Run/
+        # Cleanup: an elevation_required atomic's prereq/cleanup commands are
+        # part of the same `executor` block in its yaml as the main command,
+        # so there is no basis for elevating one phase and not the others.
+        $needsElevation = Test-AtomicTestElevationRequired -Technique $technique -TestNumber $testNum -AtomicsFolder $AtomicsPath
+        if ($needsElevation) {
+            Write-Host "  -> $technique test $testNum declares elevation_required: true; running via a nested elevated pwsh (sudo), not the unprivileged outer process."
+        }
+
         if (-not $skipPrereqsResolved) {
             try {
-                Invoke-AtomicTestCompat `
-                    -Technique $technique `
-                    -TestNumbers @($testNum) `
-                    -AtomicsFolder $AtomicsPath `
-                    -Mode "GetPrereqs" `
-                    -DryRun:$DryRun.IsPresent
+                if ($needsElevation) {
+                    $rc = Invoke-ElevatedAtomicTest -Technique $technique -TestNumbers @($testNum) -AtomicsFolder $AtomicsPath -Mode "GetPrereqs" -ModulePath $DefaultModulePath -DryRun:$DryRun.IsPresent
+                    if ($rc -ne 0) {
+                        Write-Warning "Elevated prerequisite setup failed for $technique test $testNum (exit $rc)"
+                    }
+                }
+                else {
+                    Invoke-AtomicTestCompat `
+                        -Technique $technique `
+                        -TestNumbers @($testNum) `
+                        -AtomicsFolder $AtomicsPath `
+                        -Mode "GetPrereqs" `
+                        -DryRun:$DryRun.IsPresent
+                }
             }
             catch {
                 Write-Warning "Prerequisite setup failed for $technique test $testNum : $($_.Exception.Message)"
@@ -531,14 +830,23 @@ foreach ($technique in $collected.Keys) {
         }
 
         try {
-            Invoke-AtomicTestCompat `
-                -Technique $technique `
-                -TestNumbers @($testNum) `
-                -AtomicsFolder $AtomicsPath `
-                -Mode "Run" `
-                -ShowDetails:$ShowDetails.IsPresent `
-                -TimeoutSeconds $TimeoutSeconds `
-                -DryRun:$DryRun.IsPresent
+            if ($needsElevation) {
+                $rc = Invoke-ElevatedAtomicTest -Technique $technique -TestNumbers @($testNum) -AtomicsFolder $AtomicsPath -Mode "Run" -ShowDetails:$ShowDetails.IsPresent -TimeoutSeconds $TimeoutSeconds -ModulePath $DefaultModulePath -DryRun:$DryRun.IsPresent
+                if ($rc -ne 0) {
+                    $failures++
+                    Write-Warning "Elevated atomic execution failed for $technique test $testNum (exit $rc)"
+                }
+            }
+            else {
+                Invoke-AtomicTestCompat `
+                    -Technique $technique `
+                    -TestNumbers @($testNum) `
+                    -AtomicsFolder $AtomicsPath `
+                    -Mode "Run" `
+                    -ShowDetails:$ShowDetails.IsPresent `
+                    -TimeoutSeconds $TimeoutSeconds `
+                    -DryRun:$DryRun.IsPresent
+            }
         }
         catch {
             $failures++
@@ -547,12 +855,20 @@ foreach ($technique in $collected.Keys) {
         finally {
             if (-not $skipCleanupResolved) {
                 try {
-                    Invoke-AtomicTestCompat `
-                        -Technique $technique `
-                        -TestNumbers @($testNum) `
-                        -AtomicsFolder $AtomicsPath `
-                        -Mode "Cleanup" `
-                        -DryRun:$DryRun.IsPresent
+                    if ($needsElevation) {
+                        $rc = Invoke-ElevatedAtomicTest -Technique $technique -TestNumbers @($testNum) -AtomicsFolder $AtomicsPath -Mode "Cleanup" -ModulePath $DefaultModulePath -DryRun:$DryRun.IsPresent
+                        if ($rc -ne 0) {
+                            Write-Warning "Elevated cleanup failed for $technique test $testNum (exit $rc)"
+                        }
+                    }
+                    else {
+                        Invoke-AtomicTestCompat `
+                            -Technique $technique `
+                            -TestNumbers @($testNum) `
+                            -AtomicsFolder $AtomicsPath `
+                            -Mode "Cleanup" `
+                            -DryRun:$DryRun.IsPresent
+                    }
                 }
                 catch {
                     Write-Warning "Cleanup failed for $technique test $testNum : $($_.Exception.Message)"

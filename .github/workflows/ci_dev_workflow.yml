@@ -1342,57 +1342,37 @@ jobs:
         shell: bash
         run: chmod +x pipeline_bundle/scripts/atomic/run_atomic_linux.ps1
 
-      # run_atomic_linux.ps1 is PowerShell, run via a `pwsh` shell -- Invoke-
-      # AtomicRedTeam is itself a cross-platform PowerShell module, not a
-      # native Linux tool, so linux-victim needs pwsh (PowerShell 7+)
+      # run_atomic_linux.ps1 is PowerShell, run via the `pwsh` shell keyword --
+      # Invoke-AtomicRedTeam is itself a cross-platform PowerShell module, not
+      # a native Linux tool, so linux-victim needs pwsh (PowerShell 7+)
       # installed and Invoke-AtomicRedTeam importable under it. That is lab
       # infrastructure to provision on the VM, not something this workflow
       # change can install.
       #
-      # The whole `pwsh` process is elevated via `sudo` here (custom `shell:`
-      # string, not the built-in `pwsh` keyword whose default is exactly
-      # `/usr/bin/pwsh -command ". '{0}'"` -- this is that same command with
-      # `sudo -n --preserve-env=... ` prepended). This is deliberately
-      # process-wide, not per-test: T1003.007's upstream atomics
-      # (dd/proc-mem reads) have `elevation_required: true` but never call
-      # `sudo` in their own command text -- confirmed by reading
-      # atomics/T1003.007/T1003.007.yaml upstream -- which is Atomic Red
-      # Team's documented Linux convention: elevation-required tests expect
-      # the *calling* pwsh session to already be root, not that the atomic
-      # self-elevates. redcanaryco/invoke-atomicredteam has no per-test
-      # Linux auto-elevation mechanism to opt into instead (checked upstream
-      # source/docs) -- whole-process elevation is the only supported route,
-      # not a workaround chosen over a narrower one. T1003.008 test #1
-      # (`sudo cat /etc/shadow`, no elevation_required flag, already passing
-      # unprivileged via its own embedded `sudo`) is unaffected: running an
-      # embedded `sudo` from an already-root process is a no-op permission
-      # check, not a behaviour change.
-      #
-      # `-n` (non-interactive): fails fast with a clear "a password is
-      # required" error if the VM's NOPASSWD sudoers entry for adminben is
-      # ever missing/narrowed, instead of hanging on a password prompt that
-      # will never be answered until this step's own 18-minute timeout (or
-      # the job's 25-minute one) burns the whole budget before failing --
-      # not the offline-runner-never-starts case pipeline-ci-gotchas
-      # section B covers, just the same "fail loud, not slow" instinct
-      # applied here on its own merits.
-      #
-      # `--preserve-env=<list>`: `sudo`'s NOPASSWD alone (the
-      # /etc/sudoers.d/90-ci-nopasswd fix from the previous incident) only
-      # waives the password prompt -- it says nothing about env_reset, so
-      # plain `sudo -E` here is not guaranteed to survive on a default
-      # sudoers policy (`Defaults env_reset` strips everything not
-      # explicitly kept, even under `-E`, unless the invoking user also has
-      # permission to preserve it). The four `env:`-block vars below plus
-      # PSModulePath (pwsh's own module auto-discovery path, needed for
-      # Import-Module -Name Invoke-AtomicRedTeam to find the module once
-      # HOME changes to root's under sudo) all need to be explicitly listed
-      # AND allow-listed on the VM side -- see the sudoers addition noted
-      # below; this workflow change alone cannot guarantee they survive.
+      # Deliberately plain `shell: pwsh` -- a prior version of this step
+      # prepended `sudo -n --preserve-env=... ` to a custom `shell:` string
+      # to get T1003.007's elevation-required atomics working (they never
+      # call `sudo` in their own command text -- see run_atomic_linux.ps1's
+      # header comment for why -- so the whole calling process has to already
+      # be root). That broke GitHub Actions' own custom-shell templating
+      # (confirmed via CI run 35452945096: "ResourceUnavailable ... failed to
+      # run", the runner trying to exec its per-step temp script directly
+      # instead of through the intended `sudo ... pwsh` command -- a
+      # different failure class from the permission-denied one it was fixing,
+      # and unrelated to the VM's sudoers policy, which was independently
+      # confirmed correct via `visudo -c`). The elevation now happens *inside*
+      # run_atomic_linux.ps1 instead: it spawns a nested `sudo -n
+      # --preserve-env=... pwsh -File <itself> -ElevatedChild ...` child
+      # process for just the specific (technique, test, mode) calls whose
+      # atomic actually declares `elevation_required: true`, read via
+      # Invoke-AtomicRedTeam's own `Get-AtomicTechnique` accessor -- see that
+      # script's `Test-AtomicTestElevationRequired` / `Invoke-ElevatedAtomicTest`
+      # functions. This step's own `shell:`/`env:` stay exactly as they were
+      # before either sudo attempt.
       - name: Run Atomic Red Team tests embedded in deployed SPL metadata
         id: run_atomic
         timeout-minutes: 18
-        shell: 'sudo -n --preserve-env=ATOMIC_RUNNER,ATOMIC_TESTER_TYPE,ATOMIC_RED_TEAM_MODULE_PATH_LINUX,ATOMIC_RED_TEAM_PATH_LINUX,PSModulePath /usr/bin/pwsh -command ". ''{0}''"'
+        shell: pwsh
         env:
           ATOMIC_RUNNER: linux-victim
           ATOMIC_TESTER_TYPE: atomic
