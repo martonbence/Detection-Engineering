@@ -23,3 +23,8 @@ self-hosted-runner:
     # The domain controller, for techniques that only make sense there.
     - dc
     - windows-dc
+    # The Linux victim host (T1003.007/.008 Atomic Red Team target, plus its
+    # nginx web-server role). Shares the `victim` and `atomic` labels above
+    # with windows-victim; `linux-victim` is the one rules refer to in their
+    # custom.testing.runner field (see docs/schemas/sigma_schema.json).
+    - linux-victim

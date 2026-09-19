@@ -361,7 +361,13 @@ def test_the_flags_are_written_to_github_output(tmp_path, monkeypatch):
 
     written = out_file.read_text(encoding="utf-8").splitlines()
     assert "has_atomic_tests=true" in written
-    assert len(written) == 3
+    # One line per JOB_OUTPUT_FLAGS entry (has_atomic_tests, has_atomic_dc_tests,
+    # has_atomic_linux_tests, has_emulation_tests) -- kept in sync with that
+    # table's length rather than a bare literal, so adding a job here fails this
+    # assertion for the right reason (a forgotten update) instead of a wrong one.
+    from check_test_routing import JOB_OUTPUT_FLAGS
+
+    assert len(written) == len(set(JOB_OUTPUT_FLAGS.values()))
 
 
 def test_job_flags_maps_the_real_workflows_jobs():
