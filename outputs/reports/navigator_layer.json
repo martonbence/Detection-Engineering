@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-09-19T07:25:02 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
+  "description": "Auto-generated detection coverage. 2026-09-19T12:30:53 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
   "filters": {
     "platforms": [
       "Windows",
@@ -238,6 +238,22 @@
       "comment": "DETECT-2026-0033: LLMNR/NBT-NS Poisoning and SMB Relay Tooling Execution (NOT_VERIFIED)",
       "enabled": true,
       "score": 75,
+      "showSubtechniques": true
+    },
+    {
+      "techniqueID": "T1003.008",
+      "color": "#6E7681",
+      "comment": "DETECT-2026-0034: Linux Credential File Access via Shadow-Watch Auditd Rule (N/A)",
+      "enabled": true,
+      "score": 25,
+      "showSubtechniques": true
+    },
+    {
+      "techniqueID": "T1003.007",
+      "color": "#6E7681",
+      "comment": "DETECT-2026-0035: Linux Credential Access via Proc Filesystem Memory Read (N/A)",
+      "enabled": true,
+      "score": 25,
       "showSubtechniques": true
     }
   ],
