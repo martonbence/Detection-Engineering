@@ -25,7 +25,7 @@ A támadó az operációs rendszer **saját hitelesítőadat-tárolóiból** pr�
 
 Ez a különbség a detekció szempontjából is meghatározó: mindegy, hogy Mimikatz, ProcDump vagy egy saját írású eszköz csinálja, a tárolóhoz **ugyanazon a néhány úton** lehet hozzáférni (LSASS folyamat megnyitása, registry hive kiexportálása, NTDS.dit fájl kimásolása).
 
-Szinte minden altechnika **helyi rendszergazdai vagy SYSTEM jogot feltételez**, tehát a technika megjelenése önmagában azt is jelenti, hogy a támadó már túl van a [Privilege Escalation]-n. A
+Szinte minden altechnika **helyi rendszergazdai vagy SYSTEM jogot feltételez**, tehát a technika megjelenése önmagában azt is jelenti, hogy a támadó már túl van a [Privilege Escalation]-n.
 
 > [!quote] MITRE definíció
 > Adversaries may attempt to dump credentials to obtain account login and credential material, normally in the form of a hash or a clear text password.
@@ -42,7 +42,8 @@ A megszerzett hitelesítő adatot (hash, ticket, jelszó) a támadó tipikusan a
 - [[T1003.004 - LSA Secrets]] — a SECURITY hive-ban tárolt **szolgáltatásfiók-jelszavak** és gyorsítótárazott titkok, gyakran cleartextben visszafejthetően
 - [[T1003.005 - Cached Domain Credentials]] — a végponton **offline bejelentkezéshez** eltárolt domain hitelesítő adatok (mscash); lassan törhető, de nem hálózatképes
 - [[T1003.006 - DCSync]] — nem a lemezről olvas, hanem **DC-nek adja ki magát** és a replikációs protokollon kéri le a hasheket; nem kell hozzá kód a DC-n
-- **T1003.007 / T1003.008** (Proc Filesystem, /etc/passwd és /etc/shadow) — Linux, ebben a környezetben hatókörön kívül
+- [[T1003.007 - Proc Filesystem]] — Linux; a futó folyamat memóriáját `/proc/<pid>/mem`-en keresztül olvassa ki, az LSASS-dump funkcionális megfelelője procfs-en; ebben a környezetben egyelőre nincs szabály rá
+- [[T1003.008 - Etc-Passwd and Etc-Shadow]] — Linux; a `linux-victim` labor VM és annak testre szabott auditd szabálykészlete óta lefedve (DETECT-2026-0034)
 
 ## Összehasonlítás
 
@@ -112,11 +113,14 @@ A közös zajforrás mindhárom rétegben ugyanaz és jól nevesíthető: **AV/E
 | [DETECT-2026-0028](https://github.com/martonbence/Detection-Engineering/blob/main/rules/sigma/DETECT-2026-0028_Cached-Credential-Enumeration-via-Cmdkey.yml) | Cached Credential Enumeration via Cmdkey              | .005                    | Sysmon EID 1    | low      |
 | [DETECT-2026-0029](https://github.com/martonbence/Detection-Engineering/blob/main/rules/sigma/DETECT-2026-0029_DCSync-via-DSInternals-Get-ADReplAccount.yml) | DCSync via DSInternals Get-ADReplAccount              | .006                    | Sysmon EID 1    | high     |
 | [DETECT-2026-0022](https://github.com/martonbence/Detection-Engineering/blob/main/rules/sigma/DETECT-2026-0022_Known-Credential-Dumping-Tool-Execution.yml) | Known Credential Dumping Tool Execution                | .001–.006 (eszköznév)   | Sysmon EID 1    | critical |
+| [DETECT-2026-0034](https://github.com/martonbence/Detection-Engineering/blob/main/rules/sigma/DETECT-2026-0034_Linux-Credential-File-Access-via-Shadow-Watch-Auditd-Rule.yml) | Linux Credential File Access via Shadow-Watch Auditd Rule | .008                 | auditd (linux_audit) | high |
 
-**Nem fedett:** a .006 natív detekciója (Security 4662 + replikációs GUID-ok) — a technika egyetlen olyan altechnikája, amit a jelenlegi szabálykészlet érdemben nem lát.
+**Nem fedett:** a .006 natív detekciója (Security 4662 + replikációs GUID-ok) — a technika egyetlen Windows-os altechnikája, amit a jelenlegi szabálykészlet érdemben nem lát. A [[T1003.007 - Proc Filesystem|.007]] (Proc Filesystem) is fedetlen Linux oldalon — ez a következő tervezett szabály, de nem triviális ráépülés a meglévő auditd-készletre: a `ptrace`/`process_vm_readv` syscall-watch már megvan a laborban, de a legvalósabb elérési út (`/proc/<pid>/mem` fájlként olvasása `dd`-vel) valószínűleg nem megy át ezeken a syscallokon — ld. a [[T1003.007 - Proc Filesystem]] jegyzet "Detekciós stratégia" szakaszát.
 
 ## Kapcsolódó jegyzetek
 
+- **Rokon technikák:** [T1552 - Unsecured Credentials] — a credential dumping "olcsóbb" testvére: ott a hitelesítő adat már eleve nyílt/kevéssé védett formában hever (konfigfájl, jegyzet, history), itt aktívan ki kell nyerni egy OS-tárolóból; [T1558 - Steal or Forge Kerberos Tickets] — a [[T1003.001 - LSASS Memory|.001]] és a [[T1003.006 - DCSync|.006]] gyakran ugyanazon eszközből (Mimikatz, Rubeus) táplálja a golden/silver ticket előállítást
+- **MITRE:** https://attack.mitre.org/techniques/T1003/
 
 ## Saját feljegyzések
 
