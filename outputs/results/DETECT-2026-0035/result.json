@@ -1,16 +1,16 @@
 {
   "detect_id": "DETECT-2026-0035",
   "title": "Linux Credential Access via Proc Filesystem Memory Read",
-  "verdict": "PASS",
-  "reason": "Event count 4 within expected range [1–10]",
+  "verdict": "FAIL",
+  "reason": "Too few events: 0 (min expected: 1)",
   "disabled": false,
-  "event_count": 4,
+  "event_count": 0,
   "min_pass": 1,
   "max_pass": 10,
-  "earliest": "1789836048",
+  "earliest": "1789836365",
   "latest": "now",
-  "run_timestamp": "2026-09-19T16:45:13.033040+00:00",
+  "run_timestamp": "2026-09-19T16:50:43.060033+00:00",
   "rule_version": "1.0",
-  "git_sha": "479bf55100beb558d46efcbe4e62d4f78411080e",
-  "run_id": "35455740873"
+  "git_sha": "2dc609000062ef4b1b87ad883ea08c189d02ed4b",
+  "run_id": "35455972491"
 }
