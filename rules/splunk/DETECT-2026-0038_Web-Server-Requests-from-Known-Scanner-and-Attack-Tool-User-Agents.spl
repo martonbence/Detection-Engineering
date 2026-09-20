@@ -1,0 +1,1 @@
+index=main sourcetype="access_combined" useragent IN ("*sqlmap/*", "*Nikto/*", "*Nmap Scripting Engine*", "*zgrab/*", "*gobuster/*", "*feroxbuster/*", "*Fuzz Faster U Fool*", "*WPScan v*", "*Wfuzz/*") OR useragent="*libredtail-http*" OR useragent="*wp2shell*" | table _time,host,clientip,method,uri_path,uri_query,status,bytes,useragent,referer
