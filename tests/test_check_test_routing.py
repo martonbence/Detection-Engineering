@@ -11,11 +11,20 @@ import pytest
 import yaml
 from check_test_routing import check_rule, derive_matrix, main
 
-# The three combinations the dev workflow actually services today.
+# A stand-in matrix for the unit tests below, deliberately NOT the full set the
+# dev workflow services -- `atomic`/`linux-victim` is left out on purpose so the
+# "a rule can ask for a combination no job services" cases further down have
+# something genuinely unrouted to assert against. The one assertion that does
+# compare against the real workflow (test_the_real_workflow_still_services_the_
+# known_combinations) is a subset check for exactly this reason.
 MATRIX = {
     ("atomic", "windows-victim"): "atomic_verify",
     ("atomic", "windows-dc"): "atomic_verify_dc",
     ("emulation", "windows-victim"): "emulation_verify",
+    # Added when the job landed. Keeping this out of MATRIX while the workflow
+    # serviced it was how the parametrised schema test below came to assert
+    # something about the real pipeline that had stopped being true.
+    ("emulation", "linux-victim"): "emulation_verify_linux",
 }
 
 
@@ -270,8 +279,12 @@ def test_every_committed_rule_routes_to_a_real_job():
     assert main([]) == 0
 
 
-def test_the_real_workflow_still_services_the_three_known_combinations():
-    """A subset assertion on purpose: adding the linux job must not fail this."""
+def test_the_real_workflow_still_services_the_known_combinations():
+    """A subset assertion on purpose: adding a job must not fail this.
+
+    (Renamed from ...the_three_known_combinations when MATRIX gained a fourth
+    entry -- a count in a name is drift waiting to happen.)
+    """
     with open(".github/workflows/ci_dev_workflow.yml", encoding="utf-8") as fh:
         workflow = yaml.safe_load(fh)
 
@@ -281,7 +294,13 @@ def test_the_real_workflow_still_services_the_three_known_combinations():
     assert set(MATRIX) <= set(matrix)
 
 
-@pytest.mark.parametrize("runner", ["linux-victim", "windows-dc"])
+# linux-victim was dropped from this parametrisation when emulation_verify_linux
+# landed: the workflow now services emulation/linux-victim, so keeping it here
+# asserted a gap that had been closed. It only kept passing because MATRIX is a
+# static test constant rather than the real derived matrix -- i.e. the test
+# would have gone on describing the pipeline wrongly indefinitely. windows-dc is
+# still genuinely unserviced for emulation, so the case it guards is intact.
+@pytest.mark.parametrize("runner", ["windows-dc"])
 def test_the_schema_allows_combinations_the_workflow_does_not_service(runner):
     """The gap is real, not hypothetical -- the schema permits all of these."""
     with open("docs/schemas/sigma_schema.json", encoding="utf-8") as fh:
@@ -315,6 +334,48 @@ def test_a_job_with_no_rules_in_this_batch_is_false(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "has_atomic_dc_tests=false" in out
     assert "has_emulation_tests=false" in out
+
+
+def test_an_emulation_linux_batch_starts_only_the_linux_emulation_job(tmp_path, capsys):
+    """The nginx case: one VM, no atomic, `type: emulation` on `linux-victim`.
+
+    The whole point of a per-job flag is that a batch containing *only* these
+    rules still switches its job on -- and switches no other one on, so the
+    windows-victim hosts are not woken up for work that is not theirs. Uses its
+    own workflow fixture rather than _workflow_file(), which services
+    atomic/windows-victim only and which the unrouted-rule tests above depend on
+    staying that way.
+    """
+    wf = tmp_path / "wf_linux.yml"
+    wf.write_text(
+        yaml.safe_dump(
+            {
+                "jobs": {
+                    "atomic_verify": {
+                        "steps": [
+                            {"env": {"ATOMIC_RUNNER": "windows-victim", "ATOMIC_TESTER_TYPE": "atomic"}}
+                        ]
+                    },
+                    "emulation_verify_linux": {
+                        "steps": [
+                            {"env": {"ATOMIC_RUNNER": "linux-victim", "ATOMIC_TESTER_TYPE": "emulation"}}
+                        ]
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    r = write_rule(tmp_path, tester="emulation", runner="linux-victim")
+
+    assert main(["--workflow", str(wf), "--job-flags", str(r)]) == 0
+
+    out = capsys.readouterr().out
+    assert "has_emulation_linux_tests=true" in out
+    assert "has_emulation_tests=false" in out
+    assert "has_atomic_tests=false" in out
+    assert "has_atomic_linux_tests=false" in out
+    assert "has_atomic_dc_tests=false" in out
 
 
 def test_a_disabled_rule_starts_no_job(tmp_path, capsys):
@@ -361,10 +422,12 @@ def test_the_flags_are_written_to_github_output(tmp_path, monkeypatch):
 
     written = out_file.read_text(encoding="utf-8").splitlines()
     assert "has_atomic_tests=true" in written
-    # One line per JOB_OUTPUT_FLAGS entry (has_atomic_tests, has_atomic_dc_tests,
-    # has_atomic_linux_tests, has_emulation_tests) -- kept in sync with that
-    # table's length rather than a bare literal, so adding a job here fails this
-    # assertion for the right reason (a forgotten update) instead of a wrong one.
+    # One line per JOB_OUTPUT_FLAGS entry -- deliberately not spelled out here,
+    # because a hand-maintained list of the flags is the thing that goes stale
+    # (it did: it still named four after emulation_verify_linux made it five).
+    # Comparing against the table's own length is what makes adding a job fail
+    # this assertion for the right reason (a forgotten update) instead of a
+    # wrong one; read JOB_OUTPUT_FLAGS for the current set.
     from check_test_routing import JOB_OUTPUT_FLAGS
 
     assert len(written) == len(set(JOB_OUTPUT_FLAGS.values()))

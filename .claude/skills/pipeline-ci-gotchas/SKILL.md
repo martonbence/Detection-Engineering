@@ -86,6 +86,34 @@ step prints one line and skips, and the run still exits 0. Advisory only —
 the hard gate (pytest) only catches an *already-committed* rule that stops
 routing, not a new one authored wrong.
 
+**A second `run_atomic*.ps1` invocation in the same job wipes the first
+one's verdict markers.** `scripts/atomic/run_atomic_linux.ps1:754-758` and
+`run_atomic.ps1:780-782` `Remove-Item` every `*.json` in `$ProgressDir` at
+the start of any real (non-`-PreflightOnly`) run, so a reused self-hosted
+workspace cannot leak a previous run's verdicts. Those markers are the sole
+input to `pass_fail_eval.py`'s NOT_VERIFIED gate. The obvious way to add a
+new (tester type, runner) pair — one more step with a different
+`ATOMIC_TESTER_TYPE` inside an existing job — therefore makes the second
+step delete the first step's markers before the single end-of-job upload:
+co-batched rules of the first type come back NOT_VERIFIED although they were
+attacked, and the run stays green. This is why the convention is one job per
+(tester type, runner): `atomic_verify` / `emulation_verify` on windows-victim,
+`atomic_verify_linux` / `emulation_verify_linux` on linux-victim. It is
+invisible from the YAML; found 2026-09-20 while adding
+`emulation_verify_linux`.
+
+**Emulation `custom` commands on linux-victim are parsed as PowerShell, not
+bash.** `run_atomic_linux.ps1:893-939` runs them with `Invoke-Expression`
+under pwsh and ignores the `executor` label. A bash `for … do … done` or
+`$(…)` is a parse error (the rule then reads FAIL, not NOT_VERIFIED); an
+unquoted `&`/`;` in a URL breaks; double-quoted strings expand `$`. Write
+single-quoted URLs, or wrap in `bash -c '…'`. A failing native `curl` does not
+throw, so the marker still says "ran" and the verdict comes from Splunk
+evidence. Also: if the linux-victim VM is off while `LAB_ONLINE` is true,
+`emulation_verify_linux` queues and (like `atomic_verify_linux`) ignores
+`timeout-minutes`, and `splunk_verify` waits on it via `needs` — start the VM
+before pushing a rule with a linux-victim test.
+
 **MITRE tag validation is deliberately loose, and dashboard extraction is
 looser still.** `ci_dev_workflow.yml:577-582` (register 4.3). The schema's
 tag pattern has a free-text `anyOf` fallback (`attack.t123` validates);

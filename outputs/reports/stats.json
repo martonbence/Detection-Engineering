@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-09-19T16:19:40.699028+00:00",
-  "total_rules": 33,
-  "total_sigma_rules": 33,
-  "total_compiled_sigma_rules": 29,
-  "total_splunk_rules": 33,
-  "total_native_spl_rules": 4,
-  "verified_pass": 9,
-  "verified_fail": 2,
+  "generated_at": "2026-09-20T19:16:17.102916+00:00",
+  "total_rules": 34,
+  "total_sigma_rules": 34,
+  "total_compiled_sigma_rules": 31,
+  "total_splunk_rules": 34,
+  "total_native_spl_rules": 3,
+  "verified_pass": 11,
+  "verified_fail": 1,
   "verified_not_verified": 22,
   "verified_testing_disabled": 22,
   "verified_testing_disabled_current": 22,
@@ -15,39 +15,40 @@
   "verified_stale": 0,
   "verified_superseded": 0,
   "verified_expired": 0,
-  "verified_pass_current": 9,
-  "verified_fail_current": 2,
-  "verified_current": 11,
-  "pass_rate_pct": 82,
+  "verified_pass_current": 11,
+  "verified_fail_current": 1,
+  "verified_current": 12,
+  "pass_rate_pct": 92,
   "pass_rate_color": "brightgreen",
-  "verification_current_pct": 33,
+  "verification_current_pct": 35,
   "verification_current_color": "red",
-  "confirmed_working_pct": 27,
-  "last_live_verification_at": "2026-09-19T16:19:08.825472+00:00",
-  "last_live_verification_count": 2,
-  "mitre_covered_techniques": 16,
+  "confirmed_working_pct": 32,
+  "last_live_verification_at": "2026-09-20T19:15:52.866356+00:00",
+  "last_live_verification_count": 3,
+  "mitre_covered_techniques": 18,
   "mitre_total_techniques": 222,
   "mitre_total_fetched_at": "2026-09-15T17:57:10.591439+00:00",
-  "mitre_coverage_pct": 7.2,
+  "mitre_coverage_pct": 8.1,
   "by_level": {
     "critical": 14,
-    "high": 12,
+    "high": 10,
     "low": 1,
-    "medium": 6
+    "medium": 9
   },
   "by_status": {
-    "experimental": 2,
-    "stable": 31
+    "experimental": 5,
+    "stable": 29
   },
   "by_tactic": {
-    "Credential Access": 18,
+    "Credential Access": 16,
     "Execution": 14,
     "Stealth": 8,
     "Command & Control": 2,
     "Persistence": 2,
     "Defense Impairment": 2,
+    "Initial Access": 2,
+    "Reconnaissance": 2,
     "Discovery": 1,
-    "Initial Access": 1,
     "Collection": 1
   },
   "rules": [
@@ -1767,120 +1768,157 @@
       "rule_version": "1.2"
     },
     {
-      "detect_id": "DETECT-2026-0034",
-      "title": "Linux Credential File Access via Shadow-Watch Auditd Rule",
-      "description": "Detects T1003.008 OS Credential Dumping: /etc/passwd, /etc/master.passwd and /etc/shadow -- root-level access to Linux's password-hash-bearing files. Keys on the auditd watch `key` field (`credential_access_shadow`, `credential_access_opasswd`) rather than process/command name, so it isn't defeated by which binary or shell mechanism did the reading (`cat`, `ed`, or a shell `read` builtin with no external process at all). `/etc/passwd` is deliberately out of scope: it's world-readable and read constantly by benign things (PAM, `getent`, `id`), and only its *writes* are watched here -- a different, non-credential-dump signal -- see falsepositives for that gap. `/etc/master.passwd` is FreeBSD-only, not applicable to this Ubuntu lab target. A native Sigma `filter` excludes known password/account-management tooling (`passwd`, `chpasswd`, `usermod`, `chage`, `chsh`, `chfn`, `unix_chkpwd`) so routine admin/PAM activity doesn't alert; `sudo`, `su`, `login`, `cat`, `ed` and shells stay unfiltered, since they're this rule's actual detection target. The exact-file ambiguity between `/etc/shadow` and `/etc/gshadow` (both share one watch key) is a known, documented gap, not silently dropped -- see falsepositives.\n",
-      "level": "high",
-      "status": "stable",
+      "detect_id": "DETECT-2026-0036",
+      "title": "Web Server Probing for Secret, VCS and Config Files",
+      "description": "Detects HTTP requests in the nginx access log whose path targets files that should never be web-reachable: environment/secret files (/.env and its variants such as .env.production, .env.bak, /app/.env), version-control metadata (/.git/config, /.git/HEAD, /.svn/, /.hg/), credential and key directories (/.aws/credentials, /.ssh/id_rsa), client-side leftovers (/.DS_Store, /.npmrc, /.htpasswd, /.bash_history), CMS config backups (wp-config.php.bak and similar) and database or site archives (backup.sql, backup.zip, dump.sql). This is wordlist-style reconnaissance, run at scale by mass scanners -- see GreyNoise (AI-crawler impostor scanning) and CISA AA24-016A (Androxgh0st) in references. The attacker's goal is credential harvesting (T1552.001), but a request in an access log only shows the attempt, so the rule is tagged T1595.003 and not T1552.001. It fires on the attempt regardless of HTTP status: a 404 on /.env is still the signal, and `status` and `bytes` are in the output so an analyst can triage whether the file was actually served (200 with bytes > 0). The match is a curated path list and deliberately not \"any dotfile\", so /.well-known/ (ACME challenges, security.txt) and /.github/ do not match. nginx logs the request line as sent, without percent-decoding, so two illustrative encoded forms of the leading dot (%2e) are matched alongside the literal ones; deeper double-encoding is not covered. Field names are the Splunk-native access_combined extractions (uri_path, not the Sigma webserver cs-uri-stem), because there is no field-mapping pipeline for this log source.\n",
+      "level": "medium",
+      "status": "experimental",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "35454205655",
-      "verdict_at": "2026-09-19T16:19:08.825472+00:00",
-      "verdict_rule_version": "1.3",
-      "verdict_testing_disabled": false,
-      "tactics": [
-        "Credential Access"
-      ],
-      "techniques": [
-        "T1003.008"
-      ],
-      "file_path": "rules/sigma/DETECT-2026-0034_Linux-Credential-File-Access-via-Shadow-Watch-Auditd-Rule.yml",
-      "logsource": {
-        "product_category": "os",
-        "product": "linux",
-        "service": "auditd",
-        "event_type": "file_access"
-      },
-      "author": "Bence Marton",
-      "date": "2026-09-19",
-      "modified": "2026-09-19",
-      "references": [
-        "https://attack.mitre.org/techniques/T1003/008/",
-        "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1003.008/T1003.008.yaml",
-        "https://research.splunk.com/endpoint/0419cb7a-57ea-467b-974f-77c303dfe2a3/"
-      ],
-      "falsepositives": [
-        "ACTIVELY FILTERED, not just documented: password/account-management tooling -- `passwd`, `chpasswd`, `usermod`, `chage`, `chsh`, `chfn` -- rewrites /etc/shadow as part of a completely normal admin-initiated password or account change; this was the single most common expected trigger and is now excluded from firing via the `filter` block by `comm`.",
-        "ACTIVELY FILTERED, not just documented: `unix_chkpwd`, the setuid `pam_unix` helper binary PAM execs specifically to perform shadow lookups on behalf of authentication (PAM never reads /etc/shadow directly from the calling process), producing routine SSH/su/login noise -- now excluded via the `filter` block by `comm`.",
-        "Configuration-management tooling (Ansible with `become: yes`, Puppet, Chef) or backup jobs running as root that read or include /etc/shadow as part of a full-filesystem backup or a fact-gathering/audit run.",
-        "Vulnerability or compliance scanners (Lynis, OpenSCAP, CIS-CAT) auditing password-policy hardening, which read /etc/shadow's format/permissions as part of a scheduled scan.",
-        "KNOWN GAP, not a false positive: a plain, unprivileged read of /etc/passwd (Atomic Red Team T1003.008 test #3) produces no event under this ruleset at all, because /etc/passwd is watched `-p wa` only (see description). This rule cannot and does not claim to cover that read path -- flagged here rather than silently ignored.",
-        "KNOWN GAP, not a false positive: alerts on `credential_access_shadow` do not distinguish which of /etc/shadow or /etc/gshadow was touched (both share that watch key and the SYSCALL record alone doesn't carry the file path) -- a deliberate tradeoff for native Sigma syntax over a raw_query correlation, see description."
-      ],
-      "testing": {
-        "enabled": true,
-        "runner": "linux-victim",
-        "type": "atomic",
-        "atomics": [
-          {
-            "technique": "T1003.008",
-            "test_numbers": [
-              1,
-              5
-            ]
-          }
-        ]
-      },
-      "rule_body": "detection:\n  selection:\n    sourcetype: linux_audit\n    key:\n    - credential_access_shadow\n    - credential_access_opasswd\n  filter:\n    comm:\n    - passwd\n    - chpasswd\n    - usermod\n    - chage\n    - chsh\n    - chfn\n    - unix_chkpwd\n  condition: selection and not filter",
-      "rule_body_lang": "yaml",
-      "rule_version": "1.3"
-    },
-    {
-      "detect_id": "DETECT-2026-0035",
-      "title": "Linux Credential Access via Proc Filesystem Memory Read",
-      "description": "Detects T1003.007 OS Credential Dumping: Proc Filesystem -- reading another Linux process's memory via /proc/<pid>/mem to scrape credentials. Last remaining T1003 gap in this repo (.001-.006 on Windows, .008 shipped as DETECT-2026-0034). Combines two signals in one custom.splunk.raw_query: (1) the existing `credential_access_ptrace`/`credential_access_procmem` syscall watches, matched by `key` alone, same pattern as DETECT-2026-0034; (2) a NEW `procfs_mem_access` auditd watch on `openat` (not yet deployed, see `custom.testing` comments for the exact auditctl line), needed because the real Atomic Red Team tests read /proc/<pid>/mem as a plain file, not via ptrace/process_vm_readv. auditd's `-w` can't glob a per-PID path, so this watch is broad and the actual target path is recovered by joining the SYSCALL record to its paired PATH record on the shared `audit(<epoch>.<ms>:<serial>)` id -- a cross-event join native Sigma can't express, hence raw_query. Full design reasoning (regex choices, auid scoping, alternatives checked) lives in the testing-block comments below and in the T1003.007 vault note.\n",
-      "level": "high",
-      "status": "stable",
-      "source": "native_spl",
-      "verdict": "FAIL",
-      "run_id": "35454205655",
-      "verdict_at": "2026-09-19T16:19:08.825472+00:00",
+      "run_id": "35531644657",
+      "verdict_at": "2026-09-20T19:15:52.866356+00:00",
       "verdict_rule_version": "1.0",
       "verdict_testing_disabled": false,
       "tactics": [
-        "Credential Access"
+        "Reconnaissance"
       ],
       "techniques": [
-        "T1003.007"
+        "T1595.003"
       ],
-      "file_path": "rules/sigma/DETECT-2026-0035_Linux-Credential-Access-via-Proc-Filesystem-Memory-Read.yml",
+      "file_path": "rules/sigma/DETECT-2026-0036_Web-Server-Probing-for-Secret-VCS-and-Config-Files.yml",
       "logsource": {
-        "product_category": "os",
-        "product": "linux",
-        "service": "auditd",
-        "event_type": "process_access"
+        "product_category": "web",
+        "product": "nginx",
+        "service": "access",
+        "event_type": "access_history"
       },
       "author": "Bence Marton",
-      "date": "2026-09-19",
-      "modified": "2026-09-19",
+      "date": "2026-09-20",
+      "modified": "2026-09-20",
       "references": [
-        "https://attack.mitre.org/techniques/T1003/007/",
-        "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1003.007/T1003.007.yaml",
-        "https://attack.mitre.org/detectionstrategies/DET0593/"
+        "https://attack.mitre.org/techniques/T1595/003/",
+        "https://attack.mitre.org/techniques/T1552/001/",
+        "https://www.greynoise.io/blog/threat-actors-posing-as-ai-crawlers",
+        "https://www.cisa.gov/news-events/cybersecurity-advisories/aa24-016a",
+        "https://github.com/SigmaHQ/sigma/blob/master/rules/web/webserver_generic/web_source_code_enumeration.yml"
       ],
       "falsepositives": [
-        "Debuggers attaching to a foreign process (`gdb -p <pid>`, `strace -p <pid>`) legitimately read the target's /proc/<pid>/mem and, for the ptrace-syscall-based branch of this rule, its ptrace calls -- routine on a dev/troubleshooting box, and this rule does not filter it (an attacker could equally use gdb/strace as a scraping tool, so excluding them by comm would blind the rule to that path).",
-        "Performance profilers (`perf`, some APM/observability agents) read foreign process memory maps or use `process_vm_readv` for sampling -- same reasoning as above, not filtered.",
-        "Core-dump generation: the kernel's own core-dump handler and tools like `gcore` read a crashing/target process's memory via the same procfs mechanism during a crash dump or manual core capture.",
-        "Container runtimes and orchestrators occasionally do `/proc/<pid>/` introspection (rare for `mem` specifically vs. `status`/`maps` alone, but possible for some memory-limit-enforcement or security tooling).",
-        "TODO: the `procfs_mem_access` branch's underlying `-S openat` watch is system-wide and unscoped by target path (auditd cannot filter on a per-PID procfs path at rule-load time, see description) -- realistic benign-noise volume for that branch specifically is unmeasured, because the auditd rule it depends on is not deployed yet as of authoring. This is a known gap, not an invented FP list; revisit once real log volume from linux-victim is available."
+        "A vulnerability or web-content scanner you operate yourself (Nessus, Nikto, nuclei, an internal ASV scan) requests these exact paths by design; expected, not a false positive in the security sense, but correlate with the scan calendar or source IP before escalating. No allow-list is built in, because an allow-list keyed on a host or IP would also hide a genuine probe.",
+        "Legitimate crawlers and uptime checkers requesting a path from this list that the site really serves. The realistic case is a site that intentionally publishes one of these files (for example a public repository mirror exposing /.git/) -- then every request fires and the pattern list must be tuned to that site. Unknown for this lab: the server serves a default nginx page only.",
+        "Alert volume, not false positives: on any internet-facing host, mass scanners request /.env and /.git/config constantly, so true-positive volume is expected to be high even though false positives are rare (unmeasured; this is a guess, not a measured rate -- the lab receives only dozens of nginx events a week). Treat this rule as an activity and enrichment signal; escalation belongs to the served tier (status 200 with bytes > 0), not to the mere attempt.",
+        "TODO: broad patterns worth watching first for legitimate downloads are \"/backup.zip\", \"/site.zip\" and \"/db.sql\", which a site could offer on purpose."
       ],
       "testing": {
         "enabled": true,
         "runner": "linux-victim",
-        "type": "atomic",
-        "atomics": [
-          {
-            "technique": "T1003.007",
-            "test_numbers": [
-              1,
-              3
-            ]
-          }
-        ]
+        "type": "emulation",
+        "atomics": []
       },
-      "rule_body": "(sourcetype=linux_audit key IN (credential_access_ptrace, credential_access_procmem)) | eval detection_reason=if(key=\"credential_access_ptrace\", \"ptrace_syscall\", \"process_vm_readv_syscall\") | table _time, detection_reason, key, comm, exe, uid, auid, pid, success | append\n    [ search index=main sourcetype=linux_audit (key=procfs_mem_access) OR (type=PATH name=\"/proc/*/mem\")\n    | rex field=_raw \"audit\\((?<audit_ts>[\\d\\.]+):(?<audit_serial>\\d+)\\)\"\n    | eval audit_id=audit_ts.\"_\".audit_serial\n    | rex field=name \"^/proc/(?<target_pid>\\d+)/mem$\"\n    | stats values(comm) as comm, values(exe) as exe, values(uid) as uid, values(auid) as auid, values(pid) as pid, values(name) as target_path, values(target_pid) as target_pid by audit_id, _time\n    | where isnotnull(target_pid) AND isnotnull(comm)\n    | where mvindex(pid,0)!=mvindex(target_pid,0)\n    | eval detection_reason=\"procfs_mem_open\"\n    | table _time, detection_reason, comm, exe, uid, auid, pid, target_path, target_pid ]\n| sort - _time",
-      "rule_body_lang": "spl",
+      "rule_body": "detection:\n  selection_sourcetype:\n    sourcetype: access_combined\n  selection_env:\n    uri_path|endswith:\n    - /.env\n    - /.env~\n  selection_env_variant:\n    uri_path|contains:\n    - /.env.\n    - /%2eenv\n  selection_vcs:\n    uri_path|contains:\n    - /.git/\n    - /%2egit/\n    - /.svn/\n    - /.hg/\n  selection_vcs_bare:\n    uri_path|endswith:\n    - /.git\n    - /%2egit\n  selection_creds:\n    uri_path|contains:\n    - /.aws/\n    - /.ssh/\n    - /.docker/config.json\n    - /.kube/config\n  selection_dotfiles:\n    uri_path|endswith:\n    - /.DS_Store\n    - /.npmrc\n    - /.htpasswd\n    - /.bash_history\n    - /.pgpass\n  selection_cms_backup:\n    uri_path|contains:\n    - wp-config.php.\n    - wp-config.bak\n    - wp-config.old\n    - wp-config.txt\n  selection_cms_backup_tilde:\n    uri_path|endswith:\n    - wp-config.php~\n    - /config.php.bak\n    - /config.inc.php.bak\n  selection_archives:\n    uri_path|endswith:\n    - /backup.sql\n    - /backup.zip\n    - /backup.tar.gz\n    - /backup.tar\n    - /dump.sql\n    - /database.sql\n    - /db.sql\n    - /db_backup.sql\n    - /site.zip\n    - /www.zip\n    - /wwwroot.zip\n  condition: \"selection_sourcetype and (\\n  selection_env or selection_env_variant or\\n  selection_vcs\\\n    \\ or selection_vcs_bare or\\n  selection_creds or selection_dotfiles or\\n  selection_cms_backup or\\\n    \\ selection_cms_backup_tilde or\\n  selection_archives\\n)\\n\"",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.0"
+    },
+    {
+      "detect_id": "DETECT-2026-0037",
+      "title": "Web Server Path Traversal Attempt in Request Path or Query",
+      "description": "Detects HTTP requests in the nginx access log that carry directory-traversal sequences (two or more consecutive ../ segments, in literal, percent-encoded, double-encoded or ..;/ form, or the ....// filter-bypass form) or that name a well-known operating-system file (etc/passwd, etc/shadow, proc/self/environ, win.ini, boot.ini, windows/system32), in either the request path (uri_path) or the query string (uri_query). Both fields are checked on purpose: the community SigmaHQ rule web_path_traversal_exploitation_attempt.yml inspects only the query string and a query-string-only pattern list, but a traversal that escapes the web root is rejected by nginx with a 400 and logged raw with the whole traversal string in uri_path, so a query-only rule never sees the most common outcome. Traversal placed in the query string is served normally (200 or 404) and lands in uri_query. The rule fires on the attempt regardless of status, including 400, and does not use user agent or referer: on a 400 nginx does not parse headers, so both are logged as \"-\". `status` and `bytes` are in the output for triage; a traversal request answered with 200 and a non-zero size is the case to look at first. nginx logs the request line as sent, without percent-decoding, so the encoded forms are matched literally (matching is case-insensitive, so %2E and %2F match as well). Request bodies and headers (Cookie, X-Forwarded-*) are not visible in this log. Backslash forms appear in the log escaped as \\x5C (nginx default log escaping) or as %5C. A single ../ segment is deliberately not enough on its own: a lone relative path in a query value is a normal application pattern, and two consecutive segments or an OS-file target is the evidence used to separate the two. This is an attempt-only signal (T1190); the access log cannot show whether a vulnerable application answered. Field names are the Splunk-native access_combined extractions (uri_path and uri_query, not the Sigma webserver cs-uri-stem and cs-uri-query), because there is no field-mapping pipeline for this log source.\n",
+      "level": "medium",
+      "status": "experimental",
+      "source": "sigma",
+      "verdict": "PASS",
+      "run_id": "35531644657",
+      "verdict_at": "2026-09-20T19:15:52.866356+00:00",
+      "verdict_rule_version": "1.0",
+      "verdict_testing_disabled": false,
+      "tactics": [
+        "Initial Access"
+      ],
+      "techniques": [
+        "T1190"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0037_Web-Server-Path-Traversal-Attempt-in-Request-Path-or-Query.yml",
+      "logsource": {
+        "product_category": "web",
+        "product": "nginx",
+        "service": "access",
+        "event_type": "access_history"
+      },
+      "author": "Bence Marton",
+      "date": "2026-09-20",
+      "modified": "2026-09-20",
+      "references": [
+        "https://attack.mitre.org/techniques/T1190/",
+        "https://github.com/SigmaHQ/sigma/blob/master/rules/web/webserver_generic/web_path_traversal_exploitation_attempt.yml",
+        "https://github.com/SigmaHQ/sigma/blob/master/rules-emerging-threats/2021/Exploits/CVE-2021-41773/web_cve_2021_41773_apache_path_traversal.yml",
+        "https://book.hacktricks.xyz/pentesting-web/file-inclusion",
+        "https://nginx.org/en/docs/http/ngx_http_log_module.html#log_format"
+      ],
+      "falsepositives": [
+        "A vulnerability scanner you operate yourself (Nessus, Nikto, nuclei, an internal ASV scan) sends exactly these payloads by design; expected, not a false positive in the security sense, but correlate with the scan calendar or source IP before escalating. No allow-list is built in, because a filter keyed on a host or IP would also hide a genuine probe.",
+        "Applications that legitimately pass a multi-level relative path in a query value (for example a redirect or file-picker parameter such as ?next=../../home) match selection_literal. Unmeasured: the lab serves a small static site with no such parameters, so no real example has been seen.",
+        "Pages that document Linux or Windows internals (a wiki or blog article whose URL contains etc/passwd or windows/system32) match selection_osfile, as does an on-site search box whose query lands in uri_query (?q=etc/passwd). Unmeasured, and only relevant if the site hosts such content or a search feature.",
+        "Alert volume, not false positives: SigmaHQ's own traversal rule notes such requests are expected to be continuously seen on internet-facing systems, so true-positive volume there is high. This rule is an activity and enrichment signal; the status and bytes fields separate a rejected attempt (400/404) from a request that was answered. There is no measured rate for this lab."
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "linux-victim",
+        "type": "emulation",
+        "atomics": []
+      },
+      "rule_body": "detection:\n  selection_sourcetype:\n    sourcetype: access_combined\n  selection_literal:\n  - uri_path|contains:\n    - ../../\n    - ..\\x5c..\\x5c\n    - '....//'\n    - ..//..//\n  - uri_query|contains:\n    - ../../\n    - ..\\x5c..\\x5c\n    - '....//'\n    - ..//..//\n  selection_encoded:\n  - uri_path|contains:\n    - ..%2f..%2f\n    - '%2e%2e/%2e%2e/'\n    - '%2e%2e%2f%2e%2e%2f'\n    - ..%5c..%5c\n    - '%2e%2e%5c%2e%2e%5c'\n    - .%2e/.%2e/\n    - '%2e./%2e./'\n    - ..%252f..%252f\n    - '%252e%252e%252f%252e%252e%252f'\n    - ..%c0%af..%c0%af\n  - uri_query|contains:\n    - ..%2f..%2f\n    - '%2e%2e/%2e%2e/'\n    - '%2e%2e%2f%2e%2e%2f'\n    - ..%5c..%5c\n    - '%2e%2e%5c%2e%2e%5c'\n    - .%2e/.%2e/\n    - '%2e./%2e./'\n    - ..%252f..%252f\n    - '%252e%252e%252f%252e%252e%252f'\n    - ..%c0%af..%c0%af\n  selection_semicolon:\n  - uri_path|contains:\n    - ..;/..;/\n  - uri_query|contains:\n    - ..;/..;/\n  selection_osfile:\n  - uri_path|contains:\n    - etc/passwd\n    - etc%2fpasswd\n    - etc/shadow\n    - etc%2fshadow\n    - proc/self/environ\n    - proc%2fself%2fenviron\n    - windows/win.ini\n    - windows%2fwin.ini\n    - winnt/win.ini\n    - /boot.ini\n    - '%2fboot.ini'\n    - windows/system32\n    - windows%2fsystem32\n    - windows%5csystem32\n  - uri_query|contains:\n    - etc/passwd\n    - etc%2fpasswd\n    - etc/shadow\n    - etc%2fshadow\n    - proc/self/environ\n    - proc%2fself%2fenviron\n    - windows/win.ini\n    - windows%2fwin.ini\n    - winnt/win.ini\n    - /boot.ini\n    - '%2fboot.ini'\n    - windows/system32\n    - windows%2fsystem32\n    - windows%5csystem32\n  condition: \"selection_sourcetype and (\\n  selection_literal or selection_encoded or\\n  selection_semicolon\\\n    \\ or selection_osfile\\n)\\n\"",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.0"
+    },
+    {
+      "detect_id": "DETECT-2026-0038",
+      "title": "Web Server Requests from Known Scanner and Attack-Tool User-Agents",
+      "description": "Detects HTTP requests in the nginx access log whose User-Agent is the default identifier of a well-known scanning or attack tool: sqlmap, Nikto, the Nmap Scripting Engine, zgrab, gobuster, feroxbuster, ffuf (\"Fuzz Faster U Fool\"), WPScan and Wfuzz (the recon and fuzzing tools listed in SigmaHQ's web_susp_useragents.yml, each pointing at the tool's own source), plus two current exploit-tool identifiers with public Sigma rules: libredtail-http (RedTail cryptominer campaign, SANS ISC diary 2026-04-29) and wp2shell (the WordPress core RCE proof-of-concept, CVE-2026-63030 / CVE-2026-60137). The scanner strings are matched as substrings because tools append a version; libredtail-http and wp2shell are matched as substrings too. Upstream Sigma matches those two exactly, so this rule is deliberately looser: both strings are distinctive enough that a version suffix or a prefix should still fire. The log proves which client identified itself as one of these tools, not what the request achieved, so the rule is tagged as vulnerability scanning (T1595.002). T1190 is not tagged because the User-Agent shows tool identity, not a request payload. Generic HTTP clients (curl, wget, python-requests, Go-http-client) are deliberately NOT in the list: they are legitimate-tool noise. Limits, stated plainly: a User-Agent is set by the client, so changing it defeats this rule with no effort (a disciplined scanner already sends a browser string, and GreyNoise reports fleets doing exactly that), and on an internet-facing host these requests are constant background radiation, so alert volume is expected to be high. Treat it as an activity and enrichment signal, not as evidence of compromise. `status` and `bytes` are in the output for triage. A request that nginx rejects with a 400 logs its User-Agent as \"-\", so such requests cannot match here. Field names are the Splunk-native access_combined extractions (useragent, not the Sigma webserver cs-user-agent), because there is no field-mapping pipeline for this log source.\n",
+      "level": "medium",
+      "status": "experimental",
+      "source": "sigma",
+      "verdict": "PASS",
+      "run_id": "35531644657",
+      "verdict_at": "2026-09-20T19:15:52.866356+00:00",
+      "verdict_rule_version": "1.0",
+      "verdict_testing_disabled": false,
+      "tactics": [
+        "Reconnaissance"
+      ],
+      "techniques": [
+        "T1595.002"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0038_Web-Server-Requests-from-Known-Scanner-and-Attack-Tool-User-Agents.yml",
+      "logsource": {
+        "product_category": "web",
+        "product": "nginx",
+        "service": "access",
+        "event_type": "access_history"
+      },
+      "author": "Bence Marton",
+      "date": "2026-09-20",
+      "modified": "2026-09-20",
+      "references": [
+        "https://attack.mitre.org/techniques/T1595/002/",
+        "https://github.com/SigmaHQ/sigma/blob/master/rules/web/webserver_generic/web_susp_useragents.yml",
+        "https://github.com/SigmaHQ/sigma/blob/master/rules-emerging-threats/2026/Malware/RedTail-Cryptominer/web_malware_redtail_useragent.yml",
+        "https://github.com/SigmaHQ/sigma/blob/master/rules-emerging-threats/2026/Exploits/CVE-2026-63030/web_exploit_cve_2026_63030_wp2shell_tool_useragent.yml",
+        "https://isc.sans.edu/diary/Danger+of+Libredtail+Guest+Diary/32936/",
+        "https://www.greynoise.io/blog/threat-actors-posing-as-ai-crawlers",
+        "https://slcyber.io/research-center/wp2shell-pre-authentication-rce-in-wordpress-core/"
+      ],
+      "falsepositives": [
+        "A vulnerability or web-content scanner you operate yourself (Nikto, Nmap NSE scripts, ffuf, an internal scan) sends these User-Agents by design; expected, not a false positive in the security sense, but correlate with the scan calendar or source IP before escalating. No allow-list is built in, because a filter keyed on a host or IP would also hide a genuine probe.",
+        "Security-research and internet-measurement crawlers that use zgrab or similar tools openly (for example scanning projects that publish their source ranges). Unmeasured for this lab; the request is still a probe, so whether that counts as a false positive is a policy decision.",
+        "Alert volume, not false positives: on any internet-facing host this is high-volume background radiation. There is no measured rate for this lab (a few dozen nginx events a week), so no figure is claimed."
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "linux-victim",
+        "type": "emulation",
+        "atomics": []
+      },
+      "rule_body": "detection:\n  selection_sourcetype:\n    sourcetype: access_combined\n  selection_scanner_ua:\n    useragent|contains:\n    - sqlmap/\n    - Nikto/\n    - Nmap Scripting Engine\n    - zgrab/\n    - gobuster/\n    - feroxbuster/\n    - Fuzz Faster U Fool\n    - WPScan v\n    - Wfuzz/\n  selection_redtail_ua:\n    useragent|contains: libredtail-http\n  selection_wp2shell_ua:\n    useragent|contains: wp2shell\n  condition: \"selection_sourcetype and (\\n  selection_scanner_ua or selection_redtail_ua or selection_wp2shell_ua\\n\\\n    )\\n\"",
+      "rule_body_lang": "yaml",
       "rule_version": "1.0"
     }
   ]

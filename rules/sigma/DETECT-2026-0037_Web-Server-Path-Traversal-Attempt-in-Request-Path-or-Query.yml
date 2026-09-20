@@ -1,0 +1,297 @@
+title: Web Server Path Traversal Attempt in Request Path or Query
+detect_id: DETECT-2026-0037
+status: experimental
+description: >
+  Detects HTTP requests in the nginx access log that carry directory-traversal
+  sequences (two or more consecutive ../ segments, in literal, percent-encoded,
+  double-encoded or ..;/ form, or the ....// filter-bypass form) or that name a
+  well-known operating-system file
+  (etc/passwd, etc/shadow, proc/self/environ, win.ini, boot.ini,
+  windows/system32), in either the request path (uri_path) or the query string
+  (uri_query). Both fields are checked on purpose: the community SigmaHQ rule
+  web_path_traversal_exploitation_attempt.yml inspects only the query string
+  and a query-string-only pattern list, but a traversal that escapes the web root is
+  rejected by nginx with a 400 and logged raw with the whole traversal string
+  in uri_path, so a query-only rule never sees the most common outcome.
+  Traversal placed in the query string is served normally (200 or 404) and
+  lands in uri_query. The rule fires on the attempt regardless of status,
+  including 400, and does not use user agent or referer: on a 400 nginx does
+  not parse headers, so both are logged as "-". `status` and `bytes` are in
+  the output for triage; a traversal request answered with 200 and a non-zero
+  size is the case to look at first. nginx logs the request line as sent,
+  without percent-decoding, so the encoded forms are matched literally
+  (matching is case-insensitive, so %2E and %2F match as well). Request bodies
+  and headers (Cookie, X-Forwarded-*) are not visible in this log.
+  Backslash forms appear in the log escaped as \x5C (nginx default
+  log escaping) or as %5C. A single ../ segment is deliberately not enough on
+  its own: a lone relative path in a query value is a normal application
+  pattern, and two consecutive segments or an OS-file target is the evidence
+  used to separate the two. This is an attempt-only signal (T1190); the access
+  log cannot show whether a vulnerable application answered. Field names are
+  the Splunk-native access_combined extractions (uri_path and uri_query, not
+  the Sigma webserver cs-uri-stem and cs-uri-query), because there is no
+  field-mapping pipeline for this log source.
+references:
+  - https://attack.mitre.org/techniques/T1190/
+  - https://github.com/SigmaHQ/sigma/blob/master/rules/web/webserver_generic/web_path_traversal_exploitation_attempt.yml
+  - https://github.com/SigmaHQ/sigma/blob/master/rules-emerging-threats/2021/Exploits/CVE-2021-41773/web_cve_2021_41773_apache_path_traversal.yml
+  - https://book.hacktricks.xyz/pentesting-web/file-inclusion
+  - https://nginx.org/en/docs/http/ngx_http_log_module.html#log_format
+author: Bence Marton
+date: 2026-09-20
+modified: 2026-09-20
+version: "1.0"
+tags:
+  - attack.initial_access
+  - attack.t1190
+
+logsource:
+  product_category: web
+  product: nginx
+  service: access
+  event_type: access_history
+
+detection:
+  selection_sourcetype:
+    sourcetype: access_combined
+
+  # Each group below is a list of two maps (OR): the same patterns are tried
+  # against the request path and against the query string.
+
+  # Two consecutive literal ../ or ..\ segments. nginx escapes a literal
+  # backslash in the log as \x5C. ....// and ..//..// are the filter-bypass
+  # forms (a filter that strips ../ once leaves ../ behind); ....// is a
+  # single hop by nature, so it is the one pattern here that is not doubled.
+  selection_literal:
+    - uri_path|contains:
+        - '../../'
+        - '..\x5c..\x5c'
+        - '....//'
+        - '..//..//'
+    - uri_query|contains:
+        - '../../'
+        - '..\x5c..\x5c'
+        - '....//'
+        - '..//..//'
+
+  # Two consecutive encoded segments: %2f / %5c encoded slash, %2e%2e encoded
+  # dots, the mixed .%2e/ form from CVE-2021-41773, double-encoded %252f and
+  # the overlong-UTF-8 %c0%af form.
+  selection_encoded:
+    - uri_path|contains:
+        - '..%2f..%2f'
+        - '%2e%2e/%2e%2e/'
+        - '%2e%2e%2f%2e%2e%2f'
+        - '..%5c..%5c'
+        - '%2e%2e%5c%2e%2e%5c'
+        - '.%2e/.%2e/'
+        - '%2e./%2e./'
+        - '..%252f..%252f'
+        - '%252e%252e%252f%252e%252e%252f'
+        - '..%c0%af..%c0%af'
+    - uri_query|contains:
+        - '..%2f..%2f'
+        - '%2e%2e/%2e%2e/'
+        - '%2e%2e%2f%2e%2e%2f'
+        - '..%5c..%5c'
+        - '%2e%2e%5c%2e%2e%5c'
+        - '.%2e/.%2e/'
+        - '%2e./%2e./'
+        - '..%252f..%252f'
+        - '%252e%252e%252f%252e%252e%252f'
+        - '..%c0%af..%c0%af'
+
+  # Semicolon-style bypass: /blog/..;/..;/etc/passwd
+  selection_semicolon:
+    - uri_path|contains:
+        - '..;/..;/'
+    - uri_query|contains:
+        - '..;/..;/'
+
+  # Well-known OS files, with or without traversal in front of them. Each
+  # pattern carries its directory (etc/passwd, not passwd) so a bare word such
+  # as "passwd" in a page name does not match.
+  selection_osfile:
+    - uri_path|contains:
+        - 'etc/passwd'
+        - 'etc%2fpasswd'
+        - 'etc/shadow'
+        - 'etc%2fshadow'
+        - 'proc/self/environ'
+        - 'proc%2fself%2fenviron'
+        - 'windows/win.ini'
+        - 'windows%2fwin.ini'
+        - 'winnt/win.ini'
+        - '/boot.ini'
+        - '%2fboot.ini'
+        - 'windows/system32'
+        - 'windows%2fsystem32'
+        - 'windows%5csystem32'
+    - uri_query|contains:
+        - 'etc/passwd'
+        - 'etc%2fpasswd'
+        - 'etc/shadow'
+        - 'etc%2fshadow'
+        - 'proc/self/environ'
+        - 'proc%2fself%2fenviron'
+        - 'windows/win.ini'
+        - 'windows%2fwin.ini'
+        - 'winnt/win.ini'
+        - '/boot.ini'
+        - '%2fboot.ini'
+        - 'windows/system32'
+        - 'windows%2fsystem32'
+        - 'windows%5csystem32'
+
+  condition: >
+    selection_sourcetype and (
+      selection_literal or selection_encoded or
+      selection_semicolon or selection_osfile
+    )
+
+fields:
+  - _time
+  - host
+  - clientip
+  - method
+  - uri_path
+  - uri_query
+  - status
+  - bytes
+  - useragent
+  - referer
+
+falsepositives:
+  - >-
+    A vulnerability scanner you operate yourself (Nessus, Nikto, nuclei, an
+    internal ASV scan) sends exactly these payloads by design; expected, not a
+    false positive in the security sense, but correlate with the scan calendar
+    or source IP before escalating. No allow-list is built in, because a
+    filter keyed on a host or IP would also hide a genuine probe.
+  - >-
+    Applications that legitimately pass a multi-level relative path in a query
+    value (for example a redirect or file-picker parameter such as
+    ?next=../../home) match selection_literal. Unmeasured: the lab serves a
+    small static site with no such parameters, so no real example has been
+    seen.
+  - >-
+    Pages that document Linux or Windows internals (a wiki or blog article
+    whose URL contains etc/passwd or windows/system32) match selection_osfile,
+    as does an on-site search box whose query lands in uri_query
+    (?q=etc/passwd). Unmeasured, and only relevant if the site hosts such
+    content or a search feature.
+  - >-
+    Alert volume, not false positives: SigmaHQ's own traversal rule notes such
+    requests are expected to be continuously seen on internet-facing systems,
+    so true-positive volume there is high. This rule is an activity and
+    enrichment signal; the status and bytes fields separate a rejected attempt
+    (400/404) from a request that was answered. There is no measured rate for
+    this lab.
+
+level: medium
+
+custom:
+  splunk:
+    index: main
+    mode: alert
+    cron: "*/5 * * * *"
+    earliest: "-5m"
+    latest: "now"
+    severity: medium
+
+  # Emulation, not atomic: no Atomic Red Team test exists for HTTP traversal
+  # probing of a web server's access log, and the rule keys on the log line
+  # itself, so the minimal reproduction is the request.
+  #
+  # Runner facts (scripts/atomic/run_atomic_linux.ps1): every command below is
+  # run with Invoke-Expression under PowerShell 7 on Linux and the `executor`
+  # label is ignored, so this is PowerShell syntax, URLs are single-quoted (an
+  # unquoted `;` breaks, double quotes would expand `$`), and `curl` is the
+  # native /usr/bin/curl. --path-as-is stops curl collapsing /../ before it
+  # sends. A failing native curl does not throw, so a 400 or 404 is fine and
+  # is exactly the request the rule fires on.
+  #
+  # Event cap: pass_fail_eval.py (--min-pass 1 --max-pass 10) counts matched
+  # events per RULE over the verification window, not per test, so the whole
+  # test set below is exactly 8 requests: one per selection group for the
+  # path side and one per group for the query side (4 groups x 2 fields),
+  # each chosen to match ONLY its own group. Do not add requests here without
+  # dropping others.
+  testing:
+    enabled: true
+    runner: linux-victim
+    type: emulation
+    custom:
+      - name: "Literal traversal in path and query"
+        description: >
+          Requests /static/../../app/x (uri_path; nginx is expected to reject it
+          with a 400, as it did the measured web-root-escaping variants on
+          2026-09-20) and /?f=../../app/x (uri_query, served normally), each
+          chosen so that no OS-file name is present and only selection_literal
+          matches. The fuller matrix is NOT repeated in CI because
+          pass_fail_eval.py caps a rule at 10 matched events. The backslash
+          (..\x5C) and %5C branches were validated manually against live
+          Splunk on 2026-09-20 (not in CI). The ....// and ..//..// branches
+          were added after a live check that /blog/....//....//app did not
+          match, and are string-matched offline only, not re-run in Splunk;
+          they are untested in CI. Every OS-file name other than /etc/passwd
+          and /etc/shadow is likewise untested in CI.
+        executor: powershell
+        command: |-
+          curl -s -o /dev/null --path-as-is 'http://localhost/static/../../app/x'
+          curl -s -o /dev/null --path-as-is 'http://localhost/?f=../../app/x'
+        cleanup: ""
+        prerequisites:
+          - nginx must be running on linux-victim and listening on port 80
+          - curl must be installed (/usr/bin/curl)
+
+      - name: "Encoded traversal in path and query"
+        description: >
+          Requests /..%2f..%2fapp%2fx (uri_path, 400) and
+          /index.html?x=%2e%2e/%2e%2e/app/x (uri_query), no OS-file name, so
+          only selection_encoded matches. The fuller matrix is NOT repeated in
+          CI because of the 10-event cap (see the comment above). Validated
+          manually against live Splunk on 2026-09-20 (not in CI): the %5C
+          form and the uppercase-encoded forms (%2E%2E%2F, ..%2F..%2F). The
+          double-encoded (%252f), overlong-UTF-8 (%c0%af) and .%2e/ branches
+          were string-matched offline only, not run in Splunk, and are
+          untested in CI.
+        executor: powershell
+        command: |-
+          curl -s -o /dev/null --path-as-is 'http://localhost/..%2f..%2fapp%2fx'
+          curl -s -o /dev/null --path-as-is 'http://localhost/index.html?x=%2e%2e/%2e%2e/app/x'
+        cleanup: ""
+        prerequisites:
+          - nginx must be running on linux-victim and listening on port 80
+          - curl must be installed (/usr/bin/curl)
+
+      - name: "Semicolon-style traversal in path and query"
+        description: >
+          Requests /blog/..;/..;/app/x (uri_path; 404 was observed live on
+          2026-09-20 for the /etc/passwd variant) and
+          /index.html?x=..;/..;/app/x (uri_query), with no OS-file name, so
+          only selection_semicolon matches.
+        executor: powershell
+        command: |-
+          curl -s -o /dev/null --path-as-is 'http://localhost/blog/..;/..;/app/x'
+          curl -s -o /dev/null --path-as-is 'http://localhost/index.html?x=..;/..;/app/x'
+        cleanup: ""
+        prerequisites:
+          - nginx must be running on linux-victim and listening on port 80
+          - curl must be installed (/usr/bin/curl)
+
+      - name: "OS-file targets in path and query"
+        description: >
+          Requests /etc/passwd (uri_path, no traversal prefix) and
+          /?file=/etc/shadow (uri_query), so only selection_osfile matches.
+          The other OS-file names (proc/self/environ, win.ini, boot.ini,
+          windows/system32 and their encoded forms) are NOT repeated in CI
+          because of the 10-event cap; checked offline only.
+        executor: powershell
+        command: |-
+          curl -s -o /dev/null --path-as-is 'http://localhost/etc/passwd'
+          curl -s -o /dev/null --path-as-is 'http://localhost/?file=/etc/shadow'
+        cleanup: ""
+        prerequisites:
+          - nginx must be running on linux-victim and listening on port 80
+          - curl must be installed (/usr/bin/curl)

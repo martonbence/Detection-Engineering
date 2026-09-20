@@ -42,8 +42,8 @@ A megszerzett hitelesítő adatot (hash, ticket, jelszó) a támadó tipikusan a
 - [[T1003.004 - LSA Secrets]] — a SECURITY hive-ban tárolt **szolgáltatásfiók-jelszavak** és gyorsítótárazott titkok, gyakran cleartextben visszafejthetően
 - [[T1003.005 - Cached Domain Credentials]] — a végponton **offline bejelentkezéshez** eltárolt domain hitelesítő adatok (mscash); lassan törhető, de nem hálózatképes
 - [[T1003.006 - DCSync]] — nem a lemezről olvas, hanem **DC-nek adja ki magát** és a replikációs protokollon kéri le a hasheket; nem kell hozzá kód a DC-n
-- [[T1003.007 - Proc Filesystem]] — Linux; a futó folyamat memóriáját `/proc/<pid>/mem`-en keresztül olvassa ki, az LSASS-dump funkcionális megfelelője procfs-en; ebben a környezetben egyelőre nincs szabály rá
-- [[T1003.008 - Etc-Passwd and Etc-Shadow]] — Linux; a `linux-victim` labor VM és annak testre szabott auditd szabálykészlete óta lefedve (DETECT-2026-0034)
+- [[T1003.007 - Proc Filesystem]] — Linux; a futó folyamat memóriáját `/proc/<pid>/mem`-en keresztül olvassa ki, az LSASS-dump funkcionális megfelelője procfs-en; jelenleg nincs szabály rá
+- [[T1003.008 - Etc-Passwd and Etc-Shadow]] — Linux; jelenleg nincs szabály rá
 
 ## Összehasonlítás
 
@@ -113,10 +113,8 @@ A közös zajforrás mindhárom rétegben ugyanaz és jól nevesíthető: **AV/E
 | [DETECT-2026-0028](https://github.com/martonbence/Detection-Engineering/blob/main/rules/sigma/DETECT-2026-0028_Cached-Credential-Enumeration-via-Cmdkey.yml) | Cached Credential Enumeration via Cmdkey              | .005                    | Sysmon EID 1    | low      |
 | [DETECT-2026-0029](https://github.com/martonbence/Detection-Engineering/blob/main/rules/sigma/DETECT-2026-0029_DCSync-via-DSInternals-Get-ADReplAccount.yml) | DCSync via DSInternals Get-ADReplAccount              | .006                    | Sysmon EID 1    | high     |
 | [DETECT-2026-0022](https://github.com/martonbence/Detection-Engineering/blob/main/rules/sigma/DETECT-2026-0022_Known-Credential-Dumping-Tool-Execution.yml) | Known Credential Dumping Tool Execution                | .001–.006 (eszköznév)   | Sysmon EID 1    | critical |
-| [DETECT-2026-0034](https://github.com/martonbence/Detection-Engineering/blob/main/rules/sigma/DETECT-2026-0034_Linux-Credential-File-Access-via-Shadow-Watch-Auditd-Rule.yml) | Linux Credential File Access via Shadow-Watch Auditd Rule | .008                 | auditd (linux_audit) | high |
-| [DETECT-2026-0035](https://github.com/martonbence/Detection-Engineering/blob/main/rules/sigma/DETECT-2026-0035_Linux-Credential-Access-via-Proc-Filesystem-Memory-Read.yml) | Linux Credential Access via Proc Filesystem Memory Read | .007                 | auditd (linux_audit), raw_query | high |
 
-**Nem fedett:** a .006 natív detekciója (Security 4662 + replikációs GUID-ok) — a technika egyetlen Windows-os altechnikája, amit a jelenlegi szabálykészlet érdemben nem lát. A [[T1003.007 - Proc Filesystem|.007]] (Proc Filesystem) most már fedett a DETECT-2026-0035 raw_query szabállyal, de státusza `experimental`/`testing.enabled: false`, mert a hozzá szükséges új auditd `-S openat` szabály (`procfs_mem_access` kulccsal) a jegyzet írásakor még nincs telepítve a `linux-victim` VM-re — ld. a [[T1003.007 - Proc Filesystem]] jegyzet "Detekciós stratégia" szakaszát.
+**Nem fedett:** a .006 natív detekciója (Security 4662 + replikációs GUID-ok) — a technika egyetlen Windows-os altechnikája, amit a jelenlegi szabálykészlet érdemben nem lát. A két Linux-os altechnika, a [[T1003.007 - Proc Filesystem|.007]] és a [[T1003.008 - Etc-Passwd and Etc-Shadow|.008]] jelenleg szintén nincs lefedve.
 
 ## Kapcsolódó jegyzetek
 

@@ -1,0 +1,187 @@
+title: Web Server Requests from Known Scanner and Attack-Tool User-Agents
+detect_id: DETECT-2026-0038
+status: experimental
+description: >
+  Detects HTTP requests in the nginx access log whose User-Agent is the
+  default identifier of a well-known scanning or attack tool: sqlmap, Nikto,
+  the Nmap Scripting Engine, zgrab, gobuster, feroxbuster, ffuf ("Fuzz Faster
+  U Fool"), WPScan and Wfuzz (the recon and fuzzing tools listed in SigmaHQ's
+  web_susp_useragents.yml, each pointing at the tool's own source), plus two
+  current exploit-tool identifiers with public Sigma rules: libredtail-http
+  (RedTail cryptominer campaign, SANS ISC diary 2026-04-29) and wp2shell (the
+  WordPress core RCE proof-of-concept, CVE-2026-63030 / CVE-2026-60137). The
+  scanner strings are matched as substrings because tools append a version;
+  libredtail-http and wp2shell are matched as substrings too. Upstream Sigma
+  matches those two exactly, so this rule is deliberately looser: both strings
+  are distinctive enough that a version suffix or a prefix should still fire.
+  The log proves which client identified itself as one of these tools,
+  not what the request achieved, so the rule is tagged as vulnerability
+  scanning (T1595.002). T1190 is not tagged because the User-Agent shows tool
+  identity, not a request payload. Generic HTTP clients (curl, wget, python-requests,
+  Go-http-client) are deliberately NOT in the list: they are legitimate-tool
+  noise. Limits, stated plainly: a User-Agent is set by the client, so
+  changing it defeats this rule with no effort (a disciplined scanner already
+  sends a browser string, and GreyNoise reports fleets doing exactly that), and
+  on an internet-facing host these requests are constant background
+  radiation, so alert volume is expected to be high. Treat it as an activity
+  and enrichment signal, not as evidence of compromise. `status` and `bytes`
+  are in the output for triage. A request that nginx rejects with a 400 logs
+  its User-Agent as "-", so such requests cannot match here. Field names are
+  the Splunk-native access_combined extractions (useragent, not the Sigma
+  webserver cs-user-agent), because there is no field-mapping pipeline for
+  this log source.
+references:
+  - https://attack.mitre.org/techniques/T1595/002/
+  - https://github.com/SigmaHQ/sigma/blob/master/rules/web/webserver_generic/web_susp_useragents.yml
+  - https://github.com/SigmaHQ/sigma/blob/master/rules-emerging-threats/2026/Malware/RedTail-Cryptominer/web_malware_redtail_useragent.yml
+  - https://github.com/SigmaHQ/sigma/blob/master/rules-emerging-threats/2026/Exploits/CVE-2026-63030/web_exploit_cve_2026_63030_wp2shell_tool_useragent.yml
+  - https://isc.sans.edu/diary/Danger+of+Libredtail+Guest+Diary/32936/
+  - https://www.greynoise.io/blog/threat-actors-posing-as-ai-crawlers
+  - https://slcyber.io/research-center/wp2shell-pre-authentication-rce-in-wordpress-core/
+author: Bence Marton
+date: 2026-09-20
+modified: 2026-09-20
+version: "1.0"
+tags:
+  - attack.reconnaissance
+  - attack.t1595.002
+
+logsource:
+  product_category: web
+  product: nginx
+  service: access
+  event_type: access_history
+
+detection:
+  selection_sourcetype:
+    sourcetype: access_combined
+
+  # Default UA substrings of recon/fuzzing tools (SigmaHQ
+  # web_susp_useragents.yml and the tools' own source).
+  selection_scanner_ua:
+    useragent|contains:
+      - "sqlmap/"
+      - "Nikto/"
+      - "Nmap Scripting Engine"
+      - "zgrab/"
+      - "gobuster/"
+      - "feroxbuster/"
+      - "Fuzz Faster U Fool"
+      - "WPScan v"
+      - "Wfuzz/"
+
+  # UAs of exploit tooling. The two source Sigma rules match these exactly;
+  # this rule uses `contains` on purpose (deliberately looser).
+  selection_redtail_ua:
+    useragent|contains: "libredtail-http"
+
+  selection_wp2shell_ua:
+    useragent|contains: "wp2shell"
+
+  condition: >
+    selection_sourcetype and (
+      selection_scanner_ua or selection_redtail_ua or selection_wp2shell_ua
+    )
+
+fields:
+  - _time
+  - host
+  - clientip
+  - method
+  - uri_path
+  - uri_query
+  - status
+  - bytes
+  - useragent
+  - referer
+
+falsepositives:
+  - >-
+    A vulnerability or web-content scanner you operate yourself (Nikto, Nmap
+    NSE scripts, ffuf, an internal scan) sends these User-Agents by design;
+    expected, not a false positive in the security sense, but correlate with
+    the scan calendar or source IP before escalating. No allow-list is built
+    in, because a filter keyed on a host or IP would also hide a genuine
+    probe.
+  - >-
+    Security-research and internet-measurement crawlers that use zgrab or
+    similar tools openly (for example scanning projects that publish their
+    source ranges). Unmeasured for this lab; the request is still a probe, so
+    whether that counts as a false positive is a policy decision.
+  - >-
+    Alert volume, not false positives: on any internet-facing host this is
+    high-volume background radiation. There is no measured rate for this lab
+    (a few dozen nginx events a week), so no figure is claimed.
+
+level: medium
+
+custom:
+  splunk:
+    index: main
+    mode: alert
+    cron: "*/5 * * * *"
+    earliest: "-5m"
+    latest: "now"
+    severity: medium
+
+  # Emulation, not atomic: Atomic Red Team has no test that reproduces a
+  # scanner's User-Agent against an nginx access log (T1595.002 has none), and
+  # the rule keys on the log line itself, so the minimal reproduction is one
+  # request per tool with the UA set by curl -A. These must be ordinary
+  # requests to a real path: a request nginx rejects with a 400 logs the UA as
+  # "-", which would never match.
+  #
+  # Runner facts (scripts/atomic/run_atomic_linux.ps1): every command below is
+  # run with Invoke-Expression under PowerShell 7 on Linux and the `executor`
+  # label is ignored, so this is PowerShell syntax and the UA and URL are
+  # single-quoted; `curl` is the native /usr/bin/curl. A failing native curl
+  # does not throw.
+  #
+  # Event cap: pass_fail_eval.py (--min-pass 1 --max-pass 10) counts matched
+  # events per RULE over the verification window, not per test, so the whole
+  # test set below is exactly 9 requests. The rule has 11 UA strings in 3
+  # selection groups; feroxbuster/ and Wfuzz/ (two members of the substring
+  # list) are the two left out. Do not add requests here without dropping
+  # others.
+  testing:
+    enabled: true
+    runner: linux-victim
+    type: emulation
+    custom:
+      - name: "Scanner User-Agents (substring list)"
+        description: >
+          Sends one request each with the default User-Agent of sqlmap, Nikto,
+          the Nmap Scripting Engine, gobuster, zgrab, ffuf and WPScan
+          against / (selection_scanner_ua, seven of its nine substrings). The
+          two others, feroxbuster/ and Wfuzz/, are NOT repeated in CI because
+          pass_fail_eval.py caps a rule at 10 matched events and this rule's
+          whole set is 9 requests; they were checked offline against the
+          rendered SPL only, not yet against Splunk.
+        executor: powershell
+        command: |-
+          curl -s -o /dev/null -A 'sqlmap/1.8#stable (https://sqlmap.org)' 'http://localhost/'
+          curl -s -o /dev/null -A 'Mozilla/5.00 (Nikto/2.5.0) (Evasions:None) (Test:001)' 'http://localhost/'
+          curl -s -o /dev/null -A 'Mozilla/5.0 (compatible; Nmap Scripting Engine; https://nmap.org/book/nse.html)' 'http://localhost/'
+          curl -s -o /dev/null -A 'gobuster/3.6' 'http://localhost/'
+          curl -s -o /dev/null -A 'Mozilla/5.0 zgrab/0.x' 'http://localhost/'
+          curl -s -o /dev/null -A 'Fuzz Faster U Fool v2.1.0' 'http://localhost/'
+          curl -s -o /dev/null -A 'WPScan v3.8.25 (https://wpscan.com/wordpress-security-scanner)' 'http://localhost/'
+        cleanup: ""
+        prerequisites:
+          - nginx must be running on linux-victim and listening on port 80
+          - curl must be installed (/usr/bin/curl)
+
+      - name: "Exploit-tool User-Agents (substring match)"
+        description: >
+          Sends one request each with the User-Agent libredtail-http
+          (selection_redtail_ua) and wp2shell (selection_wp2shell_ua). The
+          rule matches both as substrings, so a version suffix would also
+          fire; that variation is not repeated in CI.
+        executor: powershell
+        command: |-
+          curl -s -o /dev/null -A 'libredtail-http' 'http://localhost/'
+          curl -s -o /dev/null -A 'wp2shell' 'http://localhost/'
+        cleanup: ""
+        prerequisites:
+          - nginx must be running on linux-victim and listening on port 80
+          - curl must be installed (/usr/bin/curl)
