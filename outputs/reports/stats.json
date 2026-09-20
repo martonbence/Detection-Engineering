@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-09-20T12:02:23.542281+00:00",
-  "total_rules": 33,
-  "total_sigma_rules": 33,
-  "total_compiled_sigma_rules": 29,
+  "generated_at": "2026-09-20T16:42:27.822084+00:00",
+  "total_rules": 31,
+  "total_sigma_rules": 31,
+  "total_compiled_sigma_rules": 28,
   "total_splunk_rules": 33,
-  "total_native_spl_rules": 4,
+  "total_native_spl_rules": 3,
   "verified_pass": 8,
-  "verified_fail": 3,
+  "verified_fail": 1,
   "verified_not_verified": 22,
   "verified_testing_disabled": 22,
   "verified_testing_disabled_current": 22,
@@ -16,14 +16,14 @@
   "verified_superseded": 0,
   "verified_expired": 0,
   "verified_pass_current": 8,
-  "verified_fail_current": 3,
-  "verified_current": 11,
-  "pass_rate_pct": 73,
-  "pass_rate_color": "yellow",
-  "verification_current_pct": 33,
+  "verified_fail_current": 1,
+  "verified_current": 9,
+  "pass_rate_pct": 89,
+  "pass_rate_color": "brightgreen",
+  "verification_current_pct": 29,
   "verification_current_color": "red",
-  "confirmed_working_pct": 24,
-  "last_live_verification_at": "2026-09-20T12:01:55.699884+00:00",
+  "confirmed_working_pct": 26,
+  "last_live_verification_at": "2026-09-16T19:22:45.733709+00:00",
   "last_live_verification_count": 1,
   "mitre_covered_techniques": 16,
   "mitre_total_techniques": 222,
@@ -31,16 +31,16 @@
   "mitre_coverage_pct": 7.2,
   "by_level": {
     "critical": 14,
-    "high": 12,
+    "high": 10,
     "low": 1,
     "medium": 6
   },
   "by_status": {
     "experimental": 2,
-    "stable": 31
+    "stable": 29
   },
   "by_tactic": {
-    "Credential Access": 18,
+    "Credential Access": 16,
     "Execution": 14,
     "Stealth": 8,
     "Command & Control": 2,
@@ -1765,123 +1765,6 @@
       "rule_body": "detection:\n  selection_inveigh:\n  - CommandLine|contains:\n    - Invoke-Inveigh\n    - Invoke-InveighRelay\n  - OriginalFileName:\n    - Inveigh.exe\n    - Inveigh.dll\n  selection_inveigh_compiled_img:\n    Image|endswith: \\Inveigh.exe\n  selection_inveigh_compiled_cli:\n    CommandLine|contains: Inveigh\n  selection_responder:\n    CommandLine|contains|all:\n    - Responder.py\n    - '-I '\n  selection_ntlmrelayx:\n  - CommandLine|contains: ntlmrelayx\n  - Image|endswith: \\ntlmrelayx.exe\n  condition: selection_inveigh or (selection_inveigh_compiled_img and selection_inveigh_compiled_cli)\n    or selection_responder or selection_ntlmrelayx",
       "rule_body_lang": "yaml",
       "rule_version": "1.2"
-    },
-    {
-      "detect_id": "DETECT-2026-0034",
-      "title": "Linux Credential File Access via Shadow-Watch Auditd Rule",
-      "description": "Detects T1003.008 OS Credential Dumping: /etc/passwd, /etc/master.passwd and /etc/shadow -- root-level access to Linux's password-hash-bearing files. Keys on the auditd watch `key` field (`credential_access_shadow`, `credential_access_opasswd`) rather than process/command name, so it isn't defeated by which binary or shell mechanism did the reading (`cat`, `ed`, or a shell `read` builtin with no external process at all). `/etc/passwd` is deliberately out of scope: it's world-readable and read constantly by benign things (PAM, `getent`, `id`), and only its *writes* are watched here -- a different, non-credential-dump signal -- see falsepositives for that gap. `/etc/master.passwd` is FreeBSD-only, not applicable to this Ubuntu lab target. A native Sigma `filter` excludes known password/account-management tooling (`passwd`, `chpasswd`, `usermod`, `chage`, `chsh`, `chfn`, `unix_chkpwd`) so routine admin/PAM activity doesn't alert; `sudo`, `su`, `login`, `cat`, `ed` and shells stay unfiltered, since they're this rule's actual detection target. The exact-file ambiguity between `/etc/shadow` and `/etc/gshadow` (both share one watch key) is a known, documented gap, not silently dropped -- see falsepositives.\n",
-      "level": "high",
-      "status": "stable",
-      "source": "sigma",
-      "verdict": "FAIL",
-      "run_id": "35455740873",
-      "verdict_at": "2026-09-19T16:45:13.033040+00:00",
-      "verdict_rule_version": "1.3",
-      "verdict_testing_disabled": false,
-      "tactics": [
-        "Credential Access"
-      ],
-      "techniques": [
-        "T1003.008"
-      ],
-      "file_path": "rules/sigma/DETECT-2026-0034_Linux-Credential-File-Access-via-Shadow-Watch-Auditd-Rule.yml",
-      "logsource": {
-        "product_category": "os",
-        "product": "linux",
-        "service": "auditd",
-        "event_type": "file_access"
-      },
-      "author": "Bence Marton",
-      "date": "2026-09-19",
-      "modified": "2026-09-19",
-      "references": [
-        "https://attack.mitre.org/techniques/T1003/008/",
-        "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1003.008/T1003.008.yaml",
-        "https://research.splunk.com/endpoint/0419cb7a-57ea-467b-974f-77c303dfe2a3/"
-      ],
-      "falsepositives": [
-        "ACTIVELY FILTERED, not just documented: password/account-management tooling -- `passwd`, `chpasswd`, `usermod`, `chage`, `chsh`, `chfn` -- rewrites /etc/shadow as part of a completely normal admin-initiated password or account change; this was the single most common expected trigger and is now excluded from firing via the `filter` block by `comm`.",
-        "ACTIVELY FILTERED, not just documented: `unix_chkpwd`, the setuid `pam_unix` helper binary PAM execs specifically to perform shadow lookups on behalf of authentication (PAM never reads /etc/shadow directly from the calling process), producing routine SSH/su/login noise -- now excluded via the `filter` block by `comm`.",
-        "Configuration-management tooling (Ansible with `become: yes`, Puppet, Chef) or backup jobs running as root that read or include /etc/shadow as part of a full-filesystem backup or a fact-gathering/audit run.",
-        "Vulnerability or compliance scanners (Lynis, OpenSCAP, CIS-CAT) auditing password-policy hardening, which read /etc/shadow's format/permissions as part of a scheduled scan.",
-        "KNOWN GAP, not a false positive: a plain, unprivileged read of /etc/passwd (Atomic Red Team T1003.008 test #3) produces no event under this ruleset at all, because /etc/passwd is watched `-p wa` only (see description). This rule cannot and does not claim to cover that read path -- flagged here rather than silently ignored.",
-        "KNOWN GAP, not a false positive: alerts on `credential_access_shadow` do not distinguish which of /etc/shadow or /etc/gshadow was touched (both share that watch key and the SYSCALL record alone doesn't carry the file path) -- a deliberate tradeoff for native Sigma syntax over a raw_query correlation, see description."
-      ],
-      "testing": {
-        "enabled": true,
-        "runner": "linux-victim",
-        "type": "atomic",
-        "atomics": [
-          {
-            "technique": "T1003.008",
-            "test_numbers": [
-              1,
-              5
-            ]
-          }
-        ]
-      },
-      "rule_body": "detection:\n  selection:\n    sourcetype: linux_audit\n    key:\n    - credential_access_shadow\n    - credential_access_opasswd\n  filter:\n    comm:\n    - passwd\n    - chpasswd\n    - usermod\n    - chage\n    - chsh\n    - chfn\n    - unix_chkpwd\n  condition: selection and not filter",
-      "rule_body_lang": "yaml",
-      "rule_version": "1.3"
-    },
-    {
-      "detect_id": "DETECT-2026-0035",
-      "title": "Linux Credential Access via Proc Filesystem Memory Read",
-      "description": "Detects T1003.007 OS Credential Dumping: Proc Filesystem -- reading another Linux process's memory via /proc/<pid>/mem to scrape credentials. Last remaining T1003 gap in this repo (.001-.006 on Windows, .008 shipped as DETECT-2026-0034). Combines two signals in one custom.splunk.raw_query: (1) the existing `credential_access_ptrace`/`credential_access_procmem` syscall watches, matched by `key` alone, same pattern as DETECT-2026-0034; (2) a NEW `procfs_mem_access` auditd watch on `openat` (not yet deployed, see `custom.testing` comments for the exact auditctl line), needed because the real Atomic Red Team tests read /proc/<pid>/mem as a plain file, not via ptrace/process_vm_readv. auditd's `-w` can't glob a per-PID path, so this watch is broad and the actual target path is recovered by joining the SYSCALL record to its paired PATH record on the shared `audit(<epoch>.<ms>:<serial>)` id -- a cross-event join native Sigma can't express, hence raw_query. Full design reasoning (regex choices, auid scoping, alternatives checked) lives in the testing-block comments below and in the T1003.007 vault note.\n",
-      "level": "high",
-      "status": "stable",
-      "source": "native_spl",
-      "verdict": "FAIL",
-      "run_id": "35509249075",
-      "verdict_at": "2026-09-20T12:01:55.699884+00:00",
-      "verdict_rule_version": "1.0",
-      "verdict_testing_disabled": false,
-      "tactics": [
-        "Credential Access"
-      ],
-      "techniques": [
-        "T1003.007"
-      ],
-      "file_path": "rules/sigma/DETECT-2026-0035_Linux-Credential-Access-via-Proc-Filesystem-Memory-Read.yml",
-      "logsource": {
-        "product_category": "os",
-        "product": "linux",
-        "service": "auditd",
-        "event_type": "process_access"
-      },
-      "author": "Bence Marton",
-      "date": "2026-09-19",
-      "modified": "2026-09-19",
-      "references": [
-        "https://attack.mitre.org/techniques/T1003/007/",
-        "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1003.007/T1003.007.yaml",
-        "https://attack.mitre.org/detectionstrategies/DET0593/"
-      ],
-      "falsepositives": [
-        "Debuggers attaching to a foreign process (`gdb -p <pid>`, `strace -p <pid>`) legitimately read the target's /proc/<pid>/mem and, for the ptrace-syscall-based branch of this rule, its ptrace calls -- routine on a dev/troubleshooting box, and this rule does not filter it (an attacker could equally use gdb/strace as a scraping tool, so excluding them by comm would blind the rule to that path).",
-        "Performance profilers (`perf`, some APM/observability agents) read foreign process memory maps or use `process_vm_readv` for sampling -- same reasoning as above, not filtered.",
-        "Core-dump generation: the kernel's own core-dump handler and tools like `gcore` read a crashing/target process's memory via the same procfs mechanism during a crash dump or manual core capture.",
-        "Container runtimes and orchestrators occasionally do `/proc/<pid>/` introspection (rare for `mem` specifically vs. `status`/`maps` alone, but possible for some memory-limit-enforcement or security tooling).",
-        "TODO: the `procfs_mem_access` branch's underlying `-S openat` watch is system-wide and unscoped by target path (auditd cannot filter on a per-PID procfs path at rule-load time, see description) -- realistic benign-noise volume for that branch specifically is unmeasured, because the auditd rule it depends on is not deployed yet as of authoring. This is a known gap, not an invented FP list; revisit once real log volume from linux-victim is available."
-      ],
-      "testing": {
-        "enabled": true,
-        "runner": "linux-victim",
-        "type": "atomic",
-        "atomics": [
-          {
-            "technique": "T1003.007",
-            "test_numbers": [
-              1,
-              3
-            ]
-          }
-        ]
-      },
-      "rule_body": "(sourcetype=linux_audit key IN (credential_access_ptrace, credential_access_procmem)) | eval detection_reason=if(key=\"credential_access_ptrace\", \"ptrace_syscall\", \"process_vm_readv_syscall\") | table _time, detection_reason, key, comm, exe, uid, auid, pid, success | append\n    [ search index=main sourcetype=linux_audit (key=procfs_mem_access) OR (type=PATH name=\"/proc/*/mem\")\n    | rex field=_raw \"audit\\((?<audit_ts>[\\d\\.]+):(?<audit_serial>\\d+)\\)\"\n    | eval audit_id=audit_ts.\"_\".audit_serial\n    | rex field=name \"^/proc/(?<target_pid>\\d+)/mem$\"\n    | stats values(comm) as comm, values(exe) as exe, values(uid) as uid, values(auid) as auid, values(pid) as pid, values(name) as target_path, values(target_pid) as target_pid by audit_id, _time\n    | where isnotnull(target_pid) AND isnotnull(comm)\n    | where mvindex(pid,0)!=mvindex(target_pid,0)\n    | eval detection_reason=\"procfs_mem_open\"\n    | table _time, detection_reason, comm, exe, uid, auid, pid, target_path, target_pid ]\n| sort - _time",
-      "rule_body_lang": "spl",
-      "rule_version": "1.0"
     }
   ]
 }

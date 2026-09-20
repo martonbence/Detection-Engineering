@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-09-20T12:02:23 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
+  "description": "Auto-generated detection coverage. 2026-09-20T16:42:27 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
   "filters": {
     "platforms": [
       "Windows",
@@ -239,34 +239,6 @@
       "enabled": true,
       "score": 75,
       "showSubtechniques": true
-    },
-    {
-      "techniqueID": "T1003.008",
-      "color": "#CF222E",
-      "comment": "⚠ 1 of 1 covering rule(s) FAILED verification\nDETECT-2026-0034: Linux Credential File Access via Shadow-Watch Auditd Rule (FAIL)",
-      "enabled": true,
-      "score": 50,
-      "showSubtechniques": true,
-      "metadata": [
-        {
-          "name": "Failing rules",
-          "value": "DETECT-2026-0034"
-        }
-      ]
-    },
-    {
-      "techniqueID": "T1003.007",
-      "color": "#CF222E",
-      "comment": "⚠ 1 of 1 covering rule(s) FAILED verification\nDETECT-2026-0035: Linux Credential Access via Proc Filesystem Memory Read (FAIL)",
-      "enabled": true,
-      "score": 50,
-      "showSubtechniques": true,
-      "metadata": [
-        {
-          "name": "Failing rules",
-          "value": "DETECT-2026-0035"
-        }
-      ]
     }
   ],
   "gradient": {
