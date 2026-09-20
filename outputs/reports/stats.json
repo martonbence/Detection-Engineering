@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-19T16:51:12.026854+00:00",
+  "generated_at": "2026-09-20T12:02:23.542281+00:00",
   "total_rules": 33,
   "total_sigma_rules": 33,
   "total_compiled_sigma_rules": 29,
@@ -23,7 +23,7 @@
   "verification_current_pct": 33,
   "verification_current_color": "red",
   "confirmed_working_pct": 24,
-  "last_live_verification_at": "2026-09-19T16:50:43.060033+00:00",
+  "last_live_verification_at": "2026-09-20T12:01:55.699884+00:00",
   "last_live_verification_count": 1,
   "mitre_covered_techniques": 16,
   "mitre_total_techniques": 222,
@@ -1833,8 +1833,8 @@
       "status": "stable",
       "source": "native_spl",
       "verdict": "FAIL",
-      "run_id": "35455972491",
-      "verdict_at": "2026-09-19T16:50:43.060033+00:00",
+      "run_id": "35509249075",
+      "verdict_at": "2026-09-20T12:01:55.699884+00:00",
       "verdict_rule_version": "1.0",
       "verdict_testing_disabled": false,
       "tactics": [
