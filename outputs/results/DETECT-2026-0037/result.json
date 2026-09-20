@@ -1,0 +1,16 @@
+{
+  "detect_id": "DETECT-2026-0037",
+  "title": "Web Server Path Traversal Attempt in Request Path or Query",
+  "verdict": "PASS",
+  "reason": "Event count 8 within expected range [1–10]",
+  "disabled": false,
+  "event_count": 8,
+  "min_pass": 1,
+  "max_pass": 10,
+  "earliest": "1789931656",
+  "latest": "now",
+  "run_timestamp": "2026-09-20T19:15:52.866356+00:00",
+  "rule_version": "1.0",
+  "git_sha": "ff01958eb85ad6e945847546c0fc9798d779469d",
+  "run_id": "35531644657"
+}

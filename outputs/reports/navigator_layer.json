@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-09-20T19:15:16 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
+  "description": "Auto-generated detection coverage. 2026-09-20T19:16:17 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
   "filters": {
     "platforms": [
       "Windows",
@@ -242,26 +242,26 @@
     },
     {
       "techniqueID": "T1595.003",
-      "color": "#6E7681",
-      "comment": "DETECT-2026-0036: Web Server Probing for Secret, VCS and Config Files (N/A)",
+      "color": "#2EA44F",
+      "comment": "DETECT-2026-0036: Web Server Probing for Secret, VCS and Config Files (PASS)",
       "enabled": true,
-      "score": 25,
+      "score": 100,
       "showSubtechniques": true
     },
     {
       "techniqueID": "T1190",
-      "color": "#6E7681",
-      "comment": "DETECT-2026-0037: Web Server Path Traversal Attempt in Request Path or Query (N/A)",
+      "color": "#2EA44F",
+      "comment": "DETECT-2026-0037: Web Server Path Traversal Attempt in Request Path or Query (PASS)",
       "enabled": true,
-      "score": 25,
+      "score": 100,
       "showSubtechniques": true
     },
     {
       "techniqueID": "T1595.002",
-      "color": "#6E7681",
-      "comment": "DETECT-2026-0038: Web Server Requests from Known Scanner and Attack-Tool User-Agents (N/A)",
+      "color": "#2EA44F",
+      "comment": "DETECT-2026-0038: Web Server Requests from Known Scanner and Attack-Tool User-Agents (PASS)",
       "enabled": true,
-      "score": 25,
+      "score": 100,
       "showSubtechniques": true
     }
   ],
