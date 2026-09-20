@@ -185,11 +185,17 @@ def check_rule(path: Path, data: object, matrix: dict[tuple[str, str], str]) -> 
 # a way that matters: a rule requesting an unserviced runner used to set
 # has_atomic_tests and start the victim job, which then skipped it. Now no job is
 # started for work that does not exist.
+#
+# The (tester type, runner) pairs themselves are NOT listed here -- they are
+# still derived from the workflow by derive_matrix() above. Only the job -> flag
+# naming needs stating, so adding emulation/linux-victim meant adding the job
+# that services it to the workflow plus one line here, not a new combination.
 JOB_OUTPUT_FLAGS = {
     "atomic_verify": "has_atomic_tests",
     "atomic_verify_dc": "has_atomic_dc_tests",
     "atomic_verify_linux": "has_atomic_linux_tests",
     "emulation_verify": "has_emulation_tests",
+    "emulation_verify_linux": "has_emulation_linux_tests",
 }
 
 
