@@ -1,0 +1,165 @@
+title: Web Server Webshell Command Execution via Query String
+detect_id: DETECT-2026-0040
+status: experimental
+description: >
+  Detects nginx access-log GET requests with HTTP 200 whose query string
+  carries a Linux post-exploitation command artifact -- a likely
+  already-placed webshell being driven through its command parameter
+  (e.g. ?x=whoami, ?f=wget%20..., ?cmd=;id). Linux-only and GET+200-only
+  by design, matching the scope of the NetWitness source this is ported
+  from (ESA-072): a webshell's exact interface and HTTP verb vary too
+  much to generalize further from an access log alone. Covers three
+  shapes: (1) a bare command/binary name as a parameter value, with space
+  in its `+`/%20/double-encoded %2520 forms; (2) cmd=/exec=/command=
+  gated on a confirmatory shell metacharacter or known binary in the
+  value, not the parameter name alone -- the same FP lesson the source
+  rule already learned in production (bare `id`/`sh`/`cat`/`nc` are
+  excluded, since `?id=` and `?nc=` were observed as ordinary
+  cache-busting params); (3) direct code-exec/reverse-shell indicators
+  (eval(, system(, /dev/tcp/, /etc/passwd) that need no confirmation.
+  Cross-checked against SigmaHQ's web_win_webshells_in_access_logs.yml
+  (same shape -- =whoami/=cmd style GET params -- but Windows-command
+  flavored; this rule is the Linux-command counterpart Masha's nginx gap
+  analysis flagged as missing). Single-event pattern, expressed as a
+  normal Sigma detection: block (no correlation needed, unlike
+  DETECT-2026-0039). Known blind spots, same as the source: POST-body
+  command execution (e.g. China Chopper) and base64/obfuscated/
+  string-concatenated commands are invisible to a static keyword/regex
+  match on the query string.
+references:
+  - https://attack.mitre.org/techniques/T1505/003/
+  - https://attack.mitre.org/techniques/T1059/004/
+  - https://github.com/SigmaHQ/sigma/blob/master/rules/web/webserver_generic/web_win_webshells_in_access_logs.yml
+  - https://www.f5.com/labs/articles/web-shells-understanding-attackers-tools-and-techniques
+author: Bence Marton
+date: 2026-09-23
+modified: 2026-09-23
+version: "1.0"
+tags:
+  - attack.persistence
+  - attack.execution
+  - attack.t1505.003
+  - attack.t1059.004
+
+logsource:
+  product_category: web
+  product: nginx
+  service: access
+  event_type: access_history
+
+detection:
+  selection_sourcetype:
+    sourcetype: access_combined
+  selection_method:
+    method: GET
+  selection_status:
+    status: "200"
+
+  # Bare command/binary name as a param value, space encoded as
+  # +/%20/%2520.
+  selection_cmd_keyword:
+    uri_query|re: '(?i)=(?:whoami|uname|wget|curl|python3?|perl|ruby|ssh|ncat|socat|telnet|chmod|mkfifo)(?:\+|%20|%2520)?'
+  # Multi-token forms needing the flag attached (php -r, nc -, bash -i, etc.).
+  selection_cmd_keyword_flag:
+    uri_query|re: '(?i)(?:php(?:\+|%20|%2520)-r|nc(?:\+|%20|%2520)-|bash(?:\+|%20|%2520)-i|sh(?:\+|%20|%2520)-c|cat(?:\+|%20|%2520)/etc/|base64(?:\+|%20|%2520)-d|openssl(?:\+|%20|%2520)s_client)'
+
+  # cmd=/exec=/command= gated on a shell metachar or known binary in the
+  # value -- deliberately looser than selection_cmd_keyword, so it needs
+  # this confirmation to avoid firing on cmd=view-style admin params.
+  selection_cmd_param:
+    uri_query|re: '(?i)(?:cmd=|exec=|command=)[a-z0-9_\-%]*(?:;|\||`|&|\$\(|%3b|%7c|%60|%26|%24%28|whoami|uname|wget|curl|python|perl|ruby|ssh|ncat|socat|telnet|nc|bash|sh|cat|base64|chmod|mkfifo|openssl)'
+
+  # No confirmation needed -- these are unambiguous code-exec/reverse-shell
+  # markers on their own.
+  selection_direct_indicator:
+    uri_query|contains:
+      - "eval("
+      - "system("
+      - "/dev/tcp/"
+      - "/etc/passwd"
+
+  condition: >
+    selection_sourcetype and selection_method and selection_status and (
+      selection_cmd_keyword or selection_cmd_keyword_flag or
+      selection_cmd_param or selection_direct_indicator
+    )
+
+fields:
+  - _time
+  - host
+  - clientip
+  - method
+  - uri_path
+  - uri_query
+  - status
+  - bytes
+  - useragent
+  - referer
+
+falsepositives:
+  - >-
+    A wiki/docs page whose query string legitimately contains an OS
+    command name (e.g. a search for "whoami" or a Linux tutorial URL) --
+    the source rule's own production tuning found this rare enough to
+    accept, since the alternative (dropping bare command names entirely)
+    misses the most common real webshell interaction shape.
+  - >-
+    An app that genuinely uses cmd=/exec=/command= as a parameter name for
+    a non-shell purpose (e.g. cmd=view, cmd=export) -- excluded unless the
+    value also carries a shell metacharacter or known binary name, per
+    the confirmatory gate in selection_cmd_param.
+  - >-
+    TODO: unmeasured for this lab -- no application here legitimately uses
+    any of these parameter shapes, so there is no live FP baseline yet.
+
+level: high
+
+custom:
+  splunk:
+    index: main
+    mode: alert
+    cron: "*/5 * * * *"
+    earliest: "-5m"
+    latest: "now"
+    severity: high
+
+  # Emulation, not atomic (no Atomic Red Team test issues an HTTP request
+  # carrying these query-string artifacts; T1505.003's test only writes a
+  # webshell file locally). Runner: native curl on linux-victim via
+  # PowerShell Invoke-Expression (run_atomic_linux.ps1). Requests target
+  # "/" (the default nginx welcome page, 200 by design) so the rule's
+  # status=200 gate is satisfied without planting a canary file.
+  #
+  # pass_fail_eval.py caps matched events at 10/rule; the 5 requests below
+  # cover all four selections and fit well under that cap.
+  testing:
+    enabled: true
+    runner: linux-victim
+    type: emulation
+    custom:
+      - name: "Bare command-name and flagged-command query params"
+        description: >-
+          ?x=whoami (selection_cmd_keyword) and ?y=bash+-i
+          (selection_cmd_keyword_flag) against the default page.
+        executor: powershell
+        command: |-
+          curl -s -o /dev/null 'http://localhost/?x=whoami'
+          curl -s -o /dev/null 'http://localhost/?y=bash+-i'
+        cleanup: ""
+        prerequisites:
+          - nginx must be running on linux-victim and listening on port 80
+          - curl must be installed (/usr/bin/curl)
+
+      - name: "Confirmed cmd= parameter and direct indicators"
+        description: >-
+          ?cmd=;id (selection_cmd_param, metachar-confirmed) and
+          ?f=/etc/passwd, ?x=eval( (selection_direct_indicator).
+        executor: powershell
+        command: |-
+          curl -s -o /dev/null -G 'http://localhost/' --data-urlencode 'cmd=;id'
+          curl -s -o /dev/null 'http://localhost/?f=/etc/passwd'
+          curl -s -o /dev/null 'http://localhost/?x=eval('
+        cleanup: ""
+        prerequisites:
+          - nginx must be running on linux-victim and listening on port 80
+          - curl must be installed (/usr/bin/curl)

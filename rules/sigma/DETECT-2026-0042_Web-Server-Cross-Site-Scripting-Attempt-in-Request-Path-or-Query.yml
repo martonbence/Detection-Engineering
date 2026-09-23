@@ -1,0 +1,188 @@
+title: Web Server Cross-Site Scripting Attempt in Request Path or Query
+detect_id: DETECT-2026-0042
+status: experimental
+description: >
+  Detects nginx access-log GET/POST requests with status 200/201 whose
+  request path or query string carries one of nine reflected-XSS shapes:
+  script-tag injection (<script), event-handler injection (onerror=/
+  onload=/onclick= etc.), javascript: URI scheme, dangerous HTML tags
+  (<img/<svg/<iframe/<body/<input/<video/<audio/<marquee), DOM-exfil
+  references (document.cookie, window.location), JS-exec/obfuscation
+  calls (eval(/atob(/String.fromCharCode(), PoC alert functions (alert(/
+  confirm(/prompt(), attribute/tag-breakout (a quote then > then a new
+  <), and HTML-entity-encoded script tags (&lt;script, &#60;script,
+  &#x3c;script). Ported from NetWitness ESA-068 (same nine categories and
+  the same two FP gates: the dangerous-tag pattern requires the opening
+  `<`/%3c directly before the tag name, and the JS-exec/PoC-function
+  patterns require the opening parenthesis). Cross-checked against
+  SigmaHQ's web_xss_in_access_logs.yml, which independently covers the
+  same core set (<script>, <iframe, <svg, document.cookie/domain,
+  onerror=/onload=, javascript:alert) -- confirms the category list
+  rather than replacing it. Reflected-XSS-only, same as both source
+  rules: the access log has no response body (reflection can't be
+  confirmed, only the attempt) and no request body (POST-borne or
+  DOM-based/client-side-only XSS, now the dominant shape on
+  React/Vue/Angular SPAs per current WAF-bypass research, is invisible
+  here). Checks both uri_path and uri_query, unlike the SigmaHQ rule
+  (query only) and the NetWitness source (single combined url field).
+  Gated on 200/201 rather than SigmaHQ's 404: a deliberate choice to
+  target requests that actually reached the application, not the
+  rejected ones.
+references:
+  - https://attack.mitre.org/techniques/T1190/
+  - https://github.com/SigmaHQ/sigma/blob/master/rules/web/webserver_generic/web_xss_in_access_logs.yml
+  - https://portswigger.net/web-security/cross-site-scripting/cheat-sheet
+  - https://cybersecuritynews.com/wafs-protection-bypassed/
+author: Bence Marton
+date: 2026-09-23
+modified: 2026-09-23
+version: "1.0"
+tags:
+  - attack.initial_access
+  - attack.t1190
+
+logsource:
+  product_category: web
+  product: nginx
+  service: access
+  event_type: access_history
+
+detection:
+  selection_sourcetype:
+    sourcetype: access_combined
+  selection_method:
+    method:
+      - GET
+      - POST
+  selection_status:
+    status:
+      - "200"
+      - "201"
+
+  selection_script_tag:
+    - uri_path|re: '(?i)(?:<|%3c)(?:\+|%20)*script'
+    - uri_query|re: '(?i)(?:<|%3c)(?:\+|%20)*script'
+
+  selection_event_handler:
+    - uri_path|re: '(?i)\bon(?:error|load|mouseover|mouseout|focus|blur|click|change|submit)(?:\+|%20)*(?:=|%3d)'
+    - uri_query|re: '(?i)\bon(?:error|load|mouseover|mouseout|focus|blur|click|change|submit)(?:\+|%20)*(?:=|%3d)'
+
+  selection_js_uri:
+    - uri_path|re: '(?i)javascript(?::|%3a)'
+    - uri_query|re: '(?i)javascript(?::|%3a)'
+
+  # Opening bracket required directly before the tag name -- a bare
+  # "video"/"audio" in a param value does not match.
+  selection_dangerous_tag:
+    - uri_path|re: '(?i)(?:<|%3c)(?:\+|%20)*(?:img|svg|iframe|body|input|video|audio|marquee)\b'
+    - uri_query|re: '(?i)(?:<|%3c)(?:\+|%20)*(?:img|svg|iframe|body|input|video|audio|marquee)\b'
+
+  selection_dom_exfil:
+    - uri_path|re: '(?i)(?:document\.(?:cookie|write|location|domain)|window\.location)'
+    - uri_query|re: '(?i)(?:document\.(?:cookie|write|location|domain)|window\.location)'
+
+  selection_js_exec:
+    - uri_path|re: '(?i)(?:eval\(|atob\(|unescape\(|decodeuricomponent\(|string\.fromcharcode\(|settimeout\(|setinterval\()'
+    - uri_query|re: '(?i)(?:eval\(|atob\(|unescape\(|decodeuricomponent\(|string\.fromcharcode\(|settimeout\(|setinterval\()'
+
+  selection_poc_alert:
+    - uri_path|re: '(?i)\b(?:alert|confirm|prompt)\('
+    - uri_query|re: '(?i)\b(?:alert|confirm|prompt)\('
+
+  selection_attr_breakout:
+    - uri_path|re: '(?i)(?:%22|\x22|%27|\x27)(?:\+|%20)*(?:>|%3e)(?:<|%3c)'
+    - uri_query|re: '(?i)(?:%22|\x22|%27|\x27)(?:\+|%20)*(?:>|%3e)(?:<|%3c)'
+
+  selection_entity_encoded:
+    - uri_path|re: '(?i)(?:&|%26)(?:lt|#0*60|#x0*3c);?.{0,10}script'
+    - uri_query|re: '(?i)(?:&|%26)(?:lt|#0*60|#x0*3c);?.{0,10}script'
+
+  condition: >
+    selection_sourcetype and selection_method and selection_status and (
+      selection_script_tag or selection_event_handler or
+      selection_js_uri or selection_dangerous_tag or selection_dom_exfil or
+      selection_js_exec or selection_poc_alert or selection_attr_breakout or
+      selection_entity_encoded
+    )
+
+fields:
+  - _time
+  - host
+  - clientip
+  - method
+  - uri_path
+  - uri_query
+  - status
+  - bytes
+  - useragent
+  - referer
+
+falsepositives:
+  - >-
+    A scanner you run yourself (XSStrike, dalfox, an internal ASV scan)
+    sends exactly these payloads by design -- correlate with the scan
+    calendar or source IP before escalating; no allow-list built in,
+    since one keyed on host/IP would also hide a genuine probe.
+  - >-
+    A page that legitimately embeds `<video`/`<audio`/`<iframe` markup or
+    `document.cookie`/`alert(` text in a query parameter (e.g. a
+    rich-text/preview or a "share this code snippet" feature). Unmeasured
+    for this lab (static site, no such parameters).
+  - >-
+    Known blind spot inherited from both source rules: POST-body and
+    DOM-based (client-side-only, never reaching the server in the URL)
+    XSS are invisible here; current WAF-bypass research documents
+    parameter-pollution XSS specifically evading URL-pattern detection
+    like this one.
+  - >-
+    Alert volume, not false positives: XSS probing is constant background
+    radiation on any internet-facing host, same as the SQLi/traversal
+    rules. Treat as an activity/enrichment signal.
+
+level: medium
+
+custom:
+  splunk:
+    index: main
+    mode: alert
+    cron: "*/5 * * * *"
+    earliest: "-5m"
+    latest: "now"
+    severity: medium
+
+  # Emulation, not atomic (T1190 has no Atomic Red Team test -- confirmed
+  # by fetching the technique's atomics YAML, which 404s). Requests target
+  # "/" (default nginx page, 200) so the status gate is satisfied without
+  # a canary file. Runner: native curl on linux-victim via PowerShell
+  # Invoke-Expression (run_atomic_linux.ps1).
+  #
+  # pass_fail_eval.py caps matched events at 10/rule; the 5 requests below
+  # cover 5 of the 9 categories. The remaining four (js_uri, dom_exfil,
+  # attr_breakout, entity_encoded) were validated manually against the
+  # rendered SPL, not repeated in CI.
+  testing:
+    enabled: true
+    runner: linux-victim
+    type: emulation
+    custom:
+      - name: "Script-tag and event-handler payloads"
+        description: "?x=<script>alert(1) (selection_script_tag, selection_poc_alert), ?y=onerror=alert(1) (selection_event_handler)."
+        executor: powershell
+        command: |-
+          curl -s -o /dev/null -G 'http://localhost/' --data-urlencode "x=<script>alert(1)</script>"
+          curl -s -o /dev/null -G 'http://localhost/' --data-urlencode "y=<img src=x onerror=alert(1)>"
+        cleanup: ""
+        prerequisites:
+          - nginx must be running on linux-victim and listening on port 80
+          - curl must be installed (/usr/bin/curl)
+
+      - name: "Dangerous tag and JS-exec payloads"
+        description: "?z=<svg onload=alert(1)> (selection_dangerous_tag), ?w=eval(atob(1)) (selection_js_exec)."
+        executor: powershell
+        command: |-
+          curl -s -o /dev/null -G 'http://localhost/' --data-urlencode "z=<svg onload=alert(1)>"
+          curl -s -o /dev/null -G 'http://localhost/' --data-urlencode "w=eval(atob(1))"
+        cleanup: ""
+        prerequisites:
+          - nginx must be running on linux-victim and listening on port 80
+          - curl must be installed (/usr/bin/curl)

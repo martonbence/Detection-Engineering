@@ -1,0 +1,153 @@
+title: Web Server Webshell Upload and Access Attempt
+detect_id: DETECT-2026-0039
+status: experimental
+description: >
+  Correlates an nginx access-log webshell upload (POST to an upload-like
+  path, executable/double-extension filename such as shell.php.jpg, small
+  or unknown response size, 200/201) with a same-clientip GET to the
+  identical URL within 15 minutes -- an upload alone is routine web
+  traffic, pairing it with the follow-up activation attempt is the actual
+  signal. Sigma's detection: block cannot express a cross-event,
+  time-windowed join (no correlation: rule type in this repo's schema --
+  checked docs/schemas/sigma_schema.json), so the real logic lives in
+  custom.splunk.raw_query, the same escape hatch DETECT-2026-0002/0003
+  use for their own correlations (those use streamstats threshold
+  counting; this rule's two-event pairing calls for SPL's transaction/
+  closed_txn instead -- the precedent is "raw_query as the fallback
+  mechanism," not this specific SPL construct). The detection: block
+  below is a schema-required placeholder covering only the upload half
+  and is never evaluated. Ported from NetWitness
+  ESA-066's `FROM PATTERN ... timer:within(15 Min)` rule (same 15-minute
+  window, same extension/path/size gates); the extension list and
+  double-extension evasion form were cross-checked against current
+  file-upload-bypass write-ups (trailing-dot and null-byte variants exist
+  too but are out of scope here -- see falsepositives). No SigmaHQ/Splunk/
+  Elastic rule covers this exact upload-then-access pairing; SigmaHQ's
+  windows webshell-strings rule and Splunk's CVE-specific webshell-access
+  analytics are single-event and were used only to sanity-check the
+  extension/path vocabulary, not the correlation shape. Tagged T1505.003
+  only -- an access-log line only shows the attempted upload and
+  reactivation, never that the uploaded file actually executed anything.
+references:
+  - https://attack.mitre.org/techniques/T1505/003/
+  - https://github.com/SigmaHQ/sigma/blob/master/rules/web/webserver_generic/web_win_webshells_in_access_logs.yml
+  - https://medium.com/@ryangcox/web-shell-upload-via-extension-blacklist-bypass-file-upload-vulnerability-f98ee877aff1
+  - https://www.acunetix.com/websitesecurity/upload-forms-threat/
+author: Bence Marton
+date: 2026-09-23
+modified: 2026-09-23
+version: "1.0"
+tags:
+  - attack.persistence
+  - attack.t1505.003
+
+logsource:
+  product_category: web
+  product: nginx
+  service: access
+  event_type: access_history
+
+detection:
+  # Placeholder only -- covers just the upload half (one event, no
+  # cross-event join). Real correlation logic is in custom.splunk.raw_query.
+  selection_sourcetype:
+    sourcetype: access_combined
+  selection_upload_attempt:
+    method: POST
+    uri_path|re: '(?i)\.(php[3457]?|phtml|phar|pht|asp|aspx|jsp|jspx|jspa|cgi|py|sh|rb|cfm|shtml)(\..+)?$'
+  condition: selection_sourcetype and selection_upload_attempt
+
+fields:
+  - _time
+  - host
+  - clientip
+  - method
+  - uri_path
+  - uri_query
+  - status
+  - bytes
+  - useragent
+  - referer
+  - duration
+
+falsepositives:
+  - >-
+    A legitimate upload feature whose stored filename happens to end in an
+    executable extension (rare, but .cgi/.pl still back some form
+    handlers) followed by the client's own confirmation GET of the file it
+    just uploaded -- a common upload-widget UX pattern.
+  - >-
+    Your own scanner or upload fuzzer (Burp Intruder, ffuf --data,
+    upload-bypass tooling) replaying an upload+GET pair against a test
+    endpoint -- correlate with the scan calendar before escalating.
+  - >-
+    TODO: unmeasured for this lab -- the server serves only a default
+    nginx page with no real upload endpoint, so there is no live FP
+    baseline yet.
+
+level: high
+
+custom:
+  splunk:
+    index: main
+    mode: alert
+    cron: "*/5 * * * *"
+    earliest: "-30m"
+    latest: "now"
+    severity: high
+
+    # transaction groups by clientip+uri_path; startswith/endswith gate
+    # which event opens/closes it, closed_txn=1 means both a matching
+    # upload AND a matching access were found within maxspan. sort -_time
+    # (search default) so endswith (the newer GET) is met first, scanning
+    # backward to startswith (the older POST) -- see Splunk's `transaction`
+    # docs for why the ordering direction matters here.
+    raw_query: >-
+      index=main sourcetype=access_combined
+      | eval uri_path_lc=lower(uri_path)
+      | eval is_exec_ext=if(match(uri_path_lc, "\.(php[3457]?|phtml|phar|pht|asp|aspx|jsp|jspx|jspa|cgi|py|sh|rb|cfm|shtml)(\..+)?$"), 1, 0)
+      | eval is_upload_dir=if(match(uri_path_lc, "(^|/)(uploads?|files?|file-manager|tmp)(/|$)"), 1, 0)
+      | eval is_upload_event=if(method="POST" AND is_exec_ext=1 AND is_upload_dir=1 AND status IN ("200","201") AND (isnull(bytes) OR bytes<5000), 1, 0)
+      | eval is_access_event=if(method="GET" AND is_exec_ext=1, 1, 0)
+      | where is_upload_event=1 OR is_access_event=1
+      | sort - _time
+      | transaction clientip uri_path startswith=eval(is_upload_event=1) endswith=eval(is_access_event=1) maxspan=15m maxevents=2
+      | where closed_txn=1
+      | table _time, host, clientip, method, uri_path, uri_query, status, bytes, useragent, referer, duration
+
+  # Emulation, not atomic (T1505.003's Atomic Red Team test only xcopy's a
+  # webshell file to disk locally -- it never issues the HTTP
+  # POST-then-GET pair this rule's raw_query keys on, so it wouldn't
+  # exercise the detection; confirmed by reading the atomic's actual
+  # command before citing it, not assumed from the technique ID). Runner:
+  # native curl on linux-victim via PowerShell Invoke-Expression
+  # (run_atomic_linux.ps1). nginx's default static-file location has no
+  # limit_except, so POST to an existing file is served like GET (200) --
+  # a canary file is planted first so the upload leg actually returns
+  # 200/201 instead of a 404 that would never satisfy the rule's status
+  # gate.
+  #
+  # pass_fail_eval.py caps matched events at 10/rule; both events below
+  # (POST+GET) fit well under that, so the full pairing runs in CI rather
+  # than being split into partial coverage like 0036-0038.
+  testing:
+    enabled: true
+    runner: linux-victim
+    type: emulation
+    custom:
+      - name: "Double-extension upload followed by same-URL access"
+        description: >-
+          Plants /var/www/html/uploads/shell.php.jpg, then POSTs and GETs
+          it within the 15-min window -- exercises the full
+          upload-then-access correlation.
+        executor: powershell
+        command: |-
+          mkdir -p /var/www/html/uploads
+          echo 'test' > /var/www/html/uploads/shell.php.jpg
+          curl -s -o /dev/null -X POST --data 'a=1' 'http://localhost/uploads/shell.php.jpg'
+          curl -s -o /dev/null 'http://localhost/uploads/shell.php.jpg'
+        cleanup: "rm -f /var/www/html/uploads/shell.php.jpg"
+        prerequisites:
+          - nginx must be running on linux-victim and listening on port 80
+          - curl must be installed (/usr/bin/curl)
+          - the account running the test must be able to write to /var/www/html/uploads

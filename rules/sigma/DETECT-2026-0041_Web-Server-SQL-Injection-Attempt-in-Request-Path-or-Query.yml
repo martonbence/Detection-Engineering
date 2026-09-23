@@ -1,0 +1,194 @@
+title: Web Server SQL Injection Attempt in Request Path or Query
+detect_id: DETECT-2026-0041
+status: experimental
+description: >
+  Detects nginx access-log GET/POST requests with status 200/201/500
+  whose request path or query string carries one of nine SQLi shapes:
+  UNION-based, quoted-tautology bypass ('OR'1'='1), comment-based
+  termination after a quote (--/#), boolean-blind (AND/OR + numeric
+  compare), time-blind (SLEEP/BENCHMARK/WAITFOR DELAY/PG_SLEEP/
+  DBMS_PIPE.RECEIVE_MESSAGE), error-based (EXTRACTVALUE/UPDATEXML/
+  FLOOR(RAND(/EXP(~), schema/version recon (information_schema,
+  @@version, DATABASE()), stacked queries (;DROP/INSERT/...) and
+  payload-builder functions (CONCAT/GROUP_CONCAT/hex literals/CHAR()).
+  Ported from NetWitness ESA-067 (same nine categories, same FP gates:
+  boolean-blind requires the numeric-compare pair together, not a bare
+  and/or; tautology/comment require an actual quote character present).
+  Cross-checked against SigmaHQ's web_sql_injection_in_access_logs.yml,
+  which independently covers the same core keyword set (UNION SELECT,
+  information_schema, sleep(10), '1'='1) -- confirms the category list
+  rather than replacing it, and that rule's own note that WAF-bypass
+  research now also documents comment-based whitespace substitution
+  (/**/ in place of a literal space) and JSON-body SQLi that this
+  access-log-only view cannot see (see falsepositives/limits). Checks
+  both uri_path and uri_query, unlike the SigmaHQ rule (GET query only)
+  and the NetWitness source (single combined url field) -- a payload
+  that trips a 400 before reaching the app is logged in uri_path, not
+  uri_query. Attempt-only signal (T1190): the access log has no response
+  body, so a 500 here means the server errored, not that data was
+  extracted. Gated on 200/201/500 rather than SigmaHQ's 404: a deliberate
+  choice to target requests that actually reached the application
+  (including the error-based-SQLi 500 case) instead of the rejected ones.
+references:
+  - https://attack.mitre.org/techniques/T1190/
+  - https://github.com/SigmaHQ/sigma/blob/master/rules/web/webserver_generic/web_sql_injection_in_access_logs.yml
+  - https://book.hacktricks.xyz/pentesting-web/sql-injection
+  - https://www.picussecurity.com/resource/blog/waf-bypass-using-json-based-sql-injection-attacks
+author: Bence Marton
+date: 2026-09-23
+modified: 2026-09-23
+version: "1.0"
+tags:
+  - attack.initial_access
+  - attack.t1190
+
+logsource:
+  product_category: web
+  product: nginx
+  service: access
+  event_type: access_history
+
+detection:
+  selection_sourcetype:
+    sourcetype: access_combined
+  selection_method:
+    method:
+      - GET
+      - POST
+  selection_status:
+    status:
+      - "200"
+      - "201"
+      - "500"
+
+  selection_union:
+    - uri_path|re: '(?i)union(?:\+|%20|/\*.*?\*/)*(?:all(?:\+|%20)*)?select'
+    - uri_query|re: '(?i)union(?:\+|%20|/\*.*?\*/)*(?:all(?:\+|%20)*)?select'
+
+  # Requires an actual quote before the or/and token -- a bare "1=1" in a
+  # legit numeric param does not match.
+  selection_tautology:
+    - uri_path|re: '(?i)(?:%27|\x27)(?:\+|%20)*(?:or|and)(?:\+|%20)*(?:%27|\x27)?[a-z0-9_]+(?:%27|\x27)?(?:\+|%20)*(?:=|%3d)(?:\+|%20)*(?:%27|\x27)?[a-z0-9_]+(?:%27|\x27)?'
+    - uri_query|re: '(?i)(?:%27|\x27)(?:\+|%20)*(?:or|and)(?:\+|%20)*(?:%27|\x27)?[a-z0-9_]+(?:%27|\x27)?(?:\+|%20)*(?:=|%3d)(?:\+|%20)*(?:%27|\x27)?[a-z0-9_]+(?:%27|\x27)?'
+
+  selection_comment:
+    - uri_path|re: '(?i)(?:%27|\x27)(?:\+|%20)*(?:--|%2d%2d|#|%23)'
+    - uri_query|re: '(?i)(?:%27|\x27)(?:\+|%20)*(?:--|%2d%2d|#|%23)'
+
+  # Requires and/or AND a numeric comparison together, not the bare word.
+  selection_boolean_blind:
+    - uri_path|re: '(?i)\b(?:and|or)\b(?:\+|%20)+\(?[0-9]+(?:=|%3d|<|>)\(?[a-z0-9_]+'
+    - uri_query|re: '(?i)\b(?:and|or)\b(?:\+|%20)+\(?[0-9]+(?:=|%3d|<|>)\(?[a-z0-9_]+'
+
+  selection_time_blind:
+    - uri_path|re: '(?i)(?:sleep\(|benchmark\(|waitfor(?:\+|%20)delay|pg_sleep\(|dbms_pipe\.receive_message)'
+    - uri_query|re: '(?i)(?:sleep\(|benchmark\(|waitfor(?:\+|%20)delay|pg_sleep\(|dbms_pipe\.receive_message)'
+
+  selection_error_based:
+    - uri_path|re: '(?i)(?:extractvalue\(|updatexml\(|floor\(rand\(|exp\(~)'
+    - uri_query|re: '(?i)(?:extractvalue\(|updatexml\(|floor\(rand\(|exp\(~)'
+
+  selection_recon:
+    - uri_path|re: '(?i)(?:information_schema|sysobjects|syscolumns|sys\.tables|@@version|@@datadir|version\(\)|database\(\))'
+    - uri_query|re: '(?i)(?:information_schema|sysobjects|syscolumns|sys\.tables|@@version|@@datadir|version\(\)|database\(\))'
+
+  selection_stacked:
+    - uri_path|re: '(?i);(?:\+|%20|%3b)*(?:drop|insert|update|delete|exec|create|alter)(?:\+|%20)'
+    - uri_query|re: '(?i);(?:\+|%20|%3b)*(?:drop|insert|update|delete|exec|create|alter)(?:\+|%20)'
+
+  selection_payload_builder:
+    - uri_path|re: '(?i)(?:concat\(.{0,60}?,|group_concat\(|0x[0-9a-f]{10,}|char\(\s*0x?[0-9]+\s*(?:,|\)))'
+    - uri_query|re: '(?i)(?:concat\(.{0,60}?,|group_concat\(|0x[0-9a-f]{10,}|char\(\s*0x?[0-9]+\s*(?:,|\)))'
+
+  condition: >
+    selection_sourcetype and selection_method and selection_status and (
+      selection_union or selection_tautology or selection_comment or
+      selection_boolean_blind or selection_time_blind or
+      selection_error_based or selection_recon or selection_stacked or
+      selection_payload_builder
+    )
+
+fields:
+  - _time
+  - host
+  - clientip
+  - method
+  - uri_path
+  - uri_query
+  - status
+  - bytes
+  - useragent
+  - referer
+
+falsepositives:
+  - >-
+    A scanner you run yourself (sqlmap, Burp, an internal ASV scan) sends
+    exactly these payloads by design -- correlate with the scan calendar
+    or source IP before escalating; no allow-list built in, since one
+    keyed on host/IP would also hide a genuine probe.
+  - >-
+    selection_recon's `database()`/`version()` and selection_stacked's
+    keyword list can appear in a legitimate app's own query-string tokens
+    (rare, but not impossible on a CMS with verbose URLs); unmeasured for
+    this lab (static site, no such parameters).
+  - >-
+    Known blind spot inherited from the source rule: POST-body payloads
+    are invisible in the access log, comment-based whitespace obfuscation
+    (/**/-as-space) is only partly covered (only inside
+    selection_union's own pattern), and JSON-body SQLi (increasingly
+    reported bypassing WAFs in 2025-2026) is not visible here at all.
+  - >-
+    Alert volume, not false positives: SQLi probing is constant background
+    radiation on any internet-facing host. Treat as an activity/enrichment
+    signal; status 500 narrows to requests that actually errored the app.
+
+level: high
+
+custom:
+  splunk:
+    index: main
+    mode: alert
+    cron: "*/5 * * * *"
+    earliest: "-5m"
+    latest: "now"
+    severity: high
+
+  # Emulation, not atomic (T1190 has no Atomic Red Team test at all --
+  # confirmed by fetching the technique's atomics YAML, which 404s).
+  # Requests target "/" (default nginx page, 200) so the status gate is
+  # satisfied without a canary file. Runner: native curl on linux-victim
+  # via PowerShell Invoke-Expression (run_atomic_linux.ps1).
+  #
+  # pass_fail_eval.py caps matched events at 10/rule; the 5 requests below
+  # cover 5 of the 9 categories. The remaining four (boolean_blind,
+  # error_based, stacked, payload_builder) were validated manually
+  # against the rendered SPL, not repeated in CI.
+  testing:
+    enabled: true
+    runner: linux-victim
+    type: emulation
+    custom:
+      - name: "UNION-based and tautology-bypass payloads"
+        description: "?id=1 UNION SELECT... (selection_union), ?u=admin'+OR+'1'='1 (selection_tautology)."
+        executor: powershell
+        command: |-
+          curl -s -o /dev/null -G 'http://localhost/' --data-urlencode "id=1 UNION SELECT null,null--"
+          curl -s -o /dev/null -G 'http://localhost/' --data-urlencode "u=admin' OR '1'='1"
+        cleanup: ""
+        prerequisites:
+          - nginx must be running on linux-victim and listening on port 80
+          - curl must be installed (/usr/bin/curl)
+
+      - name: "Comment-termination, time-blind and recon payloads"
+        description: >-
+          ?u=admin'-- (selection_comment), ?id=1;SLEEP(5) (selection_time_blind),
+          ?x=information_schema (selection_recon).
+        executor: powershell
+        command: |-
+          curl -s -o /dev/null -G 'http://localhost/' --data-urlencode "u=admin'--"
+          curl -s -o /dev/null -G 'http://localhost/' --data-urlencode "id=1;SLEEP(5)"
+          curl -s -o /dev/null -G 'http://localhost/' --data-urlencode "x=information_schema"
+        cleanup: ""
+        prerequisites:
+          - nginx must be running on linux-victim and listening on port 80
+          - curl must be installed (/usr/bin/curl)
