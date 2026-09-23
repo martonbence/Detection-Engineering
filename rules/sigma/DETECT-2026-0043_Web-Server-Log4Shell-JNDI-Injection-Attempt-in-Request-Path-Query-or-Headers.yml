@@ -1,0 +1,300 @@
+title: Web Server Log4Shell JNDI Injection Attempt in Request Path, Query, or Headers
+detect_id: DETECT-2026-0043
+status: experimental
+description: >
+  Detects the `${jndi:...}` lookup syntax used to exploit Log4Shell
+  (CVE-2021-44228) and its known obfuscation forms across four nginx
+  access-log fields: useragent, referer, uri_path and uri_query -- the
+  same fields the earliest 2021 attacks abused (User-Agent and X-Api-Version
+  headers were the original delivery vector, quickly followed by any
+  reflected/logged request field) and the ones this repo's own web rules
+  already check (0037/0040/0041/0042 all check uri_path+uri_query, 0038
+  checks useragent). Ported from SigmaHQ's
+  web_cve_2021_44228_log4j.yml: four selection groups mirror its 23-entry
+  keyword list -- direct `${jndi:<scheme>:/` lookups (ldap/rmi/ldaps/dns/
+  nis/nds/corba/iiop), percent- and double/triple-encoded markers,
+  nested `${}` substitution/default-value bypass tricks that spell out
+  "jndi"/"ldap" without the literal substring, and a base64-wrapped
+  variant. The source rule's `Reference Class Name: foo` entry is excluded:
+  that string is log4j's own server-side exception output, not something a
+  client ever supplies in a request field this access log captures, so it
+  cannot appear in useragent/referer/uri_path/uri_query. The source rule's
+  Nessus filter (its own safe validation payload, w.nessus.org/nessus or
+  /nessus}) is kept as an explicit `not filter_nessus` exclusion rather than
+  silently dropped. Continued relevance per a 2026 network-telescope study
+  (Dec 2021-Oct 2025): generic obfuscated JNDI probes are still
+  high-volume background scanning years post-disclosure (GreyNoise
+  currently tracks 100+ active scanning nodes), so this is cheap,
+  high-specificity coverage for a gap none of the other seven web rules
+  fill. web_jndi_exploit.yml (JNDI-Exploit-Kit paths like
+  /Basic/ReverseShell/) was deliberately left out: those paths are the
+  attacker's own LDAP/HTTP callback server's served-payload paths, but a
+  real delivery still carries them inside the initial `${jndi:ldap://.../
+  Basic/...}` URI, which selection_core's protocol-prefix match already
+  catches -- so this exclusion is redundant with selection_core for this
+  logsource, not a distinct signal being missed. Fires regardless of HTTP status, same reasoning as
+  DETECT-2026-0037's traversal rule and stronger: the literal `${jndi:`
+  syntax and its obfuscated forms are essentially never present in benign
+  traffic (unlike a bare `../` or a SQL keyword), so status-gating would
+  only cost recall against the exact behavior Masha's brief highlights --
+  mass scanners hitting paths that don't exist and getting a 404, or
+  crashing app logging and getting a 500 -- without meaningfully improving
+  precision.
+references:
+  - https://attack.mitre.org/techniques/T1190/
+  - https://github.com/SigmaHQ/sigma/blob/master/rules-emerging-threats/2021/Exploits/CVE-2021-44228/web_cve_2021_44228_log4j.yml
+  - https://github.com/SigmaHQ/sigma/blob/master/rules/web/webserver_generic/web_jndi_exploit.yml
+  - https://web.archive.org/web/20231230220738/https://www.lunasec.io/docs/blog/log4j-zero-day/
+  - https://www.greynoise.io/blog/log4shell-log4j-vulnerability-tracking-cve-2021-44228
+author: Bence Marton
+date: 2026-09-23
+modified: 2026-09-23
+version: "1.0"
+tags:
+  - attack.initial_access
+  - attack.t1190
+
+logsource:
+  product_category: web
+  product: nginx
+  service: access
+  event_type: access_history
+
+detection:
+  selection_sourcetype:
+    sourcetype: access_combined
+
+  # Direct ${jndi:<scheme>:/ lookup across the LDAP/RMI/LDAPS/DNS factories
+  # the original 2021 attacks used, plus the less common NIS/NDS/CORBA/IIOP
+  # factories SigmaHQ's rule also tracks.
+  selection_core:
+    - useragent|contains:
+        - '${jndi:ldap:/'
+        - '${jndi:rmi:/'
+        - '${jndi:ldaps:/'
+        - '${jndi:dns:/'
+        - '${jndi:nis'
+        - '${jndi:nds'
+        - '${jndi:corba'
+        - '${jndi:iiop'
+    - referer|contains:
+        - '${jndi:ldap:/'
+        - '${jndi:rmi:/'
+        - '${jndi:ldaps:/'
+        - '${jndi:dns:/'
+        - '${jndi:nis'
+        - '${jndi:nds'
+        - '${jndi:corba'
+        - '${jndi:iiop'
+    - uri_path|contains:
+        - '${jndi:ldap:/'
+        - '${jndi:rmi:/'
+        - '${jndi:ldaps:/'
+        - '${jndi:dns:/'
+        - '${jndi:nis'
+        - '${jndi:nds'
+        - '${jndi:corba'
+        - '${jndi:iiop'
+    - uri_query|contains:
+        - '${jndi:ldap:/'
+        - '${jndi:rmi:/'
+        - '${jndi:ldaps:/'
+        - '${jndi:dns:/'
+        - '${jndi:nis'
+        - '${jndi:nds'
+        - '${jndi:corba'
+        - '${jndi:iiop'
+
+  # Percent-encoded and double/triple-encoded jndi marker -- delivered
+  # through a proxy or WAF-bypass encoding layer.
+  selection_encoded:
+    - useragent|contains:
+        - '/$%7bjndi:'
+        - '%24%7bjndi:'
+        - '$%7Bjndi:'
+        - '%2524%257Bjndi'
+        - '%2F%252524%25257Bjndi%3A'
+    - referer|contains:
+        - '/$%7bjndi:'
+        - '%24%7bjndi:'
+        - '$%7Bjndi:'
+        - '%2524%257Bjndi'
+        - '%2F%252524%25257Bjndi%3A'
+    - uri_path|contains:
+        - '/$%7bjndi:'
+        - '%24%7bjndi:'
+        - '$%7Bjndi:'
+        - '%2524%257Bjndi'
+        - '%2F%252524%25257Bjndi%3A'
+    - uri_query|contains:
+        - '/$%7bjndi:'
+        - '%24%7bjndi:'
+        - '$%7Bjndi:'
+        - '%2524%257Bjndi'
+        - '%2F%252524%25257Bjndi%3A'
+
+  # Nested ${} substitution / default-value bypass tricks that spell out
+  # jndi/ldap piecewise, defeating a naive "${jndi:" keyword filter.
+  selection_obfuscated:
+    - useragent|contains:
+        - '${jndi:${lower:'
+        - '${::-j}${'
+        - '${${env:BARFOO:-j}'
+        - '${::-l}${::-d}${::-a}${::-p}'
+        - '${${env:ENV_NAME:-j}ndi${env:ENV_NAME:-:}$'
+        - '${${lower:j}ndi:'
+        - '${${upper:j}ndi:'
+        - '${${::-j}${::-n}${::-d}${::-i}:'
+    - referer|contains:
+        - '${jndi:${lower:'
+        - '${::-j}${'
+        - '${${env:BARFOO:-j}'
+        - '${::-l}${::-d}${::-a}${::-p}'
+        - '${${env:ENV_NAME:-j}ndi${env:ENV_NAME:-:}$'
+        - '${${lower:j}ndi:'
+        - '${${upper:j}ndi:'
+        - '${${::-j}${::-n}${::-d}${::-i}:'
+    - uri_path|contains:
+        - '${jndi:${lower:'
+        - '${::-j}${'
+        - '${${env:BARFOO:-j}'
+        - '${::-l}${::-d}${::-a}${::-p}'
+        - '${${env:ENV_NAME:-j}ndi${env:ENV_NAME:-:}$'
+        - '${${lower:j}ndi:'
+        - '${${upper:j}ndi:'
+        - '${${::-j}${::-n}${::-d}${::-i}:'
+    - uri_query|contains:
+        - '${jndi:${lower:'
+        - '${::-j}${'
+        - '${${env:BARFOO:-j}'
+        - '${::-l}${::-d}${::-a}${::-p}'
+        - '${${env:ENV_NAME:-j}ndi${env:ENV_NAME:-:}$'
+        - '${${lower:j}ndi:'
+        - '${${upper:j}ndi:'
+        - '${${::-j}${::-n}${::-d}${::-i}:'
+
+  # base64-wrapped jndi lookup: ${base64:...} where the encoded payload
+  # starts with JHtqbmRp, the base64 form of "${jndi" -- a documented
+  # WAF-bypass variant.
+  selection_base64:
+    - useragent|contains: '${base64:JHtqbmRp'
+    - referer|contains: '${base64:JHtqbmRp'
+    - uri_path|contains: '${base64:JHtqbmRp'
+    - uri_query|contains: '${base64:JHtqbmRp'
+
+  # Nessus's own safe validation payload -- an authorized vulnerability
+  # scan fingerprints its callback host/path this way. Excluded rather
+  # than silently dropped, per the source rule.
+  filter_nessus:
+    - useragent|contains:
+        - 'w.nessus.org/nessus'
+        - '/nessus}'
+    - referer|contains:
+        - 'w.nessus.org/nessus'
+        - '/nessus}'
+    - uri_path|contains:
+        - 'w.nessus.org/nessus'
+        - '/nessus}'
+    - uri_query|contains:
+        - 'w.nessus.org/nessus'
+        - '/nessus}'
+
+  condition: >
+    selection_sourcetype and (
+      selection_core or selection_encoded or selection_obfuscated or
+      selection_base64
+    ) and not filter_nessus
+
+fields:
+  - _time
+  - host
+  - clientip
+  - method
+  - uri_path
+  - uri_query
+  - status
+  - bytes
+  - useragent
+  - referer
+
+falsepositives:
+  - >-
+    An authorized Nessus scan's own safe JNDI validation payload is
+    filtered out by filter_nessus; a different scanner or a hand-rolled
+    Log4Shell checker (nuclei, an internal canary script) that doesn't use
+    Nessus's callback fingerprint still matches -- correlate with the scan
+    calendar or source IP before escalating.
+  - >-
+    Known blind spot: POST-body payloads (e.g. a JSON field carrying the
+    lookup string) are invisible in the access log, same limitation as
+    DETECT-2026-0041's SQLi rule. nginx logs the request line and headers
+    raw/undecoded, so matching is literal and case-sensitive per Splunk's
+    default wildcard search behavior for `contains`.
+  - >-
+    Alert volume, not false positives: the network-telescope research
+    behind this rule found generic obfuscated JNDI probing is still
+    constant background scanning years post-disclosure. Genuine
+    application-level false positives on the literal `${jndi:` syntax and
+    its listed obfuscations are effectively unheard of -- this is a
+    high-specificity signal, unlike the ubiquitous-keyword problem SQLi/XSS
+    rules have to gate around.
+
+level: high
+
+custom:
+  splunk:
+    index: main
+    mode: alert
+    cron: "*/5 * * * *"
+    earliest: "-5m"
+    latest: "now"
+    severity: high
+
+  # Emulation, not atomic (T1190 has no Atomic Red Team test at all --
+  # confirmed by fetching the technique's atomics YAML, which 404s, same
+  # as DETECT-2026-0041's finding for the same technique). Runner: native
+  # curl on linux-victim via PowerShell Invoke-Expression
+  # (run_atomic_linux.ps1). No status-code canary needed since this rule
+  # fires regardless of status.
+  #
+  # pass_fail_eval.py caps matched events at 10/rule; the 5 requests below
+  # cover all four selection groups well under that cap.
+  testing:
+    enabled: true
+    runner: linux-victim
+    type: emulation
+    custom:
+      - name: "Direct JNDI lookup in User-Agent and query string"
+        description: "${jndi:ldap://... in User-Agent (selection_core), ${jndi:rmi://... in a query param (selection_core)."
+        executor: powershell
+        command: |-
+          curl -s -o /dev/null -H 'User-Agent: ${jndi:ldap://127.0.0.1:1389/a}' 'http://localhost/'
+          curl -s -o /dev/null -G 'http://localhost/' --data-urlencode 'q=${jndi:rmi://127.0.0.1:1389/a}'
+        cleanup: ""
+        prerequisites:
+          - nginx must be running on linux-victim and listening on port 80
+          - curl must be installed (/usr/bin/curl)
+
+      - name: "Encoded marker and obfuscated substitution bypass in Referer"
+        description: >-
+          %24%7bjndi: percent-encoded marker in a query param
+          (selection_encoded), ${jndi:${lower:l}${lower:d}ap://... nested
+          substitution in Referer (selection_obfuscated).
+        executor: powershell
+        command: |-
+          curl -s -o /dev/null -G 'http://localhost/' --data-urlencode 'q=%24%7bjndi:ldap://127.0.0.1:1389/a}'
+          curl -s -o /dev/null -H 'Referer: ${jndi:${lower:l}${lower:d}ap://127.0.0.1:1389/a}' 'http://localhost/'
+        cleanup: ""
+        prerequisites:
+          - nginx must be running on linux-victim and listening on port 80
+          - curl must be installed (/usr/bin/curl)
+
+      - name: "base64-wrapped payload in User-Agent"
+        description: "${base64:JHtqbmRp... in User-Agent (selection_base64)."
+        executor: powershell
+        command: |-
+          curl -s -o /dev/null -H 'User-Agent: ${base64:JHtqbmRpOmxkYXA6Ly8xMjcuMC4wLjE6MTM4OS9hfQ==}' 'http://localhost/'
+        cleanup: ""
+        prerequisites:
+          - nginx must be running on linux-victim and listening on port 80
+          - curl must be installed (/usr/bin/curl)

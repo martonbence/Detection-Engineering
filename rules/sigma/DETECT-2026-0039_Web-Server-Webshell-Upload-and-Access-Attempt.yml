@@ -11,12 +11,22 @@ description: >
   time-windowed join (no correlation: rule type in this repo's schema --
   checked docs/schemas/sigma_schema.json), so the real logic lives in
   custom.splunk.raw_query, the same escape hatch DETECT-2026-0002/0003
-  use for their own correlations (those use streamstats threshold
-  counting; this rule's two-event pairing calls for SPL's transaction/
-  closed_txn instead -- the precedent is "raw_query as the fallback
-  mechanism," not this specific SPL construct). The detection: block
-  below is a schema-required placeholder covering only the upload half
-  and is never evaluated. Ported from NetWitness
+  use for their own correlations (those use streamstats time_window
+  threshold-counting on one event type; this rule needs a two-event
+  pairing instead). Uses a streamstats carry-forward join: eval a marker
+  to null() on non-matching rows, then `streamstats current=f
+  last(eval(...))` per clientip+uri_path carries the most recent prior
+  upload's _time onto every later row in that group, so a GET within
+  900s of the carried value is the pairing -- same streamstats family and
+  "raw_query is the fallback, not one fixed SPL shape" precedent as
+  0002/0003, just the carry-forward variant instead of
+  threshold-counting. Replaces an earlier transaction/closed_txn draft:
+  functionally equivalent (confirmed in Bjorn's prior review) but
+  transaction is Splunk's own documented scale anti-pattern (single-
+  threaded, doesn't distribute like stats-family commands) and had zero
+  other precedent in this repo. The detection: block below is a
+  schema-required placeholder covering only the upload half and is never
+  evaluated. Ported from NetWitness
   ESA-066's `FROM PATTERN ... timer:within(15 Min)` rule (same 15-minute
   window, same extension/path/size gates); the extension list and
   double-extension evasion form were cross-checked against current
@@ -33,10 +43,12 @@ references:
   - https://github.com/SigmaHQ/sigma/blob/master/rules/web/webserver_generic/web_win_webshells_in_access_logs.yml
   - https://medium.com/@ryangcox/web-shell-upload-via-extension-blacklist-bypass-file-upload-vulnerability-f98ee877aff1
   - https://www.acunetix.com/websitesecurity/upload-forms-threat/
+  - https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/9.4/search-commands/streamstats
+  - https://help.splunk.com/en/splunk-enterprise/search/search-manual/9.4/calculate-statistics/use-stats-with-eval-expressions-and-functions
 author: Bence Marton
 date: 2026-09-23
 modified: 2026-09-23
-version: "1.0"
+version: "1.1"
 tags:
   - attack.persistence
   - attack.t1505.003
@@ -92,12 +104,23 @@ custom:
     latest: "now"
     severity: high
 
-    # transaction groups by clientip+uri_path; startswith/endswith gate
-    # which event opens/closes it, closed_txn=1 means both a matching
-    # upload AND a matching access were found within maxspan. sort -_time
-    # (search default) so endswith (the newer GET) is met first, scanning
-    # backward to startswith (the older POST) -- see Splunk's `transaction`
-    # docs for why the ordering direction matters here.
+    # Carry-forward join, not transaction: is_upload_event/is_access_event
+    # mark each half; non-matching rows eval to null() so last() skips
+    # them and keeps carrying the most recent prior upload's _time
+    # forward. Splunk's own "Use stats with eval expressions and
+    # functions" doc gives this exact shape as a worked example --
+    # `dc(eval(if(status=404, clientip, NULL())))` -- and states the
+    # NULL() branch "filters out non-matching values from the
+    # calculation, excluding them from the result" rather than resetting
+    # it; this repo's own last()/latest() reading of that same
+    # null-exclusion rule is corroborated by multiple independent Splunk
+    # Community/Answers threads on last()/latest() specifically (see
+    # references). current=f means the carried value is from strictly
+    # *before* the current row, per Splunk's streamstats docs
+    # ("current=false: uses the field value from the previous event") --
+    # so an upload event's own row never counts as a match for itself.
+    # sort 0 _time (ascending, uncapped) so "last seen so far" means "most
+    # recent prior in time" within each clientip+uri_path group.
     raw_query: >-
       index=main sourcetype=access_combined
       | eval uri_path_lc=lower(uri_path)
@@ -106,9 +129,10 @@ custom:
       | eval is_upload_event=if(method="POST" AND is_exec_ext=1 AND is_upload_dir=1 AND status IN ("200","201") AND (isnull(bytes) OR bytes<5000), 1, 0)
       | eval is_access_event=if(method="GET" AND is_exec_ext=1, 1, 0)
       | where is_upload_event=1 OR is_access_event=1
-      | sort - _time
-      | transaction clientip uri_path startswith=eval(is_upload_event=1) endswith=eval(is_access_event=1) maxspan=15m maxevents=2
-      | where closed_txn=1
+      | sort 0 _time
+      | streamstats current=f last(eval(if(is_upload_event=1, _time, null()))) as last_upload_time by clientip uri_path
+      | where is_access_event=1 AND isnotnull(last_upload_time) AND (_time - last_upload_time) <= 900
+      | eval duration=_time - last_upload_time
       | table _time, host, clientip, method, uri_path, uri_query, status, bytes, useragent, referer, duration
 
   # Emulation, not atomic (T1505.003's Atomic Red Team test only xcopy's a
