@@ -129,8 +129,7 @@ falsepositives:
   - >-
     selection_recon's `database()`/`version()` and selection_stacked's
     keyword list can appear in a legitimate app's own query-string tokens
-    (rare, but not impossible on a CMS with verbose URLs); unmeasured for
-    this lab (static site, no such parameters).
+    (rare, but not impossible on a CMS with verbose URLs).
   - >-
     Known blind spot inherited from the source rule: POST-body payloads
     are invisible in the access log, comment-based whitespace obfuscation

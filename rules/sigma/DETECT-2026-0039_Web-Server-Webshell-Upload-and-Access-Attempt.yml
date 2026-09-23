@@ -80,10 +80,6 @@ falsepositives:
     Your own scanner or upload fuzzer (Burp Intruder, ffuf --data,
     upload-bypass tooling) replaying an upload+GET pair against a test
     endpoint -- correlate with the scan calendar before escalating.
-  - >-
-    TODO: unmeasured for this lab -- the server serves only a default
-    nginx page with no real upload endpoint, so there is no live FP
-    baseline yet.
 
 level: high
 

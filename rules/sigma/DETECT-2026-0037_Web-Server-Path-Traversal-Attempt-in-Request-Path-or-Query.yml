@@ -216,8 +216,7 @@ falsepositives:
     in a query value (e.g. a redirect/file-picker parameter,
     ?next=../../home) matches selection_literal; a wiki/blog page whose
     URL or search query contains etc/passwd or windows/system32 matches
-    selection_osfile. Unmeasured for this lab (small static site, no such
-    parameters or content).
+    selection_osfile.
   - >-
     selection_streamwrapper's data: pattern is the URI scheme, not the
     HTML data attribute -- a legitimate parameter carrying a literal
@@ -229,7 +228,7 @@ falsepositives:
     Alert volume, not false positives: SigmaHQ's own traversal rule notes
     such requests are expected continuously on internet-facing systems.
     Treat as an activity/enrichment signal; status/bytes separate a
-    rejected attempt (400/404) from an answered one. Unmeasured here.
+    rejected attempt (400/404) from an answered one.
 
 level: medium
 

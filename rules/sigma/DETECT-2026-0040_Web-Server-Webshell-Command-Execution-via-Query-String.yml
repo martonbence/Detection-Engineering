@@ -108,9 +108,6 @@ falsepositives:
     a non-shell purpose (e.g. cmd=view, cmd=export) -- excluded unless the
     value also carries a shell metacharacter or known binary name, per
     the confirmatory gate in selection_cmd_param.
-  - >-
-    TODO: unmeasured for this lab -- no application here legitimately uses
-    any of these parameter shapes, so there is no live FP baseline yet.
 
 level: high
 

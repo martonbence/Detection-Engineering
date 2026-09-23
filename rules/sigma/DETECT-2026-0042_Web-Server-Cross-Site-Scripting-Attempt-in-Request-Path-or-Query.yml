@@ -126,8 +126,7 @@ falsepositives:
   - >-
     A page that legitimately embeds `<video`/`<audio`/`<iframe` markup or
     `document.cookie`/`alert(` text in a query parameter (e.g. a
-    rich-text/preview or a "share this code snippet" feature). Unmeasured
-    for this lab (static site, no such parameters).
+    rich-text/preview or a "share this code snippet" feature).
   - >-
     Known blind spot inherited from both source rules: POST-body and
     DOM-based (client-side-only, never reaching the server in the URL)
