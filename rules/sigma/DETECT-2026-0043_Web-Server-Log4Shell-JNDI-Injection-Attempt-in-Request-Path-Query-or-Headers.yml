@@ -200,10 +200,7 @@ detection:
         - '/nessus}'
 
   condition: >
-    selection_sourcetype and (
-      selection_core or selection_encoded or selection_obfuscated or
-      selection_base64
-    ) and not filter_nessus
+    selection_sourcetype and (selection_core or selection_encoded or selection_obfuscated or selection_base64) and not filter_nessus
 
 fields:
   - _time

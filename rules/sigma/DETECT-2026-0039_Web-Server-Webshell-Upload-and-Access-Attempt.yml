@@ -103,24 +103,6 @@ custom:
     earliest: "-30m"
     latest: "now"
     severity: high
-
-    # Carry-forward join, not transaction: is_upload_event/is_access_event
-    # mark each half; non-matching rows eval to null() so last() skips
-    # them and keeps carrying the most recent prior upload's _time
-    # forward. Splunk's own "Use stats with eval expressions and
-    # functions" doc gives this exact shape as a worked example --
-    # `dc(eval(if(status=404, clientip, NULL())))` -- and states the
-    # NULL() branch "filters out non-matching values from the
-    # calculation, excluding them from the result" rather than resetting
-    # it; this repo's own last()/latest() reading of that same
-    # null-exclusion rule is corroborated by multiple independent Splunk
-    # Community/Answers threads on last()/latest() specifically (see
-    # references). current=f means the carried value is from strictly
-    # *before* the current row, per Splunk's streamstats docs
-    # ("current=false: uses the field value from the previous event") --
-    # so an upload event's own row never counts as a match for itself.
-    # sort 0 _time (ascending, uncapped) so "last seen so far" means "most
-    # recent prior in time" within each clientip+uri_path group.
     raw_query: >-
       index=main sourcetype=access_combined
       | eval uri_path_lc=lower(uri_path)
