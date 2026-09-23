@@ -224,17 +224,6 @@ custom:
     latest: "now"
     severity: medium
 
-  # Emulation, not atomic (T1595.002 has no Atomic Red Team test); the
-  # rule keys on the log line, so one request per tool with the UA set by
-  # curl -A is the minimal repro. Runner: native curl on linux-victim via
-  # PowerShell Invoke-Expression (run_atomic_linux.ps1). Requests must be
-  # ordinary (a 400 logs UA as "-", which would never match).
-  #
-  # pass_fail_eval.py caps matched events at 10/rule; the set below is
-  # exactly 10 (7 of selection_scanner_ua's 9 substrings -- feroxbuster/
-  # and Wfuzz/ left out; both exploit-tool UAs; 1 of the six new groups,
-  # acunetix). Every other 2026-09-23 addition has no CI request --
-  # checked offline against the rendered SPL only.
   testing:
     enabled: true
     runner: linux-victim

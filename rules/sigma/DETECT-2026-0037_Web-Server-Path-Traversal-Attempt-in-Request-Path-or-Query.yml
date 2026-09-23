@@ -242,20 +242,6 @@ custom:
     latest: "now"
     severity: medium
 
-  # Emulation, not atomic (no Atomic Red Team test for HTTP traversal
-  # probing); the rule keys on the log line, so a plain request is the
-  # minimal repro. Runner: native curl --path-as-is on linux-victim via
-  # PowerShell Invoke-Expression (run_atomic_linux.ps1) -- --path-as-is
-  # stops curl collapsing /../ before it sends; a 400/404 is expected and
-  # is exactly the signal the rule fires on.
-  #
-  # pass_fail_eval.py caps matched events at 10/rule; the set below is
-  # exactly 10 (one per selection group x path/query = 8, plus 2 for
-  # nullbyte/streamwrapper). selection_windrive has no CI request at all
-  # -- budget exhausted, checked offline against the rendered SPL only.
-  # Several other branches (backslash/%5C forms, ....//, double-encoded,
-  # overlong-UTF-8, most OS-file names) were likewise validated manually
-  # against live Splunk on 2026-09-20 or offline only, not repeated here.
   testing:
     enabled: true
     runner: linux-victim
