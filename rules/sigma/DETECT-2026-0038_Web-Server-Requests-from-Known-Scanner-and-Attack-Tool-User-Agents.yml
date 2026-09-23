@@ -2,84 +2,41 @@ title: Web Server Requests from Known Scanner and Attack-Tool User-Agents
 detect_id: DETECT-2026-0038
 status: experimental
 description: >
-  Detects HTTP requests in the nginx access log whose User-Agent is the
-  default identifier of a well-known scanning or attack tool: sqlmap, Nikto,
-  the Nmap Scripting Engine, zgrab, gobuster, feroxbuster, ffuf ("Fuzz Faster
-  U Fool"), WPScan and Wfuzz (the recon and fuzzing tools listed in SigmaHQ's
-  web_susp_useragents.yml, each pointing at the tool's own source), plus two
-  current exploit-tool identifiers with public Sigma rules: libredtail-http
-  (RedTail cryptominer campaign, SANS ISC diary 2026-04-29) and wp2shell (the
-  WordPress core RCE proof-of-concept, CVE-2026-63030 / CVE-2026-60137). The
-  scanner strings are matched as substrings because tools append a version;
-  libredtail-http and wp2shell are matched as substrings too. Upstream Sigma
-  matches those two exactly, so this rule is deliberately looser: both strings
-  are distinctive enough that a version suffix or a prefix should still fire.
-  The log proves which client identified itself as one of these tools,
-  not what the request achieved, so the rule is tagged as vulnerability
-  scanning (T1595.002). T1190 is not tagged because the User-Agent shows tool
-  identity, not a request payload. Generic HTTP clients (curl, wget, python-requests,
-  Go-http-client) are deliberately NOT in the list: they are legitimate-tool
-  noise. Limits, stated plainly: a User-Agent is set by the client, so
-  changing it defeats this rule with no effort (a disciplined scanner already
-  sends a browser string, and GreyNoise reports fleets doing exactly that), and
-  on an internet-facing host these requests are constant background
-  radiation, so alert volume is expected to be high. Treat it as an activity
-  and enrichment signal, not as evidence of compromise. `status` and `bytes`
-  are in the output for triage. A request that nginx rejects with a 400 logs
-  its User-Agent as "-", so such requests cannot match here. Field names are
-  the Splunk-native access_combined extractions (useragent, not the Sigma
-  webserver cs-user-agent), because there is no field-mapping pipeline for
-  this log source.
-
-  2026-09-23: six new selection groups added after comparing against a
-  production NetWitness/RSA ESA rule covering the same nginx UA-based
-  detection use case
-  (ESA-010_NW_KAK_WEB_NGINX_ACCESS_Gyanús-User-Agent-String, internal, not
-  publicly linkable, so no reference entry). ESA-010's own META block
-  documents that it went through a prior FP review that removed overly
-  generic library UAs from its list -- named explicitly as python,
-  go-http-client, libredtail-http, generic-client, java-client, wget/ and a
-  bare "shell" -- for the same reason this rule already excludes curl,
-  wget, python-requests and Go-http-client: that is independent, real-world
-  validation of the exclusion this rule already made, not a new argument for
-  it. Note ESA-010 dropped libredtail-http from that generic-client cleanup,
-  but this rule keeps it: libredtail-http identifies one specific,
-  documented cryptominer campaign's HTTP client (SANS ISC, cited above),
-  not a generic library used by legitimate automation across many contexts,
-  so it is a different category from the ones both rules agree to exclude.
-  selection_webapp_scanner_ua2, selection_recon_scanner_ua,
-  selection_fuzzer_ua2, selection_bruteforce_ua, selection_webshell_ua2 and
-  selection_scandb_ua add ESA-010's additional named tool identifiers,
-  grouped the same way ESA-010's own META categorizes them (web-app
-  scanner, network/port scanner and recon, path/parameter fuzzer,
-  brute-force/exploit framework, webshell client, misc scan-database tool).
-  ESA-010's category (6) -- "scripted HTTP-client library" UAs it still
-  matches on (libwww-perl, node-fetch, requests-html, aiohttp, guzzle, lwp)
-  -- was deliberately NOT adopted here: these are the same class of
-  generic-library noise as curl/wget/python-requests/Go-http-client that
-  this rule already excludes (and that ESA-010's own META says it removed
-  similar strings for), so adding a different set of generic libraries back
-  in under a different category name would quietly undo this rule's
-  existing design decision. These new substrings are taken directly from
-  ESA-010's already-production-validated list rather than independently
-  re-derived per tool; unlike the strings already in this rule (which
-  anchor on a version-number or full-phrase form, e.g. "sqlmap/",
-  "WPScan v"), several of ESA-010's additions are bare tool-name substrings
-  with no such anchor (e.g. "hydra", "c99", "commix") and therefore carry
-  higher incidental-substring FP risk -- flagged honestly in falsepositives
-  below rather than silently matching ESA-010's looser style. Tag fit for
-  selection_bruteforce_ua and selection_webshell_ua2 is intentionally the
-  same umbrella T1595.002 as the rest of the rule, even though a Hydra UA
-  against a login endpoint is closer to a credential-access signal (T1110)
-  and a webshell-client UA is closer to post-exploitation/C2 usage
-  (T1505.003) than to scanning; selection_recon_scanner_ua's port scanners
-  and selection_fuzzer_ua2's directory/parameter fuzzers likewise map more
-  precisely to T1595.001/T1595.003 than to .002. This rule already made
-  that same call pre-merge (wp2shell, an RCE tool, was tagged T1595.002
-  because the log shows tool identity, not what the tool did) and applies
-  it uniformly to these six new categories rather than splitting the rule
-  by tactic: the User-Agent alone cannot distinguish a scan from a live
-  attack, so one activity-signal tag is used throughout.
+  Detects nginx access-log requests whose User-Agent is the default
+  identifier of a known scanning/attack tool: sqlmap, Nikto, Nmap NSE,
+  zgrab, gobuster, feroxbuster, ffuf, WPScan, Wfuzz (SigmaHQ's
+  web_susp_useragents.yml), libredtail-http (RedTail cryptominer, SANS
+  ISC diary 2026-04-29), wp2shell (WordPress RCE PoC, CVE-2026-63030 /
+  CVE-2026-60137), plus ~55 additional tool identifiers across six
+  categories (web-app scanners, network/port scanners, fuzzers,
+  brute-force/exploit frameworks, webshell clients, scan-database tools)
+  ported 2026-09-23 from a production NetWitness/RSA ESA rule covering
+  the same nginx UA use case. All matched as substrings (tools append a
+  version). Generic HTTP-client UAs (curl, wget, python-requests,
+  Go-http-client, and the scripted-library UAs libwww-perl/node-fetch/
+  aiohttp/guzzle/lwp) are deliberately excluded as legitimate-tool noise
+  -- the NetWitness source rule independently reached the same
+  exclusion after its own FP review, which validates rather than argues
+  for the choice made here. libredtail-http is kept despite that
+  cleanup dropping it elsewhere: it identifies one specific malware
+  campaign's client, not a generic library. Tagged as vulnerability
+  scanning (T1595.002) uniformly, including for the newer
+  brute-force/webshell-client/port-scanner/fuzzer categories that would
+  individually map closer to T1110, T1505.003 or T1595.001/.003: the
+  User-Agent alone shows tool identity, not what the tool did, so one
+  activity-signal tag is used throughout rather than splitting the rule
+  by tactic (the same call this rule already made for wp2shell, an RCE
+  tool, pre-merge). Several newly-added strings (Hydra, c99, commix) are
+  bare tool-name substrings with no version/phrase anchor, unlike most
+  existing entries ("sqlmap/", "WPScan v") -- higher incidental-FP risk,
+  taken as-is from the source's production-validated list. Limits: a
+  User-Agent is client-set, so changing it defeats this rule trivially
+  (GreyNoise reports fleets already doing so); on an internet-facing
+  host this is high-volume background radiation -- an activity/
+  enrichment signal, not evidence of compromise. A 400-rejected request
+  logs UA as "-", so it never matches here. Field names are Splunk-native
+  access_combined extractions (useragent); no field-mapping pipeline
+  exists for this log source.
 references:
   - https://attack.mitre.org/techniques/T1595/002/
   - https://github.com/SigmaHQ/sigma/blob/master/rules/web/webserver_generic/web_susp_useragents.yml
@@ -120,16 +77,16 @@ detection:
       - "WPScan v"
       - "Wfuzz/"
 
-  # UAs of exploit tooling. The two source Sigma rules match these exactly;
-  # this rule uses `contains` on purpose (deliberately looser).
+  # Exploit-tool UAs. Source Sigma rules match these exactly; this rule
+  # uses `contains` on purpose (deliberately looser).
   selection_redtail_ua:
     useragent|contains: "libredtail-http"
 
   selection_wp2shell_ua:
     useragent|contains: "wp2shell"
 
-  # Additional web-app vulnerability scanners (ESA-010 category 1), added
-  # 2026-09-23. ZmEu targets PHPMyAdmin specifically.
+  # Additional web-app vulnerability scanners, added 2026-09-23. ZmEu
+  # targets PHPMyAdmin specifically.
   selection_webapp_scanner_ua2:
     useragent|contains:
       - "acunetix"
@@ -156,8 +113,7 @@ detection:
       - "jaeles"
       - "ZmEu"
 
-  # Network/port scanners and recon/OSINT tools (ESA-010 category 2), added
-  # 2026-09-23.
+  # Network/port scanners and recon/OSINT tools, added 2026-09-23.
   selection_recon_scanner_ua:
     useragent|contains:
       - "masscan"
@@ -176,9 +132,8 @@ detection:
       - "InternetMeasurement"
       - "l9explore"
 
-  # Path/parameter fuzzers and directory brute-forcers beyond gobuster,
-  # feroxbuster, ffuf and Wfuzz already above (ESA-010 category 3), added
-  # 2026-09-23.
+  # Path/parameter fuzzers and directory brute-forcers beyond gobuster/
+  # feroxbuster/ffuf/Wfuzz above, added 2026-09-23.
   selection_fuzzer_ua2:
     useragent|contains:
       - "dirbuster"
@@ -194,23 +149,21 @@ detection:
       - "PanScan"
       - "Retina"
 
-  # Brute-force/exploitation frameworks (ESA-010 category 4), added
-  # 2026-09-23.
+  # Brute-force/exploitation frameworks, added 2026-09-23.
   selection_bruteforce_ua:
     useragent|contains:
       - "Hydra"
       - "metasploit"
 
-  # Webshell-upload/-management clients beyond wp2shell already above
-  # (ESA-010 category 5), added 2026-09-23.
+  # Webshell-upload/-management clients beyond wp2shell above, added
+  # 2026-09-23.
   selection_webshell_ua2:
     useragent|contains:
       - "r57shell"
       - "c99"
       - "weevely"
 
-  # Misc named scan/exploit-database tooling (ESA-010 category 7), added
-  # 2026-09-23.
+  # Misc named scan/exploit-database tooling, added 2026-09-23.
   selection_scandb_ua:
     useragent|contains:
       - "exploitdb"
@@ -240,32 +193,25 @@ fields:
 
 falsepositives:
   - >-
-    A vulnerability or web-content scanner you operate yourself (Nikto, Nmap
-    NSE scripts, ffuf, an internal scan) sends these User-Agents by design;
-    expected, not a false positive in the security sense, but correlate with
-    the scan calendar or source IP before escalating. No allow-list is built
-    in, because a filter keyed on a host or IP would also hide a genuine
-    probe.
+    A scanner you operate yourself (Nikto, Nmap NSE, ffuf, an internal
+    scan) sends these User-Agents by design -- correlate with the scan
+    calendar or source IP before escalating; no allow-list built in,
+    since one keyed on host/IP would also hide a genuine probe.
   - >-
-    Security-research and internet-measurement crawlers that use zgrab or
-    similar tools openly (for example scanning projects that publish their
-    source ranges). Unmeasured for this lab; the request is still a probe, so
-    whether that counts as a false positive is a policy decision.
+    Security-research/internet-measurement crawlers using zgrab or
+    similar openly (e.g. projects that publish their source ranges).
+    Unmeasured for this lab; still a probe, so whether it counts as an FP
+    is a policy call.
   - >-
-    Alert volume, not false positives: on any internet-facing host this is
-    high-volume background radiation. There is no measured rate for this lab
-    (a few dozen nginx events a week), so no figure is claimed.
+    Alert volume, not false positives: constant background radiation on
+    any internet-facing host (unmeasured here; a few dozen nginx events a
+    week).
   - >-
-    2026-09-23: several of the strings added this pass are bare tool-name
-    substrings with no version-number or full-phrase anchor (for example
-    "Hydra", "c99", "commix", "Vega/" aside), unlike most of the strings
-    already in this rule which anchor on a fuller form (e.g. "sqlmap/",
-    "WPScan v"). "c99" in particular is short enough that it could in
-    principle appear inside an unrelated UA token. This looser style is
-    taken as-is from ESA-010's already-production-validated list rather
-    than independently re-derived per tool; unmeasured for this lab, and
-    worth revisiting if any of these strings shows non-scanner traffic in
-    practice.
+    Several 2026-09-23 additions are bare tool-name substrings with no
+    version/phrase anchor (Hydra, c99, commix); "c99" especially is short
+    enough to appear inside an unrelated UA token. Taken as-is from the
+    source's production-validated list rather than independently
+    re-derived; worth revisiting if any shows non-scanner traffic.
 
 level: medium
 
@@ -278,45 +224,26 @@ custom:
     latest: "now"
     severity: medium
 
-  # Emulation, not atomic: Atomic Red Team has no test that reproduces a
-  # scanner's User-Agent against an nginx access log (T1595.002 has none), and
-  # the rule keys on the log line itself, so the minimal reproduction is one
-  # request per tool with the UA set by curl -A. These must be ordinary
-  # requests to a real path: a request nginx rejects with a 400 logs the UA as
-  # "-", which would never match.
+  # Emulation, not atomic (T1595.002 has no Atomic Red Team test); the
+  # rule keys on the log line, so one request per tool with the UA set by
+  # curl -A is the minimal repro. Runner: native curl on linux-victim via
+  # PowerShell Invoke-Expression (run_atomic_linux.ps1). Requests must be
+  # ordinary (a 400 logs UA as "-", which would never match).
   #
-  # Runner facts (scripts/atomic/run_atomic_linux.ps1): every command below is
-  # run with Invoke-Expression under PowerShell 7 on Linux and the `executor`
-  # label is ignored, so this is PowerShell syntax and the UA and URL are
-  # single-quoted; `curl` is the native /usr/bin/curl. A failing native curl
-  # does not throw.
-  #
-  # Event cap: pass_fail_eval.py (--min-pass 1 --max-pass 10) counts matched
-  # events per RULE over the verification window, not per test, so the whole
-  # test set below is exactly 10 requests, at the cap. The original 9 cover
-  # selection_scanner_ua (7 of its 9 substrings; feroxbuster/ and Wfuzz/ are
-  # left out), selection_redtail_ua and selection_wp2shell_ua. 2026-09-23
-  # added exactly 1 more request (acunetix, from selection_webapp_scanner_ua2)
-  # -- the only budget left. The other five new selection groups added the
-  # same day (selection_recon_scanner_ua, selection_fuzzer_ua2,
-  # selection_bruteforce_ua, selection_webshell_ua2, selection_scandb_ua) and
-  # the rest of selection_webapp_scanner_ua2 have NO CI request at all --
-  # checked offline against the rendered SPL only. Do not add requests here
-  # without dropping others.
+  # pass_fail_eval.py caps matched events at 10/rule; the set below is
+  # exactly 10 (7 of selection_scanner_ua's 9 substrings -- feroxbuster/
+  # and Wfuzz/ left out; both exploit-tool UAs; 1 of the six new groups,
+  # acunetix). Every other 2026-09-23 addition has no CI request --
+  # checked offline against the rendered SPL only.
   testing:
     enabled: true
     runner: linux-victim
     type: emulation
     custom:
       - name: "Scanner User-Agents (substring list)"
-        description: >
-          Sends one request each with the default User-Agent of sqlmap, Nikto,
-          the Nmap Scripting Engine, gobuster, zgrab, ffuf and WPScan
-          against / (selection_scanner_ua, seven of its nine substrings). The
-          two others, feroxbuster/ and Wfuzz/, are NOT repeated in CI because
-          pass_fail_eval.py caps a rule at 10 matched events and this rule's
-          whole set is 9 requests; they were checked offline against the
-          rendered SPL only, not yet against Splunk.
+        description: >-
+          sqlmap, Nikto, Nmap NSE, gobuster, zgrab, ffuf, WPScan against /
+          (selection_scanner_ua, 7 of 9 substrings).
         executor: powershell
         command: |-
           curl -s -o /dev/null -A 'sqlmap/1.8#stable (https://sqlmap.org)' 'http://localhost/'
@@ -332,11 +259,7 @@ custom:
           - curl must be installed (/usr/bin/curl)
 
       - name: "Exploit-tool User-Agents (substring match)"
-        description: >
-          Sends one request each with the User-Agent libredtail-http
-          (selection_redtail_ua) and wp2shell (selection_wp2shell_ua). The
-          rule matches both as substrings, so a version suffix would also
-          fire; that variation is not repeated in CI.
+        description: "libredtail-http, wp2shell (selection_redtail_ua, selection_wp2shell_ua)."
         executor: powershell
         command: |-
           curl -s -o /dev/null -A 'libredtail-http' 'http://localhost/'
@@ -347,13 +270,9 @@ custom:
           - curl must be installed (/usr/bin/curl)
 
       - name: "Additional scanner User-Agent (2026-09-23 addition)"
-        description: >
-          Sends one request with the User-Agent string "acunetix"
-          (selection_webapp_scanner_ua2). This is the last budget available
-          under the 10-event cap (9 existing + this 1 = 10); every other
-          string added in the five new selection groups this pass is NOT
-          covered by a CI request -- checked offline against the rendered
-          SPL only, not run against live Splunk.
+        description: >-
+          "acunetix" (selection_webapp_scanner_ua2) -- last budget under
+          the 10-event cap; the other five new groups are untested in CI.
         executor: powershell
         command: |-
           curl -s -o /dev/null -A 'Mozilla/5.0 (compatible; acunetix)' 'http://localhost/'

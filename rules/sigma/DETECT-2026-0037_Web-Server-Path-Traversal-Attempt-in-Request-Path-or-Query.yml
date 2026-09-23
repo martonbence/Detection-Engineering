@@ -2,69 +2,28 @@ title: Web Server Path Traversal Attempt in Request Path or Query
 detect_id: DETECT-2026-0037
 status: experimental
 description: >
-  Detects HTTP requests in the nginx access log that carry directory-traversal
-  sequences (two or more consecutive ../ segments, in literal, percent-encoded,
-  double-encoded or ..;/ form, or the ....// filter-bypass form) or that name a
-  well-known operating-system file
-  (etc/passwd, etc/shadow, proc/self/environ, win.ini, boot.ini,
-  windows/system32), in either the request path (uri_path) or the query string
-  (uri_query). Both fields are checked on purpose: the community SigmaHQ rule
-  web_path_traversal_exploitation_attempt.yml inspects only the query string
-  and a query-string-only pattern list, but a traversal that escapes the web root is
-  rejected by nginx with a 400 and logged raw with the whole traversal string
-  in uri_path, so a query-only rule never sees the most common outcome.
-  Traversal placed in the query string is served normally (200 or 404) and
-  lands in uri_query. The rule fires on the attempt regardless of status,
-  including 400, and does not use user agent or referer: on a 400 nginx does
-  not parse headers, so both are logged as "-". `status` and `bytes` are in
-  the output for triage; a traversal request answered with 200 and a non-zero
-  size is the case to look at first. nginx logs the request line as sent,
-  without percent-decoding, so the encoded forms are matched literally
-  (matching is case-insensitive, so %2E and %2F match as well). Request bodies
-  and headers (Cookie, X-Forwarded-*) are not visible in this log.
-  Backslash forms appear in the log escaped as \x5C (nginx default
-  log escaping) or as %5C. A single ../ segment is deliberately not enough on
-  its own: a lone relative path in a query value is a normal application
-  pattern, and two consecutive segments or an OS-file target is the evidence
-  used to separate the two. This is an attempt-only signal (T1190); the access
-  log cannot show whether a vulnerable application answered. Field names are
-  the Splunk-native access_combined extractions (uri_path and uri_query, not
-  the Sigma webserver cs-uri-stem and cs-uri-query), because there is no
-  field-mapping pipeline for this log source.
-
-  2026-09-23: three categories added after comparing against a production
-  NetWitness/RSA ESA rule covering the same nginx traversal use case
-  (ESA-069_NW_KAK_WEB_NGINX_ACCESS_Directory-Traversal, internal, not
-  publicly linkable, so no reference entry). selection_nullbyte covers
-  null-byte injection (%00) used to defeat extension-based filters
-  (upload.php%00.jpg-style bypasses); matched as the traversal marker
-  immediately followed by %00 rather than %00 alone, because a bare %00
-  substring with no traversal context is too weak a signal on its own and
-  would fire on unrelated encoded-NUL noise. selection_streamwrapper covers
-  PHP stream-wrapper and protocol-handler abuse (php://filter, php://input,
-  php://data, phar://, zip://, data:, expect://, file:///) used for local/
-  remote file inclusion rather than plain relative-path traversal; kept
-  under this same rule and under T1190 because it is still exploitation
-  delivered via the web request, just a different LFI/RFI primitive than a
-  ../ sequence, and ESA-069 tags it under the identical MITRE techniques
-  (T1190/T1083) as its traversal categories. selection_windrive covers
-  Windows absolute drive-letter paths (c:\, c%3a%5c and the d: equivalents)
-  used against IIS/Windows-backed apps proxied behind this nginx. ESA-069's
-  drive-letter pattern is a generic `\b[a-z]:` regex; Sigma's `contains`
-  modifier here cannot express a word-boundary regex, so this rule narrows
-  the coverage to the C: and D: drives specifically (the ones actually
-  targeted in real LFI/path-disclosure probes), the same "curated known
-  target" style selection_osfile already uses rather than a raw regex. This
-  is a real coverage limitation, not just a stylistic choice: any other
-  drive letter (E:\, F:\, ...) is NOT covered by selection_windrive.
-  ESA-069's result_code IN ('200','201') gate was deliberately NOT adopted:
-  this rule already argues (above) that nginx most commonly answers a
-  traversal attempt with a 400, not a 200/201, so gating on success codes
-  would miss the most common real case; that reasoning is unchanged and
-  applies equally to the three new categories. ESA-069's extra sensitive-file
-  targets (/etc/hosts, .ssh/id_rsa, .git/config, system32/drivers/etc/hosts)
-  were not folded into selection_osfile -- out of scope for this pass, which
-  only covers the three categories above.
+  Detects nginx access-log requests carrying directory-traversal
+  sequences (../ literal, percent-encoded, double-encoded, ..;/
+  semicolon-bypass, ....// filter-bypass), well-known OS file targets
+  (etc/passwd, win.ini, windows/system32, etc.), null-byte injection
+  near a traversal marker, PHP stream-wrapper/protocol abuse
+  (php://filter, phar://, zip://, data:, expect://, file:///) and
+  Windows absolute drive-letter paths. The last is narrowed to C:/D:
+  only: Sigma's `contains` can't express a word-boundary regex, so other
+  drive letters (E:, F:, ...) are not covered. Checks both uri_path and
+  uri_query -- unlike the SigmaHQ community rule, which checks only the
+  query string: a traversal that escapes webroot is rejected by nginx
+  with a 400 and logged raw in uri_path, so a query-only rule misses the
+  most common real outcome. Fires regardless of HTTP status for that
+  reason. Attempt-only signal (T1190); status/bytes are in the output so
+  a 200 with bytes>0 can be triaged first. nginx logs the request line
+  raw/undecoded, so encoded forms are matched literally
+  (case-insensitive); backslash appears escaped as \x5C. A single ../ is
+  not enough on its own (normal in legit query values) -- two consecutive
+  segments, or an OS-file/stream-wrapper/drive-letter target, is the bar.
+  Field names are Splunk-native access_combined extractions
+  (uri_path/uri_query); no field-mapping pipeline exists for this log
+  source.
 references:
   - https://attack.mitre.org/techniques/T1190/
   - https://github.com/SigmaHQ/sigma/blob/master/rules/web/webserver_generic/web_path_traversal_exploitation_attempt.yml
@@ -89,13 +48,9 @@ detection:
   selection_sourcetype:
     sourcetype: access_combined
 
-  # Each group below is a list of two maps (OR): the same patterns are tried
-  # against the request path and against the query string.
-
-  # Two consecutive literal ../ or ..\ segments. nginx escapes a literal
-  # backslash in the log as \x5C. ....// and ..//..// are the filter-bypass
-  # forms (a filter that strips ../ once leaves ../ behind); ....// is a
-  # single hop by nature, so it is the one pattern here that is not doubled.
+  # Each group is a list of two maps (OR): same patterns tried against
+  # uri_path and uri_query. ....// is a single hop by nature, so it's
+  # the one literal pattern not doubled.
   selection_literal:
     - uri_path|contains:
         - '../../'
@@ -108,9 +63,8 @@ detection:
         - '....//'
         - '..//..//'
 
-  # Two consecutive encoded segments: %2f / %5c encoded slash, %2e%2e encoded
-  # dots, the mixed .%2e/ form from CVE-2021-41773, double-encoded %252f and
-  # the overlong-UTF-8 %c0%af form.
+  # %2f/%5c encoded slash, %2e%2e encoded dots, the CVE-2021-41773 mixed
+  # form, double-encoded (%252f) and overlong-UTF-8 (%c0%af) variants.
   selection_encoded:
     - uri_path|contains:
         - '..%2f..%2f'
@@ -142,9 +96,8 @@ detection:
     - uri_query|contains:
         - '..;/..;/'
 
-  # Well-known OS files, with or without traversal in front of them. Each
-  # pattern carries its directory (etc/passwd, not passwd) so a bare word such
-  # as "passwd" in a page name does not match.
+  # Directory required in each pattern (etc/passwd, not passwd) so a
+  # bare word in a page name doesn't match.
   selection_osfile:
     - uri_path|contains:
         - 'etc/passwd'
@@ -177,12 +130,8 @@ detection:
         - 'windows%2fsystem32'
         - 'windows%5csystem32'
 
-  # Null-byte injection near a traversal marker (%00), used to defeat
-  # extension-based upload/include filters (e.g. upload.php%00.jpg). Bare
-  # %00 alone is not matched: with no traversal context it is too weak a
-  # signal and would sweep in unrelated encoded-NUL noise, so the pattern
-  # pairs %00 with the traversal marker immediately in front of it. Added
-  # 2026-09-23 from ESA-069 (NetWitness).
+  # %00 paired with a traversal marker; bare %00 alone is too weak/noisy
+  # on its own. Added 2026-09-23 from a NetWitness ESA reference rule.
   selection_nullbyte:
     - uri_path|contains:
         - '../%00'
@@ -197,10 +146,9 @@ detection:
         - '%2e%2e%2f%00'
         - '%2e%2e%5c%00'
 
-  # PHP stream-wrapper / protocol-handler abuse for LFI/RFI: a different
-  # inclusion primitive than a ../ sequence, but still an exploitation
-  # payload delivered through the web request (T1190). Added 2026-09-23
-  # from ESA-069 (NetWitness).
+  # LFI/RFI via stream wrapper, not a ../ sequence, but still an
+  # exploitation payload delivered through the request (T1190). Added
+  # 2026-09-23.
   selection_streamwrapper:
     - uri_path|contains:
         - 'php://filter'
@@ -223,15 +171,9 @@ detection:
         - 'expect://'
         - 'file:///'
 
-  # Windows absolute drive-letter paths, targeted against IIS/Windows-backed
-  # apps proxied behind this nginx. ESA-069's own pattern is a generic
-  # `\b[a-z]:` word-boundary regex; Sigma's `contains` modifier here cannot
-  # express a word boundary, so coverage is narrowed to the C: and D: drives
-  # specifically (the ones actually seen in real LFI/path-disclosure
-  # probes), matching selection_osfile's existing "curated known target"
-  # style rather than a raw regex. Backslash is matched in its nginx-escaped
-  # form (\x5C), same convention as selection_literal. Added 2026-09-23 from
-  # ESA-069 (NetWitness).
+  # C:/D: only -- see description for the drive-letter limitation.
+  # Backslash matched in its nginx-escaped form (\x5C), same convention
+  # as selection_literal. Added 2026-09-23.
   selection_windrive:
     - uri_path|contains:
         - 'c:\x5c'
@@ -265,41 +207,29 @@ fields:
 
 falsepositives:
   - >-
-    A vulnerability scanner you operate yourself (Nessus, Nikto, nuclei, an
-    internal ASV scan) sends exactly these payloads by design; expected, not a
-    false positive in the security sense, but correlate with the scan calendar
-    or source IP before escalating. No allow-list is built in, because a
-    filter keyed on a host or IP would also hide a genuine probe.
+    A scanner you run yourself (Nessus, Nikto, nuclei, an internal ASV
+    scan) sends exactly these payloads by design -- correlate with the
+    scan calendar or source IP before escalating; no allow-list built in,
+    since one keyed on host/IP would also hide a genuine probe.
   - >-
-    Applications that legitimately pass a multi-level relative path in a query
-    value (for example a redirect or file-picker parameter such as
-    ?next=../../home) match selection_literal. Unmeasured: the lab serves a
-    small static site with no such parameters, so no real example has been
-    seen.
+    An application that legitimately passes a multi-level relative path
+    in a query value (e.g. a redirect/file-picker parameter,
+    ?next=../../home) matches selection_literal; a wiki/blog page whose
+    URL or search query contains etc/passwd or windows/system32 matches
+    selection_osfile. Unmeasured for this lab (small static site, no such
+    parameters or content).
   - >-
-    Pages that document Linux or Windows internals (a wiki or blog article
-    whose URL contains etc/passwd or windows/system32) match selection_osfile,
-    as does an on-site search box whose query lands in uri_query
-    (?q=etc/passwd). Unmeasured, and only relevant if the site hosts such
-    content or a search feature.
+    selection_streamwrapper's data: pattern is the URI scheme, not the
+    HTML data attribute -- a legitimate parameter carrying a literal
+    data: URL (e.g. an image-upload endpoint) would still match.
+    selection_windrive's c:\x5c/d:\x5c could in principle collide with an
+    unrelated path segment containing that exact substring; considered
+    unlikely but unproven for this lab.
   - >-
-    Alert volume, not false positives: SigmaHQ's own traversal rule notes such
-    requests are expected to be continuously seen on internet-facing systems,
-    so true-positive volume there is high. This rule is an activity and
-    enrichment signal; the status and bytes fields separate a rejected attempt
-    (400/404) from a request that was answered. There is no measured rate for
-    this lab.
-  - >-
-    2026-09-23: selection_streamwrapper's data: pattern is the URI scheme,
-    not the HTML data attribute or a data: URL embedded client-side; matching
-    it in uri_path/uri_query (a server-received request, not page content)
-    limits this, but a legitimate application parameter that happens to carry
-    a literal data: URL (e.g. an image-upload endpoint accepting a data URI)
-    would still match. Unmeasured for this lab. selection_windrive's c:\x5c /
-    d:\x5c patterns could in principle match a literal path segment that is
-    not drive-letter-related if some other value happens to contain that
-    exact substring; considered unlikely given the specificity of the string
-    but not proven against real traffic for this lab.
+    Alert volume, not false positives: SigmaHQ's own traversal rule notes
+    such requests are expected continuously on internet-facing systems.
+    Treat as an activity/enrichment signal; status/bytes separate a
+    rejected attempt (400/404) from an answered one. Unmeasured here.
 
 level: medium
 
@@ -312,45 +242,30 @@ custom:
     latest: "now"
     severity: medium
 
-  # Emulation, not atomic: no Atomic Red Team test exists for HTTP traversal
-  # probing of a web server's access log, and the rule keys on the log line
-  # itself, so the minimal reproduction is the request.
+  # Emulation, not atomic (no Atomic Red Team test for HTTP traversal
+  # probing); the rule keys on the log line, so a plain request is the
+  # minimal repro. Runner: native curl --path-as-is on linux-victim via
+  # PowerShell Invoke-Expression (run_atomic_linux.ps1) -- --path-as-is
+  # stops curl collapsing /../ before it sends; a 400/404 is expected and
+  # is exactly the signal the rule fires on.
   #
-  # Runner facts (scripts/atomic/run_atomic_linux.ps1): every command below is
-  # run with Invoke-Expression under PowerShell 7 on Linux and the `executor`
-  # label is ignored, so this is PowerShell syntax, URLs are single-quoted (an
-  # unquoted `;` breaks, double quotes would expand `$`), and `curl` is the
-  # native /usr/bin/curl. --path-as-is stops curl collapsing /../ before it
-  # sends. A failing native curl does not throw, so a 400 or 404 is fine and
-  # is exactly the request the rule fires on.
-  #
-  # Event cap: pass_fail_eval.py (--min-pass 1 --max-pass 10) counts matched
-  # events per RULE over the verification window, not per test, so the whole
-  # test set below is exactly 10 requests, at the cap: one per selection
-  # group for the path side and one per group for the query side (4 groups x
-  # 2 fields = 8), plus 2 more added 2026-09-23 for selection_nullbyte and
-  # selection_streamwrapper (see that test entry). selection_windrive has no
-  # CI request at all -- the budget is exhausted. Do not add requests here
-  # without dropping others.
+  # pass_fail_eval.py caps matched events at 10/rule; the set below is
+  # exactly 10 (one per selection group x path/query = 8, plus 2 for
+  # nullbyte/streamwrapper). selection_windrive has no CI request at all
+  # -- budget exhausted, checked offline against the rendered SPL only.
+  # Several other branches (backslash/%5C forms, ....//, double-encoded,
+  # overlong-UTF-8, most OS-file names) were likewise validated manually
+  # against live Splunk on 2026-09-20 or offline only, not repeated here.
   testing:
     enabled: true
     runner: linux-victim
     type: emulation
     custom:
       - name: "Literal traversal in path and query"
-        description: >
-          Requests /static/../../app/x (uri_path; nginx is expected to reject it
-          with a 400, as it did the measured web-root-escaping variants on
-          2026-09-20) and /?f=../../app/x (uri_query, served normally), each
-          chosen so that no OS-file name is present and only selection_literal
-          matches. The fuller matrix is NOT repeated in CI because
-          pass_fail_eval.py caps a rule at 10 matched events. The backslash
-          (..\x5C) and %5C branches were validated manually against live
-          Splunk on 2026-09-20 (not in CI). The ....// and ..//..// branches
-          were added after a live check that /blog/....//....//app did not
-          match, and are string-matched offline only, not re-run in Splunk;
-          they are untested in CI. Every OS-file name other than /etc/passwd
-          and /etc/shadow is likewise untested in CI.
+        description: >-
+          /static/../../app/x (uri_path, 400 expected) and
+          /?f=../../app/x (uri_query, served normally) -- no OS-file
+          name present, so only selection_literal matches.
         executor: powershell
         command: |-
           curl -s -o /dev/null --path-as-is 'http://localhost/static/../../app/x'
@@ -361,16 +276,10 @@ custom:
           - curl must be installed (/usr/bin/curl)
 
       - name: "Encoded traversal in path and query"
-        description: >
-          Requests /..%2f..%2fapp%2fx (uri_path, 400) and
-          /index.html?x=%2e%2e/%2e%2e/app/x (uri_query), no OS-file name, so
-          only selection_encoded matches. The fuller matrix is NOT repeated in
-          CI because of the 10-event cap (see the comment above). Validated
-          manually against live Splunk on 2026-09-20 (not in CI): the %5C
-          form and the uppercase-encoded forms (%2E%2E%2F, ..%2F..%2F). The
-          double-encoded (%252f), overlong-UTF-8 (%c0%af) and .%2e/ branches
-          were string-matched offline only, not run in Splunk, and are
-          untested in CI.
+        description: >-
+          /..%2f..%2fapp%2fx (uri_path) and
+          /index.html?x=%2e%2e/%2e%2e/app/x (uri_query) -- only
+          selection_encoded matches.
         executor: powershell
         command: |-
           curl -s -o /dev/null --path-as-is 'http://localhost/..%2f..%2fapp%2fx'
@@ -381,11 +290,9 @@ custom:
           - curl must be installed (/usr/bin/curl)
 
       - name: "Semicolon-style traversal in path and query"
-        description: >
-          Requests /blog/..;/..;/app/x (uri_path; 404 was observed live on
-          2026-09-20 for the /etc/passwd variant) and
-          /index.html?x=..;/..;/app/x (uri_query), with no OS-file name, so
-          only selection_semicolon matches.
+        description: >-
+          /blog/..;/..;/app/x (uri_path) and /index.html?x=..;/..;/app/x
+          (uri_query) -- only selection_semicolon matches.
         executor: powershell
         command: |-
           curl -s -o /dev/null --path-as-is 'http://localhost/blog/..;/..;/app/x'
@@ -396,17 +303,11 @@ custom:
           - curl must be installed (/usr/bin/curl)
 
       - name: "Null-byte and stream-wrapper payloads (2026-09-23 addition)"
-        description: >
-          Requests /app/../%00x (uri_path; only selection_nullbyte matches,
-          no other selection's pattern is present) and
-          /index.html?x=php://filter/resource=index (uri_query; only
-          selection_streamwrapper matches). This is the last budget available
-          under the 10-event cap (8 existing + these 2 = 10); adding
-          anything further here requires dropping an existing request.
-          selection_windrive (c:\, c%3a%5c, d:\, d%3a%5c) is NOT covered by
-          a CI request at all -- string-matched against the rendered SPL
-          offline only, not run against live Splunk, same as several
-          untested branches already documented above.
+        description: >-
+          /app/../%00x (uri_path, selection_nullbyte only) and
+          /index.html?x=php://filter/resource=index (uri_query,
+          selection_streamwrapper only). Last budget under the 10-event
+          cap; selection_windrive has no CI request at all.
         executor: powershell
         command: |-
           curl -s -o /dev/null --path-as-is 'http://localhost/app/../%00x'
@@ -417,12 +318,10 @@ custom:
           - curl must be installed (/usr/bin/curl)
 
       - name: "OS-file targets in path and query"
-        description: >
-          Requests /etc/passwd (uri_path, no traversal prefix) and
-          /?file=/etc/shadow (uri_query), so only selection_osfile matches.
-          The other OS-file names (proc/self/environ, win.ini, boot.ini,
-          windows/system32 and their encoded forms) are NOT repeated in CI
-          because of the 10-event cap; checked offline only.
+        description: >-
+          /etc/passwd (uri_path, no traversal prefix) and
+          /?file=/etc/shadow (uri_query) -- only selection_osfile
+          matches.
         executor: powershell
         command: |-
           curl -s -o /dev/null --path-as-is 'http://localhost/etc/passwd'
