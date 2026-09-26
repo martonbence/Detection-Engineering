@@ -2,8 +2,8 @@
   "environments": {
     "dev": {
       "last_deploy": {
-        "at": "2026-09-26T11:25:04.215051+00:00",
-        "commit": "629fa796ba331e83a646ab2d627f4a5b11e8224a",
+        "at": "2026-09-26T11:36:47.652802+00:00",
+        "commit": "8d3c31c0f43fb14a0f4bb8e74182e61f0872a402",
         "rules": {
           "DETECT-2026-0001": {
             "at": "2026-09-12T12:23:09.439785+00:00",
@@ -176,43 +176,43 @@
             "rule_version": "1.0"
           },
           "DETECT-2026-0036": {
-            "at": "2026-09-20T19:15:02.035415+00:00",
-            "outcome": "created",
+            "at": "2026-09-26T11:36:47.652802+00:00",
+            "outcome": "updated",
             "rule_version": "1.0"
           },
           "DETECT-2026-0037": {
-            "at": "2026-09-26T10:35:10.185784+00:00",
+            "at": "2026-09-26T11:36:47.652802+00:00",
             "outcome": "updated",
             "rule_version": "1.1"
           },
           "DETECT-2026-0038": {
-            "at": "2026-09-26T10:35:10.185784+00:00",
+            "at": "2026-09-26T11:36:47.652802+00:00",
             "outcome": "updated",
             "rule_version": "1.2"
           },
           "DETECT-2026-0039": {
-            "at": "2026-09-26T11:25:04.215051+00:00",
+            "at": "2026-09-26T11:36:47.652802+00:00",
             "outcome": "updated",
             "rule_version": "1.2"
           },
           "DETECT-2026-0040": {
-            "at": "2026-09-26T10:22:44.779491+00:00",
-            "outcome": "created",
+            "at": "2026-09-26T11:36:47.652802+00:00",
+            "outcome": "updated",
             "rule_version": "1.1"
           },
           "DETECT-2026-0041": {
-            "at": "2026-09-26T10:22:44.779491+00:00",
-            "outcome": "created",
+            "at": "2026-09-26T11:36:47.652802+00:00",
+            "outcome": "updated",
             "rule_version": "1.1"
           },
           "DETECT-2026-0042": {
-            "at": "2026-09-26T10:22:44.779491+00:00",
-            "outcome": "created",
+            "at": "2026-09-26T11:36:47.652802+00:00",
+            "outcome": "updated",
             "rule_version": "1.1"
           },
           "DETECT-2026-0043": {
-            "at": "2026-09-26T10:22:44.779491+00:00",
-            "outcome": "created",
+            "at": "2026-09-26T11:36:47.652802+00:00",
+            "outcome": "updated",
             "rule_version": "1.0"
           },
           "DETECT-2026-0044": {
@@ -221,14 +221,14 @@
             "rule_version": "1.0"
           }
         },
-        "run_id": "36238719039",
-        "run_url": "https://github.com/martonbence/Detection-Engineering/actions/runs/36238719039",
+        "run_id": "36239324566",
+        "run_url": "https://github.com/martonbence/Detection-Engineering/actions/runs/36239324566",
         "totals": {
-          "updated": 1
+          "updated": 8
         }
       },
       "splunk_state": {
-        "checked_at": "2026-09-26T11:26:16.061907+00:00",
+        "checked_at": "2026-09-26T11:38:24.235812+00:00",
         "duplicate_names": 0,
         "exclude_status": [],
         "excluded": 0,
