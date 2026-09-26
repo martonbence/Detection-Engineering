@@ -24,23 +24,34 @@ from determine_changed_rules import (
     render_kv,
     render_multiline,
     rule_files_in,
+    rules_without_spl,
+    spl_path_for_rule,
 )
 
 RULE_A = "rules/sigma/DETECT-2026-0001_a.yml"
 RULE_B = "rules/sigma/DETECT-2026-0002_b.yml"
-EVERY_RULE = [RULE_A, RULE_B, "rules/sigma/DETECT-2026-0003_c.yml"]
+RULE_C = "rules/sigma/DETECT-2026-0003_c.yml"
+EVERY_RULE = [RULE_A, RULE_B, RULE_C]
 
 BASE = "1111111111111111111111111111111111111111"
 HEAD = "2222222222222222222222222222222222222222"
 ZEROS = "0000000000000000000000000000000000000000"
 
 
-def resolvers(selected=None, unverified=None, every_rule=None):
-    """Stand-ins for resolve_rule_selection.py, select_unverified.py, git ls-files."""
+def resolvers(selected=None, unverified=None, every_rule=None, missing_spl=()):
+    """Stand-ins for resolve_rule_selection.py, select_unverified.py, git ls-files,
+    and the .spl-on-disk check.
+
+    `missing_spl` names the rules whose generated .spl does *not* exist; every
+    other .spl is assumed present, which is the normal state of the repo and
+    keeps every test that predates the missing-.spl widening unaffected by it.
+    """
+    absent = {spl_path_for_rule(r) for r in missing_spl}
     return Resolvers(
         selected=lambda _rules: list(selected or []),
         unverified=lambda: list(unverified if unverified is not None else []),
         every_rule=lambda: list(every_rule if every_rule is not None else EVERY_RULE),
+        exists=lambda path: path not in absent,
     )
 
 
@@ -161,6 +172,133 @@ def test_a_near_miss_path_does_not_trigger_a_full_rebuild():
 
     assert d.mode == "changed"
     assert rebuild_all_trigger(["scripts/validate/check_test_routing.py"]) is None
+
+
+# --- the missing-.spl trigger ------------------------------------------------
+#
+# The second, independent reason to fully convert a rule, alongside the diff.
+# Real incident, 2026-09-26: a run died at the convert step before its
+# "Commit pipeline outputs to dev", leaving DETECT-2026-0039..0044 committed as
+# Sigma with no .spl. The next push touched none of them, so they were
+# classified unchanged and handed to `sigma_to_spl.py --meta-only`, which hard-
+# fails on a rule whose .spl it is supposed to leave alone but cannot find --
+# taking the whole pipeline with it. The converter's check is correct and stays;
+# these tests pin the classification so the call never reaches it.
+
+
+def test_a_rule_with_no_generated_spl_joins_the_full_conversion_set():
+    """The incident, reduced: the push touched RULE_A, RULE_C has no .spl."""
+    d = push([RULE_A], res=resolvers(missing_spl=[RULE_C]))
+
+    assert d.mode == "changed"
+    assert d.has_rules is True
+    assert d.rule_files == (RULE_A, RULE_C)
+
+
+def test_a_missing_spl_alone_is_enough_to_give_a_run_something_to_do():
+    """Not gated on the diff touching a rule file: a README-only push heals the
+    gap instead of leaving it for whichever later push happens to trip over it.
+
+    Without this, has_rules stays false, the meta-sidecar step is skipped, and
+    the repo sits in the broken state with nothing reporting it.
+    """
+    d = push(["README.md"], res=resolvers(missing_spl=[RULE_B, RULE_C]))
+
+    assert d.outcome == "ok"
+    assert d.has_rules is True
+    assert d.rule_files == (RULE_B, RULE_C)
+    assert d.changed_rule_files == ()
+
+
+def test_a_missing_spl_does_not_rewrite_the_diff_fact():
+    """changed_rule_files stays "what this push touched" (item 3.5's consumer),
+    exactly as it does when a REBUILD_ALL_FILES trigger widens the run."""
+    d = push([RULE_A], res=resolvers(missing_spl=[RULE_C]))
+
+    assert d.changed_rule_files == (RULE_A,)
+    assert d.rule_files == (RULE_A, RULE_C)
+
+
+def test_a_changed_rule_that_also_has_no_spl_is_listed_once():
+    """A brand-new rule is both -- in the diff and without a .spl. Duplicating
+    it would convert it twice and, worse, attack it twice downstream."""
+    d = push([RULE_C], res=resolvers(missing_spl=[RULE_C]))
+
+    assert d.rule_files == (RULE_C,)
+
+
+def test_all_mode_needs_no_widening_and_stays_in_ls_files_order():
+    """`all` is already every rule; adding to it could only reorder or duplicate."""
+    d = push(["scripts/convert/sigma_to_spl.py"], res=resolvers(missing_spl=[RULE_A, RULE_C]))
+
+    assert d.mode == "all"
+    assert d.rule_files == tuple(EVERY_RULE)
+
+
+def test_a_manual_selection_still_picks_up_a_rule_with_no_spl():
+    """`selected` narrows rule_files, so it is exposed to the same trap: any rule
+    outside the selection is "unchanged" to the meta-sidecar step.
+
+    Widening past what the operator named is deliberate here -- the alternative
+    is the named selection failing the whole run on an unrelated rule's missing
+    sidecar, which honours nobody's request.
+    """
+    d = dispatch(rules="DETECT-2026-0002", res=resolvers(selected=[RULE_B], missing_spl=[RULE_C]))
+
+    assert d.mode == "selected"
+    assert d.rule_files == (RULE_B, RULE_C)
+
+
+def test_an_unresolvable_selection_still_fails_before_any_widening():
+    """The strict `selected` failure is upstream of this and stays upstream: a
+    request that could not be honoured is not quietly turned into a repair run."""
+    d = dispatch(rules="DETECT-2026-9999", res=resolvers(selected=[], missing_spl=[RULE_C]))
+
+    assert d.outcome == "error"
+    assert d.exit_code == 1
+    assert d.rule_files == ()
+
+
+def test_the_missing_spl_widening_says_so_in_the_step_log():
+    """A run that widened for a reason the diff does not show has to explain
+    itself -- otherwise it reads as the scope gate misbehaving."""
+    d = push([RULE_A], res=resolvers(missing_spl=[RULE_C]))
+    log = "\n".join(d.messages)
+
+    assert "have no .spl in rules/splunk/" in log
+    assert f" - {RULE_C} (expected {spl_path_for_rule(RULE_C)})" in log
+
+
+@pytest.mark.parametrize(
+    "rule_path,spl_path",
+    [
+        ("rules/sigma/DETECT-2026-0044_x.yml", "rules/splunk/DETECT-2026-0044_x.spl"),
+        ("rules/sigma/DETECT-2026-0044_x.yaml", "rules/splunk/DETECT-2026-0044_x.spl"),
+        ("rules/sigma/DETECT-2026-0044_x.sigma.yml", "rules/splunk/DETECT-2026-0044_x.spl"),
+        ("rules/sigma/windows/DETECT-2026-0044_x.yml", "rules/splunk/DETECT-2026-0044_x.spl"),
+    ],
+)
+def test_the_spl_path_matches_the_converters_own_naming(rule_path, spl_path):
+    """Must agree with sigma_to_spl.py's output_name_for_rule() and
+    build_pipeline_bundle.py's derive_rule_basename(), including the flat
+    rules/splunk/ layout for a nested rule and the legacy .sigma.yml form.
+    Disagreeing means looking for the wrong file and widening every run forever.
+    """
+    assert spl_path_for_rule(rule_path) == spl_path
+
+
+def test_rules_without_spl_keeps_order_and_drops_blanks_and_known_rules():
+    absent = {spl_path_for_rule(RULE_A), spl_path_for_rule(RULE_C)}
+
+    assert rules_without_spl(
+        [RULE_C, "", RULE_A, RULE_B],
+        exists=lambda p: p not in absent,
+        already_selected=[RULE_A],
+    ) == (RULE_C,)
+
+
+def test_rules_without_spl_is_empty_when_every_spl_is_present():
+    assert rules_without_spl(EVERY_RULE, exists=lambda _p: True) == ()
 
 
 # --- has_base_diff -----------------------------------------------------------
