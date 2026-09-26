@@ -1,6 +1,6 @@
 title: Web Server Webshell Upload and Access Attempt
 detect_id: DETECT-2026-0039
-status: experimental
+status: stable
 description: >
   Correlates an nginx access-log webshell upload (POST to an upload-like
   path, executable/double-extension filename such as shell.php.jpg, small
