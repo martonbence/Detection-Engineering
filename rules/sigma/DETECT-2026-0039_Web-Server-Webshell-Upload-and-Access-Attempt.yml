@@ -1,0 +1,175 @@
+title: Web Server Webshell Upload and Access Attempt
+detect_id: DETECT-2026-0039
+status: stable
+description: >
+  Correlates an nginx access-log webshell upload (POST to an upload-like
+  path, executable/double-extension filename such as shell.php.jpg, small
+  or unknown response size, 200/201) with a same-clientip GET to the
+  identical URL within 15 minutes -- an upload alone is routine web
+  traffic, pairing it with the follow-up activation attempt is the actual
+  signal. Sigma's detection: block cannot express a cross-event,
+  time-windowed join (no correlation: rule type in this repo's schema --
+  checked docs/schemas/sigma_schema.json), so the real logic lives in
+  custom.splunk.raw_query, the same escape hatch DETECT-2026-0002/0003
+  use for their own correlations (those use streamstats time_window
+  threshold-counting on one event type; this rule needs a two-event
+  pairing instead). Uses a streamstats carry-forward join: eval a marker
+  to null() on non-matching rows, then `streamstats current=f
+  last(eval(...))` per clientip+uri_path carries the most recent prior
+  upload's _time onto every later row in that group, so a GET within
+  900s of the carried value is the pairing -- same streamstats family and
+  "raw_query is the fallback, not one fixed SPL shape" precedent as
+  0002/0003, just the carry-forward variant instead of
+  threshold-counting. The schedule is coupled to that 900s gap instead of
+  copying the rest of the nginx family's -5m/*/5: a scheduled search only
+  sees a pair whose two events both fall inside one window, so earliest
+  has to be at least (cron interval + the correlation gap). -30m with
+  */15 is the minimum-overlap (2x) form of that guarantee; -30m/*/5
+  satisfied it too but re-evaluated every pair on six consecutive runs.
+  Some residual duplication is inherent -- non-overlapping windows would
+  drop every pair straddling a run boundary, and custom.splunk has no
+  suppress/throttle field for Splunk-side alert throttling -- so the
+  raw_query ends with `| dedup clientip uri_path`, collapsing repeat
+  activation GETs of the same shell within a run. Replaces an earlier transaction/closed_txn draft:
+  functionally equivalent (confirmed in Bjorn's prior review) but
+  transaction is Splunk's own documented scale anti-pattern (single-
+  threaded, doesn't distribute like stats-family commands) and had zero
+  other precedent in this repo. The detection: block below is a
+  schema-required placeholder covering only the upload half and is never
+  evaluated. Ported from NetWitness
+  ESA-066's `FROM PATTERN ... timer:within(15 Min)` rule (same 15-minute
+  window, same extension/path/size gates); the extension list and
+  double-extension evasion form were cross-checked against current
+  file-upload-bypass write-ups. Three scope limits are documented in
+  falsepositives rather than papered over: the pairing needs the POST and
+  the later GET to carry an identical uri_path, the upload-directory gate
+  accepts only uploads?/files?/file-manager/tmp (so /media/, /assets/,
+  /images/ and theme folders are out of pattern), and trailing-dot/
+  null-byte extension variants are not matched. No SigmaHQ/Splunk/
+  Elastic rule covers this exact upload-then-access pairing; SigmaHQ's
+  windows webshell-strings rule and Splunk's CVE-specific webshell-access
+  analytics are single-event and were used only to sanity-check the
+  extension/path vocabulary, not the correlation shape. Tagged T1505.003
+  only -- an access-log line only shows the attempted upload and
+  reactivation, never that the uploaded file actually executed anything.
+references:
+  - https://attack.mitre.org/techniques/T1505/003/
+  - https://github.com/SigmaHQ/sigma/blob/master/rules/web/webserver_generic/web_win_webshells_in_access_logs.yml
+  - https://medium.com/@ryangcox/web-shell-upload-via-extension-blacklist-bypass-file-upload-vulnerability-f98ee877aff1
+  - https://www.acunetix.com/websitesecurity/upload-forms-threat/
+  - https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/9.4/search-commands/streamstats
+  - https://help.splunk.com/en/splunk-enterprise/search/search-manual/9.4/calculate-statistics/use-stats-with-eval-expressions-and-functions
+author: Bence Marton
+date: 2026-09-23
+modified: 2026-09-26
+version: "1.2"
+tags:
+  - attack.persistence
+  - attack.t1505.003
+
+logsource:
+  product_category: web
+  product: nginx
+  service: access
+  event_type: access_history
+
+detection:
+  # Never evaluated: schema-required placeholder, the real logic is
+  # custom.splunk.raw_query.
+  selection_sourcetype:
+    sourcetype: access_combined
+  selection_upload_attempt:
+    method: POST
+    uri_path|re: '(?i)\.(php[3457]?|phtml|phar|pht|asp|aspx|jsp|jspx|jspa|cgi|py|sh|rb|cfm|shtml)(\..+)?$'
+  condition: selection_sourcetype and selection_upload_attempt
+
+fields:
+  - _time
+  - host
+  - clientip
+  - method
+  - uri_path
+  - uri_query
+  - status
+  - bytes
+  - useragent
+  - referer
+  - duration
+
+falsepositives:
+  - >-
+    A legitimate upload feature whose stored filename happens to end in an
+    executable extension (rare, but .cgi/.pl still back some form
+    handlers) followed by the client's own confirmation GET of the file it
+    just uploaded -- a common upload-widget UX pattern.
+  - >-
+    Your own scanner or upload fuzzer (Burp Intruder, ffuf --data,
+    upload-bypass tooling) replaying an upload+GET pair against a test
+    endpoint -- correlate with the scan calendar before escalating.
+  - >-
+    Known blind spots, documented rather than fixed -- these are scope
+    limits of the pairing, not logic errors. (a) The join keys on
+    `clientip` AND an identical `uri_path`, so the POST and the follow-up
+    GET must address the exact same URL: an upload that answers 302 and
+    hands back a different (rewritten, hashed or CDN-fronted) retrieval
+    URL never pairs. (b) is_upload_dir only accepts
+    uploads?/files?/file-manager/tmp directories, so a shell dropped into
+    /media/, /assets/, /images/ or a CMS theme folder is out of pattern
+    even when the POST and GET URLs do match. (c) The extension regex
+    covers the double-extension evasion form (shell.php.jpg) but not the
+    trailing-dot (shell.php.) or null-byte (shell.php%00.jpg) variants.
+    Any of the three means no alert at all, not a late one.
+
+level: high
+
+custom:
+  splunk:
+    index: main
+    mode: alert
+    cron: "*/15 * * * *"
+    earliest: "-30m"
+    latest: "now"
+    severity: high
+    raw_query: >-
+      index=main sourcetype=access_combined
+      | eval uri_path_lc=lower(uri_path)
+      | eval is_exec_ext=if(match(uri_path_lc, "\.(php[3457]?|phtml|phar|pht|asp|aspx|jsp|jspx|jspa|cgi|py|sh|rb|cfm|shtml)(\..+)?$"), 1, 0)
+      | eval is_upload_dir=if(match(uri_path_lc, "(^|/)(uploads?|files?|file-manager|tmp)(/|$)"), 1, 0)
+      | eval is_upload_event=if(method="POST" AND is_exec_ext=1 AND is_upload_dir=1 AND (status="200" OR status="201") AND (isnull(bytes) OR bytes<5000), 1, 0)
+      | eval is_access_event=if(method="GET" AND is_exec_ext=1, 1, 0)
+      | where is_upload_event=1 OR is_access_event=1
+      | sort 0 _time
+      | streamstats current=f last(eval(if(is_upload_event=1, _time, null()))) as last_upload_time by clientip uri_path
+      | where is_access_event=1 AND isnotnull(last_upload_time) AND (_time - last_upload_time) <= 900
+      | eval duration=_time - last_upload_time
+      | dedup clientip uri_path
+      | table _time, host, clientip, method, uri_path, uri_query, status, bytes, useragent, referer, duration
+
+  # Emulation, not atomic: T1505.003's atomic only copies a webshell file
+  # to disk locally, it never issues the HTTP POST-then-GET pair this rule
+  # keys on.
+  testing:
+    enabled: true
+    runner: linux-victim
+    type: emulation
+    custom:
+      - name: "Double-extension upload followed by same-URL access"
+        description: >-
+          Plants /var/www/html/uploads/shell.php.jpg, then POSTs and GETs
+          it within the 15-min window -- exercises the full
+          upload-then-access correlation. The file is planted first
+          because nginx's default static-file location has no
+          limit_except, so a POST to an existing file is served like a GET
+          and answers 200: without the canary the upload leg would 404 and
+          never satisfy the rule's status gate.
+        executor: powershell
+        command: |-
+          mkdir -p /var/www/html/uploads
+          echo 'test' > /var/www/html/uploads/shell.php.jpg
+          curl -s -o /dev/null -X POST --data 'a=1' 'http://localhost/uploads/shell.php.jpg'
+          curl -s -o /dev/null 'http://localhost/uploads/shell.php.jpg'
+        cleanup: "rm -f /var/www/html/uploads/shell.php.jpg"
+        prerequisites:
+          - nginx must be running on linux-victim and listening on port 80
+          - curl must be installed (/usr/bin/curl)
+          - the account running the test must be able to write to /var/www/html/uploads

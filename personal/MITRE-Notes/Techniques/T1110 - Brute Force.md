@@ -86,10 +86,10 @@ Ez a taktika jól naplózott — csak nem Sysmonon, hanem a domain controller Se
 
 ## Kapcsolódó szabályok
 
-| detect_id | Szabály | Altechnika | Telemetria | Szint |
-| --------- | ------- | ---------- | ---------- | ----- |
-| [DETECT-2026-0002](https://github.com/martonbence/Detection-Engineering/blob/main/rules/sigma/DETECT-2026-0002_Windows-Password-Guessing-Excessive-Authentication-Failures-Against-a-Single-Account.yml) | Windows Password Guessing - Excessive Authentication Failures Against a Single Account | `.001` | Windows Security 4625/4771/4776 (natív, `custom.splunk.raw_query`) | medium |
-| [DETECT-2026-0003](https://github.com/martonbence/Detection-Engineering/blob/main/rules/sigma/DETECT-2026-0003_Windows-Password-Spraying-Multiple-Accounts-Single-Password-Short-Window.yml) | Windows Password Spraying - Multiple Accounts Single Password Short Window | `.003` | Windows Security 4625/4771/4776 (natív, `custom.splunk.raw_query`) | medium |
+| detect_id | Szabály | Altechnika | Telemetria | Szint | Miért szükséges |
+| --------- | ------- | ---------- | ---------- | ----- | --------------- |
+| [DETECT-2026-0002](https://github.com/martonbence/Detection-Engineering/blob/main/rules/sigma/DETECT-2026-0002_Windows-Password-Guessing-Excessive-Authentication-Failures-Against-a-Single-Account.yml) | Windows Password Guessing - Excessive Authentication Failures Against a Single Account | `.001` | Windows Security 4625/4771/4776 (natív, `custom.splunk.raw_query`) | medium | Egyetlen fiók ellen sok jelszó-próbálkozás — a klasszikus brute-force, amit ugyanarra a `TargetUserName`-re rövid időn belül felhalmozódó sikertelen hitelesítés jelez. |
+| [DETECT-2026-0003](https://github.com/martonbence/Detection-Engineering/blob/main/rules/sigma/DETECT-2026-0003_Windows-Password-Spraying-Multiple-Accounts-Single-Password-Short-Window.yml) | Windows Password Spraying - Multiple Accounts Single Password Short Window | `.003` | Windows Security 4625/4771/4776 (natív, `custom.splunk.raw_query`) | medium | Sok fiók ellen kevés (jellemzően 1) jelszó-próbálkozás forrásonként — a lockout-policy megkerülésére tervezett módszer, amit nem a fiókonkénti hibaszám, hanem egy forrásból sok fiók elleni hiba jelez. |
 
 `.004`-re még nincs szabály. Az eredeti `docs/credential-access-buildout.md` Track B terv egy közös, **0040** azonosítójú aggregációban ütemezte mindhárom altechnikát (T1110.001/.003/.004, 4625+4771+4776, `raw_query` aggregáció) egy közös pipeline-lépés után; a ténylegesen elkészült DETECT-2026-0002 és DETECT-2026-0003 ehelyett külön szabályként, önálló aggregációval (fiókonkénti hibaszám vs. forrásonkénti fiók-számosság) valósult meg — lásd mindkét sub-technika jegyzet "Kapcsolódó szabályok" szakaszát. A `.002`-re nincs és nem is tervezett szabály — lásd Detekciós lehetőség.
 

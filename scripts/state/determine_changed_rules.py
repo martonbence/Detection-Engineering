@@ -22,10 +22,11 @@
 # The split:
 #   decide()  -- pure. Takes the event name, the SHAs, the dispatch inputs and
 #                the already-computed diff; returns every output this step
-#                writes. The three rule-listing side effects it cannot avoid
-#                (resolve a manual selection, list unverified rules, list every
-#                rule) are injected as `Resolvers`, so a test hands it plain
-#                lists instead of a git repo and a Splunk-shaped world.
+#                writes. The four side effects it cannot avoid (resolve a
+#                manual selection, list unverified rules, list every rule, and
+#                ask whether a rule's generated .spl is on disk) are injected as
+#                `Resolvers`, so a test hands it plain lists instead of a git
+#                repo and a Splunk-shaped world.
 #   main()    -- the I/O half: git fetch/diff/ls-files, reading the
 #                environment, and appending to $GITHUB_OUTPUT /
 #                $GITHUB_STEP_SUMMARY in exactly the byte format the downstream
@@ -90,6 +91,10 @@ REBUILD_ALL_FILES: tuple[str, ...] = (
     "config/backends.yml",
 )
 
+# Where the converter writes, and where the "Regenerate meta sidecars for
+# unchanged rules" step expects to already find a rule's .spl.
+RULES_SPLUNK_DIR = "rules/splunk"
+
 # `all` mode's rule list. Four pathspecs because the top-level and the nested
 # case need naming separately, and both extensions are allowed by the schema.
 ALL_RULES_PATHSPECS: tuple[str, ...] = (
@@ -120,14 +125,20 @@ def eprint(msg: str) -> None:
 
 @dataclass(frozen=True)
 class Resolvers:
-    """The three "list some rules" side effects, injected so decide() stays pure.
+    """The four side effects decide() needs, injected so decide() stays pure.
 
-    main() supplies the real, subprocess-backed versions; tests supply lists.
+    main() supplies the real, subprocess/filesystem-backed versions; tests
+    supply lists and a dict-shaped world.
+
+    `exists` is the only non-listing one: it answers "is this generated file on
+    disk", and exists so the missing-.spl check in decide() does not have to
+    reach for the filesystem itself.
     """
 
     selected: Callable[[str], list[str]]
     unverified: Callable[[], list[str]]
     every_rule: Callable[[], list[str]]
+    exists: Callable[[str], bool]
 
 
 @dataclass(frozen=True)
@@ -222,6 +233,42 @@ def rebuild_all_trigger(files: Sequence[str]) -> str | None:
             if f == trigger:
                 return f
     return None
+
+
+def spl_path_for_rule(rule_path: str) -> str:
+    """rules/sigma/foo.yml -> rules/splunk/foo.spl.
+
+    The same derivation sigma_to_spl.py's output_name_for_rule() and
+    build_pipeline_bundle.py's derive_rule_basename() do, reproduced here
+    rather than imported: scripts/state/*.py has no cross-import convention
+    between slices (see build_pipeline_bundle.py's module docstring), and this
+    step in particular runs *before* the job's "Install Python deps", so it
+    cannot import sigma_to_spl.py at all -- that module imports yaml and
+    backend_config at module scope. Three sequential suffix strips, applied in
+    order, not first-match-wins, exactly like the other two copies.
+    """
+    name = rule_path.rsplit("/", 1)[-1]
+    for suffix in (".yml", ".yaml", ".sigma"):
+        if name.endswith(suffix):
+            name = name[: -len(suffix)]
+    return f"{RULES_SPLUNK_DIR}/{name}.spl"
+
+
+def rules_without_spl(
+    all_rule_files: Sequence[str],
+    *,
+    exists: Callable[[str], bool],
+    already_selected: Sequence[str] = (),
+) -> tuple[str, ...]:
+    """Committed rules with no .spl in rules/splunk/, minus what's already in.
+
+    A missing .spl is a *second, independent* reason to fully convert a rule,
+    alongside the git diff -- see the call site in decide() for the incident.
+    Order follows all_rule_files; blanks and anything already selected are
+    dropped so the caller can concatenate without dedup.
+    """
+    selected = set(already_selected)
+    return tuple(r for r in all_rule_files if r and r not in selected and not exists(spl_path_for_rule(r)))
 
 
 def decide(
@@ -326,6 +373,56 @@ def decide(
         # "process exactly what this push touched", which is that value by
         # definition, so reuse it instead of re-deriving it a second time.
         rule_files = changed_rule_files
+
+    # A rule with no .spl in rules/splunk/ is never "unchanged", whatever the
+    # diff says -- a missing .spl is a reason to fully convert on its own.
+    #
+    # Real incident, 2026-09-26, twice in one day. A dev run died at the
+    # "Convert Sigma rules to Splunk SPL" step (the pyparsing 3.3.3 transitive
+    # pin break -- see .claude/skills/pipeline-ci-gotchas section M) *before*
+    # reaching "Commit pipeline outputs to dev", so DETECT-2026-0039..0043, and
+    # in a later push DETECT-2026-0044, ended up committed as Sigma with no
+    # .spl ever generated or committed for them. The next push touched none of
+    # them, so this step classified all six as unchanged, and the "Regenerate
+    # meta sidecars for unchanged rules" step handed them to
+    # `sigma_to_spl.py --meta-only`, whose first act is to require the .spl it
+    # is supposed to leave alone:
+    #     ERROR: --meta-only requires an existing .spl, found none: ...
+    # That is the correct check -- it is the last line of defence if a .spl
+    # goes missing for some *other* reason (someone deleted one by hand), and
+    # is deliberately left in place. The bug was upstream of it, here: this
+    # step should never have routed a rule with no .spl down the meta-only
+    # path, because meta-only's whole premise is "the committed .spl is the one
+    # that ships" and there is no committed .spl to ship.
+    #
+    # Not gated on has_base_diff or on the run having touched a rule file:
+    # a README-only push widens from nothing to these rules and heals the gap,
+    # which is the point -- otherwise the repo can sit in this state
+    # indefinitely, and nothing anywhere reports that a committed rule has no
+    # deployable SPL. `all` mode is already every rule, so there is nothing to
+    # add there.
+    #
+    # Note this does widen the *deploy and attack* scope too: rule_files feeds
+    # build_pipeline_bundle.py's spl_files, which the three attack jobs and
+    # splunk_verify read. That is intended, not collateral -- a rule that was
+    # never converted was also never deployed and never verified, so it needs
+    # the full stage chain, not just a sidecar. It is self-limiting: once the
+    # .spl is committed the rule stops qualifying.
+    if mode != "all":
+        unconverted = rules_without_spl(
+            resolvers.every_rule(),
+            exists=resolvers.exists,
+            already_selected=rule_files,
+        )
+        if unconverted:
+            emit(
+                f"{len(unconverted)} committed rule(s) have no .spl in {RULES_SPLUNK_DIR}/ "
+                "-- adding to this run's full-conversion set (a missing .spl cannot be "
+                "refreshed meta-only):"
+            )
+            for f in unconverted:
+                emit(f" - {f} (expected {spl_path_for_rule(f)})")
+            rule_files = tuple(rule_files) + unconverted
 
     if not rule_files:
         summary = ""
@@ -475,7 +572,15 @@ def default_resolvers() -> Resolvers:
     def every_rule() -> list[str]:
         return _stdout_of(["git", "ls-files", *ALL_RULES_PATHSPECS])
 
-    return Resolvers(selected=selected, unverified=unverified, every_rule=every_rule)
+    def exists(path: str) -> bool:
+        # On-disk, not `git ls-files`: this mirrors the exact check the
+        # missing-.spl fix exists to keep from firing -- sigma_to_spl.py's
+        # `if not out_path.exists()` under --meta-only. In CI the checkout and
+        # the index agree, so the distinction is academic there; locally it
+        # means a debug run answers for the tree you are actually looking at.
+        return os.path.exists(path)
+
+    return Resolvers(selected=selected, unverified=unverified, every_rule=every_rule, exists=exists)
 
 
 def main(argv: list[str] | None = None) -> int:

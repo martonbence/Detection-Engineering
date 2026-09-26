@@ -38,7 +38,16 @@ existing rule's `detection:` / `custom.splunk.raw_query` changes, its
    against `personal/MITRE-Notes/Techniques/TXXXX - *.md` instead.
 4. If the technique note *also* keeps its own aggregate "Kapcsolódó
    szabályok" table across all sub-techniques (check the note itself — not
-   every technique note necessarily has one), update that row too.
+   every technique note necessarily has one), update that row too — and
+   give it a "Miért szükséges" cell (2026-09-26, main **technique**-level
+   tables only, not sub-technique tables): one short sentence on the
+   underlying mechanism/precondition the rule exploits and, briefly, what
+   the attacker gets from it — not a restatement of the rule's own logic.
+   Worked examples: `Techniques/T1003 - OS Credential Dumping.md`,
+   `Techniques/T1110 - Brute Force.md`, `Techniques/T1557 -
+   Adversary-in-the-Middle.md`. Ground the claim the same way part C
+   requires for any other note content — don't guess at a mechanism from
+   the rule's title alone.
 5. Only touch a tactic-level note's "Lefedettség ebben a repóban" prose
    when the change is real (e.g. the first rule for a previously-uncovered
    technique) — don't rewrite it for a rule that just adds another entry

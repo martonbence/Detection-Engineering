@@ -1,0 +1,38 @@
+index=main sourcetype="access_combined"
+| rex field=uri_path "(?<uri_pathMatch>(?i)union(?:\\+|%20|/\\*.*?\\*/)*(?:all(?:\\+|%20)*)?select)"
+| eval uri_pathCondition=if(isnotnull(uri_pathMatch), "true", "false")
+| rex field=uri_query "(?<uri_queryMatch>(?i)union(?:\\+|%20|/\\*.*?\\*/)*(?:all(?:\\+|%20)*)?select)"
+| eval uri_queryCondition=if(isnotnull(uri_queryMatch), "true", "false")
+| rex field=uri_path "(?<uri_pathMatch2>(?i)(?:%27|\\x27)(?:\\+|%20)*(?:or|and)(?:\\+|%20)*(?:%27|\\x27)?[a-z0-9_]+(?:%27|\\x27)?(?:\\+|%20)*(?:=|%3d)(?:\\+|%20)*(?:%27|\\x27)?[a-z0-9_]+(?:%27|\\x27)?)"
+| eval uri_pathCondition2=if(isnotnull(uri_pathMatch2), "true", "false")
+| rex field=uri_query "(?<uri_queryMatch2>(?i)(?:%27|\\x27)(?:\\+|%20)*(?:or|and)(?:\\+|%20)*(?:%27|\\x27)?[a-z0-9_]+(?:%27|\\x27)?(?:\\+|%20)*(?:=|%3d)(?:\\+|%20)*(?:%27|\\x27)?[a-z0-9_]+(?:%27|\\x27)?)"
+| eval uri_queryCondition2=if(isnotnull(uri_queryMatch2), "true", "false")
+| rex field=uri_path "(?<uri_pathMatch3>(?i)(?:%27|\\x27)(?:\\+|%20)*(?:--|%2d%2d|#|%23))"
+| eval uri_pathCondition3=if(isnotnull(uri_pathMatch3), "true", "false")
+| rex field=uri_query "(?<uri_queryMatch3>(?i)(?:%27|\\x27)(?:\\+|%20)*(?:--|%2d%2d|#|%23))"
+| eval uri_queryCondition3=if(isnotnull(uri_queryMatch3), "true", "false")
+| rex field=uri_path "(?<uri_pathMatch4>(?i)\\b(?:and|or)\\b(?:\\+|%20)+\\(?[0-9]+(?:=|%3d|<|>)\\(?[a-z0-9_]+)"
+| eval uri_pathCondition4=if(isnotnull(uri_pathMatch4), "true", "false")
+| rex field=uri_query "(?<uri_queryMatch4>(?i)\\b(?:and|or)\\b(?:\\+|%20)+\\(?[0-9]+(?:=|%3d|<|>)\\(?[a-z0-9_]+)"
+| eval uri_queryCondition4=if(isnotnull(uri_queryMatch4), "true", "false")
+| rex field=uri_path "(?<uri_pathMatch5>(?i)(?:sleep\\(|benchmark\\(|waitfor(?:\\+|%20)delay|pg_sleep\\(|dbms_pipe\\.receive_message))"
+| eval uri_pathCondition5=if(isnotnull(uri_pathMatch5), "true", "false")
+| rex field=uri_query "(?<uri_queryMatch5>(?i)(?:sleep\\(|benchmark\\(|waitfor(?:\\+|%20)delay|pg_sleep\\(|dbms_pipe\\.receive_message))"
+| eval uri_queryCondition5=if(isnotnull(uri_queryMatch5), "true", "false")
+| rex field=uri_path "(?<uri_pathMatch6>(?i)(?:extractvalue\\(|updatexml\\(|floor\\(rand\\(|exp\\(~))"
+| eval uri_pathCondition6=if(isnotnull(uri_pathMatch6), "true", "false")
+| rex field=uri_query "(?<uri_queryMatch6>(?i)(?:extractvalue\\(|updatexml\\(|floor\\(rand\\(|exp\\(~))"
+| eval uri_queryCondition6=if(isnotnull(uri_queryMatch6), "true", "false")
+| rex field=uri_path "(?<uri_pathMatch7>(?i)(?:information_schema|sysobjects|syscolumns|sys\\.tables|@@version|@@datadir|version\\(\\)|database\\(\\)))"
+| eval uri_pathCondition7=if(isnotnull(uri_pathMatch7), "true", "false")
+| rex field=uri_query "(?<uri_queryMatch7>(?i)(?:information_schema|sysobjects|syscolumns|sys\\.tables|@@version|@@datadir|version\\(\\)|database\\(\\)))"
+| eval uri_queryCondition7=if(isnotnull(uri_queryMatch7), "true", "false")
+| rex field=uri_path "(?<uri_pathMatch8>(?i)(?:;|%3b)(?:\\+|%20)*(?:drop|insert|update|delete|exec|create|alter)(?:\\+|%20))"
+| eval uri_pathCondition8=if(isnotnull(uri_pathMatch8), "true", "false")
+| rex field=uri_query "(?<uri_queryMatch8>(?i)(?:;|%3b)(?:\\+|%20)*(?:drop|insert|update|delete|exec|create|alter)(?:\\+|%20))"
+| eval uri_queryCondition8=if(isnotnull(uri_queryMatch8), "true", "false")
+| rex field=uri_path "(?<uri_pathMatch9>(?i)(?:concat\\(.{0,60}?,|group_concat\\(|0x[0-9a-f]{10,}|char\\(\\s*0x?[0-9]+\\s*(?:,|\\))))"
+| eval uri_pathCondition9=if(isnotnull(uri_pathMatch9), "true", "false")
+| rex field=uri_query "(?<uri_queryMatch9>(?i)(?:concat\\(.{0,60}?,|group_concat\\(|0x[0-9a-f]{10,}|char\\(\\s*0x?[0-9]+\\s*(?:,|\\))))"
+| eval uri_queryCondition9=if(isnotnull(uri_queryMatch9), "true", "false")
+| search method IN ("GET", "POST") uri_pathCondition="true" OR uri_queryCondition="true" OR uri_pathCondition2="true" OR uri_queryCondition2="true" OR uri_pathCondition3="true" OR uri_queryCondition3="true" OR uri_pathCondition4="true" OR uri_queryCondition4="true" OR uri_pathCondition5="true" OR uri_queryCondition5="true" OR uri_pathCondition6="true" OR uri_queryCondition6="true" OR uri_pathCondition7="true" OR uri_queryCondition7="true" OR uri_pathCondition8="true" OR uri_queryCondition8="true" OR uri_pathCondition9="true" OR uri_queryCondition9="true" NOT status="404" | table _time,host,clientip,method,uri_path,uri_query,status,bytes,useragent,referer

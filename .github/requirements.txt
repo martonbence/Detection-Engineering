@@ -51,6 +51,15 @@
 # diskcache ships a fix, pySigma's own <6.0.0 ceiling pulls it in on the next
 # bump of this file -- re-run pip-audit then and drop this comment.
 #
+# pyparsing is pinned for the same reason diskcache is: it is a transitive
+# dependency of pySigma (which itself only asks for ^3.2.5, so it was left to
+# float) and floating it bit us for real. pyparsing 3.3.3 (PyPI release,
+# 2026-09-20) breaks pySigma's condition parser on parenthesized Sigma
+# conditions -- TypeError: 'str' object is not callable at
+# sigma/conditions.py:134 -- while 3.3.2 is clean. This isn't a preventive
+# pin: it's the fix for a reproduced incident, dev run 35867237694
+# (2026-09-23).
+#
 # Deliberately NOT a full lock: transitive dependencies below these still
 # float and there are no hashes. pip-compile / --require-hashes and automated
 # version bumps belong to register item 2.11 (repo hygiene, dependabot).
@@ -61,6 +70,7 @@ pyyaml==6.0.3
 jsonschema==4.26.0
 sigma-cli==3.1.0
 pySigma==1.5.0
+pyparsing==3.3.2
 pysigma-backend-splunk==2.1.0
 requests==2.34.2
 diskcache==5.6.3

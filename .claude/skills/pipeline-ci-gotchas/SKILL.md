@@ -502,6 +502,62 @@ red X with exactly the "Multiple artifacts named github-pages... Artifact
 count is 2" error, specifically on a run's second-or-later attempt, never
 on a run's first attempt.
 
+## M — Unpinned transitive dependency drift breaks the Sigma parser
+
+**A floating transitive dependency of a pinned package can silently change
+underneath it and break conversion for any non-trivial rule — with zero
+code change on this repo's side.** Real incident, dev run `35867237694`
+(2026-09-23, head commit `6b0476e`). `prepare_validate_convert` passed
+validate/MITRE-tags/version-bump, then died at "Convert Sigma rules to
+Splunk SPL" with, once per rule:
+
+```
+File ".../sigma/conditions.py", line 134, in <listcomp>
+    arg.postprocess(detections, self, source)
+TypeError: 'str' object is not callable
+```
+
+7 of 8 rules converted in that run failed (0036, 0037, 0038, 0040, 0041,
+0042, 0043); only 0039 passed, because it's the one rule using
+`custom.splunk.raw_query` and so never reaches pySigma's condition parser
+at all. Everything downstream of the failed convert step (bundle build,
+attest, commit, deploy, all three attack jobs, verify, dashboard, promotion
+PR, Slack) skipped as a consequence — same cascade shape as section A, but
+the trigger here is a genuine upstream failure, not a gating-logic bug.
+
+**Root cause, confirmed by local reproduction, not guessed:** `.github/
+requirements.txt` pins `pySigma==1.5.0`, but pySigma's own `pyproject.toml`
+only constrains its `pyparsing` dependency to `^3.2.5` (i.e.
+`>=3.2.5,<4.0.0`) — unpinned by this repo, exactly the risk the file's own
+header comment (`54-56`) already calls out for "transitive dependencies
+below these." `pyparsing 3.3.3` was published to PyPI 2026-09-20T20:59:04Z.
+The last *successful* dev run before this one (2026-09-20T19:14:22Z, ~1h45m
+earlier) resolved `pyparsing-3.3.2`; the failing run resolved `3.3.3`.
+Installing the exact pinned toolchain locally and converting any rule with
+a parenthesized `condition:` (`sel_a and (sel_b or sel_c)`, any grouping
+shape) reproduces the identical `TypeError` under `pyparsing==3.3.3` and
+converts cleanly under `3.3.2` — confirmed both ways, not assumed. Flat
+`1 of selection_*`/`all of selection_*` conditions (no parentheses) are
+unaffected, which is why every rule predating DETECT-2026-0033 would have
+stayed silently fine. **DETECT-2026-0033 has a nested-parens condition and
+is latently affected too** — it simply wasn't in this particular run's
+diff (`determine_changed_rules.py` only reconverts changed rules), so it
+will surface the identical failure the next time it's included in a
+conversion run, with no further code change needed to trigger it.
+
+*Failure signature:* `prepare_validate_convert` green through version-bump,
+then every rule with a parenthesized `condition:` dies at the SPL-convert
+step with `TypeError: 'str' object is not callable` at
+`sigma/conditions.py:134`, on a push that touched nothing in `scripts/convert/`
+or the rule files' condition logic — the actual trigger is a new
+`pyparsing` release landing on PyPI between two runs. Check what `pip`
+actually resolved for `pyparsing` in the failing run's "Install Python deps"
+log against the last-good run's, before assuming the rule content is at
+fault. *Fix:* pin `pyparsing` explicitly in `.github/requirements.txt`
+(register the pin, don't just bump past the symptom) — same discipline
+already applied to `diskcache` above for the same reason: a package this
+file doesn't install directly can still break the pipeline if left floating.
+
 ## I — Register-item citations
 
 **A bare "register item N.N" in a comment is ambiguous, and it has already

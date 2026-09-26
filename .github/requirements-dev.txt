@@ -8,7 +8,7 @@
 # Bumping these is a deliberate act with its own diff.
 
 pytest==9.1.1
-ruff==0.16.7
+ruff==0.16.8
 
 # zoneinfo (used by scripts/convert/sigma_to_spl.py for Europe/Budapest)
 # relies on the IANA tzdata being available somewhere. Linux distros and CI
@@ -19,4 +19,4 @@ ruff==0.16.7
 # "supposed" to be red. tzdata's stdlib backport picks the OS copy first and
 # only falls back to this one, so pinning it here is a no-op on platforms
 # that already have it.
-tzdata==2026.3
+tzdata==2026.4
