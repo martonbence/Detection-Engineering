@@ -1,0 +1,8 @@
+index=main sourcetype="access_combined" method="GET" status="200"
+| rex field=uri_query "(?<uri_queryMatch>(?i)=(?:whoami|uname|wget|curl|python3?|perl|ruby|ssh|ncat|socat|telnet|chmod|mkfifo)(?:\\+|%20|%2520|&|%26|;|%3b|$))"
+| eval uri_queryCondition=if(isnotnull(uri_queryMatch), "true", "false")
+| rex field=uri_query "(?<uri_queryMatch2>(?i)(?:php(?:\\+|%20|%2520)-r|nc(?:\\+|%20|%2520)-|bash(?:\\+|%20|%2520)-i|sh(?:\\+|%20|%2520)-c|cat(?:\\+|%20|%2520)/etc/|base64(?:\\+|%20|%2520)-d|openssl(?:\\+|%20|%2520)s_client))"
+| eval uri_queryCondition2=if(isnotnull(uri_queryMatch2), "true", "false")
+| rex field=uri_query "(?<uri_queryMatch3>(?i)(?:cmd|exec|command)=(?:[a-z0-9_\\-%./]*(?:;|\\||`|\\$\\(|%3b|%7c|%60|%24%28)|(?:[a-z0-9_\\-%./]*[^a-z0-9])?(?:whoami|uname|wget|curl|python3?|perl|ruby|ssh|ncat|socat|telnet|nc|bash|sh|cat|base64|chmod|mkfifo|openssl)(?:\\+|%20|%2520|&|%26|;|%3b|\\||%7c|/|$)))"
+| eval uri_queryCondition3=if(isnotnull(uri_queryMatch3), "true", "false")
+| search uri_queryCondition="true" OR uri_queryCondition2="true" OR uri_queryCondition3="true" OR uri_query IN ("*eval(*", "*system(*", "*/dev/tcp/*", "*/etc/passwd*") | table _time,host,clientip,method,uri_path,uri_query,status,bytes,useragent,referer

@@ -1,0 +1,38 @@
+index=main sourcetype="access_combined"
+| rex field=uri_path "(?<uri_pathMatch>(?i)(?:<|%3c)(?:\\+|%20)*script)"
+| eval uri_pathCondition=if(isnotnull(uri_pathMatch), "true", "false")
+| rex field=uri_query "(?<uri_queryMatch>(?i)(?:<|%3c)(?:\\+|%20)*script)"
+| eval uri_queryCondition=if(isnotnull(uri_queryMatch), "true", "false")
+| rex field=uri_path "(?<uri_pathMatch2>(?i)\\bon(?:error|load|mouseover|mouseout|focus|blur|click|change|submit)(?:\\+|%20)*(?:=|%3d))"
+| eval uri_pathCondition2=if(isnotnull(uri_pathMatch2), "true", "false")
+| rex field=uri_query "(?<uri_queryMatch2>(?i)\\bon(?:error|load|mouseover|mouseout|focus|blur|click|change|submit)(?:\\+|%20)*(?:=|%3d))"
+| eval uri_queryCondition2=if(isnotnull(uri_queryMatch2), "true", "false")
+| rex field=uri_path "(?<uri_pathMatch3>(?i)javascript(?::|%3a))"
+| eval uri_pathCondition3=if(isnotnull(uri_pathMatch3), "true", "false")
+| rex field=uri_query "(?<uri_queryMatch3>(?i)javascript(?::|%3a))"
+| eval uri_queryCondition3=if(isnotnull(uri_queryMatch3), "true", "false")
+| rex field=uri_path "(?<uri_pathMatch4>(?i)(?:<|%3c)(?:\\+|%20)*(?:img|svg|iframe|body|input|video|audio|marquee)\\b)"
+| eval uri_pathCondition4=if(isnotnull(uri_pathMatch4), "true", "false")
+| rex field=uri_query "(?<uri_queryMatch4>(?i)(?:<|%3c)(?:\\+|%20)*(?:img|svg|iframe|body|input|video|audio|marquee)\\b)"
+| eval uri_queryCondition4=if(isnotnull(uri_queryMatch4), "true", "false")
+| rex field=uri_path "(?<uri_pathMatch5>(?i)(?:document\\.(?:cookie|write|location|domain)|window\\.location))"
+| eval uri_pathCondition5=if(isnotnull(uri_pathMatch5), "true", "false")
+| rex field=uri_query "(?<uri_queryMatch5>(?i)(?:document\\.(?:cookie|write|location|domain)|window\\.location))"
+| eval uri_queryCondition5=if(isnotnull(uri_queryMatch5), "true", "false")
+| rex field=uri_path "(?<uri_pathMatch6>(?i)(?:eval\\(|atob\\(|unescape\\(|decodeuricomponent\\(|string\\.fromcharcode\\(|settimeout\\(|setinterval\\())"
+| eval uri_pathCondition6=if(isnotnull(uri_pathMatch6), "true", "false")
+| rex field=uri_query "(?<uri_queryMatch6>(?i)(?:eval\\(|atob\\(|unescape\\(|decodeuricomponent\\(|string\\.fromcharcode\\(|settimeout\\(|setinterval\\())"
+| eval uri_queryCondition6=if(isnotnull(uri_queryMatch6), "true", "false")
+| rex field=uri_path "(?<uri_pathMatch7>(?i)\\b(?:alert|confirm|prompt)\\()"
+| eval uri_pathCondition7=if(isnotnull(uri_pathMatch7), "true", "false")
+| rex field=uri_query "(?<uri_queryMatch7>(?i)\\b(?:alert|confirm|prompt)\\()"
+| eval uri_queryCondition7=if(isnotnull(uri_queryMatch7), "true", "false")
+| rex field=uri_path "(?<uri_pathMatch8>(?i)(?:%22|\\x22|%27|\\x27)(?:\\+|%20)*(?:>|%3e)(?:<|%3c))"
+| eval uri_pathCondition8=if(isnotnull(uri_pathMatch8), "true", "false")
+| rex field=uri_query "(?<uri_queryMatch8>(?i)(?:%22|\\x22|%27|\\x27)(?:\\+|%20)*(?:>|%3e)(?:<|%3c))"
+| eval uri_queryCondition8=if(isnotnull(uri_queryMatch8), "true", "false")
+| rex field=uri_path "(?<uri_pathMatch9>(?i)(?:&|%26)(?:lt|#0*60|#x0*3c);?.{0,10}script)"
+| eval uri_pathCondition9=if(isnotnull(uri_pathMatch9), "true", "false")
+| rex field=uri_query "(?<uri_queryMatch9>(?i)(?:&|%26)(?:lt|#0*60|#x0*3c);?.{0,10}script)"
+| eval uri_queryCondition9=if(isnotnull(uri_queryMatch9), "true", "false")
+| search method IN ("GET", "POST") uri_pathCondition="true" OR uri_queryCondition="true" OR uri_pathCondition2="true" OR uri_queryCondition2="true" OR uri_pathCondition3="true" OR uri_queryCondition3="true" OR uri_pathCondition4="true" OR uri_queryCondition4="true" OR uri_pathCondition5="true" OR uri_queryCondition5="true" OR uri_pathCondition6="true" OR uri_queryCondition6="true" OR uri_pathCondition7="true" OR uri_queryCondition7="true" OR uri_pathCondition8="true" OR uri_queryCondition8="true" OR uri_pathCondition9="true" OR uri_queryCondition9="true" NOT status="404" | table _time,host,clientip,method,uri_path,uri_query,status,bytes,useragent,referer
