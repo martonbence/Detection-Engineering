@@ -1,6 +1,6 @@
 title: Web Server Cross-Site Scripting Attempt in Request Path or Query
 detect_id: DETECT-2026-0042
-status: experimental
+status: stable
 description: >
   Detects nginx access-log GET/POST requests on any status except 404
   whose request path or query string carries one of nine reflected-XSS

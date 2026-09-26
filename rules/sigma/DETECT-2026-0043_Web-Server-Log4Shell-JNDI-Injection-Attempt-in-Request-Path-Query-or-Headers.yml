@@ -1,6 +1,6 @@
 title: Web Server Log4Shell JNDI Injection Attempt in Request Path, Query, or Headers
 detect_id: DETECT-2026-0043
-status: experimental
+status: stable
 description: >
   Detects the `${jndi:...}` lookup syntax used to exploit Log4Shell
   (CVE-2021-44228) and its known obfuscation forms across four nginx
