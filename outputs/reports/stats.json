@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-09-26T08:57:00.936815+00:00",
+  "generated_at": "2026-09-26T10:22:36.012450+00:00",
   "total_rules": 40,
   "total_sigma_rules": 40,
   "total_compiled_sigma_rules": 36,
-  "total_splunk_rules": 34,
+  "total_splunk_rules": 40,
   "total_native_spl_rules": 4,
   "verified_pass": 11,
   "verified_fail": 1,
