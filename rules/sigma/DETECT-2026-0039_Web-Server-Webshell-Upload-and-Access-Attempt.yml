@@ -157,16 +157,27 @@ custom:
         description: >-
           Plants /var/www/html/uploads/shell.php.jpg, then POSTs and GETs
           it within the 15-min window -- exercises the full
-          upload-then-access correlation. The file is planted first
-          because nginx's default static-file location has no
-          limit_except, so a POST to an existing file is served like a GET
-          and answers 200: without the canary the upload leg would 404 and
-          never satisfy the rule's status gate.
+          upload-then-access correlation. Real nginx answers a bare POST
+          to a static-file location with 405 (confirmed against nginx
+          trac #1161, not a lab misconfiguration), so linux-victim carries
+          a TEST-ONLY location block (`location ~ ^/uploads/`, added
+          2026-09-26) that returns 201 for POST without touching the
+          file -- without it the upload leg never satisfies the rule's
+          status gate. The 1s sleep between the two requests is load-
+          bearing: nginx's access log has 1-second timestamp resolution,
+          and the raw_query's streamstats carry-forward depends on the
+          POST sorting strictly before the GET -- back-to-back requests
+          can land in the same second, where sort order between ties is
+          not guaranteed, silently producing 0 events despite both
+          requests having actually happened in the right order (observed
+          2026-09-26: same rule, same test, PASS at 11:25 and FAIL at
+          11:37 with no code change in between).
         executor: powershell
         command: |-
           mkdir -p /var/www/html/uploads
           echo 'test' > /var/www/html/uploads/shell.php.jpg
           curl -s -o /dev/null -X POST --data 'a=1' 'http://localhost/uploads/shell.php.jpg'
+          sleep 1
           curl -s -o /dev/null 'http://localhost/uploads/shell.php.jpg'
         cleanup: "rm -f /var/www/html/uploads/shell.php.jpg"
         prerequisites:
