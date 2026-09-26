@@ -1,16 +1,16 @@
 {
   "detect_id": "DETECT-2026-0039",
   "title": "Web Server Webshell Upload and Access Attempt",
-  "verdict": "FAIL",
-  "reason": "Too few events: 0 (min expected: 1)",
+  "verdict": "PASS",
+  "reason": "Event count 1 within expected range [1–10]",
   "disabled": false,
-  "event_count": 0,
+  "event_count": 1,
   "min_pass": 1,
   "max_pass": 10,
-  "earliest": "1790422565",
+  "earliest": "1790423986",
   "latest": "now",
-  "run_timestamp": "2026-09-26T11:37:58.663087+00:00",
+  "run_timestamp": "2026-09-26T12:01:17.639791+00:00",
   "rule_version": "1.2",
-  "git_sha": "8d3c31c0f43fb14a0f4bb8e74182e61f0872a402",
-  "run_id": "36239324566"
+  "git_sha": "aa7099fb3e2f28546dd6f868d12068ae07a692ad",
+  "run_id": "36240535856"
 }
