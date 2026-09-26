@@ -418,8 +418,8 @@
     },
     {
       "date": "2026-09-26",
-      "timestamp": "2026-09-26T10:36:33.935724+00:00",
-      "git_sha": "78106feb44ad907fde23905bcd8f7c2a5f759b5e",
+      "timestamp": "2026-09-26T11:26:16.299574+00:00",
+      "git_sha": "2809bcaefee693b2070e78c38d29a54d2a9bcf02",
       "total_rules": 40,
       "total_sigma_rules": 40,
       "total_native_spl_rules": 4

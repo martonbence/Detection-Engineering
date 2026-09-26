@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-09-26T10:36:33 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
+  "description": "Auto-generated detection coverage. 2026-09-26T11:26:16 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
   "filters": {
     "platforms": [
       "Windows",
@@ -267,16 +267,10 @@
     {
       "techniqueID": "T1505.003",
       "color": "#2EA44F",
-      "comment": "⚠ 1 of 2 covering rule(s) FAILED verification\nDETECT-2026-0039: Web Server Webshell Upload and Access Attempt (FAIL)\nDETECT-2026-0040: Web Server Webshell Command Execution via Query String (PASS)",
+      "comment": "DETECT-2026-0039: Web Server Webshell Upload and Access Attempt (PASS)\nDETECT-2026-0040: Web Server Webshell Command Execution via Query String (PASS)",
       "enabled": true,
       "score": 100,
-      "showSubtechniques": true,
-      "metadata": [
-        {
-          "name": "Failing rules",
-          "value": "DETECT-2026-0039"
-        }
-      ]
+      "showSubtechniques": true
     },
     {
       "techniqueID": "T1059.004",
