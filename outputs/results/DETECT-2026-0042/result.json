@@ -7,10 +7,10 @@
   "event_count": 4,
   "min_pass": 1,
   "max_pass": 10,
-  "earliest": "1790422565",
+  "earliest": "1790423301",
   "latest": "now",
-  "run_timestamp": "2026-09-26T11:37:58.663087+00:00",
+  "run_timestamp": "2026-09-26T11:50:09.593007+00:00",
   "rule_version": "1.1",
-  "git_sha": "8d3c31c0f43fb14a0f4bb8e74182e61f0872a402",
-  "run_id": "36239324566"
+  "git_sha": "5b1a5f4788f5d9b924536f78ba7d165e2392b09b",
+  "run_id": "36239792567"
 }
