@@ -1,6 +1,6 @@
 title: Network Sniffing Tool and Windows Native Packet Capture Execution
 detect_id: DETECT-2026-0044
-status: stable
+status: experimental
 description: >
   Detects execution of network packet-capture tooling on a monitored Windows
   host, covering both third-party sniffers and Windows' own built-in capture
