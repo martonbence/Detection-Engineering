@@ -1,6 +1,6 @@
 title: Web Server Webshell Command Execution via Query String
 detect_id: DETECT-2026-0040
-status: experimental
+status: stable
 description: >
   Detects nginx access-log GET requests with HTTP 200 whose query string
   carries a Linux post-exploitation command artifact -- a likely
