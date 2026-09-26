@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-09-26T07:25:20 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
+  "description": "Auto-generated detection coverage. 2026-09-26T08:57:00 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
   "filters": {
     "platforms": [
       "Windows",
@@ -251,7 +251,7 @@
     {
       "techniqueID": "T1190",
       "color": "#2EA44F",
-      "comment": "DETECT-2026-0037: Web Server Path Traversal Attempt in Request Path or Query (PASS)\nDETECT-2026-0041: Web Server SQL Injection Attempt in Request Path or Query (N/A)\nDETECT-2026-0042: Web Server Cross-Site Scripting Attempt in Request Path or Query (N/A)\nDETECT-2026-0043: Web Server Log4Shell JNDI Injection Attempt in Request Path, Query, or Headers (N/A)",
+      "comment": "DETECT-2026-0037: Web Server Path Traversal Attempt in Request Path or Query (PASS)\nDETECT-2026-0041: Web Server SQL Injection Attempt in Request Path or Query (N/A)\nDETECT-2026-0043: Web Server Log4Shell JNDI Injection Attempt in Request Path, Query, or Headers (N/A)",
       "enabled": true,
       "score": 100,
       "showSubtechniques": true
@@ -276,6 +276,22 @@
       "techniqueID": "T1059.004",
       "color": "#6E7681",
       "comment": "DETECT-2026-0040: Web Server Webshell Command Execution via Query String (N/A)",
+      "enabled": true,
+      "score": 25,
+      "showSubtechniques": true
+    },
+    {
+      "techniqueID": "T1189",
+      "color": "#6E7681",
+      "comment": "DETECT-2026-0042: Web Server Cross-Site Scripting Attempt in Request Path or Query (N/A)",
+      "enabled": true,
+      "score": 25,
+      "showSubtechniques": true
+    },
+    {
+      "techniqueID": "T1040",
+      "color": "#6E7681",
+      "comment": "DETECT-2026-0044: Network Sniffing Tool and Windows Native Packet Capture Execution (N/A)",
       "enabled": true,
       "score": 25,
       "showSubtechniques": true
