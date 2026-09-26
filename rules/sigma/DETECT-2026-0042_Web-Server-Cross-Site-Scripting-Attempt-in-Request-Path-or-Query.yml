@@ -2,8 +2,9 @@ title: Web Server Cross-Site Scripting Attempt in Request Path or Query
 detect_id: DETECT-2026-0042
 status: experimental
 description: >
-  Detects nginx access-log GET/POST requests with status 200/201 whose
-  request path or query string carries one of nine reflected-XSS shapes:
+  Detects nginx access-log GET/POST requests on any status except 404
+  whose request path or query string carries one of nine reflected-XSS
+  shapes:
   script-tag injection (<script), event-handler injection (onerror=/
   onload=/onclick= etc.), javascript: URI scheme, dangerous HTML tags
   (<img/<svg/<iframe/<body/<input/<video/<audio/<marquee), DOM-exfil
@@ -25,21 +26,37 @@ description: >
   React/Vue/Angular SPAs per current WAF-bypass research, is invisible
   here). Checks both uri_path and uri_query, unlike the SigmaHQ rule
   (query only) and the NetWitness source (single combined url field).
-  Gated on 200/201 rather than SigmaHQ's 404: a deliberate choice to
-  target requests that actually reached the application, not the
-  rejected ones.
+  Status handling matches SigmaHQ's rule: 404 is excluded and nothing else
+  is. An earlier 200/201 allow-list was replaced 2026-09-26 because it
+  contradicted the uri_path half of this same rule -- the reason uri_path
+  is checked at all is that nginx answers a malformed payload with a 400
+  before the application sees it, and an allow-list that omits 400
+  discards exactly those requests -- and because it dropped the 403/302
+  answers scanners routinely collect at no gain in precision.
+  Tagged T1189 (Drive-by Compromise), not T1190: ATT&CK's own T1189 page
+  names cross-site scripting as a delivery form ("Built-in web
+  application interfaces that allow user-controllable content are
+  leveraged for the insertion of malicious scripts or iFrames (e.g.,
+  cross-site scripting)") and draws the boundary at whose software is
+  exploited -- T1189 targets a client endpoint on visiting the page,
+  T1190 targets the server-side application. Reflected XSS lands
+  squarely on the client-side side of that line, which is also why
+  SigmaHQ's own web_xss_in_access_logs.yml carries attack.t1189 while its
+  sibling SQLi rule carries attack.t1190. The sibling rules here
+  (DETECT-2026-0041 SQLi, 0037 traversal, 0043 Log4Shell) keep T1190
+  because those payloads do exploit the server.
 references:
-  - https://attack.mitre.org/techniques/T1190/
+  - https://attack.mitre.org/techniques/T1189/
   - https://github.com/SigmaHQ/sigma/blob/master/rules/web/webserver_generic/web_xss_in_access_logs.yml
   - https://portswigger.net/web-security/cross-site-scripting/cheat-sheet
   - https://cybersecuritynews.com/wafs-protection-bypassed/
 author: Bence Marton
 date: 2026-09-23
-modified: 2026-09-23
-version: "1.0"
+modified: 2026-09-26
+version: "1.1"
 tags:
   - attack.initial_access
-  - attack.t1190
+  - attack.t1189
 
 logsource:
   product_category: web
@@ -54,10 +71,8 @@ detection:
     method:
       - GET
       - POST
-  selection_status:
-    status:
-      - "200"
-      - "201"
+  filter_notfound:
+    status: "404"
 
   selection_script_tag:
     - uri_path|re: '(?i)(?:<|%3c)(?:\+|%20)*script'
@@ -71,8 +86,6 @@ detection:
     - uri_path|re: '(?i)javascript(?::|%3a)'
     - uri_query|re: '(?i)javascript(?::|%3a)'
 
-  # Opening bracket required directly before the tag name -- a bare
-  # "video"/"audio" in a param value does not match.
   selection_dangerous_tag:
     - uri_path|re: '(?i)(?:<|%3c)(?:\+|%20)*(?:img|svg|iframe|body|input|video|audio|marquee)\b'
     - uri_query|re: '(?i)(?:<|%3c)(?:\+|%20)*(?:img|svg|iframe|body|input|video|audio|marquee)\b'
@@ -98,12 +111,12 @@ detection:
     - uri_query|re: '(?i)(?:&|%26)(?:lt|#0*60|#x0*3c);?.{0,10}script'
 
   condition: >
-    selection_sourcetype and selection_method and selection_status and (
+    selection_sourcetype and selection_method and (
       selection_script_tag or selection_event_handler or
       selection_js_uri or selection_dangerous_tag or selection_dom_exfil or
       selection_js_exec or selection_poc_alert or selection_attr_breakout or
       selection_entity_encoded
-    )
+    ) and not filter_notfound
 
 fields:
   - _time
@@ -136,7 +149,9 @@ falsepositives:
   - >-
     Alert volume, not false positives: XSS probing is constant background
     radiation on any internet-facing host, same as the SQLi/traversal
-    rules. Treat as an activity/enrichment signal.
+    rules. Treat as an activity/enrichment signal; only 404 is filtered,
+    so the status field in the output is what separates a rejected attempt
+    (400) or blocked one (403) from an answered 200.
 
 level: medium
 
@@ -149,16 +164,8 @@ custom:
     latest: "now"
     severity: medium
 
-  # Emulation, not atomic (T1190 has no Atomic Red Team test -- confirmed
-  # by fetching the technique's atomics YAML, which 404s). Requests target
-  # "/" (default nginx page, 200) so the status gate is satisfied without
-  # a canary file. Runner: native curl on linux-victim via PowerShell
-  # Invoke-Expression (run_atomic_linux.ps1).
-  #
-  # pass_fail_eval.py caps matched events at 10/rule; the 5 requests below
-  # cover 5 of the 9 categories. The remaining four (js_uri, dom_exfil,
-  # attr_breakout, entity_encoded) were validated manually against the
-  # rendered SPL, not repeated in CI.
+  # Emulation, not atomic: neither T1189 nor T1190 has an Atomic Red Team
+  # test (both techniques' atomics YAML 404s).
   testing:
     enabled: true
     runner: linux-victim
@@ -176,7 +183,12 @@ custom:
           - curl must be installed (/usr/bin/curl)
 
       - name: "Dangerous tag and JS-exec payloads"
-        description: "?z=<svg onload=alert(1)> (selection_dangerous_tag), ?w=eval(atob(1)) (selection_js_exec)."
+        description: >-
+          ?z=<svg onload=alert(1)> (selection_dangerous_tag),
+          ?w=eval(atob(1)) (selection_js_exec). With the first test that
+          covers 5 of the 9 categories; the remaining four (js_uri,
+          dom_exfil, attr_breakout, entity_encoded) were validated
+          manually against the rendered SPL and are not exercised in CI.
         executor: powershell
         command: |-
           curl -s -o /dev/null -G 'http://localhost/' --data-urlencode "z=<svg onload=alert(1)>"

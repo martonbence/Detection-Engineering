@@ -20,7 +20,17 @@ description: >
   900s of the carried value is the pairing -- same streamstats family and
   "raw_query is the fallback, not one fixed SPL shape" precedent as
   0002/0003, just the carry-forward variant instead of
-  threshold-counting. Replaces an earlier transaction/closed_txn draft:
+  threshold-counting. The schedule is coupled to that 900s gap instead of
+  copying the rest of the nginx family's -5m/*/5: a scheduled search only
+  sees a pair whose two events both fall inside one window, so earliest
+  has to be at least (cron interval + the correlation gap). -30m with
+  */15 is the minimum-overlap (2x) form of that guarantee; -30m/*/5
+  satisfied it too but re-evaluated every pair on six consecutive runs.
+  Some residual duplication is inherent -- non-overlapping windows would
+  drop every pair straddling a run boundary, and custom.splunk has no
+  suppress/throttle field for Splunk-side alert throttling -- so the
+  raw_query ends with `| dedup clientip uri_path`, collapsing repeat
+  activation GETs of the same shell within a run. Replaces an earlier transaction/closed_txn draft:
   functionally equivalent (confirmed in Bjorn's prior review) but
   transaction is Splunk's own documented scale anti-pattern (single-
   threaded, doesn't distribute like stats-family commands) and had zero
@@ -30,8 +40,12 @@ description: >
   ESA-066's `FROM PATTERN ... timer:within(15 Min)` rule (same 15-minute
   window, same extension/path/size gates); the extension list and
   double-extension evasion form were cross-checked against current
-  file-upload-bypass write-ups (trailing-dot and null-byte variants exist
-  too but are out of scope here -- see falsepositives). No SigmaHQ/Splunk/
+  file-upload-bypass write-ups. Three scope limits are documented in
+  falsepositives rather than papered over: the pairing needs the POST and
+  the later GET to carry an identical uri_path, the upload-directory gate
+  accepts only uploads?/files?/file-manager/tmp (so /media/, /assets/,
+  /images/ and theme folders are out of pattern), and trailing-dot/
+  null-byte extension variants are not matched. No SigmaHQ/Splunk/
   Elastic rule covers this exact upload-then-access pairing; SigmaHQ's
   windows webshell-strings rule and Splunk's CVE-specific webshell-access
   analytics are single-event and were used only to sanity-check the
@@ -47,8 +61,8 @@ references:
   - https://help.splunk.com/en/splunk-enterprise/search/search-manual/9.4/calculate-statistics/use-stats-with-eval-expressions-and-functions
 author: Bence Marton
 date: 2026-09-23
-modified: 2026-09-23
-version: "1.1"
+modified: 2026-09-26
+version: "1.2"
 tags:
   - attack.persistence
   - attack.t1505.003
@@ -60,8 +74,8 @@ logsource:
   event_type: access_history
 
 detection:
-  # Placeholder only -- covers just the upload half (one event, no
-  # cross-event join). Real correlation logic is in custom.splunk.raw_query.
+  # Never evaluated: schema-required placeholder, the real logic is
+  # custom.splunk.raw_query.
   selection_sourcetype:
     sourcetype: access_combined
   selection_upload_attempt:
@@ -92,6 +106,19 @@ falsepositives:
     Your own scanner or upload fuzzer (Burp Intruder, ffuf --data,
     upload-bypass tooling) replaying an upload+GET pair against a test
     endpoint -- correlate with the scan calendar before escalating.
+  - >-
+    Known blind spots, documented rather than fixed -- these are scope
+    limits of the pairing, not logic errors. (a) The join keys on
+    `clientip` AND an identical `uri_path`, so the POST and the follow-up
+    GET must address the exact same URL: an upload that answers 302 and
+    hands back a different (rewritten, hashed or CDN-fronted) retrieval
+    URL never pairs. (b) is_upload_dir only accepts
+    uploads?/files?/file-manager/tmp directories, so a shell dropped into
+    /media/, /assets/, /images/ or a CMS theme folder is out of pattern
+    even when the POST and GET URLs do match. (c) The extension regex
+    covers the double-extension evasion form (shell.php.jpg) but not the
+    trailing-dot (shell.php.) or null-byte (shell.php%00.jpg) variants.
+    Any of the three means no alert at all, not a late one.
 
 level: high
 
@@ -99,7 +126,7 @@ custom:
   splunk:
     index: main
     mode: alert
-    cron: "*/5 * * * *"
+    cron: "*/15 * * * *"
     earliest: "-30m"
     latest: "now"
     severity: high
@@ -108,30 +135,19 @@ custom:
       | eval uri_path_lc=lower(uri_path)
       | eval is_exec_ext=if(match(uri_path_lc, "\.(php[3457]?|phtml|phar|pht|asp|aspx|jsp|jspx|jspa|cgi|py|sh|rb|cfm|shtml)(\..+)?$"), 1, 0)
       | eval is_upload_dir=if(match(uri_path_lc, "(^|/)(uploads?|files?|file-manager|tmp)(/|$)"), 1, 0)
-      | eval is_upload_event=if(method="POST" AND is_exec_ext=1 AND is_upload_dir=1 AND status IN ("200","201") AND (isnull(bytes) OR bytes<5000), 1, 0)
+      | eval is_upload_event=if(method="POST" AND is_exec_ext=1 AND is_upload_dir=1 AND (status="200" OR status="201") AND (isnull(bytes) OR bytes<5000), 1, 0)
       | eval is_access_event=if(method="GET" AND is_exec_ext=1, 1, 0)
       | where is_upload_event=1 OR is_access_event=1
       | sort 0 _time
       | streamstats current=f last(eval(if(is_upload_event=1, _time, null()))) as last_upload_time by clientip uri_path
       | where is_access_event=1 AND isnotnull(last_upload_time) AND (_time - last_upload_time) <= 900
       | eval duration=_time - last_upload_time
+      | dedup clientip uri_path
       | table _time, host, clientip, method, uri_path, uri_query, status, bytes, useragent, referer, duration
 
-  # Emulation, not atomic (T1505.003's Atomic Red Team test only xcopy's a
-  # webshell file to disk locally -- it never issues the HTTP
-  # POST-then-GET pair this rule's raw_query keys on, so it wouldn't
-  # exercise the detection; confirmed by reading the atomic's actual
-  # command before citing it, not assumed from the technique ID). Runner:
-  # native curl on linux-victim via PowerShell Invoke-Expression
-  # (run_atomic_linux.ps1). nginx's default static-file location has no
-  # limit_except, so POST to an existing file is served like GET (200) --
-  # a canary file is planted first so the upload leg actually returns
-  # 200/201 instead of a 404 that would never satisfy the rule's status
-  # gate.
-  #
-  # pass_fail_eval.py caps matched events at 10/rule; both events below
-  # (POST+GET) fit well under that, so the full pairing runs in CI rather
-  # than being split into partial coverage like 0036-0038.
+  # Emulation, not atomic: T1505.003's atomic only copies a webshell file
+  # to disk locally, it never issues the HTTP POST-then-GET pair this rule
+  # keys on.
   testing:
     enabled: true
     runner: linux-victim
@@ -141,7 +157,11 @@ custom:
         description: >-
           Plants /var/www/html/uploads/shell.php.jpg, then POSTs and GETs
           it within the 15-min window -- exercises the full
-          upload-then-access correlation.
+          upload-then-access correlation. The file is planted first
+          because nginx's default static-file location has no
+          limit_except, so a POST to an existing file is served like a GET
+          and answers 200: without the canary the upload leg would 404 and
+          never satisfy the rule's status gate.
         executor: powershell
         command: |-
           mkdir -p /var/www/html/uploads

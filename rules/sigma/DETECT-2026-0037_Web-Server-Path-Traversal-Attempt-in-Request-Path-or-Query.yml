@@ -21,6 +21,16 @@ description: >
   (case-insensitive); backslash appears escaped as \x5C. A single ../ is
   not enough on its own (normal in legit query values) -- two consecutive
   segments, or an OS-file/stream-wrapper/drive-letter target, is the bar.
+  ....// is the one literal form listed as a single hop, since it is a
+  filter-bypass shape rather than a plain traversal pair. The
+  stream-wrapper group likewise carries no ../ sequence at all: it is
+  LFI/RFI delivery, kept in this rule because it is the same
+  request-borne T1190 exploitation attempt against the same log source.
+  That bar has a documented cost: each listed pattern encodes both hops
+  the same way, so *alternating* per-hop encodings (..%2f../,
+  ../..%2f, %2e%2e%2f..%2f, ..%5c..%2f) are a miss unless the payload
+  also names an OS file -- see falsepositives, alongside the deeper
+  double-encoding/overlong-UTF-8 limit.
   Field names are Splunk-native access_combined extractions
   (uri_path/uri_query); no field-mapping pipeline exists for this log
   source.
@@ -32,7 +42,7 @@ references:
   - https://nginx.org/en/docs/http/ngx_http_log_module.html#log_format
 author: Bence Marton
 date: 2026-09-20
-modified: 2026-09-23
+modified: 2026-09-26
 version: "1.1"
 tags:
   - attack.initial_access
@@ -48,9 +58,6 @@ detection:
   selection_sourcetype:
     sourcetype: access_combined
 
-  # Each group is a list of two maps (OR): same patterns tried against
-  # uri_path and uri_query. ....// is a single hop by nature, so it's
-  # the one literal pattern not doubled.
   selection_literal:
     - uri_path|contains:
         - '../../'
@@ -63,8 +70,6 @@ detection:
         - '....//'
         - '..//..//'
 
-  # %2f/%5c encoded slash, %2e%2e encoded dots, the CVE-2021-41773 mixed
-  # form, double-encoded (%252f) and overlong-UTF-8 (%c0%af) variants.
   selection_encoded:
     - uri_path|contains:
         - '..%2f..%2f'
@@ -89,15 +94,14 @@ detection:
         - '%252e%252e%252f%252e%252e%252f'
         - '..%c0%af..%c0%af'
 
-  # Semicolon-style bypass: /blog/..;/..;/etc/passwd
   selection_semicolon:
     - uri_path|contains:
         - '..;/..;/'
     - uri_query|contains:
         - '..;/..;/'
 
-  # Directory required in each pattern (etc/passwd, not passwd) so a
-  # bare word in a page name doesn't match.
+  # Directory prefix is required in every entry ('etc/passwd', never bare
+  # 'passwd') -- a bare filename matches ordinary page names.
   selection_osfile:
     - uri_path|contains:
         - 'etc/passwd'
@@ -130,8 +134,8 @@ detection:
         - 'windows%2fsystem32'
         - 'windows%5csystem32'
 
-  # %00 paired with a traversal marker; bare %00 alone is too weak/noisy
-  # on its own. Added 2026-09-23 from a NetWitness ESA reference rule.
+  # %00 is only ever paired with a traversal marker here -- bare %00 alone
+  # is too noisy to list.
   selection_nullbyte:
     - uri_path|contains:
         - '../%00'
@@ -146,9 +150,6 @@ detection:
         - '%2e%2e%2f%00'
         - '%2e%2e%5c%00'
 
-  # LFI/RFI via stream wrapper, not a ../ sequence, but still an
-  # exploitation payload delivered through the request (T1190). Added
-  # 2026-09-23.
   selection_streamwrapper:
     - uri_path|contains:
         - 'php://filter'
@@ -171,9 +172,6 @@ detection:
         - 'expect://'
         - 'file:///'
 
-  # C:/D: only -- see description for the drive-letter limitation.
-  # Backslash matched in its nginx-escaped form (\x5C), same convention
-  # as selection_literal. Added 2026-09-23.
   selection_windrive:
     - uri_path|contains:
         - 'c:\x5c'
@@ -224,6 +222,17 @@ falsepositives:
     selection_windrive's c:\x5c/d:\x5c could in principle collide with an
     unrelated path segment containing that exact substring; considered
     unlikely but unproven for this lab.
+  - >-
+    Known blind spot, documented rather than fixed: every pattern in
+    selection_literal/selection_encoded matches one *uniform* encoding of
+    both traversal hops, so a payload that alternates encodings between
+    hops is missed -- `..%2f../config.php`, `../..%2fconfig.php`,
+    `%2e%2e%2f..%2fconfig.php` and `..%5c..%2fconfig.php` all slip
+    through whenever the request carries no explicit OS-file name for
+    selection_osfile to catch instead. Covering the full cross-product of
+    per-hop encodings needs a regex, not Sigma's `contains`; the same
+    applies to encodings deeper than the one double-encoded (%252f) and
+    overlong-UTF-8 (%c0%af) form each listed above.
   - >-
     Alert volume, not false positives: SigmaHQ's own traversal rule notes
     such requests are expected continuously on internet-facing systems.

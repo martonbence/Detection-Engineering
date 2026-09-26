@@ -9,19 +9,29 @@ description: >
   headers were the original delivery vector, quickly followed by any
   reflected/logged request field) and the ones this repo's own web rules
   already check (0037/0040/0041/0042 all check uri_path+uri_query, 0038
-  checks useragent). Ported from SigmaHQ's
+  checks useragent). X-Api-Version itself -- and every other custom or
+  proxy header the 2021 wave abused (X-Forwarded-For, Authorization,
+  Cookie) -- is a documented blind spot rather than a covered field: this
+  repo's nginx log_format captures only the request line, User-Agent and
+  Referer, so there is no field for the rule to check. Recovering it is
+  an nginx log_format change, not a pattern change; see falsepositives.
+  Ported from SigmaHQ's
   web_cve_2021_44228_log4j.yml: four selection groups mirror its 23-entry
   keyword list -- direct `${jndi:<scheme>:/` lookups (ldap/rmi/ldaps/dns/
   nis/nds/corba/iiop), percent- and double/triple-encoded markers,
   nested `${}` substitution/default-value bypass tricks that spell out
   "jndi"/"ldap" without the literal substring, and a base64-wrapped
-  variant. The source rule's `Reference Class Name: foo` entry is excluded:
+  variant -- `${base64:JHtqbmRp`, where the magic prefix JHtqbmRp is
+  simply the base64 encoding of `${jndi`, a documented WAF-bypass form.
+  The source rule's `Reference Class Name: foo` entry is excluded:
   that string is log4j's own server-side exception output, not something a
   client ever supplies in a request field this access log captures, so it
   cannot appear in useragent/referer/uri_path/uri_query. The source rule's
   Nessus filter (its own safe validation payload, w.nessus.org/nessus or
   /nessus}) is kept as an explicit `not filter_nessus` exclusion rather than
-  silently dropped. Continued relevance per a 2026 network-telescope study
+  silently dropped -- deliberately the opposite treatment to
+  DETECT-2026-0038, which matches "Nessus" as a scanner User-Agent on
+  purpose; see falsepositives for why that split is intentional. Continued relevance per a 2026 network-telescope study
   (Dec 2021-Oct 2025): generic obfuscated JNDI probes are still
   high-volume background scanning years post-disclosure (GreyNoise
   currently tracks 100+ active scanning nodes), so this is cheap,
@@ -48,7 +58,7 @@ references:
   - https://www.greynoise.io/blog/log4shell-log4j-vulnerability-tracking-cve-2021-44228
 author: Bence Marton
 date: 2026-09-23
-modified: 2026-09-23
+modified: 2026-09-26
 version: "1.0"
 tags:
   - attack.initial_access
@@ -64,9 +74,6 @@ detection:
   selection_sourcetype:
     sourcetype: access_combined
 
-  # Direct ${jndi:<scheme>:/ lookup across the LDAP/RMI/LDAPS/DNS factories
-  # the original 2021 attacks used, plus the less common NIS/NDS/CORBA/IIOP
-  # factories SigmaHQ's rule also tracks.
   selection_core:
     - useragent|contains:
         - '${jndi:ldap:/'
@@ -105,8 +112,6 @@ detection:
         - '${jndi:corba'
         - '${jndi:iiop'
 
-  # Percent-encoded and double/triple-encoded jndi marker -- delivered
-  # through a proxy or WAF-bypass encoding layer.
   selection_encoded:
     - useragent|contains:
         - '/$%7bjndi:'
@@ -133,8 +138,6 @@ detection:
         - '%2524%257Bjndi'
         - '%2F%252524%25257Bjndi%3A'
 
-  # Nested ${} substitution / default-value bypass tricks that spell out
-  # jndi/ldap piecewise, defeating a naive "${jndi:" keyword filter.
   selection_obfuscated:
     - useragent|contains:
         - '${jndi:${lower:'
@@ -173,18 +176,12 @@ detection:
         - '${${upper:j}ndi:'
         - '${${::-j}${::-n}${::-d}${::-i}:'
 
-  # base64-wrapped jndi lookup: ${base64:...} where the encoded payload
-  # starts with JHtqbmRp, the base64 form of "${jndi" -- a documented
-  # WAF-bypass variant.
   selection_base64:
     - useragent|contains: '${base64:JHtqbmRp'
     - referer|contains: '${base64:JHtqbmRp'
     - uri_path|contains: '${base64:JHtqbmRp'
     - uri_query|contains: '${base64:JHtqbmRp'
 
-  # Nessus's own safe validation payload -- an authorized vulnerability
-  # scan fingerprints its callback host/path this way. Excluded rather
-  # than silently dropped, per the source rule.
   filter_nessus:
     - useragent|contains:
         - 'w.nessus.org/nessus'
@@ -220,13 +217,35 @@ falsepositives:
     filtered out by filter_nessus; a different scanner or a hand-rolled
     Log4Shell checker (nuclei, an internal canary script) that doesn't use
     Nessus's callback fingerprint still matches -- correlate with the scan
-    calendar or source IP before escalating.
+    calendar or source IP before escalating. Note that the same Nessus
+    scan DOES alert in DETECT-2026-0038, which matches "Nessus" as a
+    scanner User-Agent. The two rules handle it differently on purpose,
+    not inconsistently: 0038 reports tool identity (an authorized scanner
+    touching the host is still worth seeing in the activity feed), this
+    rule reports an exploitation attempt, and a scanner's own safe
+    validation probe is not one. Expect a 0038 hit with no 0043 hit for
+    the same request.
   - >-
     Known blind spot: POST-body payloads (e.g. a JSON field carrying the
     lookup string) are invisible in the access log, same limitation as
     DETECT-2026-0041's SQLi rule. nginx logs the request line and headers
-    raw/undecoded, so matching is literal and case-sensitive per Splunk's
-    default wildcard search behavior for `contains`.
+    raw/undecoded, so matching is literal -- but not case-sensitive: the
+    `contains` modifier renders as a Splunk `search` field-value
+    comparison, which is case-INsensitive (only `eval`/`where`
+    comparisons are case-sensitive), so `${JNDI:LDAP:/` and `${Jndi:`
+    casing variants of the listed strings are covered without separate
+    entries. Same behaviour DETECT-2026-0037 relies on for its encoded
+    traversal forms.
+  - >-
+    Known blind spot, second one: headers other than User-Agent and
+    Referer are not in this repo's nginx log_format at all. X-Api-Version
+    was one of the original 2021 delivery vectors (named in the
+    description) and the 2021 wave also abused X-Forwarded-For,
+    X-Real-IP, Authorization, Cookie and arbitrary custom headers -- a
+    payload delivered in any of those is invisible here, and no amount of
+    pattern work in this rule can recover it. Closing that gap is an
+    nginx log_format change, not a detection-logic change; noting it so
+    the rule's coverage is not read as "all headers".
   - >-
     Alert volume, not false positives: the network-telescope research
     behind this rule found generic obfuscated JNDI probing is still
@@ -247,15 +266,8 @@ custom:
     latest: "now"
     severity: high
 
-  # Emulation, not atomic (T1190 has no Atomic Red Team test at all --
-  # confirmed by fetching the technique's atomics YAML, which 404s, same
-  # as DETECT-2026-0041's finding for the same technique). Runner: native
-  # curl on linux-victim via PowerShell Invoke-Expression
-  # (run_atomic_linux.ps1). No status-code canary needed since this rule
-  # fires regardless of status.
-  #
-  # pass_fail_eval.py caps matched events at 10/rule; the 5 requests below
-  # cover all four selection groups well under that cap.
+  # Emulation, not atomic: T1190 has no Atomic Red Team test at all
+  # (its atomics YAML 404s).
   testing:
     enabled: true
     runner: linux-victim

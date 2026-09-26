@@ -10,13 +10,24 @@ description: >
   from (ESA-072): a webshell's exact interface and HTTP verb vary too
   much to generalize further from an access log alone. Covers three
   shapes: (1) a bare command/binary name as a parameter value, with space
-  in its `+`/%20/double-encoded %2520 forms; (2) cmd=/exec=/command=
-  gated on a confirmatory shell metacharacter or known binary in the
-  value, not the parameter name alone -- the same FP lesson the source
-  rule already learned in production (bare `id`/`sh`/`cat`/`nc` are
-  excluded, since `?id=` and `?nc=` were observed as ordinary
-  cache-busting params); (3) direct code-exec/reverse-shell indicators
+  in its `+`/%20/double-encoded %2520 forms and a mandatory terminator so
+  the name has to be the whole value rather than its prefix; (2)
+  cmd=/exec=/command= gated on a confirmatory shell metacharacter or a
+  token-anchored known binary in the value, not the parameter name alone
+  -- the same FP lesson the source rule already learned in production
+  (bare `id` stays excluded entirely, since `?id=` is an ordinary
+  cache-busting param); (3) direct code-exec/reverse-shell indicators
   (eval(, system(, /dev/tcp/, /etc/passwd) that need no confirmation.
+  Both confirmatory shapes were tightened 2026-09-26 after review found
+  two systematic FP classes: `&`/`%26` had been listed as confirmatory
+  "shell metacharacters" in (2) even though in a query string they are
+  the parameter separator (so cmd=view&page=2 confirmed itself), and the
+  binary names in both (1) and (2) were unanchored substrings that fired
+  on cmd=publish/cmd=dashboard ("sh"), cmd=finance ("nc"),
+  cmd=catalog ("cat"), auth=sshkey, pkg=perlbrew and url=curl.se. Both
+  shapes now require the binary name to be a whole token; `&` survives
+  only as a right-hand terminator, which is the value ending rather than
+  evidence of a shell.
   Cross-checked against SigmaHQ's web_win_webshells_in_access_logs.yml
   (same shape -- =whoami/=cmd style GET params -- but Windows-command
   flavored; this rule is the Linux-command counterpart Masha's nginx gap
@@ -33,8 +44,8 @@ references:
   - https://www.f5.com/labs/articles/web-shells-understanding-attackers-tools-and-techniques
 author: Bence Marton
 date: 2026-09-23
-modified: 2026-09-23
-version: "1.0"
+modified: 2026-09-26
+version: "1.1"
 tags:
   - attack.persistence
   - attack.execution
@@ -55,22 +66,19 @@ detection:
   selection_status:
     status: "200"
 
-  # Bare command/binary name as a param value, space encoded as
-  # +/%20/%2520.
+  # The trailing terminator group is mandatory, not optional: made
+  # optional it prefix-matches ordinary values (auth=sshkey, pkg=perlbrew).
   selection_cmd_keyword:
-    uri_query|re: '(?i)=(?:whoami|uname|wget|curl|python3?|perl|ruby|ssh|ncat|socat|telnet|chmod|mkfifo)(?:\+|%20|%2520)?'
-  # Multi-token forms needing the flag attached (php -r, nc -, bash -i, etc.).
+    uri_query|re: '(?i)=(?:whoami|uname|wget|curl|python3?|perl|ruby|ssh|ncat|socat|telnet|chmod|mkfifo)(?:\+|%20|%2520|&|%26|;|%3b|$)'
   selection_cmd_keyword_flag:
     uri_query|re: '(?i)(?:php(?:\+|%20|%2520)-r|nc(?:\+|%20|%2520)-|bash(?:\+|%20|%2520)-i|sh(?:\+|%20|%2520)-c|cat(?:\+|%20|%2520)/etc/|base64(?:\+|%20|%2520)-d|openssl(?:\+|%20|%2520)s_client)'
 
-  # cmd=/exec=/command= gated on a shell metachar or known binary in the
-  # value -- deliberately looser than selection_cmd_keyword, so it needs
-  # this confirmation to avoid firing on cmd=view-style admin params.
+  # & and %26 are deliberately NOT in the metacharacter branch: in a query
+  # string they are the parameter separator, so cmd=view&page=2 would
+  # confirm itself. They stay only as a right-hand value terminator.
   selection_cmd_param:
-    uri_query|re: '(?i)(?:cmd=|exec=|command=)[a-z0-9_\-%]*(?:;|\||`|&|\$\(|%3b|%7c|%60|%26|%24%28|whoami|uname|wget|curl|python|perl|ruby|ssh|ncat|socat|telnet|nc|bash|sh|cat|base64|chmod|mkfifo|openssl)'
+    uri_query|re: '(?i)(?:cmd|exec|command)=(?:[a-z0-9_\-%./]*(?:;|\||`|\$\(|%3b|%7c|%60|%24%28)|(?:[a-z0-9_\-%./]*[^a-z0-9])?(?:whoami|uname|wget|curl|python3?|perl|ruby|ssh|ncat|socat|telnet|nc|bash|sh|cat|base64|chmod|mkfifo|openssl)(?:\+|%20|%2520|&|%26|;|%3b|\||%7c|/|$))'
 
-  # No confirmation needed -- these are unambiguous code-exec/reverse-shell
-  # markers on their own.
   selection_direct_indicator:
     uri_query|contains:
       - "eval("
@@ -106,8 +114,19 @@ falsepositives:
   - >-
     An app that genuinely uses cmd=/exec=/command= as a parameter name for
     a non-shell purpose (e.g. cmd=view, cmd=export) -- excluded unless the
-    value also carries a shell metacharacter or known binary name, per
-    the confirmatory gate in selection_cmd_param.
+    value also carries a shell metacharacter or a whole-token binary name,
+    per the two confirmatory branches in selection_cmd_param. Values that
+    merely *contain* a binary name (cmd=publish, cmd=dashboard,
+    cmd=finance, cmd=catalog) and values simply followed by another
+    parameter (cmd=view&page=2) no longer confirm.
+  - >-
+    A parameter whose entire value legitimately equals a command name
+    still matches selection_cmd_keyword -- lang=python is the realistic
+    example, and it is indistinguishable from ?x=python at the access-log
+    level. Accepted for the same reason as the wiki/docs case above:
+    dropping bare command names would cost the most common real webshell
+    interaction shape. Prefix collisions (auth=sshkey, pkg=perlbrew,
+    url=curl.se, q=telnetd) are excluded by the mandatory terminator.
 
 level: high
 
@@ -120,15 +139,9 @@ custom:
     latest: "now"
     severity: high
 
-  # Emulation, not atomic (no Atomic Red Team test issues an HTTP request
-  # carrying these query-string artifacts; T1505.003's test only writes a
-  # webshell file locally). Runner: native curl on linux-victim via
-  # PowerShell Invoke-Expression (run_atomic_linux.ps1). Requests target
-  # "/" (the default nginx welcome page, 200 by design) so the rule's
-  # status=200 gate is satisfied without planting a canary file.
-  #
-  # pass_fail_eval.py caps matched events at 10/rule; the 5 requests below
-  # cover all four selections and fit well under that cap.
+  # Emulation, not atomic: no Atomic Red Team test issues an HTTP request
+  # carrying these query-string artifacts (T1505.003's only writes a
+  # webshell file to disk locally).
   testing:
     enabled: true
     runner: linux-victim
@@ -137,7 +150,9 @@ custom:
       - name: "Bare command-name and flagged-command query params"
         description: >-
           ?x=whoami (selection_cmd_keyword) and ?y=bash+-i
-          (selection_cmd_keyword_flag) against the default page.
+          (selection_cmd_keyword_flag) against the default nginx page,
+          which answers 200 and so satisfies the rule's status gate
+          without planting a canary file.
         executor: powershell
         command: |-
           curl -s -o /dev/null 'http://localhost/?x=whoami'
@@ -150,11 +165,20 @@ custom:
       - name: "Confirmed cmd= parameter and direct indicators"
         description: >-
           ?cmd=;id (selection_cmd_param, metachar-confirmed) and
-          ?f=/etc/passwd, ?x=eval( (selection_direct_indicator).
+          ?f=/dev/tcp/... , ?x=eval( (selection_direct_indicator).
+          The /dev/tcp/ payload replaced an earlier ?f=/etc/passwd one
+          (2026-09-26): /etc/passwd also matches DETECT-2026-0037's
+          selection_osfile, and since both rules run emulation tests on
+          linux-victim inside the same CI window, 0037 -- already sitting
+          at exactly 10/10 matched events, pass_fail_eval.py --max-pass's
+          ceiling -- would have gone over the cap and failed on any push
+          carrying both rules in the changed set. /dev/tcp/ exercises the
+          same selection_direct_indicator branch and matches no selection
+          in 0037 (or 0041/0042).
         executor: powershell
         command: |-
           curl -s -o /dev/null -G 'http://localhost/' --data-urlencode 'cmd=;id'
-          curl -s -o /dev/null 'http://localhost/?f=/etc/passwd'
+          curl -s -o /dev/null 'http://localhost/?f=/dev/tcp/127.0.0.1/4444'
           curl -s -o /dev/null 'http://localhost/?x=eval('
         cleanup: ""
         prerequisites:

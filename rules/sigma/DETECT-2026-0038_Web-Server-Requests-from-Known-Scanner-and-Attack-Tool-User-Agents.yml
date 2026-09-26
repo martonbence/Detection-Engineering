@@ -26,10 +26,20 @@ description: >
   User-Agent alone shows tool identity, not what the tool did, so one
   activity-signal tag is used throughout rather than splitting the rule
   by tactic (the same call this rule already made for wp2shell, an RCE
-  tool, pre-merge). Several newly-added strings (Hydra, c99, commix) are
-  bare tool-name substrings with no version/phrase anchor, unlike most
-  existing entries ("sqlmap/", "WPScan v") -- higher incidental-FP risk,
-  taken as-is from the source's production-validated list. Limits: a
+  tool, pre-merge). Three of the NetWitness-sourced strings that arrived
+  as bare tool names (commix, recon-ng, WhatWeb) were re-anchored
+  2026-09-26 to the forms SigmaHQ's own web_susp_useragents.yml uses for
+  the same tools -- "commix/", "Recon-ng/v", "WhatWeb/" -- which keeps
+  recall (all three tools emit the version separator) while dropping the
+  substring-collision risk. Hydra and c99 remain unanchored: the source
+  list has no anchored variant for them and none of the tools' own
+  defaults supply a stable separator, so they stay as-is with the
+  incidental-FP risk noted in falsepositives. Nessus is matched here on
+  purpose, while DETECT-2026-0043 explicitly filters Nessus's own JNDI
+  validation payload out -- a deliberate split, not an inconsistency:
+  this rule reports tool identity (an authorized scanner is still a
+  scanner worth seeing in the activity feed), 0043 reports an exploitation
+  attempt, and a scanner's own safe check is not one. Limits: a
   User-Agent is client-set, so changing it defeats this rule trivially
   (GreyNoise reports fleets already doing so); on an internet-facing
   host this is high-volume background radiation -- an activity/
@@ -47,8 +57,8 @@ references:
   - https://slcyber.io/research-center/wp2shell-pre-authentication-rce-in-wordpress-core/
 author: Bence Marton
 date: 2026-09-20
-modified: 2026-09-23
-version: "1.1"
+modified: 2026-09-26
+version: "1.2"
 tags:
   - attack.reconnaissance
   - attack.t1595.002
@@ -63,8 +73,6 @@ detection:
   selection_sourcetype:
     sourcetype: access_combined
 
-  # Default UA substrings of recon/fuzzing tools (SigmaHQ
-  # web_susp_useragents.yml and the tools' own source).
   selection_scanner_ua:
     useragent|contains:
       - "sqlmap/"
@@ -77,16 +85,12 @@ detection:
       - "WPScan v"
       - "Wfuzz/"
 
-  # Exploit-tool UAs. Source Sigma rules match these exactly; this rule
-  # uses `contains` on purpose (deliberately looser).
   selection_redtail_ua:
     useragent|contains: "libredtail-http"
 
   selection_wp2shell_ua:
     useragent|contains: "wp2shell"
 
-  # Additional web-app vulnerability scanners, added 2026-09-23. ZmEu
-  # targets PHPMyAdmin specifically.
   selection_webapp_scanner_ua2:
     useragent|contains:
       - "acunetix"
@@ -106,14 +110,13 @@ detection:
       - "fimap"
       - "shiro-"
       - "Havij"
-      - "commix"
+      - "commix/"
       - "sqlninja"
       - "dalfox"
       - "XSStrike"
       - "jaeles"
       - "ZmEu"
 
-  # Network/port scanners and recon/OSINT tools, added 2026-09-23.
   selection_recon_scanner_ua:
     useragent|contains:
       - "masscan"
@@ -126,14 +129,12 @@ detection:
       - "fierce"
       - "amass"
       - "Sublist3r"
-      - "recon-ng"
-      - "WhatWeb"
+      - "Recon-ng/v"
+      - "WhatWeb/"
       - "CensysInspect"
       - "InternetMeasurement"
       - "l9explore"
 
-  # Path/parameter fuzzers and directory brute-forcers beyond gobuster/
-  # feroxbuster/ffuf/Wfuzz above, added 2026-09-23.
   selection_fuzzer_ua2:
     useragent|contains:
       - "dirbuster"
@@ -149,21 +150,17 @@ detection:
       - "PanScan"
       - "Retina"
 
-  # Brute-force/exploitation frameworks, added 2026-09-23.
   selection_bruteforce_ua:
     useragent|contains:
       - "Hydra"
       - "metasploit"
 
-  # Webshell-upload/-management clients beyond wp2shell above, added
-  # 2026-09-23.
   selection_webshell_ua2:
     useragent|contains:
       - "r57shell"
       - "c99"
       - "weevely"
 
-  # Misc named scan/exploit-database tooling, added 2026-09-23.
   selection_scandb_ua:
     useragent|contains:
       - "exploitdb"
@@ -205,11 +202,21 @@ falsepositives:
     Alert volume, not false positives: constant background radiation on
     any internet-facing host.
   - >-
-    Several 2026-09-23 additions are bare tool-name substrings with no
-    version/phrase anchor (Hydra, c99, commix); "c99" especially is short
-    enough to appear inside an unrelated UA token. Taken as-is from the
-    source's production-validated list rather than independently
-    re-derived; worth revisiting if any shows non-scanner traffic.
+    Two 2026-09-23 additions are still bare tool-name substrings with no
+    version/phrase anchor (Hydra, c99); "c99" especially is short enough
+    to appear inside an unrelated UA token. Taken as-is from the source's
+    production-validated list rather than independently re-derived; worth
+    revisiting if either shows non-scanner traffic. The other three
+    unanchored entries (commix, recon-ng, WhatWeb) were re-anchored
+    2026-09-26 to SigmaHQ's forms and no longer carry this risk.
+  - >-
+    An authorized Nessus scan matches selection_webapp_scanner_ua2 here,
+    even though DETECT-2026-0043 deliberately filters Nessus's safe JNDI
+    validation payload out of its own results. The two rules answer
+    different questions on purpose -- "which tools are touching this
+    host" versus "is someone attempting Log4Shell" -- so seeing a Nessus
+    hit here and no matching 0043 alert is the intended behaviour, not a
+    coverage gap in either rule.
 
 level: medium
 
