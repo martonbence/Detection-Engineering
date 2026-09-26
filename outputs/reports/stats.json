@@ -1,52 +1,52 @@
 {
-  "generated_at": "2026-09-20T19:31:00.376736+00:00",
-  "total_rules": 34,
-  "total_sigma_rules": 34,
-  "total_compiled_sigma_rules": 31,
+  "generated_at": "2026-09-26T07:25:20.203789+00:00",
+  "total_rules": 39,
+  "total_sigma_rules": 39,
+  "total_compiled_sigma_rules": 35,
   "total_splunk_rules": 34,
-  "total_native_spl_rules": 3,
+  "total_native_spl_rules": 4,
   "verified_pass": 11,
   "verified_fail": 1,
   "verified_not_verified": 22,
   "verified_testing_disabled": 22,
   "verified_testing_disabled_current": 22,
-  "never_tested": 0,
-  "not_verified": 22,
-  "verified_stale": 0,
-  "verified_superseded": 0,
+  "never_tested": 5,
+  "not_verified": 27,
+  "verified_stale": 2,
+  "verified_superseded": 2,
   "verified_expired": 0,
-  "verified_pass_current": 11,
+  "verified_pass_current": 9,
   "verified_fail_current": 1,
-  "verified_current": 12,
-  "pass_rate_pct": 92,
+  "verified_current": 10,
+  "pass_rate_pct": 90,
   "pass_rate_color": "brightgreen",
-  "verification_current_pct": 35,
+  "verification_current_pct": 26,
   "verification_current_color": "red",
-  "confirmed_working_pct": 32,
+  "confirmed_working_pct": 23,
   "last_live_verification_at": "2026-09-20T19:15:52.866356+00:00",
   "last_live_verification_count": 3,
-  "mitre_covered_techniques": 18,
+  "mitre_covered_techniques": 19,
   "mitre_total_techniques": 222,
-  "mitre_total_fetched_at": "2026-09-15T17:57:10.591439+00:00",
-  "mitre_coverage_pct": 8.1,
+  "mitre_total_fetched_at": "2026-09-26T07:25:20.203789+00:00",
+  "mitre_coverage_pct": 8.6,
   "by_level": {
     "critical": 14,
-    "high": 10,
+    "high": 14,
     "low": 1,
-    "medium": 9
+    "medium": 10
   },
   "by_status": {
-    "experimental": 5,
+    "experimental": 10,
     "stable": 29
   },
   "by_tactic": {
     "Credential Access": 16,
-    "Execution": 14,
+    "Execution": 15,
     "Stealth": 8,
+    "Initial Access": 5,
+    "Persistence": 4,
     "Command & Control": 2,
-    "Persistence": 2,
     "Defense Impairment": 2,
-    "Initial Access": 2,
     "Reconnaissance": 2,
     "Discovery": 1,
     "Collection": 1
@@ -1770,7 +1770,7 @@
     {
       "detect_id": "DETECT-2026-0036",
       "title": "Web Server Probing for Secret, VCS and Config Files",
-      "description": "Detects HTTP requests in the nginx access log whose path targets files that should never be web-reachable: environment/secret files (/.env and its variants such as .env.production, .env.bak, /app/.env), version-control metadata (/.git/config, /.git/HEAD, /.svn/, /.hg/), credential and key directories (/.aws/credentials, /.ssh/id_rsa), client-side leftovers (/.DS_Store, /.npmrc, /.htpasswd, /.bash_history), CMS config backups (wp-config.php.bak and similar) and database or site archives (backup.sql, backup.zip, dump.sql). This is wordlist-style reconnaissance, run at scale by mass scanners -- see GreyNoise (AI-crawler impostor scanning) and CISA AA24-016A (Androxgh0st) in references. The attacker's goal is credential harvesting (T1552.001), but a request in an access log only shows the attempt, so the rule is tagged T1595.003 and not T1552.001. It fires on the attempt regardless of HTTP status: a 404 on /.env is still the signal, and `status` and `bytes` are in the output so an analyst can triage whether the file was actually served (200 with bytes > 0). The match is a curated path list and deliberately not \"any dotfile\", so /.well-known/ (ACME challenges, security.txt) and /.github/ do not match. nginx logs the request line as sent, without percent-decoding, so two illustrative encoded forms of the leading dot (%2e) are matched alongside the literal ones; deeper double-encoding is not covered. Field names are the Splunk-native access_combined extractions (uri_path, not the Sigma webserver cs-uri-stem), because there is no field-mapping pipeline for this log source.\n",
+      "description": "Detects nginx access-log requests for files that should never be web-reachable: env/secret files (/.env and variants like .env.production, /app/.env), VCS metadata (/.git/, /.svn/, /.hg/), credential/key directories (/.aws/, /.ssh/, /.docker/config.json, /.kube/config), client-side leftovers (.DS_Store, .npmrc, .htpasswd, .bash_history, .pgpass), CMS config backups (wp-config.php.bak-style) and DB/site archives (backup.sql, backup.zip, dump.sql). Wordlist-style recon run at scale by mass scanners (see GreyNoise AI-crawler-impostor scanning and CISA AA24-016A/Androxgh0st in references). Tagged T1595.003, not T1552.001: an access-log line only shows the attempt, not whether the file was served -- status/bytes (200 + bytes>0) show that. The path list is curated, deliberately not \"any dotfile\" (/.well-known/, /.github/ excluded on purpose). nginx logs the raw, undecoded request line, so two %2e-encoded leading-dot forms are matched alongside the literal ones; deeper double-encoding is not covered. Field names are Splunk-native access_combined extractions (uri_path), since there is no field-mapping pipeline for this log source.\n",
       "level": "medium",
       "status": "experimental",
       "source": "sigma",
@@ -1803,10 +1803,10 @@
         "https://github.com/SigmaHQ/sigma/blob/master/rules/web/webserver_generic/web_source_code_enumeration.yml"
       ],
       "falsepositives": [
-        "A vulnerability or web-content scanner you operate yourself (Nessus, Nikto, nuclei, an internal ASV scan) requests these exact paths by design; expected, not a false positive in the security sense, but correlate with the scan calendar or source IP before escalating. No allow-list is built in, because an allow-list keyed on a host or IP would also hide a genuine probe.",
-        "Legitimate crawlers and uptime checkers requesting a path from this list that the site really serves. The realistic case is a site that intentionally publishes one of these files (for example a public repository mirror exposing /.git/) -- then every request fires and the pattern list must be tuned to that site. Unknown for this lab: the server serves a default nginx page only.",
-        "Alert volume, not false positives: on any internet-facing host, mass scanners request /.env and /.git/config constantly, so true-positive volume is expected to be high even though false positives are rare (unmeasured; this is a guess, not a measured rate -- the lab receives only dozens of nginx events a week). Treat this rule as an activity and enrichment signal; escalation belongs to the served tier (status 200 with bytes > 0), not to the mere attempt.",
-        "TODO: broad patterns worth watching first for legitimate downloads are \"/backup.zip\", \"/site.zip\" and \"/db.sql\", which a site could offer on purpose."
+        "A scanner you run yourself (Nessus, Nikto, nuclei, an internal ASV scan) requests these exact paths by design -- correlate with the scan calendar or source IP before escalating; no allow-list built in, since one keyed on host/IP would also hide a genuine probe.",
+        "A site that intentionally serves one of these paths (e.g. a public git mirror exposing /.git/).",
+        "Alert volume, not false positives: mass scanners request /.env and /.git/config constantly on any internet-facing host, so true-positive volume is expected to be high. Treat as an activity/enrichment signal; escalation belongs to the served tier (status 200, bytes>0).",
+        "TODO: /backup.zip, /site.zip and /db.sql could be legitimate downloads on a site that offers them on purpose -- watch these first if tuning."
       ],
       "testing": {
         "enabled": true,
@@ -1821,7 +1821,7 @@
     {
       "detect_id": "DETECT-2026-0037",
       "title": "Web Server Path Traversal Attempt in Request Path or Query",
-      "description": "Detects HTTP requests in the nginx access log that carry directory-traversal sequences (two or more consecutive ../ segments, in literal, percent-encoded, double-encoded or ..;/ form, or the ....// filter-bypass form) or that name a well-known operating-system file (etc/passwd, etc/shadow, proc/self/environ, win.ini, boot.ini, windows/system32), in either the request path (uri_path) or the query string (uri_query). Both fields are checked on purpose: the community SigmaHQ rule web_path_traversal_exploitation_attempt.yml inspects only the query string and a query-string-only pattern list, but a traversal that escapes the web root is rejected by nginx with a 400 and logged raw with the whole traversal string in uri_path, so a query-only rule never sees the most common outcome. Traversal placed in the query string is served normally (200 or 404) and lands in uri_query. The rule fires on the attempt regardless of status, including 400, and does not use user agent or referer: on a 400 nginx does not parse headers, so both are logged as \"-\". `status` and `bytes` are in the output for triage; a traversal request answered with 200 and a non-zero size is the case to look at first. nginx logs the request line as sent, without percent-decoding, so the encoded forms are matched literally (matching is case-insensitive, so %2E and %2F match as well). Request bodies and headers (Cookie, X-Forwarded-*) are not visible in this log. Backslash forms appear in the log escaped as \\x5C (nginx default log escaping) or as %5C. A single ../ segment is deliberately not enough on its own: a lone relative path in a query value is a normal application pattern, and two consecutive segments or an OS-file target is the evidence used to separate the two. This is an attempt-only signal (T1190); the access log cannot show whether a vulnerable application answered. Field names are the Splunk-native access_combined extractions (uri_path and uri_query, not the Sigma webserver cs-uri-stem and cs-uri-query), because there is no field-mapping pipeline for this log source.\n",
+      "description": "Detects nginx access-log requests carrying directory-traversal sequences (../ literal, percent-encoded, double-encoded, ..;/ semicolon-bypass, ....// filter-bypass), well-known OS file targets (etc/passwd, win.ini, windows/system32, etc.), null-byte injection near a traversal marker, PHP stream-wrapper/protocol abuse (php://filter, phar://, zip://, data:, expect://, file:///) and Windows absolute drive-letter paths. The last is narrowed to C:/D: only: Sigma's `contains` can't express a word-boundary regex, so other drive letters (E:, F:, ...) are not covered. Checks both uri_path and uri_query -- unlike the SigmaHQ community rule, which checks only the query string: a traversal that escapes webroot is rejected by nginx with a 400 and logged raw in uri_path, so a query-only rule misses the most common real outcome. Fires regardless of HTTP status for that reason. Attempt-only signal (T1190); status/bytes are in the output so a 200 with bytes>0 can be triaged first. nginx logs the request line raw/undecoded, so encoded forms are matched literally (case-insensitive); backslash appears escaped as \\x5C. A single ../ is not enough on its own (normal in legit query values) -- two consecutive segments, or an OS-file/stream-wrapper/drive-letter target, is the bar. Field names are Splunk-native access_combined extractions (uri_path/uri_query); no field-mapping pipeline exists for this log source.\n",
       "level": "medium",
       "status": "experimental",
       "source": "sigma",
@@ -1845,7 +1845,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-09-20",
-      "modified": "2026-09-20",
+      "modified": "2026-09-23",
       "references": [
         "https://attack.mitre.org/techniques/T1190/",
         "https://github.com/SigmaHQ/sigma/blob/master/rules/web/webserver_generic/web_path_traversal_exploitation_attempt.yml",
@@ -1854,10 +1854,10 @@
         "https://nginx.org/en/docs/http/ngx_http_log_module.html#log_format"
       ],
       "falsepositives": [
-        "A vulnerability scanner you operate yourself (Nessus, Nikto, nuclei, an internal ASV scan) sends exactly these payloads by design; expected, not a false positive in the security sense, but correlate with the scan calendar or source IP before escalating. No allow-list is built in, because a filter keyed on a host or IP would also hide a genuine probe.",
-        "Applications that legitimately pass a multi-level relative path in a query value (for example a redirect or file-picker parameter such as ?next=../../home) match selection_literal. Unmeasured: the lab serves a small static site with no such parameters, so no real example has been seen.",
-        "Pages that document Linux or Windows internals (a wiki or blog article whose URL contains etc/passwd or windows/system32) match selection_osfile, as does an on-site search box whose query lands in uri_query (?q=etc/passwd). Unmeasured, and only relevant if the site hosts such content or a search feature.",
-        "Alert volume, not false positives: SigmaHQ's own traversal rule notes such requests are expected to be continuously seen on internet-facing systems, so true-positive volume there is high. This rule is an activity and enrichment signal; the status and bytes fields separate a rejected attempt (400/404) from a request that was answered. There is no measured rate for this lab."
+        "A scanner you run yourself (Nessus, Nikto, nuclei, an internal ASV scan) sends exactly these payloads by design -- correlate with the scan calendar or source IP before escalating; no allow-list built in, since one keyed on host/IP would also hide a genuine probe.",
+        "An application that legitimately passes a multi-level relative path in a query value (e.g. a redirect/file-picker parameter, ?next=../../home) matches selection_literal; a wiki/blog page whose URL or search query contains etc/passwd or windows/system32 matches selection_osfile.",
+        "selection_streamwrapper's data: pattern is the URI scheme, not the HTML data attribute -- a legitimate parameter carrying a literal data: URL (e.g. an image-upload endpoint) would still match. selection_windrive's c:\\x5c/d:\\x5c could in principle collide with an unrelated path segment containing that exact substring; considered unlikely but unproven for this lab.",
+        "Alert volume, not false positives: SigmaHQ's own traversal rule notes such requests are expected continuously on internet-facing systems. Treat as an activity/enrichment signal; status/bytes separate a rejected attempt (400/404) from an answered one."
       ],
       "testing": {
         "enabled": true,
@@ -1865,14 +1865,14 @@
         "type": "emulation",
         "atomics": []
       },
-      "rule_body": "detection:\n  selection_sourcetype:\n    sourcetype: access_combined\n  selection_literal:\n  - uri_path|contains:\n    - ../../\n    - ..\\x5c..\\x5c\n    - '....//'\n    - ..//..//\n  - uri_query|contains:\n    - ../../\n    - ..\\x5c..\\x5c\n    - '....//'\n    - ..//..//\n  selection_encoded:\n  - uri_path|contains:\n    - ..%2f..%2f\n    - '%2e%2e/%2e%2e/'\n    - '%2e%2e%2f%2e%2e%2f'\n    - ..%5c..%5c\n    - '%2e%2e%5c%2e%2e%5c'\n    - .%2e/.%2e/\n    - '%2e./%2e./'\n    - ..%252f..%252f\n    - '%252e%252e%252f%252e%252e%252f'\n    - ..%c0%af..%c0%af\n  - uri_query|contains:\n    - ..%2f..%2f\n    - '%2e%2e/%2e%2e/'\n    - '%2e%2e%2f%2e%2e%2f'\n    - ..%5c..%5c\n    - '%2e%2e%5c%2e%2e%5c'\n    - .%2e/.%2e/\n    - '%2e./%2e./'\n    - ..%252f..%252f\n    - '%252e%252e%252f%252e%252e%252f'\n    - ..%c0%af..%c0%af\n  selection_semicolon:\n  - uri_path|contains:\n    - ..;/..;/\n  - uri_query|contains:\n    - ..;/..;/\n  selection_osfile:\n  - uri_path|contains:\n    - etc/passwd\n    - etc%2fpasswd\n    - etc/shadow\n    - etc%2fshadow\n    - proc/self/environ\n    - proc%2fself%2fenviron\n    - windows/win.ini\n    - windows%2fwin.ini\n    - winnt/win.ini\n    - /boot.ini\n    - '%2fboot.ini'\n    - windows/system32\n    - windows%2fsystem32\n    - windows%5csystem32\n  - uri_query|contains:\n    - etc/passwd\n    - etc%2fpasswd\n    - etc/shadow\n    - etc%2fshadow\n    - proc/self/environ\n    - proc%2fself%2fenviron\n    - windows/win.ini\n    - windows%2fwin.ini\n    - winnt/win.ini\n    - /boot.ini\n    - '%2fboot.ini'\n    - windows/system32\n    - windows%2fsystem32\n    - windows%5csystem32\n  condition: \"selection_sourcetype and (\\n  selection_literal or selection_encoded or\\n  selection_semicolon\\\n    \\ or selection_osfile\\n)\\n\"",
+      "rule_body": "detection:\n  selection_sourcetype:\n    sourcetype: access_combined\n  selection_literal:\n  - uri_path|contains:\n    - ../../\n    - ..\\x5c..\\x5c\n    - '....//'\n    - ..//..//\n  - uri_query|contains:\n    - ../../\n    - ..\\x5c..\\x5c\n    - '....//'\n    - ..//..//\n  selection_encoded:\n  - uri_path|contains:\n    - ..%2f..%2f\n    - '%2e%2e/%2e%2e/'\n    - '%2e%2e%2f%2e%2e%2f'\n    - ..%5c..%5c\n    - '%2e%2e%5c%2e%2e%5c'\n    - .%2e/.%2e/\n    - '%2e./%2e./'\n    - ..%252f..%252f\n    - '%252e%252e%252f%252e%252e%252f'\n    - ..%c0%af..%c0%af\n  - uri_query|contains:\n    - ..%2f..%2f\n    - '%2e%2e/%2e%2e/'\n    - '%2e%2e%2f%2e%2e%2f'\n    - ..%5c..%5c\n    - '%2e%2e%5c%2e%2e%5c'\n    - .%2e/.%2e/\n    - '%2e./%2e./'\n    - ..%252f..%252f\n    - '%252e%252e%252f%252e%252e%252f'\n    - ..%c0%af..%c0%af\n  selection_semicolon:\n  - uri_path|contains:\n    - ..;/..;/\n  - uri_query|contains:\n    - ..;/..;/\n  selection_osfile:\n  - uri_path|contains:\n    - etc/passwd\n    - etc%2fpasswd\n    - etc/shadow\n    - etc%2fshadow\n    - proc/self/environ\n    - proc%2fself%2fenviron\n    - windows/win.ini\n    - windows%2fwin.ini\n    - winnt/win.ini\n    - /boot.ini\n    - '%2fboot.ini'\n    - windows/system32\n    - windows%2fsystem32\n    - windows%5csystem32\n  - uri_query|contains:\n    - etc/passwd\n    - etc%2fpasswd\n    - etc/shadow\n    - etc%2fshadow\n    - proc/self/environ\n    - proc%2fself%2fenviron\n    - windows/win.ini\n    - windows%2fwin.ini\n    - winnt/win.ini\n    - /boot.ini\n    - '%2fboot.ini'\n    - windows/system32\n    - windows%2fsystem32\n    - windows%5csystem32\n  selection_nullbyte:\n  - uri_path|contains:\n    - ../%00\n    - ..%2f%00\n    - ..%5c%00\n    - '%2e%2e%2f%00'\n    - '%2e%2e%5c%00'\n  - uri_query|contains:\n    - ../%00\n    - ..%2f%00\n    - ..%5c%00\n    - '%2e%2e%2f%00'\n    - '%2e%2e%5c%00'\n  selection_streamwrapper:\n  - uri_path|contains:\n    - php://filter\n    - php://input\n    - php://data\n    - phar://\n    - zip://\n    - data:text/\n    - data:application/\n    - expect://\n    - file:///\n  - uri_query|contains:\n    - php://filter\n    - php://input\n    - php://data\n    - phar://\n    - zip://\n    - data:text/\n    - data:application/\n    - expect://\n    - file:///\n  selection_windrive:\n  - uri_path|contains:\n    - c:\\x5c\n    - c%3a%5c\n    - d:\\x5c\n    - d%3a%5c\n  - uri_query|contains:\n    - c:\\x5c\n    - c%3a%5c\n    - d:\\x5c\n    - d%3a%5c\n  condition: \"selection_sourcetype and (\\n  selection_literal or selection_encoded or\\n  selection_semicolon\\\n    \\ or selection_osfile or\\n  selection_nullbyte or selection_streamwrapper or selection_windrive\\n\\\n    )\\n\"",
       "rule_body_lang": "yaml",
-      "rule_version": "1.0"
+      "rule_version": "1.1"
     },
     {
       "detect_id": "DETECT-2026-0038",
       "title": "Web Server Requests from Known Scanner and Attack-Tool User-Agents",
-      "description": "Detects HTTP requests in the nginx access log whose User-Agent is the default identifier of a well-known scanning or attack tool: sqlmap, Nikto, the Nmap Scripting Engine, zgrab, gobuster, feroxbuster, ffuf (\"Fuzz Faster U Fool\"), WPScan and Wfuzz (the recon and fuzzing tools listed in SigmaHQ's web_susp_useragents.yml, each pointing at the tool's own source), plus two current exploit-tool identifiers with public Sigma rules: libredtail-http (RedTail cryptominer campaign, SANS ISC diary 2026-04-29) and wp2shell (the WordPress core RCE proof-of-concept, CVE-2026-63030 / CVE-2026-60137). The scanner strings are matched as substrings because tools append a version; libredtail-http and wp2shell are matched as substrings too. Upstream Sigma matches those two exactly, so this rule is deliberately looser: both strings are distinctive enough that a version suffix or a prefix should still fire. The log proves which client identified itself as one of these tools, not what the request achieved, so the rule is tagged as vulnerability scanning (T1595.002). T1190 is not tagged because the User-Agent shows tool identity, not a request payload. Generic HTTP clients (curl, wget, python-requests, Go-http-client) are deliberately NOT in the list: they are legitimate-tool noise. Limits, stated plainly: a User-Agent is set by the client, so changing it defeats this rule with no effort (a disciplined scanner already sends a browser string, and GreyNoise reports fleets doing exactly that), and on an internet-facing host these requests are constant background radiation, so alert volume is expected to be high. Treat it as an activity and enrichment signal, not as evidence of compromise. `status` and `bytes` are in the output for triage. A request that nginx rejects with a 400 logs its User-Agent as \"-\", so such requests cannot match here. Field names are the Splunk-native access_combined extractions (useragent, not the Sigma webserver cs-user-agent), because there is no field-mapping pipeline for this log source.\n",
+      "description": "Detects nginx access-log requests whose User-Agent is the default identifier of a known scanning/attack tool: sqlmap, Nikto, Nmap NSE, zgrab, gobuster, feroxbuster, ffuf, WPScan, Wfuzz (SigmaHQ's web_susp_useragents.yml), libredtail-http (RedTail cryptominer, SANS ISC diary 2026-04-29), wp2shell (WordPress RCE PoC, CVE-2026-63030 / CVE-2026-60137), plus ~55 additional tool identifiers across six categories (web-app scanners, network/port scanners, fuzzers, brute-force/exploit frameworks, webshell clients, scan-database tools) ported 2026-09-23 from a production NetWitness/RSA ESA rule covering the same nginx UA use case. All matched as substrings (tools append a version). Generic HTTP-client UAs (curl, wget, python-requests, Go-http-client, and the scripted-library UAs libwww-perl/node-fetch/ aiohttp/guzzle/lwp) are deliberately excluded as legitimate-tool noise -- the NetWitness source rule independently reached the same exclusion after its own FP review, which validates rather than argues for the choice made here. libredtail-http is kept despite that cleanup dropping it elsewhere: it identifies one specific malware campaign's client, not a generic library. Tagged as vulnerability scanning (T1595.002) uniformly, including for the newer brute-force/webshell-client/port-scanner/fuzzer categories that would individually map closer to T1110, T1505.003 or T1595.001/.003: the User-Agent alone shows tool identity, not what the tool did, so one activity-signal tag is used throughout rather than splitting the rule by tactic (the same call this rule already made for wp2shell, an RCE tool, pre-merge). Several newly-added strings (Hydra, c99, commix) are bare tool-name substrings with no version/phrase anchor, unlike most existing entries (\"sqlmap/\", \"WPScan v\") -- higher incidental-FP risk, taken as-is from the source's production-validated list. Limits: a User-Agent is client-set, so changing it defeats this rule trivially (GreyNoise reports fleets already doing so); on an internet-facing host this is high-volume background radiation -- an activity/ enrichment signal, not evidence of compromise. A 400-rejected request logs UA as \"-\", so it never matches here. Field names are Splunk-native access_combined extractions (useragent); no field-mapping pipeline exists for this log source.\n",
       "level": "medium",
       "status": "experimental",
       "source": "sigma",
@@ -1896,7 +1896,7 @@
       },
       "author": "Bence Marton",
       "date": "2026-09-20",
-      "modified": "2026-09-20",
+      "modified": "2026-09-23",
       "references": [
         "https://attack.mitre.org/techniques/T1595/002/",
         "https://github.com/SigmaHQ/sigma/blob/master/rules/web/webserver_generic/web_susp_useragents.yml",
@@ -1907,9 +1907,10 @@
         "https://slcyber.io/research-center/wp2shell-pre-authentication-rce-in-wordpress-core/"
       ],
       "falsepositives": [
-        "A vulnerability or web-content scanner you operate yourself (Nikto, Nmap NSE scripts, ffuf, an internal scan) sends these User-Agents by design; expected, not a false positive in the security sense, but correlate with the scan calendar or source IP before escalating. No allow-list is built in, because a filter keyed on a host or IP would also hide a genuine probe.",
-        "Security-research and internet-measurement crawlers that use zgrab or similar tools openly (for example scanning projects that publish their source ranges). Unmeasured for this lab; the request is still a probe, so whether that counts as a false positive is a policy decision.",
-        "Alert volume, not false positives: on any internet-facing host this is high-volume background radiation. There is no measured rate for this lab (a few dozen nginx events a week), so no figure is claimed."
+        "A scanner you operate yourself (Nikto, Nmap NSE, ffuf, an internal scan) sends these User-Agents by design -- correlate with the scan calendar or source IP before escalating; no allow-list built in, since one keyed on host/IP would also hide a genuine probe.",
+        "Security-research/internet-measurement crawlers using zgrab or similar openly (e.g. projects that publish their source ranges) -- still a probe, so whether it counts as an FP is a policy call.",
+        "Alert volume, not false positives: constant background radiation on any internet-facing host.",
+        "Several 2026-09-23 additions are bare tool-name substrings with no version/phrase anchor (Hydra, c99, commix); \"c99\" especially is short enough to appear inside an unrelated UA token. Taken as-is from the source's production-validated list rather than independently re-derived; worth revisiting if any shows non-scanner traffic."
       ],
       "testing": {
         "enabled": true,
@@ -1917,7 +1918,257 @@
         "type": "emulation",
         "atomics": []
       },
-      "rule_body": "detection:\n  selection_sourcetype:\n    sourcetype: access_combined\n  selection_scanner_ua:\n    useragent|contains:\n    - sqlmap/\n    - Nikto/\n    - Nmap Scripting Engine\n    - zgrab/\n    - gobuster/\n    - feroxbuster/\n    - Fuzz Faster U Fool\n    - WPScan v\n    - Wfuzz/\n  selection_redtail_ua:\n    useragent|contains: libredtail-http\n  selection_wp2shell_ua:\n    useragent|contains: wp2shell\n  condition: \"selection_sourcetype and (\\n  selection_scanner_ua or selection_redtail_ua or selection_wp2shell_ua\\n\\\n    )\\n\"",
+      "rule_body": "detection:\n  selection_sourcetype:\n    sourcetype: access_combined\n  selection_scanner_ua:\n    useragent|contains:\n    - sqlmap/\n    - Nikto/\n    - Nmap Scripting Engine\n    - zgrab/\n    - gobuster/\n    - feroxbuster/\n    - Fuzz Faster U Fool\n    - WPScan v\n    - Wfuzz/\n  selection_redtail_ua:\n    useragent|contains: libredtail-http\n  selection_wp2shell_ua:\n    useragent|contains: wp2shell\n  selection_webapp_scanner_ua2:\n    useragent|contains:\n    - acunetix\n    - Nessus\n    - Arachni\n    - Burp Suite\n    - Netsparker\n    - Invicti\n    - nuclei\n    - OpenVAS\n    - w3af\n    - Uniscan\n    - Vega/\n    - XSSer\n    - joomscan\n    - dotdotpwn\n    - fimap\n    - shiro-\n    - Havij\n    - commix\n    - sqlninja\n    - dalfox\n    - XSStrike\n    - jaeles\n    - ZmEu\n  selection_recon_scanner_ua:\n    useragent|contains:\n    - masscan\n    - zmap\n    - naabu\n    - censys\n    - Shodan\n    - massdns\n    - dnsrecon\n    - fierce\n    - amass\n    - Sublist3r\n    - recon-ng\n    - WhatWeb\n    - CensysInspect\n    - InternetMeasurement\n    - l9explore\n  selection_fuzzer_ua2:\n    useragent|contains:\n    - dirbuster\n    - dirsearch\n    - kiterunner\n    - Arjun\n    - ParamSpider\n    - getallurls\n    - katana\n    - Interlace\n    - TestProxy\n    - Xenu\n    - PanScan\n    - Retina\n  selection_bruteforce_ua:\n    useragent|contains:\n    - Hydra\n    - metasploit\n  selection_webshell_ua2:\n    useragent|contains:\n    - r57shell\n    - c99\n    - weevely\n  selection_scandb_ua:\n    useragent|contains:\n    - exploitdb\n    - scan.io\n    - site-digger\n    - vegajk\n  condition: \"selection_sourcetype and (\\n  selection_scanner_ua or selection_redtail_ua or selection_wp2shell_ua\\\n    \\ or\\n  selection_webapp_scanner_ua2 or selection_recon_scanner_ua or\\n  selection_fuzzer_ua2 or selection_bruteforce_ua\\\n    \\ or\\n  selection_webshell_ua2 or selection_scandb_ua\\n)\\n\"",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.1"
+    },
+    {
+      "detect_id": "DETECT-2026-0039",
+      "title": "Web Server Webshell Upload and Access Attempt",
+      "description": "Correlates an nginx access-log webshell upload (POST to an upload-like path, executable/double-extension filename such as shell.php.jpg, small or unknown response size, 200/201) with a same-clientip GET to the identical URL within 15 minutes -- an upload alone is routine web traffic, pairing it with the follow-up activation attempt is the actual signal. Sigma's detection: block cannot express a cross-event, time-windowed join (no correlation: rule type in this repo's schema -- checked docs/schemas/sigma_schema.json), so the real logic lives in custom.splunk.raw_query, the same escape hatch DETECT-2026-0002/0003 use for their own correlations (those use streamstats time_window threshold-counting on one event type; this rule needs a two-event pairing instead). Uses a streamstats carry-forward join: eval a marker to null() on non-matching rows, then `streamstats current=f last(eval(...))` per clientip+uri_path carries the most recent prior upload's _time onto every later row in that group, so a GET within 900s of the carried value is the pairing -- same streamstats family and \"raw_query is the fallback, not one fixed SPL shape\" precedent as 0002/0003, just the carry-forward variant instead of threshold-counting. Replaces an earlier transaction/closed_txn draft: functionally equivalent (confirmed in Bjorn's prior review) but transaction is Splunk's own documented scale anti-pattern (single- threaded, doesn't distribute like stats-family commands) and had zero other precedent in this repo. The detection: block below is a schema-required placeholder covering only the upload half and is never evaluated. Ported from NetWitness ESA-066's `FROM PATTERN ... timer:within(15 Min)` rule (same 15-minute window, same extension/path/size gates); the extension list and double-extension evasion form were cross-checked against current file-upload-bypass write-ups (trailing-dot and null-byte variants exist too but are out of scope here -- see falsepositives). No SigmaHQ/Splunk/ Elastic rule covers this exact upload-then-access pairing; SigmaHQ's windows webshell-strings rule and Splunk's CVE-specific webshell-access analytics are single-event and were used only to sanity-check the extension/path vocabulary, not the correlation shape. Tagged T1505.003 only -- an access-log line only shows the attempted upload and reactivation, never that the uploaded file actually executed anything.\n",
+      "level": "high",
+      "status": "experimental",
+      "source": "native_spl",
+      "verdict": "N/A",
+      "run_id": "",
+      "verdict_at": "",
+      "verdict_rule_version": "",
+      "verdict_testing_disabled": false,
+      "tactics": [
+        "Persistence"
+      ],
+      "techniques": [
+        "T1505.003"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0039_Web-Server-Webshell-Upload-and-Access-Attempt.yml",
+      "logsource": {
+        "product_category": "web",
+        "product": "nginx",
+        "service": "access",
+        "event_type": "access_history"
+      },
+      "author": "Bence Marton",
+      "date": "2026-09-23",
+      "modified": "2026-09-23",
+      "references": [
+        "https://attack.mitre.org/techniques/T1505/003/",
+        "https://github.com/SigmaHQ/sigma/blob/master/rules/web/webserver_generic/web_win_webshells_in_access_logs.yml",
+        "https://medium.com/@ryangcox/web-shell-upload-via-extension-blacklist-bypass-file-upload-vulnerability-f98ee877aff1",
+        "https://www.acunetix.com/websitesecurity/upload-forms-threat/",
+        "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/9.4/search-commands/streamstats",
+        "https://help.splunk.com/en/splunk-enterprise/search/search-manual/9.4/calculate-statistics/use-stats-with-eval-expressions-and-functions"
+      ],
+      "falsepositives": [
+        "A legitimate upload feature whose stored filename happens to end in an executable extension (rare, but .cgi/.pl still back some form handlers) followed by the client's own confirmation GET of the file it just uploaded -- a common upload-widget UX pattern.",
+        "Your own scanner or upload fuzzer (Burp Intruder, ffuf --data, upload-bypass tooling) replaying an upload+GET pair against a test endpoint -- correlate with the scan calendar before escalating."
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "linux-victim",
+        "type": "emulation",
+        "atomics": []
+      },
+      "rule_body": "index=main sourcetype=access_combined | eval uri_path_lc=lower(uri_path) | eval is_exec_ext=if(match(uri_path_lc, \"\\.(php[3457]?|phtml|phar|pht|asp|aspx|jsp|jspx|jspa|cgi|py|sh|rb|cfm|shtml)(\\..+)?$\"), 1, 0) | eval is_upload_dir=if(match(uri_path_lc, \"(^|/)(uploads?|files?|file-manager|tmp)(/|$)\"), 1, 0) | eval is_upload_event=if(method=\"POST\" AND is_exec_ext=1 AND is_upload_dir=1 AND status IN (\"200\",\"201\") AND (isnull(bytes) OR bytes<5000), 1, 0) | eval is_access_event=if(method=\"GET\" AND is_exec_ext=1, 1, 0) | where is_upload_event=1 OR is_access_event=1 | sort 0 _time | streamstats current=f last(eval(if(is_upload_event=1, _time, null()))) as last_upload_time by clientip uri_path | where is_access_event=1 AND isnotnull(last_upload_time) AND (_time - last_upload_time) <= 900 | eval duration=_time - last_upload_time | table _time, host, clientip, method, uri_path, uri_query, status, bytes, useragent, referer, duration",
+      "rule_body_lang": "spl",
+      "rule_version": "1.1"
+    },
+    {
+      "detect_id": "DETECT-2026-0040",
+      "title": "Web Server Webshell Command Execution via Query String",
+      "description": "Detects nginx access-log GET requests with HTTP 200 whose query string carries a Linux post-exploitation command artifact -- a likely already-placed webshell being driven through its command parameter (e.g. ?x=whoami, ?f=wget%20..., ?cmd=;id). Linux-only and GET+200-only by design, matching the scope of the NetWitness source this is ported from (ESA-072): a webshell's exact interface and HTTP verb vary too much to generalize further from an access log alone. Covers three shapes: (1) a bare command/binary name as a parameter value, with space in its `+`/%20/double-encoded %2520 forms; (2) cmd=/exec=/command= gated on a confirmatory shell metacharacter or known binary in the value, not the parameter name alone -- the same FP lesson the source rule already learned in production (bare `id`/`sh`/`cat`/`nc` are excluded, since `?id=` and `?nc=` were observed as ordinary cache-busting params); (3) direct code-exec/reverse-shell indicators (eval(, system(, /dev/tcp/, /etc/passwd) that need no confirmation. Cross-checked against SigmaHQ's web_win_webshells_in_access_logs.yml (same shape -- =whoami/=cmd style GET params -- but Windows-command flavored; this rule is the Linux-command counterpart Masha's nginx gap analysis flagged as missing). Single-event pattern, expressed as a normal Sigma detection: block (no correlation needed, unlike DETECT-2026-0039). Known blind spots, same as the source: POST-body command execution (e.g. China Chopper) and base64/obfuscated/ string-concatenated commands are invisible to a static keyword/regex match on the query string.\n",
+      "level": "high",
+      "status": "experimental",
+      "source": "sigma",
+      "verdict": "N/A",
+      "run_id": "",
+      "verdict_at": "",
+      "verdict_rule_version": "",
+      "verdict_testing_disabled": false,
+      "tactics": [
+        "Persistence",
+        "Execution"
+      ],
+      "techniques": [
+        "T1505.003",
+        "T1059.004"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0040_Web-Server-Webshell-Command-Execution-via-Query-String.yml",
+      "logsource": {
+        "product_category": "web",
+        "product": "nginx",
+        "service": "access",
+        "event_type": "access_history"
+      },
+      "author": "Bence Marton",
+      "date": "2026-09-23",
+      "modified": "2026-09-23",
+      "references": [
+        "https://attack.mitre.org/techniques/T1505/003/",
+        "https://attack.mitre.org/techniques/T1059/004/",
+        "https://github.com/SigmaHQ/sigma/blob/master/rules/web/webserver_generic/web_win_webshells_in_access_logs.yml",
+        "https://www.f5.com/labs/articles/web-shells-understanding-attackers-tools-and-techniques"
+      ],
+      "falsepositives": [
+        "A wiki/docs page whose query string legitimately contains an OS command name (e.g. a search for \"whoami\" or a Linux tutorial URL) -- the source rule's own production tuning found this rare enough to accept, since the alternative (dropping bare command names entirely) misses the most common real webshell interaction shape.",
+        "An app that genuinely uses cmd=/exec=/command= as a parameter name for a non-shell purpose (e.g. cmd=view, cmd=export) -- excluded unless the value also carries a shell metacharacter or known binary name, per the confirmatory gate in selection_cmd_param."
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "linux-victim",
+        "type": "emulation",
+        "atomics": []
+      },
+      "rule_body": "detection:\n  selection_sourcetype:\n    sourcetype: access_combined\n  selection_method:\n    method: GET\n  selection_status:\n    status: '200'\n  selection_cmd_keyword:\n    uri_query|re: (?i)=(?:whoami|uname|wget|curl|python3?|perl|ruby|ssh|ncat|socat|telnet|chmod|mkfifo)(?:\\+|%20|%2520)?\n  selection_cmd_keyword_flag:\n    uri_query|re: (?i)(?:php(?:\\+|%20|%2520)-r|nc(?:\\+|%20|%2520)-|bash(?:\\+|%20|%2520)-i|sh(?:\\+|%20|%2520)-c|cat(?:\\+|%20|%2520)/etc/|base64(?:\\+|%20|%2520)-d|openssl(?:\\+|%20|%2520)s_client)\n  selection_cmd_param:\n    uri_query|re: (?i)(?:cmd=|exec=|command=)[a-z0-9_\\-%]*(?:;|\\||`|&|\\$\\(|%3b|%7c|%60|%26|%24%28|whoami|uname|wget|curl|python|perl|ruby|ssh|ncat|socat|telnet|nc|bash|sh|cat|base64|chmod|mkfifo|openssl)\n  selection_direct_indicator:\n    uri_query|contains:\n    - eval(\n    - system(\n    - /dev/tcp/\n    - /etc/passwd\n  condition: \"selection_sourcetype and selection_method and selection_status and (\\n  selection_cmd_keyword\\\n    \\ or selection_cmd_keyword_flag or\\n  selection_cmd_param or selection_direct_indicator\\n)\\n\"",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.0"
+    },
+    {
+      "detect_id": "DETECT-2026-0041",
+      "title": "Web Server SQL Injection Attempt in Request Path or Query",
+      "description": "Detects nginx access-log GET/POST requests with status 200/201/500 whose request path or query string carries one of nine SQLi shapes: UNION-based, quoted-tautology bypass ('OR'1'='1), comment-based termination after a quote (--/#), boolean-blind (AND/OR + numeric compare), time-blind (SLEEP/BENCHMARK/WAITFOR DELAY/PG_SLEEP/ DBMS_PIPE.RECEIVE_MESSAGE), error-based (EXTRACTVALUE/UPDATEXML/ FLOOR(RAND(/EXP(~), schema/version recon (information_schema, @@version, DATABASE()), stacked queries (;DROP/INSERT/...) and payload-builder functions (CONCAT/GROUP_CONCAT/hex literals/CHAR()). Ported from NetWitness ESA-067 (same nine categories, same FP gates: boolean-blind requires the numeric-compare pair together, not a bare and/or; tautology/comment require an actual quote character present). Cross-checked against SigmaHQ's web_sql_injection_in_access_logs.yml, which independently covers the same core keyword set (UNION SELECT, information_schema, sleep(10), '1'='1) -- confirms the category list rather than replacing it, and that rule's own note that WAF-bypass research now also documents comment-based whitespace substitution (/**/ in place of a literal space) and JSON-body SQLi that this access-log-only view cannot see (see falsepositives/limits). Checks both uri_path and uri_query, unlike the SigmaHQ rule (GET query only) and the NetWitness source (single combined url field) -- a payload that trips a 400 before reaching the app is logged in uri_path, not uri_query. Attempt-only signal (T1190): the access log has no response body, so a 500 here means the server errored, not that data was extracted. Gated on 200/201/500 rather than SigmaHQ's 404: a deliberate choice to target requests that actually reached the application (including the error-based-SQLi 500 case) instead of the rejected ones.\n",
+      "level": "high",
+      "status": "experimental",
+      "source": "sigma",
+      "verdict": "N/A",
+      "run_id": "",
+      "verdict_at": "",
+      "verdict_rule_version": "",
+      "verdict_testing_disabled": false,
+      "tactics": [
+        "Initial Access"
+      ],
+      "techniques": [
+        "T1190"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0041_Web-Server-SQL-Injection-Attempt-in-Request-Path-or-Query.yml",
+      "logsource": {
+        "product_category": "web",
+        "product": "nginx",
+        "service": "access",
+        "event_type": "access_history"
+      },
+      "author": "Bence Marton",
+      "date": "2026-09-23",
+      "modified": "2026-09-23",
+      "references": [
+        "https://attack.mitre.org/techniques/T1190/",
+        "https://github.com/SigmaHQ/sigma/blob/master/rules/web/webserver_generic/web_sql_injection_in_access_logs.yml",
+        "https://book.hacktricks.xyz/pentesting-web/sql-injection",
+        "https://www.picussecurity.com/resource/blog/waf-bypass-using-json-based-sql-injection-attacks"
+      ],
+      "falsepositives": [
+        "A scanner you run yourself (sqlmap, Burp, an internal ASV scan) sends exactly these payloads by design -- correlate with the scan calendar or source IP before escalating; no allow-list built in, since one keyed on host/IP would also hide a genuine probe.",
+        "selection_recon's `database()`/`version()` and selection_stacked's keyword list can appear in a legitimate app's own query-string tokens (rare, but not impossible on a CMS with verbose URLs).",
+        "Known blind spot inherited from the source rule: POST-body payloads are invisible in the access log, comment-based whitespace obfuscation (/**/-as-space) is only partly covered (only inside selection_union's own pattern), and JSON-body SQLi (increasingly reported bypassing WAFs in 2025-2026) is not visible here at all.",
+        "Alert volume, not false positives: SQLi probing is constant background radiation on any internet-facing host. Treat as an activity/enrichment signal; status 500 narrows to requests that actually errored the app."
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "linux-victim",
+        "type": "emulation",
+        "atomics": []
+      },
+      "rule_body": "detection:\n  selection_sourcetype:\n    sourcetype: access_combined\n  selection_method:\n    method:\n    - GET\n    - POST\n  selection_status:\n    status:\n    - '200'\n    - '201'\n    - '500'\n  selection_union:\n  - uri_path|re: (?i)union(?:\\+|%20|/\\*.*?\\*/)*(?:all(?:\\+|%20)*)?select\n  - uri_query|re: (?i)union(?:\\+|%20|/\\*.*?\\*/)*(?:all(?:\\+|%20)*)?select\n  selection_tautology:\n  - uri_path|re: (?i)(?:%27|\\x27)(?:\\+|%20)*(?:or|and)(?:\\+|%20)*(?:%27|\\x27)?[a-z0-9_]+(?:%27|\\x27)?(?:\\+|%20)*(?:=|%3d)(?:\\+|%20)*(?:%27|\\x27)?[a-z0-9_]+(?:%27|\\x27)?\n  - uri_query|re: (?i)(?:%27|\\x27)(?:\\+|%20)*(?:or|and)(?:\\+|%20)*(?:%27|\\x27)?[a-z0-9_]+(?:%27|\\x27)?(?:\\+|%20)*(?:=|%3d)(?:\\+|%20)*(?:%27|\\x27)?[a-z0-9_]+(?:%27|\\x27)?\n  selection_comment:\n  - uri_path|re: (?i)(?:%27|\\x27)(?:\\+|%20)*(?:--|%2d%2d|#|%23)\n  - uri_query|re: (?i)(?:%27|\\x27)(?:\\+|%20)*(?:--|%2d%2d|#|%23)\n  selection_boolean_blind:\n  - uri_path|re: (?i)\\b(?:and|or)\\b(?:\\+|%20)+\\(?[0-9]+(?:=|%3d|<|>)\\(?[a-z0-9_]+\n  - uri_query|re: (?i)\\b(?:and|or)\\b(?:\\+|%20)+\\(?[0-9]+(?:=|%3d|<|>)\\(?[a-z0-9_]+\n  selection_time_blind:\n  - uri_path|re: (?i)(?:sleep\\(|benchmark\\(|waitfor(?:\\+|%20)delay|pg_sleep\\(|dbms_pipe\\.receive_message)\n  - uri_query|re: (?i)(?:sleep\\(|benchmark\\(|waitfor(?:\\+|%20)delay|pg_sleep\\(|dbms_pipe\\.receive_message)\n  selection_error_based:\n  - uri_path|re: (?i)(?:extractvalue\\(|updatexml\\(|floor\\(rand\\(|exp\\(~)\n  - uri_query|re: (?i)(?:extractvalue\\(|updatexml\\(|floor\\(rand\\(|exp\\(~)\n  selection_recon:\n  - uri_path|re: (?i)(?:information_schema|sysobjects|syscolumns|sys\\.tables|@@version|@@datadir|version\\(\\)|database\\(\\))\n  - uri_query|re: (?i)(?:information_schema|sysobjects|syscolumns|sys\\.tables|@@version|@@datadir|version\\(\\)|database\\(\\))\n  selection_stacked:\n  - uri_path|re: (?i);(?:\\+|%20|%3b)*(?:drop|insert|update|delete|exec|create|alter)(?:\\+|%20)\n  - uri_query|re: (?i);(?:\\+|%20|%3b)*(?:drop|insert|update|delete|exec|create|alter)(?:\\+|%20)\n  selection_payload_builder:\n  - uri_path|re: (?i)(?:concat\\(.{0,60}?,|group_concat\\(|0x[0-9a-f]{10,}|char\\(\\s*0x?[0-9]+\\s*(?:,|\\)))\n  - uri_query|re: (?i)(?:concat\\(.{0,60}?,|group_concat\\(|0x[0-9a-f]{10,}|char\\(\\s*0x?[0-9]+\\s*(?:,|\\)))\n  condition: \"selection_sourcetype and selection_method and selection_status and (\\n  selection_union\\\n    \\ or selection_tautology or selection_comment or\\n  selection_boolean_blind or selection_time_blind\\\n    \\ or\\n  selection_error_based or selection_recon or selection_stacked or\\n  selection_payload_builder\\n\\\n    )\\n\"",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.0"
+    },
+    {
+      "detect_id": "DETECT-2026-0042",
+      "title": "Web Server Cross-Site Scripting Attempt in Request Path or Query",
+      "description": "Detects nginx access-log GET/POST requests with status 200/201 whose request path or query string carries one of nine reflected-XSS shapes: script-tag injection (<script), event-handler injection (onerror=/ onload=/onclick= etc.), javascript: URI scheme, dangerous HTML tags (<img/<svg/<iframe/<body/<input/<video/<audio/<marquee), DOM-exfil references (document.cookie, window.location), JS-exec/obfuscation calls (eval(/atob(/String.fromCharCode(), PoC alert functions (alert(/ confirm(/prompt(), attribute/tag-breakout (a quote then > then a new <), and HTML-entity-encoded script tags (&lt;script, &#60;script, &#x3c;script). Ported from NetWitness ESA-068 (same nine categories and the same two FP gates: the dangerous-tag pattern requires the opening `<`/%3c directly before the tag name, and the JS-exec/PoC-function patterns require the opening parenthesis). Cross-checked against SigmaHQ's web_xss_in_access_logs.yml, which independently covers the same core set (<script>, <iframe, <svg, document.cookie/domain, onerror=/onload=, javascript:alert) -- confirms the category list rather than replacing it. Reflected-XSS-only, same as both source rules: the access log has no response body (reflection can't be confirmed, only the attempt) and no request body (POST-borne or DOM-based/client-side-only XSS, now the dominant shape on React/Vue/Angular SPAs per current WAF-bypass research, is invisible here). Checks both uri_path and uri_query, unlike the SigmaHQ rule (query only) and the NetWitness source (single combined url field). Gated on 200/201 rather than SigmaHQ's 404: a deliberate choice to target requests that actually reached the application, not the rejected ones.\n",
+      "level": "medium",
+      "status": "experimental",
+      "source": "sigma",
+      "verdict": "N/A",
+      "run_id": "",
+      "verdict_at": "",
+      "verdict_rule_version": "",
+      "verdict_testing_disabled": false,
+      "tactics": [
+        "Initial Access"
+      ],
+      "techniques": [
+        "T1190"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0042_Web-Server-Cross-Site-Scripting-Attempt-in-Request-Path-or-Query.yml",
+      "logsource": {
+        "product_category": "web",
+        "product": "nginx",
+        "service": "access",
+        "event_type": "access_history"
+      },
+      "author": "Bence Marton",
+      "date": "2026-09-23",
+      "modified": "2026-09-23",
+      "references": [
+        "https://attack.mitre.org/techniques/T1190/",
+        "https://github.com/SigmaHQ/sigma/blob/master/rules/web/webserver_generic/web_xss_in_access_logs.yml",
+        "https://portswigger.net/web-security/cross-site-scripting/cheat-sheet",
+        "https://cybersecuritynews.com/wafs-protection-bypassed/"
+      ],
+      "falsepositives": [
+        "A scanner you run yourself (XSStrike, dalfox, an internal ASV scan) sends exactly these payloads by design -- correlate with the scan calendar or source IP before escalating; no allow-list built in, since one keyed on host/IP would also hide a genuine probe.",
+        "A page that legitimately embeds `<video`/`<audio`/`<iframe` markup or `document.cookie`/`alert(` text in a query parameter (e.g. a rich-text/preview or a \"share this code snippet\" feature).",
+        "Known blind spot inherited from both source rules: POST-body and DOM-based (client-side-only, never reaching the server in the URL) XSS are invisible here; current WAF-bypass research documents parameter-pollution XSS specifically evading URL-pattern detection like this one.",
+        "Alert volume, not false positives: XSS probing is constant background radiation on any internet-facing host, same as the SQLi/traversal rules. Treat as an activity/enrichment signal."
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "linux-victim",
+        "type": "emulation",
+        "atomics": []
+      },
+      "rule_body": "detection:\n  selection_sourcetype:\n    sourcetype: access_combined\n  selection_method:\n    method:\n    - GET\n    - POST\n  selection_status:\n    status:\n    - '200'\n    - '201'\n  selection_script_tag:\n  - uri_path|re: (?i)(?:<|%3c)(?:\\+|%20)*script\n  - uri_query|re: (?i)(?:<|%3c)(?:\\+|%20)*script\n  selection_event_handler:\n  - uri_path|re: (?i)\\bon(?:error|load|mouseover|mouseout|focus|blur|click|change|submit)(?:\\+|%20)*(?:=|%3d)\n  - uri_query|re: (?i)\\bon(?:error|load|mouseover|mouseout|focus|blur|click|change|submit)(?:\\+|%20)*(?:=|%3d)\n  selection_js_uri:\n  - uri_path|re: (?i)javascript(?::|%3a)\n  - uri_query|re: (?i)javascript(?::|%3a)\n  selection_dangerous_tag:\n  - uri_path|re: (?i)(?:<|%3c)(?:\\+|%20)*(?:img|svg|iframe|body|input|video|audio|marquee)\\b\n  - uri_query|re: (?i)(?:<|%3c)(?:\\+|%20)*(?:img|svg|iframe|body|input|video|audio|marquee)\\b\n  selection_dom_exfil:\n  - uri_path|re: (?i)(?:document\\.(?:cookie|write|location|domain)|window\\.location)\n  - uri_query|re: (?i)(?:document\\.(?:cookie|write|location|domain)|window\\.location)\n  selection_js_exec:\n  - uri_path|re: (?i)(?:eval\\(|atob\\(|unescape\\(|decodeuricomponent\\(|string\\.fromcharcode\\(|settimeout\\(|setinterval\\()\n  - uri_query|re: (?i)(?:eval\\(|atob\\(|unescape\\(|decodeuricomponent\\(|string\\.fromcharcode\\(|settimeout\\(|setinterval\\()\n  selection_poc_alert:\n  - uri_path|re: (?i)\\b(?:alert|confirm|prompt)\\(\n  - uri_query|re: (?i)\\b(?:alert|confirm|prompt)\\(\n  selection_attr_breakout:\n  - uri_path|re: (?i)(?:%22|\\x22|%27|\\x27)(?:\\+|%20)*(?:>|%3e)(?:<|%3c)\n  - uri_query|re: (?i)(?:%22|\\x22|%27|\\x27)(?:\\+|%20)*(?:>|%3e)(?:<|%3c)\n  selection_entity_encoded:\n  - uri_path|re: (?i)(?:&|%26)(?:lt|#0*60|#x0*3c);?.{0,10}script\n  - uri_query|re: (?i)(?:&|%26)(?:lt|#0*60|#x0*3c);?.{0,10}script\n  condition: \"selection_sourcetype and selection_method and selection_status and (\\n  selection_script_tag\\\n    \\ or selection_event_handler or\\n  selection_js_uri or selection_dangerous_tag or selection_dom_exfil\\\n    \\ or\\n  selection_js_exec or selection_poc_alert or selection_attr_breakout or\\n  selection_entity_encoded\\n\\\n    )\\n\"",
+      "rule_body_lang": "yaml",
+      "rule_version": "1.0"
+    },
+    {
+      "detect_id": "DETECT-2026-0043",
+      "title": "Web Server Log4Shell JNDI Injection Attempt in Request Path, Query, or Headers",
+      "description": "Detects the `${jndi:...}` lookup syntax used to exploit Log4Shell (CVE-2021-44228) and its known obfuscation forms across four nginx access-log fields: useragent, referer, uri_path and uri_query -- the same fields the earliest 2021 attacks abused (User-Agent and X-Api-Version headers were the original delivery vector, quickly followed by any reflected/logged request field) and the ones this repo's own web rules already check (0037/0040/0041/0042 all check uri_path+uri_query, 0038 checks useragent). Ported from SigmaHQ's web_cve_2021_44228_log4j.yml: four selection groups mirror its 23-entry keyword list -- direct `${jndi:<scheme>:/` lookups (ldap/rmi/ldaps/dns/ nis/nds/corba/iiop), percent- and double/triple-encoded markers, nested `${}` substitution/default-value bypass tricks that spell out \"jndi\"/\"ldap\" without the literal substring, and a base64-wrapped variant. The source rule's `Reference Class Name: foo` entry is excluded: that string is log4j's own server-side exception output, not something a client ever supplies in a request field this access log captures, so it cannot appear in useragent/referer/uri_path/uri_query. The source rule's Nessus filter (its own safe validation payload, w.nessus.org/nessus or /nessus}) is kept as an explicit `not filter_nessus` exclusion rather than silently dropped. Continued relevance per a 2026 network-telescope study (Dec 2021-Oct 2025): generic obfuscated JNDI probes are still high-volume background scanning years post-disclosure (GreyNoise currently tracks 100+ active scanning nodes), so this is cheap, high-specificity coverage for a gap none of the other seven web rules fill. web_jndi_exploit.yml (JNDI-Exploit-Kit paths like /Basic/ReverseShell/) was deliberately left out: those paths are the attacker's own LDAP/HTTP callback server's served-payload paths, but a real delivery still carries them inside the initial `${jndi:ldap://.../ Basic/...}` URI, which selection_core's protocol-prefix match already catches -- so this exclusion is redundant with selection_core for this logsource, not a distinct signal being missed. Fires regardless of HTTP status, same reasoning as DETECT-2026-0037's traversal rule and stronger: the literal `${jndi:` syntax and its obfuscated forms are essentially never present in benign traffic (unlike a bare `../` or a SQL keyword), so status-gating would only cost recall against the exact behavior Masha's brief highlights -- mass scanners hitting paths that don't exist and getting a 404, or crashing app logging and getting a 500 -- without meaningfully improving precision.\n",
+      "level": "high",
+      "status": "experimental",
+      "source": "sigma",
+      "verdict": "N/A",
+      "run_id": "",
+      "verdict_at": "",
+      "verdict_rule_version": "",
+      "verdict_testing_disabled": false,
+      "tactics": [
+        "Initial Access"
+      ],
+      "techniques": [
+        "T1190"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0043_Web-Server-Log4Shell-JNDI-Injection-Attempt-in-Request-Path-Query-or-Headers.yml",
+      "logsource": {
+        "product_category": "web",
+        "product": "nginx",
+        "service": "access",
+        "event_type": "access_history"
+      },
+      "author": "Bence Marton",
+      "date": "2026-09-23",
+      "modified": "2026-09-23",
+      "references": [
+        "https://attack.mitre.org/techniques/T1190/",
+        "https://github.com/SigmaHQ/sigma/blob/master/rules-emerging-threats/2021/Exploits/CVE-2021-44228/web_cve_2021_44228_log4j.yml",
+        "https://github.com/SigmaHQ/sigma/blob/master/rules/web/webserver_generic/web_jndi_exploit.yml",
+        "https://web.archive.org/web/20231230220738/https://www.lunasec.io/docs/blog/log4j-zero-day/",
+        "https://www.greynoise.io/blog/log4shell-log4j-vulnerability-tracking-cve-2021-44228"
+      ],
+      "falsepositives": [
+        "An authorized Nessus scan's own safe JNDI validation payload is filtered out by filter_nessus; a different scanner or a hand-rolled Log4Shell checker (nuclei, an internal canary script) that doesn't use Nessus's callback fingerprint still matches -- correlate with the scan calendar or source IP before escalating.",
+        "Known blind spot: POST-body payloads (e.g. a JSON field carrying the lookup string) are invisible in the access log, same limitation as DETECT-2026-0041's SQLi rule. nginx logs the request line and headers raw/undecoded, so matching is literal and case-sensitive per Splunk's default wildcard search behavior for `contains`.",
+        "Alert volume, not false positives: the network-telescope research behind this rule found generic obfuscated JNDI probing is still constant background scanning years post-disclosure. Genuine application-level false positives on the literal `${jndi:` syntax and its listed obfuscations are effectively unheard of -- this is a high-specificity signal, unlike the ubiquitous-keyword problem SQLi/XSS rules have to gate around."
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "linux-victim",
+        "type": "emulation",
+        "atomics": []
+      },
+      "rule_body": "detection:\n  selection_sourcetype:\n    sourcetype: access_combined\n  selection_core:\n  - useragent|contains:\n    - ${jndi:ldap:/\n    - ${jndi:rmi:/\n    - ${jndi:ldaps:/\n    - ${jndi:dns:/\n    - ${jndi:nis\n    - ${jndi:nds\n    - ${jndi:corba\n    - ${jndi:iiop\n  - referer|contains:\n    - ${jndi:ldap:/\n    - ${jndi:rmi:/\n    - ${jndi:ldaps:/\n    - ${jndi:dns:/\n    - ${jndi:nis\n    - ${jndi:nds\n    - ${jndi:corba\n    - ${jndi:iiop\n  - uri_path|contains:\n    - ${jndi:ldap:/\n    - ${jndi:rmi:/\n    - ${jndi:ldaps:/\n    - ${jndi:dns:/\n    - ${jndi:nis\n    - ${jndi:nds\n    - ${jndi:corba\n    - ${jndi:iiop\n  - uri_query|contains:\n    - ${jndi:ldap:/\n    - ${jndi:rmi:/\n    - ${jndi:ldaps:/\n    - ${jndi:dns:/\n    - ${jndi:nis\n    - ${jndi:nds\n    - ${jndi:corba\n    - ${jndi:iiop\n  selection_encoded:\n  - useragent|contains:\n    - '/$%7bjndi:'\n    - '%24%7bjndi:'\n    - '$%7Bjndi:'\n    - '%2524%257Bjndi'\n    - '%2F%252524%25257Bjndi%3A'\n  - referer|contains:\n    - '/$%7bjndi:'\n    - '%24%7bjndi:'\n    - '$%7Bjndi:'\n    - '%2524%257Bjndi'\n    - '%2F%252524%25257Bjndi%3A'\n  - uri_path|contains:\n    - '/$%7bjndi:'\n    - '%24%7bjndi:'\n    - '$%7Bjndi:'\n    - '%2524%257Bjndi'\n    - '%2F%252524%25257Bjndi%3A'\n  - uri_query|contains:\n    - '/$%7bjndi:'\n    - '%24%7bjndi:'\n    - '$%7Bjndi:'\n    - '%2524%257Bjndi'\n    - '%2F%252524%25257Bjndi%3A'\n  selection_obfuscated:\n  - useragent|contains:\n    - '${jndi:${lower:'\n    - ${::-j}${\n    - ${${env:BARFOO:-j}\n    - ${::-l}${::-d}${::-a}${::-p}\n    - ${${env:ENV_NAME:-j}ndi${env:ENV_NAME:-:}$\n    - '${${lower:j}ndi:'\n    - '${${upper:j}ndi:'\n    - '${${::-j}${::-n}${::-d}${::-i}:'\n  - referer|contains:\n    - '${jndi:${lower:'\n    - ${::-j}${\n    - ${${env:BARFOO:-j}\n    - ${::-l}${::-d}${::-a}${::-p}\n    - ${${env:ENV_NAME:-j}ndi${env:ENV_NAME:-:}$\n    - '${${lower:j}ndi:'\n    - '${${upper:j}ndi:'\n    - '${${::-j}${::-n}${::-d}${::-i}:'\n  - uri_path|contains:\n    - '${jndi:${lower:'\n    - ${::-j}${\n    - ${${env:BARFOO:-j}\n    - ${::-l}${::-d}${::-a}${::-p}\n    - ${${env:ENV_NAME:-j}ndi${env:ENV_NAME:-:}$\n    - '${${lower:j}ndi:'\n    - '${${upper:j}ndi:'\n    - '${${::-j}${::-n}${::-d}${::-i}:'\n  - uri_query|contains:\n    - '${jndi:${lower:'\n    - ${::-j}${\n    - ${${env:BARFOO:-j}\n    - ${::-l}${::-d}${::-a}${::-p}\n    - ${${env:ENV_NAME:-j}ndi${env:ENV_NAME:-:}$\n    - '${${lower:j}ndi:'\n    - '${${upper:j}ndi:'\n    - '${${::-j}${::-n}${::-d}${::-i}:'\n  selection_base64:\n  - useragent|contains: ${base64:JHtqbmRp\n  - referer|contains: ${base64:JHtqbmRp\n  - uri_path|contains: ${base64:JHtqbmRp\n  - uri_query|contains: ${base64:JHtqbmRp\n  filter_nessus:\n  - useragent|contains:\n    - w.nessus.org/nessus\n    - /nessus}\n  - referer|contains:\n    - w.nessus.org/nessus\n    - /nessus}\n  - uri_path|contains:\n    - w.nessus.org/nessus\n    - /nessus}\n  - uri_query|contains:\n    - w.nessus.org/nessus\n    - /nessus}\n  condition: 'selection_sourcetype and (selection_core or selection_encoded or selection_obfuscated or\n    selection_base64) and not filter_nessus\n\n    '",
       "rule_body_lang": "yaml",
       "rule_version": "1.0"
     }
