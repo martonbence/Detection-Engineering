@@ -1,6 +1,6 @@
 title: Web Server Path Traversal Attempt in Request Path or Query
 detect_id: DETECT-2026-0037
-status: experimental
+status: stable
 description: >
   Detects nginx access-log requests carrying directory-traversal
   sequences (../ literal, percent-encoded, double-encoded, ..;/

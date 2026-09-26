@@ -1,6 +1,6 @@
 title: Web Server Requests from Known Scanner and Attack-Tool User-Agents
 detect_id: DETECT-2026-0038
-status: experimental
+status: stable
 description: >
   Detects nginx access-log requests whose User-Agent is the default
   identifier of a known scanning/attack tool: sqlmap, Nikto, Nmap NSE,
