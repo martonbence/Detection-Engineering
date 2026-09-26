@@ -87,9 +87,9 @@ A .004 ezen is túlmutat: nem is hálózati eszköz (switch, DHCP szerver) kérd
 
 ## Kapcsolódó szabályok
 
-| detect_id | Szabály | Altechnika | Telemetria | Szint |
-| --------- | ------- | ---------- | ---------- | ----- |
-| [DETECT-2026-0033](https://github.com/martonbence/Detection-Engineering/blob/main/rules/sigma/DETECT-2026-0033_LLMNR-NBT-NS-Poisoning-and-SMB-Relay-Tooling-Execution.yml) | LLMNR/NBT-NS Poisoning and SMB Relay Tooling Execution | .001 | Sysmon EID 1 (folyamatindítás; T1557.001-only 2026-09-10 óta, DETECT-2026-0034-ként átszámozva DETECT-2026-0033-ra ugyanaznap) | critical |
+| detect_id | Szabály | Altechnika | Telemetria | Szint | Miért szükséges |
+| --------- | ------- | ---------- | ---------- | ----- | --------------- |
+| [DETECT-2026-0033](https://github.com/martonbence/Detection-Engineering/blob/main/rules/sigma/DETECT-2026-0033_LLMNR-NBT-NS-Poisoning-and-SMB-Relay-Tooling-Execution.yml) | LLMNR/NBT-NS Poisoning and SMB Relay Tooling Execution | .001 | Sysmon EID 1 (folyamatindítás; T1557.001-only 2026-09-10 óta, DETECT-2026-0034-ként átszámozva DETECT-2026-0033-ra ugyanaznap) | critical | Windows alapból LLMNR/NBT-NS broadcast-fallback névfeloldást használ, ha a DNS nem válaszol; a támadó (Responder/Inveigh) ezekre a broadcastokra hamis választ ad, majd az áldozat NTLM-hitelesítését hash-ként begyűjti vagy egy harmadik célpont felé relay-eli. |
 
 *A .002, .003 és .004 továbbra is fedetlen — egyiknek sincs érdemi végponti telemetriája (lásd az Összehasonlítás táblát); a .002/.003 védelme hálózati eszköz (switch, DHCP szerver) oldali, a .004-é WIPS-infrastruktúra kérdése — egyik sem SIEM-szabály hatóköre.*
 

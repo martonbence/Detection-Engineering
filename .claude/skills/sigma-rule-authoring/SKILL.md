@@ -42,6 +42,23 @@ itself uses. `title`, `description`, `tags`, `logsource`, `detection`, and
 `falsepositives` are free-text and can carry a literal TODO placeholder
 until filled.
 
+## `falsepositives`: never hedge with "no baseline measured yet"
+
+Don't write a bullet like "no baseline established for this environment
+yet" / "unmeasured for this lab" / "tune this after the rule has run for a
+while" — for a rule that has never been deployed, that's true of *every*
+new rule by definition, so it carries zero information and just pads the
+section. This was cut once already, repo-wide, for exactly this reason
+(`17a7125`, 2026-09-23: "Every falsepositives section across the 7 web
+rules restated the same non-information... kept the actual scenario/
+reasoning, dropped the hedge") and crept back into DETECT-2026-0044 anyway
+— don't reintroduce it a third time. If a bullet's only content is the
+hedge, drop the bullet outright; if it's a trailing clause on an otherwise
+real scenario, cut the clause and keep the scenario. A genuine open
+tuning question (e.g. "TODO: decide whether X counts as an FP") is fine —
+the trap is specifically the baseline/unmeasured framing, not TODOs in
+general.
+
 ## Detection logic: `detection:` block vs. `custom.splunk.raw_query`
 
 Use Sigma's `detection:` selection/condition block by default — it's what
@@ -50,6 +67,20 @@ emitted verbatim by the converter) only when the logic is genuinely too
 sophisticated for Sigma's block syntax to express. Even then, keep the
 `detection:` block populated with its required placeholder — the schema
 demands it, but it is never actually evaluated for a `raw_query` rule.
+
+## Keep inline comments out of the detection logic unless truly warranted
+
+Don't pepper `detection:` selections, `condition:`, or `custom.splunk.raw_query`
+with explanatory YAML comments as a matter of habit — the user flagged this
+2026-09-26 after a review pass left several rules' logic blocks cluttered
+with inline reasoning (a cron-interval justification, a test-payload
+provenance note, per-selection anchoring citations). It reads as noisy
+rather than documented. The `description` and `falsepositives` fields are
+the right home for reasoning, provenance, and caveats — they're free text
+and meant to carry exactly that. Reserve an inline comment in the logic
+itself for the rare case where the *code* would otherwise be genuinely
+misread in isolation (e.g. a non-obvious precedence trap), not for
+narrating a design decision that belongs in prose fields instead.
 
 ## Testing: prefer a real Atomic Red Team test over writing a custom command
 
