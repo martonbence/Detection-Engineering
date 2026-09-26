@@ -249,6 +249,33 @@ def test_a_manual_selection_still_picks_up_a_rule_with_no_spl():
     assert d.rule_files == (RULE_B, RULE_C)
 
 
+def test_an_unverified_scope_with_nothing_due_still_becomes_a_real_run():
+    """`unverified` mode is the workflow_dispatch default, so it gets its own pin:
+    select_unverified.py resolving to nothing must not shortcut past the
+    missing-.spl widening. Without this, the run reports the positive
+    "nothing to verify" result while a committed rule still has no .spl.
+    """
+    d = dispatch(res=resolvers(unverified=[], missing_spl=[RULE_C]))
+
+    assert d.mode == "unverified"
+    assert d.outcome == "ok"
+    assert d.has_rules is True
+    assert d.rule_files == (RULE_C,)
+    assert d.summary == ""
+    assert "Every rule is already verified at its current version. Nothing to run." not in d.messages
+
+
+def test_an_unverified_selection_that_also_has_no_spl_is_listed_once():
+    """The overlap case: select_unverified.py already named a rule that also has
+    no .spl. already_selected must exclude it from the widening so it is not
+    duplicated (and not attacked twice downstream)."""
+    d = dispatch(res=resolvers(unverified=[RULE_A], missing_spl=[RULE_A, RULE_C]))
+
+    assert d.mode == "unverified"
+    assert d.rule_files == (RULE_A, RULE_C)
+    assert d.rule_files.count(RULE_A) == 1
+
+
 def test_an_unresolvable_selection_still_fails_before_any_widening():
     """The strict `selected` failure is upstream of this and stays upstream: a
     request that could not be honoured is not quietly turned into a repair run."""
