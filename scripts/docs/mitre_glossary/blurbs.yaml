@@ -1,0 +1,1035 @@
+# MITRE Navigator glosszárium — rövid, gyors-referencia leírások.
+# Kulcs: ATT&CK ID (taktika/technika/altechnika). Érték: ~10 mondat arról,
+# MI az adott elem és HOGYAN működik mechanikusan — nem detekciós útmutató,
+# nem a repo szabály-belsőségei. A meglévő vault-jegyzetekből sűrítve, ahol
+# volt jegyzet; egyébként általános ATT&CK-tudásból. Új lefedett elemhez ide
+# kell egy új sort felvenni, majd a generátort újrafuttatni.
+# `backtick` közé tett szöveg kódként (monospace) jelenik meg a lapon.
+
+# ── Taktikák ──────────────────────────────────────────────────────────────
+"TA0043": >
+  A Reconnaissance a támadási lánc első, pre-kompromittációs taktikája: a
+  támadó információt gyűjt a célpontról, mielőtt bármihez hozzáérne. Két ágra
+  bomlik. A passzív felderítés (OSINT, külső adatbázisok, publikus felületek)
+  teljes egészében a támadó oldalán zajlik, és a védett környezetből nem is
+  látható. Az aktív felderítés viszont közvetlen interakcióba lép a célponttal
+  — port scan, service fingerprinting, webes tartalom-térképezés —, és ez már
+  nyomot hagy a peremen. A cél mindig ugyanaz: elég kontextust szerezni ahhoz,
+  hogy egy későbbi lépés (célzott phishing, exploit) pontos és hihető legyen.
+  Detekciós szempontból a Reconnaissance ritkán hagy magas fidelitású jelet;
+  inkább aggregált anomáliák (sweep-ek, szokatlan user-agentek) és threat
+  intel feedek (ismert scanner IP-k) adnak értéket. Ez a mátrix első oszlopa.
+
+"TA0001": >
+  Az Initial Access az a pillanat, amikor a támadó tevékenysége átlép a saját
+  infrastruktúrájáról a célpont rendszereire — az első lábnyom megszerzése. Ez
+  a határvonal a felderítési fázis és a tényleges behatolás között: előtte a
+  támadó csak tud a célpontról, utána benne van. A belépési pontok két,
+  detekciósan nagyon eltérő családra oszlanak. Az egyik a technikai
+  kihasználás: internetről elérhető szolgáltatás sérülékenységének kiaknázása
+  (T1190) vagy a böngésző megtámadása egy weboldalon át (T1189) — itt van
+  payload és szignatúra. A másik a legitim belépés visszaélésszerű használata:
+  ellopott hitelesítő adattal VPN-re/RDP-re bejelentkezés — itt a támadó
+  ugyanazt teszi, mint egy valódi felhasználó, és a jel csak a kontextusban
+  van. Ezért ez a taktika kiemelten értékes: itt még a peremen van a támadó,
+  minden későbbi lépést drágább detektálni.
+
+"TA0002": >
+  Az Execution taktika alatt a támadó saját kódot futtat a célkörnyezet egy
+  gépén. Ez sosem a végcél önmagában — a futtatott kód mindig valami mást
+  szolgál: felderítést, hitelesítőadat-lopást, perzisztenciát, C2-t —, ezért
+  szinte minden láncban szerepel, jellemzően többször is. Detekciósan
+  kitüntetett helyzetben van két okból. Egyrészt ez a legjobban megfigyelhető
+  taktika: a folyamatindítás (Sysmon EID 1, Windows 4688) a legrészletesebb
+  végponti telemetria, és minden kódfuttatás keletkeztet ilyen eseményt.
+  Másrészt a támadó itt sok megfigyelhető döntést kényszerül meghozni — milyen
+  interpreter, milyen paraméterek, milyen szülőfolyamat —, és ezek
+  ujjlenyomatként viselkednek. A taktika igazi nehézsége nem a láthatóság,
+  hanem a legitimitás: a támadó ugyanazokat az interpretereket (PowerShell,
+  `cmd.exe`, WMI, bash) használja, mint az adminok. A kérdés tehát nem az,
+  hogy látjuk-e, hanem hogy meg tudjuk-e különböztetni.
+
+"TA0003": >
+  A Persistence célja, hogy a támadó hozzáférése túlélje azt, ami egy illékony
+  kódfuttatást megszüntetne: az újraindítást, a kijelentkezést, a folyamat
+  leállását, a hitelesítő adat lejáratát. Nem új képességet ad, hanem
+  biztosítja a már megszerzettet. Értéke onnan jön, hogy a belépési pont drága
+  volt (exploit, phishing, ellopott adat), és a támadó nem akarja újra
+  megfizetni — ezért a perzisztencia jellemzően közvetlenül az első kódfuttatás
+  után, és gyakran több helyen párhuzamosan épül ki. Ha az egyiket megtalálják,
+  a többi életben marad. Detekciósan azért kitüntetett, mert szinte minden
+  technikája állapotot ír valahová: registry-kulcsot, fájlt, ütemezett
+  feladatot, szolgáltatás-bejegyzést. Ez kétszeresen hasznos: a létrehozás
+  pillanata eseményt generál, és — más taktikákkal ellentétben — az eredmény
+  utólag is megtalálható, mert definíció szerint ott marad.
+
+"TA0005": >
+  A Stealth (Defense Evasion rokon fogalma) alatt a támadó azt teszi, hogy a
+  tevékenysége ne látszódjon vagy ne keltsen gyanút. Nem előreviszi a láncot,
+  hanem fedezi a többi lépést: elrejti a folyamatokat, obfuszkálja a
+  parancsokat, kihasznál aláírt, megbízható bináriskat (LOLBins), vagy tölt be
+  kódot közvetlenül a memóriába, hogy lemezre semmi ne kerüljön. A közös
+  nevező, hogy a támadó nem új utat nyit, hanem a meglévő tevékenységét teszi
+  észlelhetetlenné a védelmi és naplózási mechanizmusok előtt. Éppen ezért ezek
+  a technikák szinte sosem állnak önmagukban: egy elrejtett ablak, egy kódolt
+  parancs vagy egy proxy-végrehajtás mindig valami mást takar. Detekciósan a
+  legnehezebb taktikák egyike, mert a legitim adminisztráció is használ
+  hasonló eszközöket (aláírt segédprogramok, háttérszkriptek). A jel ritkán az
+  egyes technikában van, inkább a kontextusban és a technikák együttállásában.
+  A repóban ide tartozik többek közt az obfuszkáció, a rejtett ablak, a proxy-
+  végrehajtás és a reflektív kódbetöltés.
+
+"TA0112": >
+  A Defense Impairment (a repo saját taktika-besorolása) alatt a támadó
+  közvetlenül a védelmi és naplózási képességeket rontja le vagy kapcsolja ki,
+  hogy a további tevékenysége se megelőzésbe, se rögzítésbe ne ütközzön.
+  Különbözik a puszta elrejtőzéstől: itt a támadó aktívan hozzányúl a
+  kontrollhoz magához — leállítja a naplószolgáltatást, kikapcsol audit-
+  kategóriákat, patcheli az AMSI-t, vagy törli a már keletkezett bejegyzéseket.
+  A cél a szemtanú megvakítása: vagy meg sem születik a bizonyíték, vagy
+  utólag eltűnik. Ezek a lépések tipikusan közvetlenül a fő payload előtt vagy
+  után futnak, mert csak akkor van értelmük, ha valamit fedezni kell. A megelőző
+  változat (naplózás letiltása) csendesebb, mint az utólagos (napló-törlés),
+  mert egy üres napló önmagában gyanús. Detekciósan a kihívás az, hogy
+  ugyanezeket a kulcsokat és parancsokat a legitim hardening-szkriptek is
+  írják, csak ellenkező irányban. A repóban a Windows-naplózás letiltása és
+  törlése tartozik ide.
+
+"TA0006": >
+  A Credential Access alatt a támadó érvényes hitelesítő adatokat próbál
+  szerezni: felhasználónév-jelszó párt, jelszó-hasht, Kerberos ticketet,
+  tokent vagy tanúsítványt. Ennek az az értéke, hogy a lopott azonosítóval
+  végzett tevékenység legitim felhasználói tevékenységnek látszik — nem kell
+  hozzá exploit, nem kell malware, és a legtöbb kontroll elengedi. Egy
+  megszerzett domain admin hash lényegében kiváltja az összes további privilege
+  escalationt. Ez a lánc fordulópontja: innentől a támadó nem betör, hanem
+  bejelentkezik. A megszerzés útjai szélesek: az OS hitelesítőadat-tárolóiból
+  való dump (T1003), online vagy offline próbálgatás (T1110), Kerberos-jegyek
+  lopása és kovácsolása (T1558), vagy hálózati man-in-the-middle (T1557).
+  Detekciósan itt éri meg a legtöbbet befektetni, mert ez az utolsó pont, ahol
+  a tevékenység még egyértelműen rosszindulatúnak látszik, mielőtt beleolvadna
+  a normál forgalomba.
+
+"TA0007": >
+  A Discovery alatt a támadó azt próbálja megtudni, hova érkezett: milyen
+  gépen van, milyen jogosultsággal, milyen domainben, ki van bejelentkezve, hol
+  az adat, és mi figyeli őt. A behatolás pillanatában szinte semmit nem tud a
+  belső környezetről, és ezt a hiányt pótolja. A taktika különlegessége, hogy
+  szinte kizárólag legitim, beépített eszközökkel zajlik — `whoami`, `net
+  user`, `nltest`, `systeminfo`, `tasklist`, `ipconfig` —, semmi nem exploit,
+  a rendszer csak válaszol egy jogosult kérdésre. Ebből két dolog következik.
+  Egyrészt a fidelitás alacsony: egyetlen `whoami` teljesen normális, így az
+  egyedi detekció ritkán actionable. Másrészt a minta jellegzetes: a támadó
+  (vagy a felderítő szkriptje) rövid idő alatt sok, egymáshoz kapcsolódó
+  parancsot futtat — és ez a sűrűség olyan jel, ami legitim adminnál ritka. A
+  Discovery detekciója ezért nem szűrés, hanem aggregáció.
+
+"TA0009": >
+  A Collection alatt a támadó összegyűjti azt az adatot, amiért a művelet
+  egyáltalán folyik vagy amit egy későbbi lépéshez fel akar használni — még
+  mielőtt kijuttatná (az az Exfiltration). Az adat forrása sokféle: helyi
+  fájlrendszer, hálózati megosztás, e-mail, adatbázis, képernyő, billentyűzet,
+  vagy a hálózaton áthaladó forgalom. A közös nevező, hogy a támadó itt még
+  nem visz ki semmit, csak lokálisan felhalmoz, tipikusan egy staging-helyre,
+  gyakran tömörítve vagy titkosítva. Detekciósan a nehézség az, hogy az
+  adathozzáférés önmagában rendszerint legitim — a felhasználók és a
+  szolgáltatások is olvasnak fájlokat és megosztásokat. A jel inkább a mintában
+  van: szokatlanul széles vagy tömeges hozzáférés, automatizált begyűjtés,
+  staging-artefaktumok. A repóban a Collection a hálózati man-in-the-middle
+  forgalom-begyűjtő oldalán (T1557) kapcsolódik be, ahol a lehallgatott
+  forgalom egyszerre credential access és collection nyereség.
+
+"TA0011": >
+  A Command and Control (C2) alatt a támadó kommunikációs csatornát tart fenn a
+  kompromittált géppel, hogy parancsokat adhasson és adatot mozgathasson. A
+  legfontosabb tervezési cél az álca: a C2-forgalom igyekszik beleolvadni a
+  normál hálózati zajba, tipikusan a gyakori, kifelé amúgy is engedélyezett
+  protokollokba (HTTP/HTTPS, DNS), hogy egy tűzfal- vagy proxy-szabály ne
+  fogja meg. Ide tartozik a csatorna kiépítése és fenntartása, a beacon-szerű
+  periodikus visszahívás, a további eszközök letöltése a fertőzött gépre, és
+  a forgalom kódolása/obfuszkálása. Egy tipikus lánc egy alkalmazásréteg-
+  protokollon (T1071) fut, néha nem-alkalmazásrétegű protokollra (T1095) vált,
+  és a tényleges eszközöket ingress tool transferrel (T1105) hozza be.
+  Detekciósan a jel ritkán a protokollban van — az legitim —, inkább a
+  viselkedésben: periodicitás, szokatlan cél, aránytalan fel/le forgalom,
+  gyanús user-agent vagy JA3-ujjlenyomat. A C2 az a taktika, ahol a művelet
+  élő kapcsolata a leginkább megfogható.
+
+# ── Reconnaissance ──────────────────────────────────────────────────────────
+"T1595": >
+  Az Active Scanning alatt a támadó aktív hálózati vizsgálattal térképezi fel a
+  célpont infrastruktúráját — a passzív OSINT-tel szemben itt közvetlen
+  forgalmat küld a célpont felé, tehát nyomot is hagy. Három altechnikára
+  bomlik. A Scanning IP Blocks (.001) azt állapítja meg, mely IP-k élnek és
+  milyen szolgáltatások/verziók futnak rajtuk. A Vulnerability Scanning (.002)
+  ezt követi, és megmondja, hogy a feltérképezett szolgáltatások sérülékenyek-e
+  egy ismert exploit követelményeihez. A Wordlist Scanning (.003) az alkalmazási
+  rétegben szólistákkal keres rejtett tartalmakat, könyvtárakat, admin-
+  felületeket vagy cloud tárolókat. Az Active Scanning sosem öncél: az
+  összegyűjtött adat egy későbbi lépés (célzott exploit, belépés) bemenete —
+  egy nyitott RDP port vagy egy sérülékeny webszolgáltatás azonnal Initial
+  Access-célponttá válik. Platformja PRE (pre-kompromittáció), és detekciósan
+  jellemzően csak a szervezet saját, kifelé néző felületein (webszerver access
+  log, peremeszköz) látszik.
+
+"T1595.002": >
+  A Vulnerability Scanning során a támadó a célpont már azonosított
+  szolgáltatásait ismert sérülékenységek után vizsgálja: eldönti, hogy egy adott
+  végponton futó szoftver típusa és verziója illeszkedik-e egy általa ismert
+  exploit követelményeihez. Tipikusan a Scanning IP Blocks (.001) után jön —
+  míg az meghatározza, hol milyen szolgáltatás fut, a Vulnerability Scanning
+  megmondja, hol van rajta kihasználható gyenge pont. A tevékenységet többnyire
+  automatizált sérülékenység-szkennerek (Nessus, OpenVAS, Nuclei) végzik,
+  amelyek listaszerűen sorolják fel a talált gyengeségeket. A gyakorlatban a
+  szkenner sok, gyorsan egymás után kiadott kérést küld ismert sérülékeny
+  útvonalakra és paraméterekre, gyakran jellegzetes user-agenttel. A webszerver
+  access logjában ez sűrű, gépi mintázatú, sokféle útvonalat érintő
+  forgalomként jelenik meg egyetlen forrásból. Platformja PRE, és mivel a
+  vállalati kontrollokon kívüli viselkedésen alapul, megelőző eszközzel nehezen
+  mérsékelhető — a detekció a peremen történő megfigyelésre épül. A repóban a
+  linux-victim nginx access logja adja a jelet. Detekciósan a kihívás
+  elkülöníteni a legitim biztonsági szkenneléstől és a keresőrobotoktól.
+
+"T1595.003": >
+  A Wordlist Scanning során a támadó szólistákkal (wordlist) iteratívan próbálja
+  feltérképezni a célpont felületét — de nem hitelesítő adatot keres, hanem
+  rejtett tartalmakat: nem linkelt oldalakat, régi fájlokat, admin-felületeket,
+  könyvtárakat. A szólista lehet generikus, széles körben használt fájl- és
+  könyvtárnevek gyűjteménye, vagy célpont-specifikus, korábbi felderítésből
+  összeállított lista. Két fő alkalmazási területe van. Az egyik a webes
+  tartalom-felderítés: rejtett útvonalak és felületek megtalálása olyan
+  eszközökkel, mint a Gobuster, Dirb vagy DirBuster. A másik a cloud storage-
+  felderítés: publikus vagy privát tárolók (S3, GCP bucket) azonosítása, mivel
+  ezek globálisan egyedi nevet használnak. A gyakorlatban ez a webszerveren sok
+  `404`/`403` választ generál rövid idő alatt, mert a lista túlnyomó része nem
+  létező útvonalra mutat — épp ez a mennyiségi mintázat a jel. Platformja PRE,
+  és mint a többi Active Scanning altechnika, megelőző kontrollal nehezen
+  mérsékelhető; a védelem inkább a felesleges felületek elrejtése. A repóban a
+  linux-victim webszerver access logja látja.
+
+# ── Initial Access ──────────────────────────────────────────────────────────
+"T1189": >
+  A Drive-by Compromise nem a szervert, hanem a felhasználó böngészőjét
+  támadja — miközben az áldozat teljesen hétköznapi módon, saját szándékából
+  nyit meg egy weboldalt. Az oldal tartalma (vagy egy része: egy hirdetés, egy
+  beágyazott szkript, egy felhasználó által feltölthető tartalom) a támadó
+  kezén van, és betöltéskor automatikusan lefutó kód használja ki a böngésző
+  vagy egy plugin sérülékenységét. A lényeg a bizalmi irány megfordítása a
+  T1190-hez képest: ott a támadó küld kérést a szerverhez, itt a kliens kéri le
+  a tartalmat, és a rosszindulatú anyag a válaszban érkezik — ezért a
+  kihasználás a végponton történik, nem a szerver logjában. A phishinggel
+  szemben itt nincs csali, amire rá kell venni a felhasználót: elég, hogy
+  meglátogat egy amúgy is szokott oldalt (watering hole) vagy egy hirdetési
+  hálózat eljuttatja rá (malvertising). A MITRE négy lépésben írja le:
+  látogatás, a szkriptek lefutása és a böngésző/plugin verziójának vizsgálata,
+  az exploit eljuttatása, majd kódfuttatás megszerzése. A szempontunkból
+  legfontosabb eset, amikor a szervezet saját, sérülékeny webalkalmazása
+  szolgálja ki a rosszindulatú szkriptet a látogatóinak.
+
+"T1190": >
+  Az Exploit Public-Facing Application során a támadó egy internetről elérhető
+  szolgáltatás szoftverhibáját használja ki, hogy belépési pontot szerezzen. A
+  közös nevező nem egy sérülékenység-típus, hanem a pozíció: a célpont egy
+  szándékosan publikált alkalmazás (webapp, API, VPN-koncentrátor, adatbázis-
+  frontend, levelezőszerver), tehát nem kell sem hitelesítő adat, sem
+  felhasználói interakció — csak egy jól megfogalmazott kérés. Ami detekciósan
+  megkülönbözteti: a payload a kérés része, tehát a rosszindulatú tartalom
+  átmegy azon a csatornán, amit a szerver amúgy is naplóz — ezért szignatúra-
+  alapon detektálható, még mielőtt bármi végrehajtódna. Tipikus alakjai a path
+  traversal / Local File Inclusion (`../` kódolt változatai a `/etc/passwd`
+  vagy konfigfájlok felé), az injekciók és a távoli kódfuttatás. Egyes
+  sérülékenységek (Log4Shell, RFI) a második lépésben kimenő kapcsolatot
+  kényszerítenek a szerverből a támadó callback-infrastruktúrája felé — ilyenkor
+  a valódi payload nem is a kérésben van. A támadó a kihasznált folyamat
+  jogosultságát örökli: ha a webapp service accountként fut, azzal jelenik meg
+  a hálózaton. A repóban a linux-victim nginx access logja a detekció forrása.
+
+"T1566": >
+  A Phishing alatt a támadó megtévesztő elektronikus üzenettel próbál belépési
+  pontot szerezni: rábírja a címzettet, hogy megnyisson egy mellékletet,
+  rákattintson egy linkre, vagy megadjon egy hitelesítő adatot. Ez a
+  leggyakoribb kezdeti belépési vektor, mert nem igényel hálózati
+  sérülékenységet — az egyetlen kihasznált gyengeség az ember. Három altechnika
+  tartozik alá: a rosszindulatú melléklet (.001), a rosszindulatú link (.002),
+  és a szolgáltatáson keresztüli phishing (.003), pl. közösségi médián.
+  Jellemzően célzott és hihető ürüggyel operál (spearphishing), gyakran egy
+  korábbi felderítés (T1595, identity gathering) adataira építve. A támadói
+  logika szerint egy sikeres megnyitás egy második, tényleges payloadot indít,
+  ami már a végponton fut. Detekciósan a kihívás, hogy a legitim üzleti
+  levelezés is tartalmaz mellékleteket és linkeket — a jel a feladó, a
+  reputáció, a melléklet-típus és a megnyitás utáni folyamatlánc kombinációjában
+  van. Platformja jellemzően Windows/macOS/Linux végpont és a levelezési
+  szolgáltatás. A védelem több rétegű: e-mail gateway, MOTW, makró-blokkolás,
+  felhasználói tudatosság.
+
+"T1566.001": >
+  A Spearphishing Attachment során a támadó egy célzott, hihető ürüggyel
+  ellátott e-mailhez rosszindulatú mellékletet csatol — makrós Office-
+  dokumentumot, jelszóval védett (AV-scan elől rejtett) ZIP-et, HTA-t vagy egy
+  exploit-terhelt PDF-et —, és ráveszi a felhasználót a megnyitásra. A megnyitás
+  pillanatában a melléklet a saját alkalmazásán (Word, Excel, Adobe Reader)
+  belül futtat kódot, ami egy második, tényleges payloadot indít. A klasszikus
+  forma a VBA-makró: egy `AutoOpen`/`Document_Open` makró tipikusan `Shell()`
+  vagy `CreateObject("WScript.Shell").Run` hívással PowerShellt indít. A HTA/
+  script-alapú változat `mshta.exe`-vel, `wscript.exe`/`cscript.exe`-vel fut, az
+  exploit-terhelt dokumentum (pl. Follina, `msdt.exe`) pedig már pusztán a
+  megnyitással kódot futtat, makró-engedélyezés nélkül. A Microsoft
+  alapból blokkolja az internetről letöltött makrókat, ezért a támadók
+  megkerülő trükköket használnak (jelszavas ZIP, ISO/IMG-becsomagolás, ami
+  elveszíti a Mark-of-the-Web-et). Detekciósan a jel jellemzően a folyamatlánc:
+  egy Office- vagy szkript-motor gyanús gyermekfolyamatot indít. A tartalmat a
+  fájl alapján nehéz elkülöníteni a legitim makróktól.
+
+# ── Execution ───────────────────────────────────────────────────────────────
+"T1059": >
+  A Command and Scripting Interpreter alatt a támadó a rendszeren már jelen lévő
+  parancs- és szkriptmotorokat használja kódfuttatásra ahelyett, hogy saját
+  binárist hozna be. A közös nevező, hogy ezek az interpreterek (PowerShell,
+  `cmd.exe`, Windows Script Host, bash/sh, Python) beépítettek és megbízottak,
+  gyakran allowlisteltek — ezért egyszerre kényelmes és feltűnésmentes vektorok.
+  Az egyes altechnikák a konkrét interpretert nevezik meg: PowerShell (.001),
+  Unix Shell (.004), és így tovább. A támadó azért szereti ezt a réteget, mert
+  az interpreterek beépített képességei (letöltés, dekódolás, memóriába töltés,
+  API-hívás) önmagukban is elegendők egy teljes, akár fájl nélküli (fileless)
+  lánchoz. Detekciósan az Execution a legjobban megfigyelhető taktika: minden
+  kódfuttatás folyamatindítási eseményt (Sysmon EID 1, 4688) hagy a
+  parancssorral együtt. A nehézség a legitimitás: az adminok és a
+  telepítőcsomagok ugyanezeket az interpretereket futtatják. A jel ezért a
+  parancssor tartalmában, a szülőfolyamatban és a láncban van, nem magában a
+  futás tényében.
+
+"T1059.001": >
+  A PowerShell natívan telepített, aláírt, teljes .NET-hozzáféréssel rendelkező
+  szkriptmotor minden modern Windowson — pontosan ez teszi a legvonzóbb
+  execution-vektorrá. A támadó nem hoz be idegen binárist, hanem egy
+  megbízhatónak minősített, gyakran allowlistelt interpretert használ tetszőleges
+  kódra: fájl-, hálózat- és memóriaműveletekre, .NET reflection-alapú assembly-
+  betöltésre, sőt közvetlen Win32 API-hívásra (P/Invoke). Ez a legnépszerűbb
+  altechnika a T1059 alatt: szinte minden post-exploitation keretrendszer
+  (Cobalt Strike, Empire, PowerSploit, Nishang) PowerShellre épít, mert a
+  beépített képességek (`Net.WebClient`, `Reflection.Assembly`, `Add-Type`)
+  elegendők egy teljes fileless lánchoz. Tipikus alakjai: közvetlen cmdlet/
+  szkript-végrehajtás, download cradle + `IEX` memóriában, `-EncodedCommand`
+  (`-enc`) Base64-payload, GZip/Deflate-tömörített stager, és reflection-alapú
+  assembly-betöltés. Az obfuszkáció (backtick, string-összefűzés) gyakran
+  kombinálódik vele a string-alapú szűrés megkerülésére. Detekciósan a
+  ScriptBlock-naplózás (4104) és a folyamat-parancssor a fő forrás. A kihívás,
+  hogy a legitim adminisztráció is PowerShellt használ.
+
+"T1059.004": >
+  A Unix Shell alatt a támadó Unix shell (`sh`, `bash`, `zsh`, BusyBox `ash`)
+  parancsokat és szkripteket futtat kódvégrehajtásra — ugyanaz a szerep Linux/
+  macOS/ESXi rendszereken, mint amit Windowson a PowerShell (.001) tölt be. A
+  shell azért kitüntetett a támadónak, mert mindenütt ott van és mindent tud:
+  nincs szükség külön eszközre, maga a shell tud fájlt letölteni (`curl`/`wget`),
+  hálózati kapcsolatot nyitni (`/dev/tcp`), interpretert indítani, jogosultságot
+  vizsgálni. Egy megszerzett kódfuttatás első lépése szinte mindig egy shell
+  megnyitása. Klasszikus esetben egygépes technika: a shell a kompromittált gépen
+  fut, tipikusan szokatlan szülőből vagy kontextusból (a MITRE AN1081–AN1084
+  analitikái épp ezt a láncolt viselkedést nevezik jelnek). A repóban ez a réteg
+  — a natív végponti shell-futás — tudatosan nincs felépítve, mert nincs Linux-
+  végponti folyamat-telemetria. Ehelyett a repo közvetve, a webszerver access
+  logján át látja: amikor egy web shellt (T1505.003) a query stringjén keresztül
+  vezérelnek, a beadott érték egy Unix parancs (`whoami`, `uname`, `/dev/tcp/`).
+  A shell-parancs itt a web shell artefaktuma, nem közvetlen végponti futás.
+
+"T1197": >
+  A BITS Jobs során a támadó a Windows beépített Background Intelligent Transfer
+  Service (BITS) szolgáltatását használja fájlletöltésre, -feltöltésre vagy
+  parancsfuttatásra. A BITS egy legitim, aszinkron fájlátviteli mechanizmus,
+  amit a Windows Update és sok telepítő is használ — épp ez teszi jó fedéssé:
+  a forgalom egy megbízott rendszerszolgáltatáson keresztül megy, és nem a
+  gyanús folyamathoz kötődik. A támadó a `bitsadmin` eszközzel vagy a
+  PowerShell `Start-BitsTransfer` cmdlettel hoz létre feladatot; a
+  `bitsadmin /SetNotifyCmdLine` révén a feladat befejeztével akár tetszőleges
+  parancsot is futtathat, ami perzisztenciát ad. A BITS-feladatok túlélik az
+  újraindítást és a kijelentkezést, és a beütemezett újrapróbálkozás miatt
+  makacsul fennmaradnak. Ezért a technika egyszerre szolgál letöltő-,
+  perzisztencia- és stealth-célt (innen a több taktikás besorolás). Detekciósan
+  a jel a `bitsadmin` gyanús parancssora, a szokatlan BITS-célok, és a BITS
+  operational eseménynapló bejegyzései. A nehézség, hogy a legitim szoftver-
+  frissítés is folyamatosan használja a BITS-t.
+
+# ── Persistence ─────────────────────────────────────────────────────────────
+"T1505": >
+  A Server Software Component alatt a támadó egy szerver-szoftver legitim
+  bővíthetőségi képességét fordítja perzisztenciává: egy webszerverhez, adatbázis-
+  szerverhez vagy alkalmazás-szerverhez ad hozzá saját, rosszindulatú
+  komponenst. A közös nevező, hogy nem külső binárist telepít, hanem a szerver
+  saját futtatási képességét (PHP/ASP/JSP interpreter, tárolt eljárás,
+  transport agent, modul) használja fel arra, hogy tartós hozzáférést vagy
+  kódfuttatást kapjon. Az altechnikák a komponens típusát nevezik meg: web shell
+  (.003), IIS-komponens, SQL tárolt eljárás, transport agent. Az előnye
+  kettős: a komponens a szerver folyamatán belül, annak jogosultságával fut, és
+  a forgalma beleolvad a szerver normál működésébe — nincs külön csatorna, amit
+  egy hálózati szabály megfogna. A web shell (a repo lefedett esete) a
+  leggyakoribb alak: egy webből elérhető könyvtárba írt kis szkript, amin
+  keresztül a támadó parancsokat futtat sima HTTP-forgalomként. Detekciósan a
+  jel a komponens létrejötte (fájlírás a webroot alá) és aktiválása. A
+  létrehozás sokszor egy korábbi exploit (T1190) következménye.
+
+"T1505.003": >
+  A Web Shell egy kis szerveroldali szkript, amit a támadó egy webről elérhető
+  könyvtárba helyez, és ezen keresztül tartós, interaktív hozzáférést kap a
+  szerverhez — miközben kifelé minden forgalom sima HTTP marad. Nem exploit,
+  hanem a következmény, amit egy korábbi kihasználás (T1190) vagy egy sérülékeny
+  feltöltési pont lehetővé tett; a T1505 alá azért tartozik, mert a webszerver
+  saját interpreterét (PHP/ASP/JSP) fordítja perzisztenciává. A nyereség kettős:
+  perzisztencia (a fájl túléli az újraindítást és nem függ attól, hogy az
+  exploit még működik-e) és álca (a forgalom a 443/80-as porton, ugyanabban a
+  folyamatban zajlik, mint a legitim webforgalom). Az életciklus két, időben
+  elváló fázisra bomlik. Az 1. fázis a shell elhelyezése — feltöltés vagy írás
+  a webroot alá, klasszikus megkerülő trükkökkel (dupla kiterjesztés `.php.jpg`,
+  trailing-dot, null-byte) —, ez önmagában rutin webforgalom. A 2. fázis a shell
+  aktiválása: a felkerült szkript meghívása, jellemzően paraméterben átadott
+  paranccsal — detekciósan pont ez a szétválás a lényeg, mert az első fázis
+  zajos, a második a tényleges jel. A repo emulációs tesztje a mintát ártalmatlan
+  tartalommal gyakorolja.
+
+# ── Stealth ─────────────────────────────────────────────────────────────────
+"T1027": >
+  Az Obfuscated Files or Information alatt a támadó úgy alakítja át a fájljait
+  vagy a végrehajtott tartalmat (kódolással, tömörítéssel, titkosítással,
+  karakter-behelyettesítéssel), hogy a statikus, kulcsszó-alapú elemzés ne
+  ismerje fel a valódi szándékot, miközben a futásidejű viselkedés
+  változatlan. A cél a szignatúra- és allowlist-alapú detekció megkerülése a
+  legolcsóbb módon: nem kell új exploit, csak a meglévő tartalom elrejtése. Az
+  altechnikák a konkrét módszert nevezik meg: parancs-obfuszkáció (.010),
+  szoftvercsomagolás, steganográfia, kódolt fájlok. A repo lefedett esete a
+  Command Obfuscation, ahol a parancssor szövegét kódolják vagy tördelik. Ez a
+  technika a legtöbb kulcsszó-alapú szabály természetes ellenfele: egy `IEX`-re
+  épülő selection triviálisan kijátszható. Detekciósan a jel gyakran nem a
+  konkrét kulcsszó, hanem a maga az obfuszkáció jellemzői: szokatlanul hosszú
+  Base64-blokkok, magas entrópia, sűrű escaping-karakterek. A nehézség, hogy a
+  legitim eszközök is használnak kódolást (pl. a `-EncodedCommand` idézőjel-
+  problémák elkerülésére). A jel ezért mennyiségi és kontextuális.
+
+"T1027.010": >
+  A Command Obfuscation során a támadó úgy alakítja át a ténylegesen
+  végrehajtott parancsot — kódolással, tömörítéssel, karakter-behelyettesítéssel
+  vagy szintaktikai trükkökkel —, hogy a parancssor szövege ne tartalmazza a
+  szándékot eláruló kulcsszavakat, miközben az interpreter (PowerShell,
+  `cmd.exe`, bash) futásidőben pontosan ugyanazt hajtja végre. Ez a legolcsóbb
+  és leggyakoribb evázió, mert nem igényel új binárist vagy exploitot — pusztán
+  a már meglévő interpreter beépített képességeit (Base64-dekódolás, string-
+  konkatenáció, backtick-escaping) használja a kulcsszó-alapú detekció
+  megkerülésére. Tipikus alakjai: a `-EncodedCommand`/`-enc` flag (UTF-16LE +
+  Base64), a szkript törzsébe ágyazott inline Base64-dekódolás, a tömörítés és
+  kódolás egymásra rétegezése (`GZipStream`/`DeflateStream`, Empire/PowerSploit
+  stager), és a backtick-escaping (`I`\``E`\``X`), ami a kulcsszó karakterei közé
+  szúrva megtöri a szöveges egyezést. Éppen ezért ez a legtöbb kulcsszó-alapú
+  Sigma szabály ellenfele. Detekciósan a jel a maga az obfuszkáció-mintázat:
+  hosszú kódolt blokk, dekódoló hívás, escaping-sűrűség. A legitim `-enc`
+  használat (pl. idézőjel-problémák miatt) miatt a jel kontextusfüggő.
+
+"T1218": >
+  A System Binary Proxy Execution alatt a támadó egy aláírt, megbízott, a
+  Windowsba beépített segédprogramot (LOLBin) használ arra, hogy azzal, mint
+  proxyval, rosszindulatú kódot futtasson vagy töltsön be. A közös nevező, hogy
+  a tényleges végrehajtást nem a támadó binárisa, hanem egy legitim rendszer-
+  eszköz végzi — így a művelet megbízható aláíráson keresztül, gyakran
+  allowlisteket megkerülve zajlik. Az altechnikák a konkrét proxy-binárist
+  nevezik meg: `rundll32` (.011), `regsvr32`, `mshta`, `msiexec`, `installutil`
+  és társaik. A támadó nyeresége, hogy a folyamatfa egy ismerős, aláírt eszközt
+  mutat, és a saját payload csak paraméterként vagy betöltött modulként jelenik
+  meg. Detekciósan a jel nem a bináris futása (az normális), hanem a szokatlan
+  paraméterezés, a szokatlan szülő-gyermek viszony, és a betöltött nem szokásos
+  modul vagy hálózati elérés. A LOLBAS-projekt katalogizálja, melyik natív
+  eszköz mire használható vissza. A nehézség pont az, hogy ezek az eszközök a
+  napi működésben is futnak.
+
+"T1218.011": >
+  A Rundll32 során a támadó a `rundll32.exe` aláírt Windows-segédprogramot
+  használja arra, hogy azzal, mint proxyval, egy DLL exportált függvényét (vagy
+  más betölthető tartalmat) futtasson — így a rosszindulatú kód egy megbízott,
+  beépített bináris égisze alatt fut, gyakran allowlisteket és egyszerű
+  folyamatnév-alapú szabályokat megkerülve. Eredetileg a `rundll32` a DLL-ekben
+  tárolt függvények parancssori meghívására való, és a Windows napi működésében
+  is fut — ez adja a fedést. A klasszikus offenzív alakok: egy saját DLL adott
+  export-jának hívása (`rundll32 evil.dll,EntryPoint`), a `comsvcs.dll MiniDump`
+  hívása LSASS-dumpra (T1003.001), vagy a JavaScript-en keresztüli végrehajtás
+  (`javascript:` protokoll-handler, `mshtml`). A gyakori jelek a parancssorban:
+  szokatlan vagy hiányzó DLL-útvonal, `.dll` helyett más kiterjesztés, ordinal-
+  szám szerinti export-hívás, vagy közvetlen szkript-protokoll. Detekciósan a
+  szülő-gyermek viszony (ki indította a `rundll32`-t) és a betöltött modul a
+  legbeszédesebb. A nehézség, hogy rengeteg legitim szoftver is `rundll32`-n
+  keresztül hív rendszerfunkciókat.
+
+"T1564": >
+  A Hide Artifacts alatt a támadó a tevékenységének látható vagy megtalálható
+  nyomait rejti el a felhasználó és a védők elől: ablakokat, fájlokat,
+  felhasználói fiókokat, könyvtárakat vagy egyéb artefaktumokat. A közös
+  nevező, hogy nem a végrehajtást vagy a hozzáférést változtatja meg, hanem
+  annak észlelhető lenyomatát csökkenti — a rendszer beépített elrejtő
+  mechanizmusait (rejtett attribútum, rejtett ablak, NTFS alternate data
+  stream, rejtett felhasználó) fordítja a maga javára. Az altechnikák ezeket a
+  konkrét elrejtési módokat nevezik meg, köztük a Hidden Window-t (.003). A
+  technika ritkán áll önmagában: egy elrejtett ablakú folyamat, egy rejtett
+  fájlba írt payload vagy egy rejtett fiók mindig valami mást fedez. Detekciósan
+  a jel gyakran nem maga az elrejtés — az legitim célra is használatos —, hanem
+  az elrejtett artefaktum tartalma vagy a körülötte lévő gyanús lánc. A
+  nehézség, hogy sok legitim automatizáció (telepítők, háttérszkriptek)
+  szándékosan rejt el dolgokat a felhasználó elől. A repóban a Hidden Window
+  altechnika van lefedve.
+
+"T1564.003": >
+  A Hidden Window során a támadó úgy indít egy folyamatot, hogy annak ne legyen
+  látható ablaka a felhasználó számára — így elkerüli, hogy egy villanásnyi
+  konzolablak vagy egy megnyíló program felkeltse a gyanút. Windowson ez
+  tipikusan a PowerShell `-WindowStyle Hidden` (röviden `-W Hidden`/`-W h`)
+  kapcsolójával, vagy a `Start-Process`/`WScript.Shell.Run` ablak-elrejtő
+  paraméterével történik. Ez nem önálló execution- vagy persistence-technika,
+  hanem egy kiegészítő "csend-üzemmód" más technikák fölé: egy háttérben futó
+  reverse shell, egy ütemezett feladatból induló payload vagy egy C2-beacon mind
+  hasznot húz abból, ha a felhasználó semmilyen vizuális jelet nem lát. Éppen
+  ezért szinte mindig más T1059.001-mintákkal (kódolt parancs, download cradle)
+  együtt jelenik meg ugyanabban a parancssorban. Egy közvetett változat egy
+  `wscript.exe`/VBScript wrapper: a `WScript.Shell.Run` harmadik paramétere
+  (`0` = rejtett) éri el ugyanazt, miközben a `powershell.exe` parancssora akár
+  tiszta maradhat. Detekciósan a jel a `Hidden`/`-W h` a parancssorban, más
+  gyanús indikátorral kombinálva. A legnagyobb kihívás, hogy rengeteg legitim
+  háttér-automatizáció (SCCM/Intune telepítő, monitoring-agent) is szándékosan
+  fut rejtett ablakkal — önmagában a rejtett ablak szinte semmit sem jelent.
+
+"T1620": >
+  A Reflective Code Loading során a támadó úgy tölt be és futtat kódot (jellemzően
+  egy .NET assembly-t vagy egy natív DLL-t), hogy megkerüli a rendszer
+  szokásos betöltő mechanizmusát (a Windows image loadert) — a kód közvetlenül
+  egy már futó folyamat memóriájába kerül, anélkül hogy lemezre íródna vagy a
+  rendes `LoadLibrary`/CreateProcess úton menne. Ez a fileless végrehajtás egyik
+  sarokköve: mivel nincs lemezre írt fájl és nincs szabályos module-load
+  esemény, a fájl-alapú AV-nak és a képbetöltés-figyelő szabályoknak nincs mit
+  megfogniuk. A .NET-világban ezt a `System.Reflection.Assembly.Load(byte[])`
+  hívás valósítja meg (a Cobalt Strike `execute-assembly`, a PowerShell
+  `[Reflection.Assembly]::Load`), a natív oldalon a klasszikus reflective DLL
+  injection. A támadó gyakran egy megbízott folyamatba tölti a kódot, hogy a
+  végrehajtás annak nevében fusson. Detekciósan a jel a memória-anomáliákban van:
+  végrehajtható (RWX) memóriaterület backing fájl nélkül, gyanús .NET-CLR
+  betöltés egy nem-menedzselt folyamatba, vagy a reflection API-k hívása
+  szokatlan kontextusban. A nehézség, hogy sok legitim menedzselt alkalmazás is
+  tölt be assembly-t reflectionnel. A megbízható jel jellemzően EDR-szintű
+  memória-telemetriát igényel.
+
+# ── Defense Impairment ──────────────────────────────────────────────────────
+"T1685": >
+  A Disable or Modify Tools (a repo besorolása szerint) alatt a támadó közvetlenül
+  manipulálja azokat a védelmi és naplózási mechanizmusokat, amik egyébként a
+  tevékenységét rögzítenék vagy megakadályoznák — a Windows Event Log
+  szolgáltatást, egy biztonsági eszköz felhasználói felületét vagy riasztását,
+  egy cloud-naplózási funkciót, vagy a Linux `auditd`-t. A közös nevező nem egy
+  konkrét mechanizmus, hanem a szándék: a védelem tudatos hatástalanítása,
+  mielőtt vagy miközben a tényleges rosszindulatú tevékenység lezajlana. A
+  technika két, ellentétes időbeli irányban valósulhat meg. Az egyik megelőzi az
+  esemény keletkezését (a naplózás/eszköz előzetes letiltása — .001, .002,
+  .004), a másik eltünteti a már keletkezett bejegyzést utólag (törlés — .005,
+  .006). A kettő anti-forensics szempontból nem egyenértékű: egy hirtelen üres
+  napló azonnal gyanút kelt, míg a megelőző letiltás belesimul abba, hogy "erről
+  sosem keletkezett bejegyzés". Detekciósan a legnagyobb kihívás, hogy a legitim
+  hardening- és karbantartó-szkriptek ugyanezekhez a kulcsokhoz, szolgáltatásokhoz
+  és audit-kategóriákhoz nyúlnak, csak ellenkező irányban — a szándékbeli
+  különbség a parancssorból nem mindig olvasható ki.
+
+"T1685.001": >
+  A Disable or Modify Windows Event Log (a repo besorolása szerint) során a
+  támadó közvetlenül manipulálja azt a naplózási mechanizmust, ami egyébként a
+  tevékenységét rögzítené — még mielőtt a tényleges payload lefutna. Kétféle
+  módon: vagy magát a Windows Event Log szolgáltatást (leállítás, `auditpol`
+  kategóriák kikapcsolása), vagy egy adott alkalmazás naplózási képességét (pl.
+  a PowerShell ScriptBlock/Module logging GPO-ját). Ez a klasszikus "vakítsd
+  meg a szemtanút" lépés: nem a már meglévő bejegyzéseket törli (azt a
+  T1685.005 teszi), hanem megelőzi, hogy egyáltalán keletkezzen bejegyzés a
+  következő lépésekről. Anti-forensics szempontból ez az olcsóbb és kevésbé
+  feltűnő út: egy törölt napló azonnal gyanús, míg a naplózás megelőző letiltása
+  belesimul abba, hogy "erről soha nem is keletkezett bejegyzés". Tipikus
+  alakjai: a `ScriptBlockLogging` GPO-kulcs átírása/törlése (a 4104/4103
+  elnémítására), az AMSI reflection-alapú patchelése (`AmsiScanBuffer`,
+  `amsiInitFailed`), és az `EventLog` szolgáltatás leállítása. Detekciósan a
+  kihívás, hogy a legitim hardening-szkriptek ugyanezeket a kulcsokat és
+  kategóriákat írják, csak ellenkező irányban — a parancssor a szándékbeli
+  különbséget nem mutatja.
+
+"T1685.005": >
+  A Clear Windows Event Logs (a repo besorolása szerint) során a támadó a már
+  keletkezett Windows eseménynapló-bejegyzéseket törli — jellemzően a Security,
+  System vagy Application napló egészét —, hogy eltüntesse a korábbi
+  tevékenységének (bejelentkezés, folyamatindítás, szolgáltatás-telepítés)
+  nyomát. Ez a T1685.001 ellenkező irányú párja: az .001 megelőzi az esemény
+  keletkezését, ez az altechnika a már megtörtént esemény rögzítését tünteti el
+  utólag. Ez a legkevésbé rejtett anti-forensics lépés: egy hirtelen üres napló
+  (vagy a törlésről szóló, ironikus módon magát naplózó `1102`-es esemény)
+  önmagában erős, azonnal észlelhető gyanújel, mert nincs olyan legitim IT-
+  folyamat, ami rutinszerűen kiüríti a Security naplót éles gépen. A
+  legelterjedtebb módszer a natív `wevtutil cl` (clear-log), ami külső bináris
+  nélkül egy híváson belül kiürít egy naplót. PowerShell-ekvivalensek a
+  `Clear-EventLog` és a régebbi WMI-alapú forma, GUI-n át pedig az Event Viewer
+  "Clear Log…" menüpontja. A legjellemzőbb "hasonló, de ártatlan" eset egy
+  lemezterület-kezelő szkript, ami a napló méretét korlátozza (`wevtutil sl` a
+  `maxsize` paraméterrel) — a `cl` vs. `sl` a parancssorban jól elkülöníthető.
+
+# ── Credential Access ───────────────────────────────────────────────────────
+"T1003": >
+  Az OS Credential Dumping alatt a támadó az operációs rendszer saját
+  hitelesítőadat-tárolóiból próbál felhasználóneveket, jelszó-hasheket vagy
+  cleartext jelszavakat kinyerni. A közös nevező nem az eszköz és nem a
+  módszer, hanem a cél tárolója: minden altechnika ugyanarra a kérdésre ad más
+  választ — hol tartja a Windows a hitelesítő adatot, és hogyan lehet
+  hozzáférni. Ez detekciósan is meghatározó: mindegy, hogy Mimikatz, ProcDump
+  vagy saját írású eszköz csinálja, a tárolóhoz ugyanazon a néhány úton lehet
+  hozzáférni — az LSASS folyamat megnyitása (.001), a SAM (.002) / SECURITY
+  (.004) / cache (.005) registry hive kiexportálása, az NTDS.dit fájl kimásolása
+  (.003), vagy a domain replikáció megszemélyesítése (DCSync, .006). Szinte
+  minden altechnika helyi rendszergazdai vagy SYSTEM jogot feltételez, tehát a
+  technika megjelenése önmagában azt is jelzi, hogy a támadó már túl van a
+  privilege escalationön. A zsákmány értéke altechnikánként eltér: a friss
+  LSASS és az NTDS.dit azonnal használható domain-anyagot ad, a cache-elt
+  hitelesítők csak offline törésre jók. A repo mind a hat Windows-altechnikát
+  lefedi.
+
+"T1003.001": >
+  Az LSASS Memory során a támadó a futó LSASS (Local Security Authority
+  Subsystem Service) folyamat memóriájából nyeri ki a hitelesítő adatokat. Az
+  LSASS azért célpont, mert az interaktívan bejelentkezett felhasználók titkait
+  — NTLM hash, Kerberos ticket, és bizonyos konfigurációnál (WDigest) cleartext
+  jelszó — a folyamat memóriájában tartja, amíg a munkamenet él. Ez a T1003
+  legértékesebb altechnikája: egy frissen bejelentkezett domain admin
+  munkamenetéből azonnal használható hitelesítő adat esik ki, exploit nélkül.
+  Cserébe ennek a legjobb a detekciós esélye is, mert nagyon kevés legitim ok
+  van arra, hogy egy nem-rendszerfolyamat olvasási joggal megnyissa az LSASS-t.
+  Minden módszer közös lépése egy `OpenProcess` hívás az LSASS-re olvasási
+  joggal; utána már csak abban különböznek, hogyan olvassák ki és hova írják a
+  memóriát. Klasszikus alakjai: közvetlen memóriaolvasás (Mimikatz
+  `sekurlsa::logonpasswords`), aláírt LOLBin minidump (`comsvcs.dll MiniDump`
+  `rundll32`-vel), aláírt Sysinternals `ProcDump -ma`, és a Task Manager "Create
+  dump file" GUI-útja. A dumpból a kinyerés tipikusan később, másik gépen
+  történik — ezért a detekciónak a dump keletkezésekor kell megfognia.
+
+"T1003.002": >
+  A Security Account Manager (SAM) során a támadó a `HKLM\SAM` registry hive-ból
+  nyeri ki a helyi felhasználói fiókok NTLM jelszó-hasheit. A SAM hive futás
+  közben kizárólag a SYSTEM fiók számára olvasható, ezért a sikeres hozzáférés
+  önmagában azt jelenti, hogy a támadó már rendszergazdai vagy SYSTEM jogot
+  szerzett — ez nem privilege escalation eszköz, hanem annak eredménye. Domain
+  környezetben a SAM önmagában kevés értékű (csak helyi fiókokat tartalmaz), de
+  mivel sok szervezet ugyanazt a helyi admin jelszót használja gépről gépre,
+  egyetlen SAM kinyerése tipikusan azonnali laterális mozgást enged pass-the-
+  hash-sel. A hive dekódolásához a boot key kell, ami a `HKLM\SYSTEM` hive-ban
+  van — ezért a kettő szinte mindig együtt kerül kiexportálásra. A közös cél
+  megkerülni a Windows futásidejű zárolását ezeken a hive-okon. Tipikus alakjai:
+  a natív `reg.exe save`/`export`, az `esentutl /y /vss` (zárolt fájl másolása
+  Volume Shadow Copyból), és a VSC közvetlen elérése a
+  `\\?\GLOBALROOT\...\config\SAM` nyers útvonalon. A kinyert hive-ból a hasheket
+  offline fejtik (`secretsdump.py`, `pypykatz`, Mimikatz). A `reg.exe` minta itt
+  ugyanaz, mint a LSA Secretsnél — a célhive (`SAM` vs. `SECURITY`) dönti el,
+  melyik altechnikáról van szó.
+
+"T1003.003": >
+  Az NTDS során a támadó a Domain Controller `%SystemRoot%\NTDS\ntds.dit`
+  fájljából — az Active Directory saját ESE (Extensible Storage Engine)
+  adatbázisából — nyeri ki a teljes domain összes felhasználói és gépi fiókjának
+  hash-ét egyszerre. Ez a T1003 legmagasabb hozamú altechnikája: egyetlen fájl
+  a teljes domain hitelesítőadat-készletét tartalmazza, beleértve a `krbtgt`
+  fiókot, amivel golden ticket készíthető. A művelethez Domain Controller admin
+  jog kell, tehát ez a domain-szintű teljes kompromittálódás egyik utolsó
+  lépése. Az `ntds.dit` futás közben az ESE motor által kizárólagosan zárolt
+  fájl, ezért minden módszer közös eleme megkerülni ezt a zárolást. Tipikus
+  alakjai: az `ntdsutil` IFM (Install From Media, `ac i ntds` + `create full`),
+  az `esentutl /vss`/`/y`, a Volume Shadow Copy manuális útvonala (`vssadmin
+  create shadow`, `diskshadow`, WMI) tetszőleges másolóeszközzel, a `wbadmin`
+  system state backup, és — ha a támadó le tudja állítani az AD DS
+  szolgáltatást — a fájl közvetlen másolása. A `SYSTEM` hive-ot ehhez is együtt
+  viszik a dekódoláshoz. A kinyerés a DC-től függetlenül, offline zajlik.
+
+"T1003.004": >
+  Az LSA Secrets során a támadó a `HKLM\SECURITY\Policy\Secrets` alatt tárolt, a
+  Local Security Authority által kezelt titkokat nyeri ki. Ez a hive tartalmazza
+  a szolgáltatásfiók-jelszavakat (amiket a Windows automatikus indításhoz tárol),
+  az automatikus bejelentkezési jelszót (`DefaultPassword`), a VPN/vezeték nélküli
+  előre megosztott kulcsokat, és a Domain Cached Credentials (DCC2) hasheket —
+  ez utóbbi átfed a T1003.005-tel, mert ugyanaz az adat mindkét helyről
+  kinyerhető. A kiemelt veszélye, hogy a benne tárolt jelszavak jelentős része
+  visszafejthető cleartextre, nem csak hash-ként: a Windows titkosítva tárolja,
+  de a boot key (a `SYSTEM` hive-ból) birtokában a titkosítás megfordítható. Egy
+  szolgáltatásfiók-jelszó gyakran domain-szintű jogosultsággal bír, így ez
+  közvetlen laterális mozgási vagy privilege escalation utat nyithat. A SAM
+  kinyeréséhez képest a különbség csak a célhive: itt `HKLM\SECURITY` a cél a
+  `HKLM\SAM` helyett, a boot keyhez ugyanúgy a `HKLM\SYSTEM` kell. Tipikus alakja
+  a `reg.exe save`/`export` (gyakran PsExec `-s`-sel, SYSTEM-szintű `reg.exe`-ért)
+  és az `esentutl /y`. A titkokat a kimásolt hive-ból offline fejtik
+  (`secretsdump.py`, `pypykatz`, Mimikatz `lsadump::secrets`).
+
+"T1003.005": >
+  A Cached Domain Credentials során a támadó a Windows által domain-tag
+  végpontokon eltárolt, hash-elt bejelentkezési hitelesítő adatokat célozza. A
+  Windows az utolsó néhány (alapból 10) sikeres domain bejelentkezést tárolja a
+  `HKLM\SECURITY\Cache` alatt, hogy a felhasználó Domain Controller elérése
+  nélkül (pl. offline laptop) is be tudjon jelentkezni. Ez a Domain Cached
+  Credentials version 2 (DCC2, "mscash2") formátum — nem azonos az NTLM hash-sel,
+  saját, iterált (10 000 kör) eljárást használ, ezért jelentősen lassabb
+  feltörni. Fontos korlát: a DCC2 nem hálózatképes, nem használható pass-the-
+  hash-hez, csak offline brute-force/szótár-alapú törésre — ezért ez az
+  altechnika alacsonyabb prioritású a T1003 családban, a zsákmány értéke a
+  jelszó erősségétől függ. A közvetlen hash-kinyerés a LSA Secrets-hez hasonló:
+  a `Cache` a `HKLM\SECURITY` hive része, tehát ugyanaz a `reg.exe save`/
+  `esentutl` hive-export módszer, majd offline `secretsdump.py`. Egy kapcsolódó,
+  de más lépés a `cmdkey /list`: ez nem DCC2 hasheket ad, hanem a Credential
+  Managerben mentett célok neveit (RDP, megosztások) — ez felderítés, nem
+  közvetlen hash-lopás. A `cmdkey /list` egyébként hétköznapi help desk parancs.
+
+"T1003.006": >
+  A DCSync gyökeresen más, mint a T1003 többi altechnikája: itt a támadó nem fér
+  hozzá semmilyen lemezen tárolt fájlhoz vagy hive-hoz — ehelyett a saját gépén
+  futó eszközzel Domain Controllernek adja ki magát, és a domain replikációs
+  protokollon (MS-DRSR) keresztül kéri le tetszőleges fiók, akár a `krbtgt`,
+  hash-eit. A DC ugyanúgy válaszol, mintha egy másik valódi DC kérné a
+  replikációt — a protokoll szintjén nincs különbség. Ehhez nem kell
+  kódvégrehajtás a DC-n, sem hozzáférés az `ntds.dit`-hez, csak Replicating
+  Directory Changes (és All) jogosultság a hívó fiókon. Ez a jog alapból csak
+  Domain/Enterprise Adminok és DC-gépfiókok birtokában van, de egy AD ACL-
+  hibás konfiguráció miatt alacsonyabb jogú fiók is megkaphatja — ezért a
+  sikeres DCSync vagy egy már kompromittált privilegizált fiókot, vagy egy
+  korábbi ACL-visszaélést jelez. Tipikus eszközei: a Mimikatz
+  `lsadump::dcsync`, a legitim, aláírt DSInternals `Get-ADReplAccount`, és az
+  Impacket `secretsdump.py -just-dc` (akár Linuxról). Mindhárom azonos hálózati
+  mintát hagy: egy `DRSGetNCChanges` hívást, amit a DC `4662`-es eseményként
+  rögzít, ha a SACL be van állítva. Legitim oldalon csak a valódi DC-k egymás
+  közti replikációja (mindig DC-gépfiókból) generál hasonlót.
+
+"T1040": >
+  A Network Sniffing során a támadó a gép hálózati interfészén passzívan olvassa
+  a forgalmat, hogy abból információt nyerjen: hitelesítő adatot, session-tokent,
+  belső hosztneveket, protokoll-verziókat, a hálózat topológiáját. Nem küld
+  semmit, nem módosít semmit — csak hallgat. Ez a technika egyszerre két
+  taktikában szerepel, és ez a lényege: ugyanaz a művelet két nyereséget ad —
+  Credential Access oldalon a hitelesítő anyagot (cleartext jelszó, NTLMv2
+  challenge-response, Kerberos ticket), Discovery oldalon magát a környezet
+  megismerését. A technika gyakorlati korlátja, hogy kapcsolt (switchelt)
+  hálózaton a sniffing önmagában kevés: a switch csak a portnak szóló és a
+  broadcast/multicast forgalmat küldi, így a támadó csak a saját gépe forgalmát
+  és a szegmens broadcast-jait látja. Ezért a sniffing a valóságban szinte mindig
+  egy pozíció-technikával párban jelenik meg (T1557 Adversary-in-the-Middle,
+  vagy port mirroring/SPAN a hálózati eszközön). Minden módszerhez helyi
+  rendszergazdai jog kell (capture driver vagy raw socket), tehát sosem az első
+  lépés. Tipikus eszközei: a Wireshark-család (`tshark`, `dumpcap`) Npcap
+  driverrel, a `RawCap` driver nélkül, és a natív `pktmon`. Detekciósan az
+  `OriginalFileName` mező átnevezés-ellenálló jel.
+
+"T1110": >
+  A Brute Force alatt a támadó nem ismer érvényes hitelesítő adatot (vagy csak
+  egy hasht jelszó nélkül), és ezt szisztematikus próbálgatással próbálja
+  pótolni. A közös nevező a négy altechnikában nem egy protokoll, hanem a
+  próbálgatás iránya és forrása: vagy közvetlenül egy élő hitelesítési
+  szolgáltatás ellen fut sok kísérlet (online), vagy egy már megszerzett hash
+  ellen a támadó saját gépén, kapcsolat nélkül (offline). Ez az irány-különbség
+  a legfontosabb tanulság. Az online altechnikák — Password Guessing (.001),
+  Password Spraying (.003), Credential Stuffing (.004) — mindegyike sok
+  sikertelen hitelesítési kísérletet hagy a célrendszeren vagy a DC-n, ami
+  natívan naplózott, jól detektálható jel (`4625`, `4771`). Az offline (.002
+  Password Cracking) viszont a támadó infrastruktúráján zajlik, semmilyen
+  forgalmat nem generál a védett környezet felé, amíg a feltört jelszót fel nem
+  használja — az pedig egy darab, normálisnak látszó sikeres bejelentkezés. A
+  .001 és a .003 egymás tükörképe: az egyik egy fiók × sok jelszó, a másik egy
+  jelszó × sok fiók (a lockout megkerülésére). Detekciósan a jel a kudarcok
+  mennyiségében és eloszlásában van. A repo a Guessing és a Spraying
+  altechnikát fedi.
+
+"T1110.001": >
+  A Password Guessing a klasszikus brute force szűk értelemben: a támadó egy
+  (vagy néhány) ismert fiókot céloz, és ellene sok, szisztematikusan generált
+  vagy listából vett jelszót próbál, közvetlenül egy élő hitelesítési
+  szolgáltatás ellen. A támadó a szolgáltatást magát használja orákulumként:
+  minden próbára kap egy igen/nem választ. Ez a legkockázatosabb az online
+  altechnikák közül a támadónak, mert egyetlen fiókra koncentrál sok próbát, így
+  egy szigorú fiók-lockout házirend gyorsan lezárja — pont ez az oka, hogy a
+  Password Spraying (.003) létezik, ennek a kockázatnak a megkerülésére. Tipikus
+  eszköze a `Hydra`, ami tucatnyi protokollt támogat (SSH, RDP, SMB, FTP, HTTP
+  form); egy ismert felhasználónév (`-l`) és egy jelszólista (`-P`) ellen fut,
+  RDP-nél jellemzően fojtva (`-t 1`). Egy másik alak a `CrackMapExec`/`NetExec`
+  SMB/WinRM ellen, már meglévő domain-ismerettel — ez még mindig egy fiók × sok
+  jelszó, csak több célgép ellen. A logban a célgépen vagy a DC-n sorozatban
+  jelenik meg a `4625` ugyanarra a `TargetUserName`-re, jellemzően egy forrás-
+  IP-ről. A leggyakoribb legitim ok egy elfelejtett jelszóval újrapróbálkozó
+  felhasználó vagy egy rossz jelszóval konfigurált szolgáltatás.
+
+"T1110.003": >
+  A Password Spraying a Password Guessing tengelyének szándékos megfordítása:
+  ahelyett, hogy egy fiók ellen próbálna sok jelszót, a támadó egy (vagy néhány)
+  gyakori jelszót próbál ki sok fiók ellen. A cél explicit a fiók-szintű
+  lockout-küszöb kikerülése — statisztikailag egy nagyobb szervezetben szinte
+  biztosan lesz néhány felhasználó, akinek épp az adott gyakori jelszava van
+  (`Summer2026!`, `Welcome1`), és mivel fiókonként csak egy-két próba történik,
+  egyik sem éri el a lockout-küszöböt. Ez az altechnika kifejezetten azért
+  létezik, mert a .001 elleni legkézenfekvőbb védekezés (fiók-lockout) a
+  spraying-et nem állítja meg — ez a legfontosabb tanulság hozzá. Tipikus
+  eszközei: a `kerbrute`, ami a Kerberos pre-authentikációt (AS-REQ) használja
+  próbálgatásra (gyorsabb, de a sikertelen pre-auth ugyanúgy lockoutolhat); a
+  `DomainPasswordSpray.ps1`, ami domain-csatlakoztatott gépen automatikusan
+  begyűjti az összes felhasználót és ütemezetten sprayel; és a
+  `CrackMapExec`/`NetExec` spray-módja megfordított bemenettel. A DC-n ez sok
+  fiókra elosztott, egyenként kevés `4625`/`4771` kudarcként jelenik meg egy
+  forrásból. A leggyakoribb legitim hasonlóság egy IT-oldali jelszó-reset kampány.
+
+"T1557": >
+  Az Adversary-in-the-Middle során a támadó a hálózati kommunikációba ékelődik
+  be két végpont, vagy egy végpont és az infrastruktúra közé, hogy onnan
+  lehallgassa vagy manipulálja a forgalmat. A közös nevező nem egy konkrét
+  protokoll, hanem a pozíció: a támadó hamis hálózati-rétegbeli válaszokkal
+  (névfeloldás, ARP, DHCP) elhiteti az áldozat gépével, hogy ő a legitim
+  célpont, majd az így hozzá irányuló forgalmat vagy csak lehallgatja, vagy
+  aktívan tovább is adja (relay) egy másik, valódi célpont felé. Ez utóbbi — a
+  relay — teszi a technikát különösen veszélyessé a puszta lehallgatáshoz
+  képest: a támadónak nem kell megfejtenie egy hash-t, mert a hitelesítési
+  kísérletet élőben, a saját nevében továbbküldve azonnal hitelesített session-t
+  kap egy másik gépen, az áldozat identitásával. Ezért szerepel a technika
+  egyszerre Credential Access és Collection taktikában. Az altechnikák a
+  megszemélyesítés hálózati rétegét nevezik meg: LLMNR/NBT-NS poisoning (.001),
+  ARP cache poisoning (.002), DHCP spoofing (.003), Evil Twin (.004). Az AiTM
+  szinte mindig a Network Sniffinggel (T1040) párban dolgozik, mert az odairányítja
+  a forgalmat a lehallgatáshoz. Detekciósan a jel a hamis névfeloldási válaszokban
+  és a szokatlan relay-forgalomban van. A repo az LLMNR/SMB relay altechnikát fedi.
+
+"T1557.001": >
+  Az LLMNR/NBT-NS Poisoning and SMB Relay azt a Windows-viselkedést használja
+  ki, hogy ha egy névfeloldás DNS-en nem sikerül, a gép automatikusan visszaesik
+  két elavult, broadcast/multicast-alapú protokollra: LLMNR (UDP 5355) és NBT-NS
+  (UDP 137). Mindkettő ugyanazzal a tervezési hibával él: bármelyik gép a
+  szegmensen válaszolhat a kérésre, hitelesítés nélkül — "igen, én vagyok az a
+  host, amit keresel". A támadó meghallgatja a broadcast forgalmat, és minden
+  ilyen kérésre saját magát ajánlja fel válaszként; az áldozat ezután
+  hitelesítési kísérletet indít (tipikusan SMB-n) a támadó felé. Innen két út
+  van: a támadó vagy elfogja a hitelesítés NTLMv2 hash-ét (offline törésre),
+  vagy élőben továbbadja (relay) egy harmadik, valódi célgépnek — utóbbinál
+  nincs is szükség törésre, mert az eredmény egy azonnal használható, hitelesített
+  session. A relay path három szerepet foglal magába: A a poisoning proxy (itt
+  fut a `Responder`/`Inveigh`), B az áldozat (az ő NTLMv2 identitásával történik
+  minden), C a relay tényleges célpontja (ide fut a `ntlmrelayx.py`, feltéve hogy
+  ott nincs kikényszerítve az SMB Signing). A parancsok fizikailag A-n futnak, de
+  C-n, B jogosultságával hatnak. A leggyakoribb kiváltó ok egy hétköznapi
+  elgépelt vagy megszűnt hosztnév, ami sikertelen DNS-feloldáshoz vezet.
+
+"T1558": >
+  A Steal or Forge Kerberos Tickets alatt a támadó a Kerberos hitelesítési
+  rendszer jegyeivel (ticketjeivel) él vissza: vagy ellopja őket, vagy — ha
+  megszerezte a megfelelő kulcsanyagot — hamisat kovácsol. A Kerberosban a
+  hozzáférést jegyek igazolják: a Ticket Granting Ticket (TGT) a felhasználó
+  általános identitását, a Service Ticket (TGS) egy konkrét szolgáltatáshoz való
+  jogot. A közös nevező, hogy a támadó a jegyrendszer bizalmi feltevéseit
+  fordítja a maga javára — mivel a jegyeket kriptográfiai kulcs írja alá, aki a
+  kulcsot birtokolja, tetszőleges jegyet gyárthat. Az altechnikák ezt konkretizálják:
+  Golden Ticket (.001, a `krbtgt` hashével hamis TGT), Silver Ticket (.002, egy
+  szolgáltatásfiók hashével hamis TGS), Kerberoasting (.003, gyenge
+  szolgáltatásfiók-jelszó offline törése egy legitim TGS-kérésből), és
+  AS-REP Roasting. A megszerzett kulcsanyag jellemzően egy korábbi Credential
+  Access lépésből (T1003) származik. Detekciósan a nehézség, hogy egyes formák
+  (silver ticket) teljesen megkerülik a DC-t, mások (kerberoasting kérése)
+  teljesen legitimnek látszanak — a jel gyakran a jegy anomáliáiban vagy a
+  kérés-mintázatban van. A repo mindhárom fő altechnikát (Golden, Silver,
+  Kerberoasting) lefedi.
+
+"T1558.001": >
+  A Golden Ticket során a támadó, aki már megszerezte a domain `krbtgt` fiók
+  jelszó-hash-ét (jellemzően DCSync-kel (T1003.006) vagy egy DC-n végrehajtott
+  LSASS-dumppal), tetszőleges felhasználó nevében, tetszőleges jogosultsággal
+  (akár nem létező, "phantom" Domain Admin csoporttagsággal), tetszőlegesen
+  hosszú érvényességgel tud hamis Kerberos TGT-t kovácsolni. Mivel a `krbtgt`
+  hash az, ami a KDC-t hitelesíti minden TGT aláírásakor, egy ilyen hamis jegy a
+  KDC szempontjából megkülönböztethetetlen egy valódi, legitim módon kiadott
+  jegytől. Ez a legsúlyosabb Kerberos-alapú perzisztencia: a `krbtgt` hash egyszeri
+  megszerzése után a támadó hónapokig fenntarthat teljes domain-hozzáférést
+  anélkül, hogy bármelyik felhasználó jelszavát ismerné vagy módosítaná — a jegy
+  önmagában elég, és csak a `krbtgt` jelszó kétszeri elforgatásával szüntethető
+  meg végleg. A klasszikus lánc két lépés: a `krbtgt` hash megszerzése, majd a
+  jegy kovácsolása és élesítése — Mimikatz `kerberos::golden` + `ptt` (pass-the-
+  ticket), vagy a modern, .NET-natív Rubeus `golden` egy lépésben. Detekciósan
+  ez a legegyértelműbb jel a T1558 alatt: semmilyen legitim üzemeltetés nem
+  generál ilyen mintát, mert a `krbtgt` hash birtoklása kizárólag ehhez köthető.
+
+"T1558.002": >
+  A Silver Ticket a golden ticket kisebb testvére: a támadó nem a domain
+  `krbtgt` fiók hash-ét szerzi meg, hanem egy konkrét szolgáltatás (pl. egy
+  fájlszerver vagy alkalmazás-szerver) saját gépi fiókjának (`computer$`) vagy
+  szolgáltatásfiókjának NTLM-hash-ét. Ezzel közvetlenül egy hamis Service
+  Ticketet (TGS) kovácsol — a KDC-t és a TGT-kérés lépését teljesen kihagyva —,
+  ami az adott egyetlen szolgáltatáshoz tetszőleges jogosultsággal ad hozzáférést.
+  A golden tickethez képest a hatóköre szűkebb (egy szolgáltatásra korlátozódik,
+  nem az egész domainre), de éppen ez teszi nehezebben észlelhetővé: mivel a
+  KDC-t teljesen megkerüli, a Domain Controller Kerberos-naplóiban (`4768`/`4769`)
+  nyoma sem marad — a hamis jegyet a támadó közvetlenül a célszolgáltatásnak
+  mutatja be, a DC soha nem látja a kérést. Kovácsolása egy megszerzett
+  szolgáltatásfiók hashével, a célszolgáltatás SPN-jét megcélozva történik. A
+  Mimikatz szintaxisában ugyanaz a `kerberos::golden` parancs gyártja mindkét
+  jegytípust — a `/target` és `/service` paraméterek jelenléte (silver) vagy
+  hiánya (golden) a különbség, ami detekciósan azt jelenti, hogy CLI-minta
+  szintjén a kettő nem különül el. Rubeus-alakja az explicit `/service`
+  paraméter. A szolgáltatásfiók-hash legjellemzőbb forrása egy Kerberoasting-
+  lánc (T1558.003) vagy egy gyenge gépi fiók jelszó — a silver ticket ritkán
+  önálló első lépés.
+
+"T1558.003": >
+  A Kerberoasting azt használja ki, hogy bármely hitelesített domain-felhasználó
+  — akár a legalacsonyabb jogú is — kérhet Kerberos Service Ticketet (TGS)
+  bármelyik SPN-nel (Service Principal Name) rendelkező fiókhoz, anélkül hogy
+  igazolnia kéne, jogosult-e ténylegesen a szolgáltatáshoz. A visszaadott TGS egy
+  részét a KDC a célfiók jelszavából származó kulccsal titkosítja — ez azt
+  jelenti, hogy a kérő a jegyet offline, a hálózattól függetlenül, tetszőleges
+  ideig próbálhatja feltörni, anélkül hogy egyetlen sikertelen próbálkozás is
+  zárolást vagy naplóbejegyzést generálna a célfiókon. Ez teszi az egyik
+  legalattomosabb credential-access technikává: a kérés maga (`4769` a DC-n)
+  teljesen legitim és mindennapos — minden normál szolgáltatás-hozzáférés generál
+  ilyet —, a támadás a kérés utáni offline törésben zajlik, ami a DC szemszögéből
+  láthatatlan. A szolgáltatásfiókok jelszava statisztikailag gyakran gyengébb és
+  régebbi ("sosem jár le"), ami a technikát rendkívül eredményessé teszi. Tipikus
+  lánca: SPN-ek felderítése (`setspn.exe`, PowerView `Get-DomainUser -SPN`),
+  tömeges TGS-kérés (Rubeus `kerberoast`, Impacket `GetUserSPNs.py`), majd
+  offline törés (Hashcat/John). A jel nem az SPN-lekérdezésben van (az állandó
+  háttérzaj), hanem a rövid idő alatt sok különböző SPN-re irányuló TGS-kérés-
+  sorozatban egy forrásból.
+
+# ── Discovery ───────────────────────────────────────────────────────────────
+"T1087": >
+  Az Account Discovery alatt a támadó a környezetben létező fiókokat sorolja fel
+  — helyi felhasználókat, domain-fiókokat, csoportokat, e-mail címeket —, hogy
+  megtudja, kik léteznek, ki privilegizált, és melyik fiókot érdemes célba venni
+  a következő lépéshez (privilege escalation, laterális mozgás, célzott
+  hitelesítőadat-lopás). A közös nevező, hogy a támadó a directory és a rendszer
+  saját, jogosultként elérhető lekérdezéseit használja: nem tör be sehova, csak
+  kérdez. Az altechnikák a fiókok forrását nevezik meg: helyi fiók (.001), domain
+  fiók (.002), e-mail cím (.003), cloud fiók (.004). A repo lefedett esete a
+  Domain Account felderítés. A támadó tipikusan natív eszközökkel dolgozik (`net
+  user /domain`, `net group`, `dsquery`, `Get-ADUser`, PowerView), amelyek
+  mind legitim adminisztratív parancsok. Detekciósan a fidelitás alacsony:
+  egyetlen fiók-lekérdezés teljesen normális. A jel — mint az egész Discovery
+  taktikánál — inkább a sűrűségben és a láncban van: sok, egymást követő
+  felderítő parancs rövid idő alatt, gyakran közvetlenül a belépés után. A
+  nehézség a legitim admin- és directory-szinkronizáló tevékenységtől való
+  elkülönítés.
+
+"T1087.002": >
+  A Domain Account felderítés során a támadó a domain-szintű fiókokat sorolja fel
+  az Active Directory-ból: felhasználókat, privilegizált csoportok tagságát,
+  szolgáltatásfiókokat. Ez a domain-környezet feltérképezésének egyik első lépése
+  — a támadó itt tudja meg, kik a Domain Adminok, mely fiókok érdekesek egy
+  Kerberoasting-hoz (SPN-nel rendelkezők), és hova érdemes laterálisan mozogni.
+  A cél nem hozzáférés, hanem célpont-kijelölés a lánc további lépéseihez. A
+  tevékenység szinte kizárólag beépített, legitim eszközökkel zajlik: `net user
+  /domain`, `net group "Domain Admins" /domain`, `dsquery`, a PowerShell
+  `Get-ADUser`/`Get-ADGroupMember`, vagy a red team klasszikusa, a PowerView
+  (`Get-DomainUser`, `Get-NetGroupMember`). Ezek mind LDAP-lekérdezésre fordulnak
+  le a DC felé, és a napi adminisztrációban is folyamatosan futnak. Detekciósan
+  ezért a fidelitás alacsony: egyetlen lekérdezés normális. A jel a mintázatban
+  van — szokatlanul széles enumeráció (az összes felhasználó vagy az összes
+  privilegizált csoport egyszerre), gyakran egy nem-adminisztratív gépről vagy
+  fiókból, és tipikusan más felderítő parancsok sorozatába ágyazva. A nehézség a
+  legitim directory-eszközöktől és a monitoring-rendszerektől való elkülönítés.
+
+# ── Collection / Credential Access (Input Capture) ──────────────────────────
+"T1056": >
+  Az Input Capture alatt a támadó a felhasználó által bevitt adatot fogja el —
+  jellemzően azért, hogy hitelesítő adatot vagy más érzékeny információt
+  szerezzen közvetlenül a beviteli forrásnál, mielőtt az titkosításra vagy
+  feldolgozásra kerülne. Ezért szerepel a technika egyszerre Collection és
+  Credential Access taktikában: a begyűjtött bevitel egyszerre nyersanyag és
+  hitelesítő adat. A közös nevező, hogy a támadó a beviteli csatornát csapolja
+  meg, nem a tárolt adatot — így olyan titkokhoz is hozzáfér, amik sehol nem
+  pihennek lemezen (frissen begépelt jelszó, MFA-kód, űrlap-tartalom). Az
+  altechnikák a lehallgatás pontját nevezik meg: billentyűleütés-naplózás (.001
+  Keylogging), hamis GUI-beviteli mező (.002), webportál-átirányítás (.003), és
+  a hitelesítési API-k beékelése/hookolása (.004). A repo lefedett esete a
+  Keylogging. Detekciósan a jel az elfogó mechanizmus telepítésében és
+  működésében van: alacsony szintű billentyűzet-hook, a beviteli eseményekre
+  való feliratkozás, vagy egy folyamatosan növekvő log-fájl. A nehézség, hogy
+  egyes legitim szoftverek (távoli asztal, akadálymentesítés, makró-eszközök) is
+  hookolják a bevitelt.
+
+"T1056.001": >
+  A Keylogging során a támadó a felhasználó billentyűleütéseit naplózza, hogy
+  begépelt jelszavakat, hitelesítő adatokat és egyéb érzékeny bevitelt fogjon el
+  — közvetlenül a forrásnál, még a titkosítás előtt. Ez az Input Capture
+  leggyakoribb és legrégebbi alakja, és azért különösen értékes, mert olyan
+  titkokhoz is hozzáfér, amiket semelyik hitelesítőadat-tároló nem őriz (egy
+  frissen begépelt jelszó, egy MFA egyszeri kód, egy jelmondat). Windowson
+  technikailag több úton valósulhat meg: alacsony szintű billentyűzet-hook
+  telepítése (`SetWindowsHookEx` a `WH_KEYBOARD_LL` hook-kal), az egyes
+  billentyűk állapotának periodikus lekérdezése (`GetAsyncKeyState`), vagy
+  keretrendszer-alapú begyűjtés (PowerSploit `Get-Keystrokes`, más
+  post-exploitation eszközök). A begyűjtött leütések tipikusan egy helyi
+  log-fájlba kerülnek, amit a támadó később kiexfiltrál. Detekciósan a jel az
+  elfogó mechanizmus telepítésében (hook-hívások, gyanús API-használat), a
+  keylogger-keretrendszerek parancssori mintáiban, és a folyamatosan növekvő,
+  gépeltnek látszó tartalmú log-fájl keletkezésében van. A nehézség, hogy egyes
+  legitim eszközök (távoli asztal, akadálymentesítés, makró-rögzítők) is
+  jogosan használnak billentyűzet-hookot.
+
+# ── Command & Control ───────────────────────────────────────────────────────
+"T1071": >
+  Az Application Layer Protocol alatt a támadó a C2-kommunikációját egy gyakori,
+  legitim alkalmazásréteg-protokollba (HTTP/HTTPS, DNS, e-mail, WebSocket)
+  ágyazza, hogy beleolvadjon a normál hálózati forgalomba és elkerülje a
+  protokoll-alapú tűzfal- vagy proxy-szabályokat. A közös nevező, hogy a
+  csatorna nem egy egzotikus, gyanús porton fut, hanem pont azon, amit a
+  szervezet amúgy is enged kifelé — így a beacon-visszahívás és a parancs/válasz
+  forgalom első ránézésre rendes webes vagy DNS-forgalomnak tűnik. Az
+  altechnikák a hordozó protokollt nevezik meg: Web Protocols (.001, HTTP/S),
+  DNS (.004), Mail Protocols (.003), File Transfer Protocols (.002). A repo
+  lefedett esete a Web Protocols. A támadó a payloadot és a parancsokat gyakran
+  a protokoll legitim mezőibe rejti (HTTP header, URI-path, cookie, DNS-lekérdezés
+  aldomainje). Detekciósan a jel ritkán a protokollban van — az szabályos —,
+  inkább a viselkedésben: periodikus beaconing, szokatlan user-agent vagy
+  JA3-ujjlenyomat, aránytalan fel/le forgalom, ismeretlen vagy fiatal domain,
+  szokatlanul hosszú DNS-lekérdezések. A nehézség, hogy a legitim webes forgalom
+  hatalmas és zajos, amiben elrejtőzni könnyű.
+
+"T1071.001": >
+  A Web Protocols altechnikában a támadó a C2-forgalmát HTTP vagy HTTPS
+  protokollba ágyazza — messze a leggyakoribb csatorna, mert a webforgalom
+  szinte minden környezetben engedélyezett kifelé, és a titkosított HTTPS-ben a
+  tartalom is rejtve marad. A támadó a parancsokat és a válaszokat a protokoll
+  legitim szerkezetébe illeszti: kérés az URI-path-ban vagy query stringben, a
+  válasz a HTTP-body-ban, a metaadat a headerekben és cookie-kban. A beacon-
+  alapú keretrendszerek (Cobalt Strike, Empire, Sliver) periodikusan hívnak
+  vissza egy vezérlőszerverre új parancsért, gyakran testre szabott,
+  legitimnek tűnő user-agenttel és URL-mintával (malleable C2 profilok, amelyek
+  szándékosan utánoznak ismert szolgáltatásokat). Az álca kettős: a port (443/80)
+  megszokott, és a forgalom formája is a normál webezésre hasonlít. Detekciósan
+  a jel nem a HTTP-ben van, hanem a viselkedési anomáliákban: szabályos időközű
+  visszahívás (jitterrel), szokatlan vagy hardcode-olt user-agent, ismeretlen/
+  fiatal vagy reputáció nélküli cél-domain, aránytalanul kicsi kérés és nagyobb
+  válasz, gyanús JA3/JA3S TLS-ujjlenyomat. A nehézség a hatalmas legitim webes
+  háttérzaj, amiben egy jól megírt beacon nehezen tűnik ki.
+
+"T1095": >
+  A Non-Application Layer Protocol alatt a támadó a C2-kommunikációhoz nem egy
+  alkalmazásréteg-protokollt (mint a HTTP), hanem egy alacsonyabb, hálózati vagy
+  szállítási rétegű protokollt használ — pl. ICMP-t, nyers TCP/UDP-t, vagy
+  egyéb, nem szabványos szolgáltatáshoz kötött csatornát. A logika az, hogy sok
+  hálózati monitoring és tűzfal az alkalmazásréteg ismert protokolljaira van
+  hangolva, az alacsonyabb rétegű vagy nem szokványos forgalom pedig könnyebben
+  átcsúszik — egy ICMP-alagút (adat a ping payloadjában) klasszikus példa,
+  mert az ICMP-t sok helyen egyáltalán nem vizsgálják tartalmilag. A támadó így
+  megkerülheti a proxy-alapú tartalomszűrést, és olyan környezetben is kaphat
+  csatornát, ahol a HTTP-kimenet szigorúan kontrollált. A csatorna jellemzően
+  szűk sávszélességű, ezért inkább vezérlésre és kis adatra, mint tömeges
+  exfiltrációra használatos. Detekciósan a jel a protokoll szokatlan
+  használatában van: aránytalanul nagy vagy sűrű ICMP-forgalom, nyers TCP/UDP
+  ismeretlen porton egy külső cél felé, olyan protokoll, amit a hoston normál
+  esetben nem várnánk. A nehézség, hogy a nyers protokoll-forgalom kevés
+  kontextust hordoz, és a legitim hálózati diagnosztika (ping, traceroute) is
+  hasonlót generál.
+
+"T1105": >
+  Az Ingress Tool Transfer során a támadó külső eszközöket, payloadokat vagy
+  további malware-t tölt le a saját infrastruktúrájáról a már kompromittált
+  gépre — jellemzően azért, mert a kezdeti hozzáférés minimális, és a
+  következő lépésekhez több eszköz kell (post-exploitation keretrendszer,
+  privilege escalation exploit, lateral movement tool). A közös nevező, hogy adat
+  a támadó felől befelé, a védett környezetbe mozog egy meglévő csatornán. A
+  gyakorlatban ezt a rendszer beépített, megbízott letöltő-eszközeivel csinálják,
+  hogy ne kelljen idegen binárist behozni: Windowson `certutil -urlcache`,
+  `bitsadmin`, PowerShell `Invoke-WebRequest`/`Net.WebClient.DownloadFile`, Linuxon
+  `curl`/`wget`, vagy akár a `/dev/tcp` shell-mechanizmus. A letöltés célja lehet
+  a lemezre írás, de a modern minta gyakran a memóriába tölt (fileless), hogy ne
+  maradjon fájl-artefaktum. Detekciósan a jel kettős: a hálózati oldalon egy
+  letöltés egy ismeretlen/külső célról, a végponti oldalon egy megbízott letöltő-
+  eszköz (LOLBin) szokatlan parancssora (`certutil` egy URL-lel, `bitsadmin`
+  átvitel) vagy egy interpreter, ami hálózatról hoz be tartalmat. A nehézség,
+  hogy ugyanezek az eszközök a legitim szoftverfrissítésben és
+  adminisztrációban is folyamatosan használatosak.
