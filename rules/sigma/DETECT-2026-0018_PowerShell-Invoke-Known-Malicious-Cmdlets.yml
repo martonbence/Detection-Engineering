@@ -14,7 +14,7 @@ references:
 author: Bence Marton
 date: 2026-05-12
 modified: 2026-09-10
-version: "1.1"
+version: "1.2"
 tags:
   - attack.execution
   - attack.t1059.001
@@ -38,7 +38,6 @@ detection:
       - "Get-GPPAutologon"
       - "Get-GPPPassword"
       - "Get-HttpStatus"
-      - "Get-Keystrokes"
       - "Get-SecurityPackages"
       - "Get-TimedScreenshot"
       - "Get-VaultCredential"
@@ -82,6 +81,10 @@ detection:
       # they are LLMNR/NBT-NS poisoning + SMB relay (T1557.001), not generic
       # PowerShell execution, and are owned by DETECT-2026-0033 which is the
       # technique-correct rule for them. Removed 2026-09-10 to end the overlap.
+      # "Get-Keystrokes" intentionally NOT listed here: it is keylogging-specific
+      # (T1056.001), not generic PowerShell execution, and is owned by
+      # DETECT-2026-0045 which is the technique-correct rule for it. Removed
+      # 2026-09-27 to end the overlap.
       - "Invoke-EventViewer"
       - "Invoke-SilentCleanup"
       - "Invoke-Tater"

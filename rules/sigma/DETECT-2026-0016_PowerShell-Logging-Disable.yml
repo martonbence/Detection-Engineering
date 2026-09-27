@@ -18,7 +18,6 @@ tags:
   - attack.t1059.001
   - attack.defense_impairment
   - attack.t1685.001
-  - attack.t1685.005
 
 logsource:
   product_category: os

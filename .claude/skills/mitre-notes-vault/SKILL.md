@@ -1,6 +1,6 @@
 ---
 name: mitre-notes-vault
-description: Use whenever a Sigma rule in rules/sigma/ is created, finished, reviewed, or has its detection logic or attack.* tags changed — check whether personal/MITRE-Notes/ (the user's personal Obsidian ATT&CK study vault, committed to this repo) needs a cross-reference update, and make it without being asked first. Also use when drafting or editing any note inside personal/MITRE-Notes/ (Tactics/, Techniques/, Subtechniques/), to follow its established structure, templates, and house style instead of re-deriving it.
+description: Use whenever a Sigma rule in rules/sigma/ is created, finished, reviewed, or has its detection logic or attack.* tags changed — check whether personal/MITRE-Notes/ (the user's personal Obsidian ATT&CK study vault, committed to this repo) needs a cross-reference update, and make it without being asked first. Also regenerate the Obsidian MITRE Navigator glossary (personal/MITRE-Notes/mitre-navigator.html) the same way. Also use when drafting or editing any note inside personal/MITRE-Notes/ (Tactics/, Techniques/, Subtechniques/), to follow its established structure, templates, and house style instead of re-deriving it.
 ---
 
 `personal/MITRE-Notes/` is the user's own Hungarian-language study vault on ATT&CK
@@ -9,11 +9,13 @@ this repo so it follows the user across devices. No CI workflow's `paths:`
 filter matches `personal/MITRE-Notes/**` and no pre-commit hook touches it, so
 nothing here is a pipeline gate — this is upkeep, not validation.
 
-Three separate jobs fall under this skill: **(A) keeping the vault in sync
+Four separate jobs fall under this skill: **(A) keeping the vault in sync
 every time a rule changes** — the part that should happen on its own, not
 on request — **(B) writing vault content in the repo's own house style**,
-for when you are asked to draft or edit a note directly, and **(C) grounding
-that content in real sources** rather than memory alone.
+for when you are asked to draft or edit a note directly, **(C) grounding
+that content in real sources** rather than memory alone, and **(D)
+regenerating the Obsidian MITRE Navigator glossary** whenever the same
+rule change would trigger (A).
 
 ## A — Sync the vault whenever a rule changes
 
@@ -74,6 +76,50 @@ existing rule's `detection:` / `custom.splunk.raw_query` changes, its
    already described what that specific rule covered and nothing else in
    the table covers it anymore — don't invent new "Nem fedett" text that
    wasn't already implied by the note.
+
+## D — Regenerate the Obsidian MITRE Navigator glossary
+
+`scripts/docs/mitre_glossary/` (built 2026-09-27, Sienna, Bjorn-reviewed)
+generates a companion quick-reference glossary page for the vault —
+`personal/MITRE-Notes/mitre-navigator.html` — styled like the rule
+browser's own MITRE Navigator. It's a *glossary*, not a coverage tracker:
+for every tactic/technique/sub-technique that's covered or partially
+covered, it shows a tight ~10-sentence "what is this, mechanically" blurb.
+It reuses `generate_stats.py`'s own coverage computation, so it can never
+disagree with the real rule-browser Navigator about what's in scope — you
+never need to (and must not) re-derive that scope by hand.
+
+Trigger this in the same cases as part A — a new rule lands, tags change,
+a rule finishes review — since those are exactly the events that can pull
+a previously-uncovered item into scope or drop a mistagged one out.
+
+1. Run `python3 scripts/docs/mitre_glossary/generate_mitre_glossary.py --check`
+   from the repo root. It reports newly-in-scope items with no blurb yet
+   and any now-orphaned blurbs (harmless — kept in `blurbs.yaml`, just not
+   rendered) without writing anything.
+2. For each item reported missing a blurb: write one into
+   `scripts/docs/mitre_glossary/blurbs.yaml`, keyed by its ATT&CK id
+   (`T1234` or `T1234.001`). ~10 sentences, tight, mechanism-only — what
+   the ATT&CK item *is* and *how it works*, not detection guidance and not
+   this repo's rule internals. Ground it the same way part C requires:
+   condense from the item's existing vault note if one exists (preferred,
+   for consistency with the vault's own conclusions), otherwise from your
+   own grounded ATT&CK knowledge. **Never assert this repo's specific
+   coverage state in the blurb prose** (e.g. "lefedve: X, Y" or "a repo
+   ezt fedi le") — the page already computes and renders coverage
+   dynamically from the rule tags; a prose claim about it will silently
+   go stale the next time a tag changes, exactly the failure Bjorn caught
+   and had corrected on 2026-09-27 in the T1685 blurb. Describe the
+   technique family only.
+3. Re-run `python3 scripts/docs/mitre_glossary/generate_mitre_glossary.py`
+   (no flags) to write the regenerated `mitre-navigator.html`.
+4. If a rule *retag* moved something out of scope entirely, leave its
+   `blurbs.yaml` entry in place — the generator already treats it as an
+   orphan (kept, not rendered) and reports it on `--check`. Don't delete
+   it; a later rule could bring the same id back into scope.
+5. This file lives outside the pipeline (no CI gate, no pre-commit hook),
+   so there's no validator to satisfy — the only failure mode is a stale
+   or missing blurb, which `--check`/`--strict` surface directly.
 
 ## B — House style when writing vault content
 
