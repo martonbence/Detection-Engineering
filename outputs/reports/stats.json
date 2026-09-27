@@ -1,46 +1,46 @@
 {
-  "generated_at": "2026-09-27T09:55:35.662629+00:00",
-  "total_rules": 40,
-  "total_sigma_rules": 40,
+  "generated_at": "2026-09-27T14:01:08.408961+00:00",
+  "total_rules": 41,
+  "total_sigma_rules": 41,
   "total_compiled_sigma_rules": 36,
-  "total_splunk_rules": 40,
-  "total_native_spl_rules": 4,
+  "total_splunk_rules": 41,
+  "total_native_spl_rules": 5,
   "verified_pass": 17,
   "verified_fail": 1,
   "verified_not_verified": 22,
   "verified_testing_disabled": 22,
-  "verified_testing_disabled_current": 22,
-  "never_tested": 0,
-  "not_verified": 22,
-  "verified_stale": 0,
-  "verified_superseded": 0,
+  "verified_testing_disabled_current": 21,
+  "never_tested": 1,
+  "not_verified": 23,
+  "verified_stale": 1,
+  "verified_superseded": 1,
   "verified_expired": 0,
   "verified_pass_current": 17,
   "verified_fail_current": 1,
   "verified_current": 18,
   "pass_rate_pct": 94,
   "pass_rate_color": "brightgreen",
-  "verification_current_pct": 45,
+  "verification_current_pct": 44,
   "verification_current_color": "red",
-  "confirmed_working_pct": 42,
+  "confirmed_working_pct": 41,
   "last_live_verification_at": "2026-09-27T09:33:55.598582+00:00",
   "last_live_verification_count": 1,
-  "mitre_covered_techniques": 21,
+  "mitre_covered_techniques": 22,
   "mitre_total_techniques": 222,
   "mitre_total_fetched_at": "2026-09-26T07:25:20.203789+00:00",
-  "mitre_coverage_pct": 9.5,
+  "mitre_coverage_pct": 9.9,
   "by_level": {
     "critical": 14,
     "high": 14,
     "low": 1,
-    "medium": 11
+    "medium": 12
   },
   "by_status": {
     "experimental": 2,
-    "stable": 38
+    "stable": 39
   },
   "by_tactic": {
-    "Credential Access": 17,
+    "Credential Access": 18,
     "Execution": 15,
     "Stealth": 8,
     "Initial Access": 5,
@@ -48,8 +48,8 @@
     "Command & Control": 2,
     "Discovery": 2,
     "Defense Impairment": 2,
-    "Reconnaissance": 2,
-    "Collection": 1
+    "Collection": 2,
+    "Reconnaissance": 2
   },
   "rules": [
     {
@@ -697,7 +697,7 @@
       ],
       "techniques": [
         "T1059.001",
-        "T1685.001"
+        "T1685"
       ],
       "file_path": "rules/sigma/DETECT-2026-0012_PowerShell-AMSI-Bypass.yml",
       "logsource": {
@@ -900,8 +900,7 @@
       ],
       "techniques": [
         "T1059.001",
-        "T1685.001",
-        "T1685.005"
+        "T1685.001"
       ],
       "file_path": "rules/sigma/DETECT-2026-0016_PowerShell-Logging-Disable.yml",
       "logsource": {
@@ -975,9 +974,9 @@
         "type": "emulation",
         "atomics": []
       },
-      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_cmdlets:\n    CommandLine|contains:\n    - Add-Persistence\n    - Find-AVSignature\n    - Get-GPPAutologon\n    - Get-GPPPassword\n    - Get-HttpStatus\n    - Get-Keystrokes\n    - Get-SecurityPackages\n    - Get-TimedScreenshot\n    - Get-VaultCredential\n    - Get-VolumeShadowCopy\n    - Install-SSP\n    - Invoke-CredentialInjection\n    - Invoke-DllInjection\n    - Invoke-Mimikatz\n    - Invoke-NinjaCopy\n    - Invoke-Portscan\n    - Invoke-ReflectivePEInjection\n    - Invoke-ReverseDnsLookup\n    - Invoke-Shellcode\n    - Invoke-TokenManipulation\n    - Invoke-WmiCommand\n    - Mount-VolumeShadowCopy\n    - New-ElevatedPersistenceOption\n    - New-UserPersistenceOption\n    - New-VolumeShadowCopy\n    - Out-CompressedDll\n    - Out-EncodedCommand\n    - Out-EncryptedScript\n    - Out-Minidump\n    - PowerUp\n    - PowerView\n    - Remove-Comments\n    - Remove-VolumeShadowCopy\n    - Set-CriticalProcess\n    - Set-MasterBootRecord\n    - Invoke-Kerberoast\n    - Invoke-ASREPRoast\n    - Invoke-DCSync\n    - Invoke-BloodHound\n    - Invoke-TheHash\n    - Invoke-WMIExec\n    - Invoke-SMBExec\n    - Invoke-DCOM\n    - Invoke-PowerShellTcp\n    - Invoke-PowerShellUdp\n    - Invoke-EventViewer\n    - Invoke-SilentCleanup\n    - Invoke-Tater\n    - Invoke-Obfuscation\n    - Get-PassHashes\n  condition: selection_image and selection_cmdlets",
+      "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_cmdlets:\n    CommandLine|contains:\n    - Add-Persistence\n    - Find-AVSignature\n    - Get-GPPAutologon\n    - Get-GPPPassword\n    - Get-HttpStatus\n    - Get-SecurityPackages\n    - Get-TimedScreenshot\n    - Get-VaultCredential\n    - Get-VolumeShadowCopy\n    - Install-SSP\n    - Invoke-CredentialInjection\n    - Invoke-DllInjection\n    - Invoke-Mimikatz\n    - Invoke-NinjaCopy\n    - Invoke-Portscan\n    - Invoke-ReflectivePEInjection\n    - Invoke-ReverseDnsLookup\n    - Invoke-Shellcode\n    - Invoke-TokenManipulation\n    - Invoke-WmiCommand\n    - Mount-VolumeShadowCopy\n    - New-ElevatedPersistenceOption\n    - New-UserPersistenceOption\n    - New-VolumeShadowCopy\n    - Out-CompressedDll\n    - Out-EncodedCommand\n    - Out-EncryptedScript\n    - Out-Minidump\n    - PowerUp\n    - PowerView\n    - Remove-Comments\n    - Remove-VolumeShadowCopy\n    - Set-CriticalProcess\n    - Set-MasterBootRecord\n    - Invoke-Kerberoast\n    - Invoke-ASREPRoast\n    - Invoke-DCSync\n    - Invoke-BloodHound\n    - Invoke-TheHash\n    - Invoke-WMIExec\n    - Invoke-SMBExec\n    - Invoke-DCOM\n    - Invoke-PowerShellTcp\n    - Invoke-PowerShellUdp\n    - Invoke-EventViewer\n    - Invoke-SilentCleanup\n    - Invoke-Tater\n    - Invoke-Obfuscation\n    - Get-PassHashes\n  condition: selection_image and selection_cmdlets",
       "rule_body_lang": "yaml",
-      "rule_version": "1.1"
+      "rule_version": "1.2"
     },
     {
       "detect_id": "DETECT-2026-0019",
@@ -2236,6 +2235,70 @@
       },
       "rule_body": "detection:\n  selection_capture_tools:\n  - Image|endswith:\n    - \\tshark.exe\n    - \\dumpcap.exe\n    - \\windump.exe\n    - \\Wireshark.exe\n    - \\RawCap.exe\n  - OriginalFileName:\n    - tshark.exe\n    - dumpcap.exe\n    - WinDump.exe\n    - Wireshark.exe\n    - RawCap.exe\n  selection_pktmon:\n  - Image|endswith: \\pktmon.exe\n  - OriginalFileName: PktMon.exe\n  selection_netsh_trace:\n    Image|endswith: \\netsh.exe\n    CommandLine|contains|all:\n    - trace\n    - start\n    - capture=yes\n  selection_powershell_netevent:\n    CommandLine|contains:\n    - New-NetEventSession\n    - Add-NetEventPacketCaptureProvider\n    - Start-NetEventSession\n  condition: selection_capture_tools or selection_pktmon or selection_netsh_trace or selection_powershell_netevent",
       "rule_body_lang": "yaml",
+      "rule_version": "1.0"
+    },
+    {
+      "detect_id": "DETECT-2026-0045",
+      "title": "Keylogger Tooling Execution or Keystroke Log Creation via PowerShell",
+      "description": "Detects PowerShell-based keystroke capture on Windows from two Sysmon event types. Process creation (EventID 1): a powershell.exe/pwsh.exe command line that names a public PowerShell keylogger (PowerSploit/Empire Get-Keystrokes, Nishang Keylogger.ps1) or carries the keystroke-capture Win32/.NET primitives inline (GetAsyncKeyState polling, SetWindowsHookEx hook installation, RegisterRawInputDevices raw-input registration, [Windows.Input.Keyboard]::IsKeyDown). File creation (EventID 11): a PowerShell process creating a file named key.log, the hardcoded default capture file of both PowerSploit Get-Keystrokes ($env:TEMP\\key.log) and Nishang Keylogger.ps1 ($env:temp\\key.log), which only happens once the capture routine actually runs.\nSysmon ImageLoad (7) and CreateRemoteThread (8) are deliberately not used: WH_KEYBOARD_LL hooks, GetAsyncKeyState polling and raw-input keyloggers run entirely inside the capturing process and inject nothing into other processes, so neither event is generated. The API calls themselves are visible only to ETW-based sensors or PowerShell ScriptBlock logging (4104), neither of which is ingested here.\n",
+      "level": "medium",
+      "status": "stable",
+      "source": "native_spl",
+      "verdict": "N/A",
+      "run_id": "",
+      "verdict_at": "",
+      "verdict_rule_version": "",
+      "verdict_testing_disabled": false,
+      "tactics": [
+        "Collection",
+        "Credential Access"
+      ],
+      "techniques": [
+        "T1056.001"
+      ],
+      "file_path": "rules/sigma/DETECT-2026-0045_Keylogger-Tooling-Execution-or-Keystroke-Log-Creation-via-PowerShell.yml",
+      "logsource": {
+        "product_category": "os",
+        "product": "windows",
+        "service": "sysmon",
+        "event_type": "process_creation"
+      },
+      "author": "Bence Marton",
+      "date": "2026-09-27",
+      "modified": "2026-09-27",
+      "references": [
+        "https://attack.mitre.org/techniques/T1056/001/",
+        "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1056.001/T1056.001.yaml",
+        "https://github.com/PowerShellMafia/PowerSploit/blob/master/Exfiltration/Get-Keystrokes.ps1",
+        "https://github.com/samratashok/nishang/blob/master/Gather/Keylogger.ps1",
+        "https://github.com/BC-SECURITY/Empire/blob/main/empire/server/modules/powershell/credentials/keylogger.yaml",
+        "https://github.com/SigmaHQ/sigma/blob/master/rules/windows/powershell/powershell_script/posh_ps_keylogging.yml",
+        "https://github.com/SigmaHQ/sigma/blob/master/rules/windows/powershell/powershell_script/posh_ps_susp_keylogger_activity.yml",
+        "https://learn.microsoft.com/en-us/windows/win32/winmsg/lowlevelkeyboardproc",
+        "https://www.elastic.co/security-labs/protecting-your-devices-from-information-theft-keylogger-protection"
+      ],
+      "falsepositives": [
+        "Authorized red team or penetration test use of PowerSploit, Empire or Nishang. Every branch of this rule fires on that, and nothing in Sysmon telemetry distinguishes it from a real intrusion.",
+        "The inline-API branch (GetAsyncKeyState / SetWindowsHookEx / RegisterRawInputDevices / IsKeyDown on the command line) also matches benign PowerShell that reads keyboard state: global-hotkey or \"press a key to continue\" helpers, kiosk and accessibility scripts, and developer P/Invoke experiments. These are uncommon passed inline on the command line rather than from a .ps1 file, but they exist.",
+        "The key.log branch fires on any PowerShell process that creates a file literally named key.log, whatever its content, e.g. a script that happens to use that name for an unrelated log. Parent process and path are the triage pivots.",
+        "Blind spots rather than false positives. Get-Keystrokes loaded in memory by an existing agent (Empire's module runs inside the agent process, and its output goes to the C2 server, not key.log), -EncodedCommand launches, a renamed or relocated capture file, and compiled keyloggers (C/C++, .NET, Meterpreter keyscan) all produce none of this telemetry. Covering them needs ScriptBlock logging (4104) or an ETW/EDR sensor for the keyboard APIs.",
+        "Overlap: DETECT-2026-0018 also matches Get-Keystrokes in the command line (tagged T1059.001), so the tool-name branch double-alerts with it."
+      ],
+      "testing": {
+        "enabled": true,
+        "runner": "windows-victim",
+        "type": "atomic",
+        "atomics": [
+          {
+            "technique": "T1056.001",
+            "test_numbers": [
+              1
+            ]
+          }
+        ]
+      },
+      "rule_body": "index=sysmon ((EventCode=1 (Image=\"*\\\\powershell.exe\" OR Image=\"*\\\\pwsh.exe\" OR OriginalFileName=\"PowerShell.EXE\" OR OriginalFileName=\"pwsh.dll\") (CommandLine=\"*Get-Keystrokes*\" OR CommandLine=\"*Keylogger.ps1*\" OR CommandLine=\"*GetAsyncKeyState*\" OR CommandLine=\"*SetWindowsHookEx*\" OR CommandLine=\"*RegisterRawInputDevices*\" OR CommandLine=\"*Windows.Input.Keyboard]::IsKeyDown*\")) OR (EventCode=11 (Image=\"*\\\\powershell.exe\" OR Image=\"*\\\\pwsh.exe\") TargetFilename=\"*\\\\key.log\")) | eval detection_branch=case(EventCode=11, \"keystroke_log_file\", match(CommandLine, \"(?i)get-keystrokes|keylogger[.]ps1\"), \"known_keylogger_tool\", true(), \"keystroke_api_inline\") | table _time, ComputerName, User, EventCode, detection_branch, Image, OriginalFileName, CommandLine, ParentImage, ParentCommandLine, TargetFilename, ProcessId",
+      "rule_body_lang": "spl",
       "rule_version": "1.0"
     }
   ]
