@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-27T09:28:17.717294+00:00",
+  "generated_at": "2026-09-27T09:34:21.802051+00:00",
   "total_rules": 40,
   "total_sigma_rules": 40,
   "total_compiled_sigma_rules": 36,
@@ -23,7 +23,7 @@
   "verification_current_pct": 45,
   "verification_current_color": "red",
   "confirmed_working_pct": 42,
-  "last_live_verification_at": "2026-09-27T09:27:47.075053+00:00",
+  "last_live_verification_at": "2026-09-27T09:33:55.598582+00:00",
   "last_live_verification_count": 1,
   "mitre_covered_techniques": 21,
   "mitre_total_techniques": 222,
@@ -36,8 +36,8 @@
     "medium": 11
   },
   "by_status": {
-    "experimental": 3,
-    "stable": 37
+    "experimental": 2,
+    "stable": 38
   },
   "by_tactic": {
     "Credential Access": 17,
@@ -2183,11 +2183,11 @@
       "title": "Network Sniffing Tool and Windows Native Packet Capture Execution",
       "description": "Detects execution of network packet-capture tooling on a monitored Windows host, covering both third-party sniffers and Windows' own built-in capture facilities being invoked outside routine administration: Wireshark, tshark, dumpcap, and WinDump (all built on the Npcap/WinPcap capture driver); RawCap (a standalone sniffer that needs no driver at all, since it captures via raw sockets); the built-in `netsh trace start capture=yes` packet trace; the built-in `pktmon` packet monitor; and the PowerShell NetEventSession cmdlet sequence (New-NetEventSession / Add-NetEventPacketCaptureProvider / Start-NetEventSession) that drives the same underlying NDIS capture provider from a script.\nThis is process-creation telemetry only: it detects the tool or built-in utility being launched, not the on-wire sniffing itself, and it does not cover the Npcap/WinPcap driver *installation* step (a Sysmon EventID 6 DriverLoad for npcap.sys/npf.sys) or NIC promiscuous-mode changes -- this repo has no rule on any driver_load-category logsource yet, so that signal is a known coverage gap rather than something folded into this rule unverified.\n",
       "level": "medium",
-      "status": "experimental",
+      "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "36309287595",
-      "verdict_at": "2026-09-27T09:27:47.075053+00:00",
+      "run_id": "36309626126",
+      "verdict_at": "2026-09-27T09:33:55.598582+00:00",
       "verdict_rule_version": "1.0",
       "verdict_testing_disabled": false,
       "tactics": [
