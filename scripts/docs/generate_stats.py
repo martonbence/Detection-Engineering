@@ -1897,14 +1897,18 @@ def _deployment_sparkline(detect_id: str) -> str:
     step = 8
     radius = 3
     pad = 6
+    # Tighter vertical pad than horizontal: the SVG is scaled by CSS so ten
+    # dots fill the LAST 10 RUNS column (width is a percentage, height:auto),
+    # and a square pad would make the row taller than the Rule Library's.
+    pad_y = 4
     width = pad * 2 + step * (len(history) - 1)
-    height = pad * 2
+    height = pad_y * 2
 
     dots = []
     points = []
     for i, entry in enumerate(history):
         cx = pad + i * step
-        cy = pad
+        cy = pad_y
         points.append(f"{cx},{cy}")
         verdict = str(entry.get("verdict") or "")
         css = _SPARK_VERDICT_CLASS.get(verdict, "dep-spark-notver")
@@ -1934,8 +1938,8 @@ def _deployment_sparkline(detect_id: str) -> str:
     )
     return (
         f'<td class="dep-spark" title="{_html.escape(detect_id)}: {_html.escape(summary)}">'
-        f'<svg class="dep-spark-svg" viewBox="0 0 {width} {height}" width="{width}" '
-        f'height="{height}" aria-hidden="true" focusable="false">{line}{"".join(dots)}</svg>'
+        f'<svg class="dep-spark-svg" viewBox="0 0 {width} {height}" width="{len(history) * 10}%" '
+        f'aria-hidden="true" focusable="false">{line}{"".join(dots)}</svg>'
         f'<span class="visually-hidden">{_html.escape(detect_id)} verify history '
         f"(oldest to newest): {_html.escape(hidden_list)}</span></td>"
     )
@@ -1973,8 +1977,8 @@ def _deployment_table(environments: dict, rules: list[dict], order: list[str]) -
 
     return (
         '<div class="dep-table-wrap"><table class="dep-rules">'
-        f'<thead><tr><th scope="col">Rule</th><th scope="col">repo</th>{head}'
-        '<th scope="col">LAST 10 RUN VERDICT</th></tr></thead>'
+        f'<thead><tr><th scope="col">Rule ID</th><th scope="col">repo</th>{head}'
+        '<th scope="col">LAST 10 RUNS</th></tr></thead>'
         f"<tbody>{''.join(body)}</tbody></table></div>"
     )
 
@@ -2017,8 +2021,9 @@ def render_deployment_html(inventory: dict, repo: str, rules: list[dict] | None 
     # it -- putting "what we sent" next to "what is actually there", which is
     # the comparison the panel is for.
     table_card = (
-        '<div class="chart-card">'        '<div class="chart-card-title">Rule deployment</div>'
-        '<div class="chart-card-sub">Which version each environment was last given, per rule</div>'
+        '<div class="chart-card chart-card-wide2">'
+        '<div class="chart-card-title">Rule deployment</div>'
+        '<div class="chart-card-sub" style="color: #ffffff;">Rule versions currently deployed to each environment</div>'
         f"{table}"
         f'<div class="dep-legend">{legend}</div>'
         "</div>"
@@ -2028,12 +2033,6 @@ def render_deployment_html(inventory: dict, repo: str, rules: list[dict] | None 
 
     return f"""<div class="dash-section">
       <div class="dash-section-title">Deployment</div>
-      <div class="info-note">Where each rule actually lives. Everything else on this page describes
-      the repository; this describes the Splunk apps it deploys to, recorded by the pipeline itself.
-      A version cell shows what that environment was last <em>given</em>, so a rule sitting below the
-      repo version has not been redeployed since it changed &mdash; it is not broken, it is behind.
-      <strong>Splunk checked</strong> is when anything last looked at what is really there; that and
-      the deploy log can disagree, and the disagreement is the point.</div>
       <div class="dash-section-grid dash-section-grid-deploy">
         {table_card}{columns}
       </div>
@@ -2070,20 +2069,9 @@ def render_html_summary(stats: dict, repo: str) -> str:
     never_tested = stats.get("never_tested", stats.get("not_verified", 0))
     pass_rate = stats["pass_rate_pct"]
     verified_current = stats.get("verified_current", total)
-    scoped_out = stats.get("verified_testing_disabled", 0)
     mitre_covered = stats.get("mitre_covered_techniques", 0)
     mitre_total = stats.get("mitre_total_techniques", 0)
     mitre_pct = stats.get("mitre_coverage_pct", 0.0)
-    # Build-time seed for the Evidence card's last-live-verification note,
-    # mirrored client-side in page.js from RULES the same way @@SCOPED_OUT@@
-    # is -- see _last_live_verification()'s docstring for why this is a plain
-    # historical fact rather than something recomputed against the reader's
-    # clock. Empty when no rule has ever been measured live yet.
-    last_live_at_raw = stats.get("last_live_verification_at", "")
-    last_live_count = stats.get("last_live_verification_count", 0)
-    last_live_at_display = (
-        last_live_at_raw[:19].replace("T", " ") + " UTC" if last_live_at_raw else ""
-    )
 
     rules_js = []
     for r in stats["rules"]:
@@ -2167,25 +2155,6 @@ def render_html_summary(stats: dict, repo: str) -> str:
     # chart's Stable % (also integer) — no stray decimal on one but not the other.
     html = html.replace("@@PASS_RATE@@", str(round(pass_rate)))
     html = html.replace("@@VERIFIED_CURRENT@@", str(verified_current))
-    # Build-time seed for the Evidence card's scope note. The script recomputes
-    # the same number from RULES on load (an out-of-scope rule can lapse into
-    # Expired between the build and the read, exactly as any other verdict
-    # can), so this is what a reader sees before the script runs and what the
-    # aria-label carries.
-    html = html.replace("@@SCOPED_OUT@@", str(scoped_out))
-    # Same build-time-seed / client-side-overwrite pattern as @@SCOPED_OUT@@
-    # above. LAST_LIVE_TEXT is the whole sentence (not just the date), same as
-    # the scope note's own text is fully composed in Python rather than
-    # assembled from smaller markers -- keeps the wording in one place instead
-    # of split across the template and this function.
-    if last_live_count > 0:
-        last_live_text = (
-            f"Last live verification: {last_live_at_display} "
-            f"— {last_live_count} of {total} rules measured in that run."
-        )
-    else:
-        last_live_text = "No live verification recorded yet."
-    html = html.replace("@@LAST_LIVE_TEXT@@", last_live_text)
     html = html.replace("@@MITRE_COVERED@@", str(mitre_covered))
     html = html.replace("@@MITRE_TOTAL@@", str(mitre_total))
     html = html.replace("@@MITRE_PCT@@", str(mitre_pct))

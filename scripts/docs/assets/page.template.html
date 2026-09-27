@@ -558,26 +558,8 @@
            age bands in a quarter-width card would angle their labels while the
            doughnuts beside them breathe. -->
       <div class="dash-section-grid dash-section-grid-row2">
-        <div class="chart-card">
+        <div class="chart-card chart-card-evidence">
           <div class="chart-card-title">Evidence</div>
-          <!-- Why Current can sit far below the rule count without anything
-               being broken. Seeded at build time and rewritten by the script
-               against the reader's clock, like every other number on this
-               card; hidden outright when no rule is out of scope, so it is a
-               note about a real state rather than a permanent caveat. -->
-          <div class="chart-card-sub chart-card-sub-scope" id="evidence-scope-note" hidden>
-            @@SCOPED_OUT@@ rules are out of testing scope and are not counted in the Pass Rate.
-          </div>
-          <!-- A plain historical fact ("when did the pipeline last measure
-               anything for real"), not a standing that erodes with elapsed
-               time -- see _last_live_verification() in generate_stats.py and
-               its page.js mirror. Hidden by default like the scope note
-               above it: JS unhides once it has recomputed the same figure
-               from RULES, so the two notes never disagree about whether
-               there is anything to say. -->
-          <div class="chart-card-sub chart-card-sub-lastlive" id="evidence-lastlive-note" hidden>
-            @@LAST_LIVE_TEXT@@
-          </div>
           <div class="verify-card-body verify-card-body-evidence">
             <div class="chart-card-canvas-wrap verify-canvas-wrap">
               <canvas id="chart-evidence"

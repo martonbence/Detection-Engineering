@@ -574,64 +574,6 @@ function buildDashboardCharts() {
   const evidencePct = evidenceTotal > 0 ? Math.round(evidenceCount.current / evidenceTotal * 100) : 0;
   const evidencePctEl = document.getElementById('evidence-overlay-pct');
   if (evidencePctEl) evidencePctEl.textContent = evidencePct + '%';
-  // The one number on this page that explains a low Current % without the
-  // reader having to open a filter: rules nobody set out to measure. Shown
-  // only while there are any, so the card carries no permanent footnote about
-  // a state the library is normally not in -- and hidden via the hidden
-  // attribute so it leaves no empty line behind when it goes.
-  const scopeNoteEl = document.getElementById('evidence-scope-note');
-  if (scopeNoteEl) {
-    if (evidenceCount.scoped > 0) {
-      scopeNoteEl.textContent =
-        evidenceCount.scoped + ' of ' + RULES.length + ' rules are out of testing scope' +
-        ' — testing is switched off on the rule itself, so the pipeline skips them' +
-        ' rather than failing to measure them. Not counted in the Pass Rate.';
-      scopeNoteEl.hidden = false;
-    } else {
-      scopeNoteEl.hidden = true;
-    }
-  }
-
-  // Last live verification — a plain historical fact ("when did the pipeline
-  // last actually measure anything, and how much of the library did that run
-  // cover"), not a standing that erodes with elapsed time like the pass rate
-  // or the Evidence segments above. It is recomputed here from RULES, rather
-  // than left as the build-time @@LAST_LIVE_TEXT@@ seed, purely so it can
-  // never silently drift from the Python-side figure in stats.json -- both
-  // sides use the identical predicate (see _last_live_verification()'s
-  // docstring in generate_stats.py): a rule counts only if its verdict is
-  // not N/A, testing was not deliberately disabled for that run, and it
-  // carries both a runId and a verdictAt. Rows failing that (e.g. legacy
-  // result.json files written before run_id existed) are left out of the
-  // grouping entirely, matching the Python side row for row.
-  let lastLiveAt = '';
-  let lastLiveRunId = '';
-  RULES.forEach(r => {
-    const v = r.verdict || 'N/A';
-    if (v === 'N/A' || !v || r.testingDisabled) return;
-    if (!r.runId || !r.verdictAt) return;
-    if (r.verdictAt > lastLiveAt) { lastLiveAt = r.verdictAt; lastLiveRunId = r.runId; }
-  });
-  let lastLiveCount = 0;
-  if (lastLiveAt) {
-    RULES.forEach(r => {
-      const v = r.verdict || 'N/A';
-      if (v === 'N/A' || !v || r.testingDisabled) return;
-      if (r.runId === lastLiveRunId) lastLiveCount++;
-    });
-  }
-  const lastLiveNoteEl = document.getElementById('evidence-lastlive-note');
-  if (lastLiveNoteEl) {
-    if (lastLiveCount > 0) {
-      const displayAt = lastLiveAt.slice(0, 19).replace('T', ' ') + ' UTC';
-      lastLiveNoteEl.textContent =
-        'Last live verification: ' + displayAt + ' — ' + lastLiveCount + ' of ' +
-        RULES.length + ' rules measured in that run.';
-      lastLiveNoteEl.hidden = false;
-    } else {
-      lastLiveNoteEl.hidden = true;
-    }
-  }
   const evidenceCanvas = document.getElementById('chart-evidence');
   if (evidenceCanvas) {
     evidenceCanvas.setAttribute('aria-label',
