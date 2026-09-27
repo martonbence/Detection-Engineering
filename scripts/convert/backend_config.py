@@ -30,7 +30,7 @@ import yaml
 DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "backends.yml"
 
 _TOP_LEVEL_KEYS = {"default_backend", "backends"}
-_BACKEND_KEYS = {"target", "pipeline_override_key", "pipelines"}
+_BACKEND_KEYS = {"target", "pipeline_override_key", "pipelines", "event_type_filters"}
 _PIPELINE_KEYS = {"by_service", "default"}
 
 
@@ -47,7 +47,18 @@ class BackendConfig:
     pipeline_override_key: str
     default_pipeline: str
     pipelines_by_service: dict[str, str]
+    event_type_filters: dict[str, dict[str, str]]
     source: Path
+
+    def event_type_filter(self, service: str, event_type: str) -> str:
+        """The extra SPL term that pins a rule to its declared event type.
+
+        Empty string means "this service/event_type pair declares no filter",
+        which is the correct answer for a log source where the index holds one
+        event shape only (nginx access logs) -- not a gap.
+        """
+        by_event = self.event_type_filters.get((service or "").strip().lower(), {})
+        return by_event.get((event_type or "").strip().lower(), "")
 
     def pipeline_for_service(self, service: str) -> str:
         """Pipeline for a Sigma `logsource.service`; the backend default if unmapped.
@@ -140,6 +151,78 @@ def _parse_pipelines(where: str, entry: dict) -> tuple[str, dict[str, str]]:
     return default_pipeline, by_service
 
 
+def _parse_event_type_filters(where: str, entry: dict) -> dict[str, dict[str, str]]:
+    """service -> event_type -> literal SPL term ANDed onto the front of the query.
+
+    Why this is data here and not a pySigma pipeline: this repo's Sigma schema
+    writes the event type as `logsource.event_type` (docs/schemas/sigma_schema.json),
+    not upstream Sigma's `logsource.category`. pySigma parses any non-standard
+    logsource key into SigmaLogSource.custom_attributes, where no
+    RuleProcessingCondition can see it -- LogsourceCondition matches only
+    category/product/service, and RuleAttributeCondition reads rule-level
+    custom attributes, not logsource-level ones. So no pipeline, upstream or
+    repo-owned, can act on `event_type` at all, and the mapping has to live on
+    this side of the converter.
+
+    Required to be written out, even as `{}` for a service that needs nothing:
+    an absent key would make "this service's index holds one event shape" look
+    like the same thing as "nobody got round to filling this in", and those
+    are the two cases this file exists to keep apart.
+    """
+    if "event_type_filters" not in entry:
+        raise BackendConfigError(
+            f"{where}: missing required key 'event_type_filters' -- write `event_type_filters: {{}}` "
+            f"to state that this backend pins no rule to its declared event type"
+        )
+
+    raw = _require_mapping(f"{where}.event_type_filters", entry["event_type_filters"] or {})
+
+    out: dict[str, dict[str, str]] = {}
+    for raw_service, raw_events in raw.items():
+        if not isinstance(raw_service, str) or not raw_service.strip():
+            raise BackendConfigError(
+                f"{where}.event_type_filters: service names must be non-empty strings"
+            )
+        service = raw_service.strip().lower()
+        if service in out:
+            raise BackendConfigError(
+                f"{where}.event_type_filters: duplicate service '{service}' after case folding"
+            )
+
+        events = _require_mapping(f"{where}.event_type_filters.{service}", raw_events or {})
+        by_event: dict[str, str] = {}
+        for raw_event, raw_term in events.items():
+            if not isinstance(raw_event, str) or not raw_event.strip():
+                raise BackendConfigError(
+                    f"{where}.event_type_filters.{service}: event types must be non-empty strings"
+                )
+            event_type = raw_event.strip().lower()
+            if event_type in by_event:
+                raise BackendConfigError(
+                    f"{where}.event_type_filters.{service}: duplicate event type "
+                    f"'{event_type}' after case folding"
+                )
+            term = _as_optional_text(
+                f"{where}.event_type_filters.{service}.{event_type}", raw_term
+            )
+            if not term:
+                raise BackendConfigError(
+                    f"{where}.event_type_filters.{service}.{event_type}: must be a non-empty "
+                    f"SPL term -- omit the key entirely to declare no filter"
+                )
+            if "|" in term:
+                # The term is spliced into the first search segment. A pipe
+                # would silently move everything after it into a new command.
+                raise BackendConfigError(
+                    f"{where}.event_type_filters.{service}.{event_type}: must be a single search "
+                    f"term, not a pipeline -- '|' is not allowed"
+                )
+            by_event[event_type] = term
+        out[service] = by_event
+
+    return out
+
+
 def load_backend(name: str = "", config_path: Path | None = None) -> BackendConfig:
     """Resolve one backend from the config.
 
@@ -179,6 +262,7 @@ def load_backend(name: str = "", config_path: Path | None = None) -> BackendConf
         raise BackendConfigError(f"{where}: 'target' is required and must be a non-empty string")
 
     default_pipeline, by_service = _parse_pipelines(where, entry)
+    event_type_filters = _parse_event_type_filters(where, entry)
 
     return BackendConfig(
         name=requested,
@@ -188,5 +272,6 @@ def load_backend(name: str = "", config_path: Path | None = None) -> BackendConf
         ),
         default_pipeline=default_pipeline,
         pipelines_by_service=by_service,
+        event_type_filters=event_type_filters,
         source=path,
     )

@@ -82,6 +82,32 @@ itself for the rare case where the *code* would otherwise be genuinely
 misread in isolation (e.g. a non-obvious precedence trap), not for
 narrating a design decision that belongs in prose fields instead.
 
+## `description`: technical TTP coverage only — no dates, no changelog narrative
+
+The user flagged this 2026-09-27 after several rules' `description` fields
+(DETECT-2026-0038/0040/0041/0042/0043 especially) grew into long prose
+covering rule history, review dates, and decision rationale that nobody
+reads. `description` exists to state, concretely, *what technique/behavior
+the rule detects and how* — the actual TTP, the fields/tool signatures it
+keys on. It is not the place for:
+
+- Dates of any kind ("tightened 2026-09-26", "ported 2026-09-23",
+  "continued relevance per a 2026 study")
+- Review/changelog narrative ("was replaced 2026-09-26 because it
+  contradicted...", "kept after review found...")
+- Long justification essays defending a past design choice
+
+This narrows the section above ("Keep inline comments out of the detection
+logic") where reasoning/provenance/caveats were pointed at `description` as
+the catch-all destination — that's still correct for a genuine
+detection-relevant caveat (a documented blind spot, why a field can't be
+checked) but wrong for anything that reads as a changelog entry or a
+defense of a past decision. Provenance/history worth keeping belongs in the
+commit message, not the rule file. Cross-references to other DETECT IDs are
+fine only when they state an actual technical relationship (e.g. "overlaps
+with 0037's traversal coverage"), not as commentary on when/why rules were
+reviewed together.
+
 ## Testing: prefer a real Atomic Red Team test over writing a custom command
 
 `custom.testing.type` is `atomic` or `emulation`. Default to `atomic` and

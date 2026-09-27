@@ -1,1 +1,1 @@
-index=sysmon Image IN ("*\\powershell.exe", "*\\pwsh.exe") CommandLine="*Get-ADReplAccount*" | table _time,ComputerName,User,Image,CommandLine,ParentImage,ParentCommandLine,ProcessId,ParentProcessId
+index=sysmon EventCode=1 Image IN ("*\\powershell.exe", "*\\pwsh.exe") CommandLine="*Get-ADReplAccount*" | table _time,ComputerName,User,Image,CommandLine,ParentImage,ParentCommandLine,ProcessId,ParentProcessId

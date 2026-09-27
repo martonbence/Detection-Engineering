@@ -34,6 +34,7 @@ backends:
   splunk:
     target: splunk
     pipeline_override_key: splunk_pipeline
+    event_type_filters: {}
     pipelines:
       by_service:
         sysmon: splunk_sysmon_acceleration
@@ -60,6 +61,23 @@ def test_committed_config_reproduces_the_constants_it_replaced():
     assert backend.pipeline_for_service("security") == "splunk_windows"
     assert backend.default_pipeline == ""
     assert backend.pipeline_override_key == "splunk_pipeline"
+
+
+def test_committed_config_pins_the_sysmon_event_type_filters():
+    """Bjorn's review B2: nothing else pins these values, so deleting one from
+    config/backends.yml has to fail a test, not just silently revert 27 rules
+    to matching every Sysmon event type that shares an Image field.
+
+    EventCode field name and these three codes confirmed live via a Splunk
+    search against the sysmon index (last 90 days): EventCode=1 (9,103
+    events), EventCode=10 (29,172), EventCode=11 (359,086) -- Bjorn's
+    blocker B1, closed.
+    """
+    backend = load_backend()
+
+    assert backend.event_type_filter("sysmon", "process_creation") == "EventCode=1"
+    assert backend.event_type_filter("sysmon", "process_access") == "EventCode=10"
+    assert backend.event_type_filter("sysmon", "file_event") == "EventCode=11"
 
 
 @pytest.mark.parametrize(
@@ -107,6 +125,7 @@ default_backend: esql
 backends:
   esql:
     target: esql
+    event_type_filters: {}
     pipelines:
       by_service: {}
       default: ecs_windows
@@ -126,6 +145,7 @@ backends:
   splunk:
     target: splunk
     pipeline_override_key: splunk_pipeline
+    event_type_filters: {}
     pipelines:
       by_service:
         sysmon: splunk_sysmon_acceleration
@@ -133,6 +153,7 @@ backends:
   elastic:
     target: esql
     pipeline_override_key: elastic_pipeline
+    event_type_filters: {}
     pipelines:
       by_service:
         sysmon: ecs_windows_sysmon

@@ -186,7 +186,7 @@ _GENERATING_COMMANDS = {
 }
 
 
-def _inject_index_prefix(query: str, index_value: str) -> str:
+def _inject_index_prefix(query: str, index_value: str, event_filter: str = "") -> str:
     """
     Ensure SPL starts with the Sigma-defined index.
 
@@ -214,6 +214,20 @@ def _inject_index_prefix(query: str, index_value: str) -> str:
 
     if not q or not idx:
         return q
+
+    # The event-type filter rides in the same position as the index term, ANDed
+    # onto the very front of the first search segment, and is subject to exactly
+    # the same SPL precedence as the index term already is: in the `search`
+    # command Splunk evaluates NOT, then OR, then AND, which is also what
+    # pySigma's Splunk backend declares (precedence = (ConditionNOT,
+    # ConditionOR, ConditionAND)) and what every multi-branch rule in
+    # rules/splunk/ already relies on for `index=` to bind across the whole
+    # OR chain rather than just its first branch. So this adds no assumption
+    # the committed output did not already make.
+    prefix = f"index={idx}"
+    term = _safe_str(event_filter)
+    if term:
+        prefix = f"{prefix} {term}"
 
     # A query that opens with a *true* generating command (`| tstats`,
     # `| inputlookup`, `| from datamodel`, ...) cannot take a leading index the
@@ -282,7 +296,7 @@ def _inject_index_prefix(query: str, index_value: str) -> str:
         # double-prepend) found the events correctly. The bare form below
         # sidesteps the double "search" entirely, and matches every other
         # rule in the repo.
-        return f"index={idx} {q}"
+        return f"{prefix} {q}"
 
     # A query that already opens with a literal "search" gets that leading
     # "search" STRIPPED, not kept, for the same double-prepend reason as
@@ -295,22 +309,22 @@ def _inject_index_prefix(query: str, index_value: str) -> str:
     # second "search" surviving into the saved search.
     m = re.match(r"(?i)^search\s+", q)
     if m:
-        return f"index={idx} {q[m.end():].lstrip()}"
+        return f"{prefix} {q[m.end():].lstrip()}"
 
     m = re.match(r"(?i)^index=[^\s]+\s*", q)
     if m:
-        return f"index={idx} {q[m.end():].lstrip()}".rstrip()
+        return f"{prefix} {q[m.end():].lstrip()}".rstrip()
 
-    return f"index={idx} {q}"
+    return f"{prefix} {q}"
 
 
 def write_raw_query(out_path: Path, raw_query: str) -> None:
     out_path.write_text(raw_query.strip() + "\n", encoding="utf-8")
 
 
-def enforce_index_prefix(out_path: Path, index_value: str) -> None:
+def enforce_index_prefix(out_path: Path, index_value: str, event_filter: str = "") -> None:
     content = out_path.read_text(encoding="utf-8")
-    updated = _inject_index_prefix(content, index_value)
+    updated = _inject_index_prefix(content, index_value, event_filter)
     out_path.write_text(updated + "\n", encoding="utf-8")
 
 
@@ -541,8 +555,17 @@ def main() -> int:
 
         if not args.meta_only:
             # Burn Sigma custom.splunk.index into the beginning of the generated SPL query
+            # A raw_query rule is excluded on purpose: its SPL is written by
+            # hand in the Sigma file (DETECT-2026-0002 already spells out its
+            # own EventCode terms), so injecting another one would be the
+            # converter second-guessing an author who can see the whole query.
+            event_filter = (
+                ""
+                if raw_query
+                else backend.event_type_filter(service, _safe_str((rule.get("logsource") or {}).get("event_type")))
+            )
             try:
-                enforce_index_prefix(out_path, splunk_index)
+                enforce_index_prefix(out_path, splunk_index, event_filter)
             except Exception as e:
                 print(f"ERROR: failed applying index prefix for {out_path}: {e}", file=sys.stderr)
                 failed += 1

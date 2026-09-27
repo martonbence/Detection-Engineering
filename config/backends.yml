@@ -51,3 +51,27 @@ backends:
       # oversight that the converter quietly papered over. Which is the shape
       # of the bug this file exists to remove.
       default: ""
+
+    # Sigma `logsource.event_type` -> a literal SPL term that pins the query to
+    # the event shape the rule declares. Keyed by service first, because the
+    # same event_type means a different EventCode on a different channel.
+    #
+    # Why this exists: `logsource.event_type: process_creation` was, until now,
+    # documentation only. The Sysmon index holds every Sysmon event type, and a
+    # process_creation rule that selects on Image or OriginalFileName alone
+    # matches the ImageLoad (7), FileCreate (11) and PipeEvent (17/18) records
+    # that carry the same Image value. Measured, not theorised:
+    # DETECT-2026-0044 returned 16 events on a CI verification run where only
+    # 3 were real process starts.
+    #
+    # It cannot be a pySigma pipeline: this repo's schema names the key
+    # `event_type`, not upstream Sigma's `category`, and pySigma files any
+    # non-standard logsource key into SigmaLogSource.custom_attributes where no
+    # rule condition can reach it. See _parse_event_type_filters().
+    #
+    # Written out even when empty (`{}`), same rule as `pipelines.default`.
+    event_type_filters:
+      sysmon:
+        process_creation: EventCode=1
+        process_access: EventCode=10
+        file_event: EventCode=11
