@@ -1872,8 +1872,42 @@ function highlightSPL(code) {
   return out;
 }
 
+// Hand-written custom.splunk.raw_query rules are stored (and copied to the
+// clipboard) as one continuous line -- for display only, break it into one
+// pipeline stage per line so it reads like a normal SPL search. Quote- and
+// paren-aware: a "|" is only treated as a new pipeline stage when it sits
+// at the top level -- one inside a quoted string (the common case being a
+// regex alternation passed to match()/rex, e.g. "(foo|bar)") or inside an
+// unbalanced/open paren is left untouched. This never runs on
+// currentRuleBody, so Copy still yields the exact original single-line
+// string Splunk's search bar expects.
+function formatSPLPipesForDisplay(code) {
+  const rx = /('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")|(\|)|([()])|([\s\S])/g;
+  let out = '';
+  let depth = 0;
+  let m;
+  while ((m = rx.exec(code)) !== null) {
+    const [, str, pipe, paren, other] = m;
+    if (str) { out += str; continue; }
+    if (paren) { depth += paren === '(' ? 1 : -1; out += paren; continue; }
+    if (pipe) {
+      if (depth <= 0) {
+        // Drop the trailing space that a hand-written "... | eval ..." style
+        // query has before the pipe, so the new line starts flush with "|".
+        out = out.replace(/[ \t]+$/, '');
+        out += '\n|';
+      } else {
+        out += pipe;
+      }
+      continue;
+    }
+    out += other;
+  }
+  return out;
+}
+
 function highlightRuleBody(code, lang) {
-  return lang === 'spl' ? highlightSPL(code) : highlightYAML(code);
+  return lang === 'spl' ? highlightSPL(formatSPLPipesForDisplay(code)) : highlightYAML(code);
 }
 
 async function copyRuleBody(btn) {
