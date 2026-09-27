@@ -1,6 +1,6 @@
 title: Keylogger Tooling Execution or Keystroke Log Creation via PowerShell
 detect_id: DETECT-2026-0045
-status: experimental
+status: stable
 description: >
   Detects PowerShell-based keystroke capture on Windows from two Sysmon event
   types. Process creation (EventID 1): a powershell.exe/pwsh.exe command line
@@ -51,16 +51,16 @@ detection:
         - '\powershell.exe'
         - '\pwsh.exe'
     - OriginalFileName:
-        - 'PowerShell.EXE'
-        - 'pwsh.dll'
+        - "PowerShell.EXE"
+        - "pwsh.dll"
   selection_keylogger:
     CommandLine|contains:
-      - 'Get-Keystrokes'
-      - 'Keylogger.ps1'
-      - 'GetAsyncKeyState'
-      - 'SetWindowsHookEx'
-      - 'RegisterRawInputDevices'
-      - 'Windows.Input.Keyboard]::IsKeyDown'
+      - "Get-Keystrokes"
+      - "Keylogger.ps1"
+      - "GetAsyncKeyState"
+      - "SetWindowsHookEx"
+      - "RegisterRawInputDevices"
+      - "Windows.Input.Keyboard]::IsKeyDown"
   condition: selection_powershell and selection_keylogger
 
 fields:
