@@ -69,8 +69,8 @@
 pyyaml==6.0.3
 jsonschema==4.26.0
 sigma-cli==3.1.0
-pySigma==1.5.0
-pyparsing==3.3.2
+pySigma==1.5.1
+pyparsing==3.3.3
 pysigma-backend-splunk==2.1.0
 requests==2.34.2
 diskcache==5.6.3
