@@ -1,16 +1,16 @@
 {
   "detect_id": "DETECT-2026-0024",
   "title": "NTDS.dit Credential Dump Attempt",
-  "verdict": "NOT_VERIFIED",
-  "reason": "Testing is disabled for this rule (custom.testing.enabled: false)",
-  "disabled": true,
-  "event_count": 0,
+  "verdict": "PASS",
+  "reason": "Event count 2 within expected range [1–10]",
+  "disabled": false,
+  "event_count": 2,
   "min_pass": 1,
   "max_pass": 10,
-  "earliest": "1788004322",
+  "earliest": "1791722738",
   "latest": "now",
-  "run_timestamp": "2026-08-29T11:54:09.559750+00:00",
+  "run_timestamp": "2026-10-11T12:47:50.047209+00:00",
   "rule_version": "1.0",
-  "git_sha": "775322617c1efddf7323d63946269f9eeb01559e",
-  "run_id": "33251116121"
+  "git_sha": "7ce0c948d114e51034e156993ed663dbb596d61c",
+  "run_id": "38140493672"
 }

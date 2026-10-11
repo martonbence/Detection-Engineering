@@ -2,8 +2,8 @@
   "environments": {
     "dev": {
       "last_deploy": {
-        "at": "2026-10-11T12:32:10.690904+00:00",
-        "commit": "3400b13a7156c2b132d4a5c592f4bcb1d94dcfac",
+        "at": "2026-10-11T12:46:21.728146+00:00",
+        "commit": "7ce0c948d114e51034e156993ed663dbb596d61c",
         "rules": {
           "DETECT-2026-0001": {
             "at": "2026-09-12T12:23:09.439785+00:00",
@@ -116,7 +116,7 @@
             "rule_version": "1.1"
           },
           "DETECT-2026-0024": {
-            "at": "2026-10-11T08:07:32.172575+00:00",
+            "at": "2026-10-11T12:46:21.728146+00:00",
             "outcome": "updated",
             "rule_version": "1.0"
           },
@@ -126,7 +126,7 @@
             "rule_version": "1.0"
           },
           "DETECT-2026-0026": {
-            "at": "2026-10-11T08:07:32.172575+00:00",
+            "at": "2026-10-11T12:46:21.728146+00:00",
             "outcome": "updated",
             "rule_version": "1.1"
           },
@@ -136,7 +136,7 @@
             "rule_version": "1.0"
           },
           "DETECT-2026-0028": {
-            "at": "2026-10-11T12:01:20.818140+00:00",
+            "at": "2026-10-11T12:46:21.728146+00:00",
             "outcome": "updated",
             "rule_version": "1.0"
           },
@@ -146,12 +146,12 @@
             "rule_version": "1.0"
           },
           "DETECT-2026-0030": {
-            "at": "2026-10-11T12:32:10.690904+00:00",
+            "at": "2026-10-11T12:46:21.728146+00:00",
             "outcome": "updated",
             "rule_version": "1.0"
           },
           "DETECT-2026-0031": {
-            "at": "2026-10-11T08:07:32.172575+00:00",
+            "at": "2026-10-11T12:46:21.728146+00:00",
             "outcome": "updated",
             "rule_version": "1.0"
           },
@@ -226,14 +226,14 @@
             "rule_version": "1.0"
           }
         },
-        "run_id": "38139586432",
-        "run_url": "https://github.com/martonbence/Detection-Engineering/actions/runs/38139586432",
+        "run_id": "38140493672",
+        "run_url": "https://github.com/martonbence/Detection-Engineering/actions/runs/38140493672",
         "totals": {
-          "updated": 1
+          "updated": 5
         }
       },
       "splunk_state": {
-        "checked_at": "2026-10-11T12:33:42.287024+00:00",
+        "checked_at": "2026-10-11T12:48:16.188435+00:00",
         "duplicate_names": 0,
         "exclude_status": [],
         "excluded": 0,
