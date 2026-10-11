@@ -1,16 +1,16 @@
 {
   "detect_id": "DETECT-2026-0015",
   "title": "PowerShell Reflection-Based Assembly Load",
-  "verdict": "NOT_VERIFIED",
-  "reason": "Atomic test did not complete before step timeout",
+  "verdict": "PASS",
+  "reason": "Event count 1 within expected range [1–10]",
   "disabled": false,
   "event_count": 1,
   "min_pass": 1,
   "max_pass": 10,
-  "earliest": "1791724303",
+  "earliest": "1791727722",
   "latest": "now",
-  "run_timestamp": "2026-10-11T13:31:14.344630+00:00",
+  "run_timestamp": "2026-10-11T14:10:13.587482+00:00",
   "rule_version": "1.1",
-  "git_sha": "d435e6fef4d76c14883c20c569ccc74f65e665c4",
-  "run_id": "38142208139"
+  "git_sha": "b72db62a79c43eaf6f0df1ff665bbb865437e460",
+  "run_id": "38146000852"
 }
