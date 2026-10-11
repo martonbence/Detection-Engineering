@@ -1,16 +1,16 @@
 {
   "detect_id": "DETECT-2026-0010",
   "title": "PowerShell Execution Policy Bypass",
-  "verdict": "NOT_VERIFIED",
-  "reason": "Testing is disabled for this rule (custom.testing.enabled: false)",
-  "disabled": true,
-  "event_count": 0,
+  "verdict": "PASS",
+  "reason": "Event count 5 within expected range [1–10]",
+  "disabled": false,
+  "event_count": 5,
   "min_pass": 1,
   "max_pass": 10,
-  "earliest": "1788004322",
+  "earliest": "1791726404",
   "latest": "now",
-  "run_timestamp": "2026-08-29T11:54:09.559750+00:00",
+  "run_timestamp": "2026-10-11T13:48:48.032947+00:00",
   "rule_version": "1.1",
-  "git_sha": "775322617c1efddf7323d63946269f9eeb01559e",
-  "run_id": "33251116121"
+  "git_sha": "0a025a99b345aedadb6c8d1621d46c0ea7f160dd",
+  "run_id": "38144535045"
 }
