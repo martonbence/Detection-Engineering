@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-11T07:25:52.095779+00:00",
+  "generated_at": "2026-10-11T07:39:29.005302+00:00",
   "total_rules": 41,
   "total_sigma_rules": 41,
   "total_compiled_sigma_rules": 36,
@@ -1319,7 +1319,7 @@
         "NTDSDump/NTDSDumpEx/NTDSgrab.ps1 — no known legitimate use outside authorized red team or penetration testing engagements"
       ],
       "testing": {
-        "enabled": false,
+        "enabled": true,
         "runner": "windows-dc",
         "type": "atomic",
         "atomics": [
@@ -1376,7 +1376,7 @@
         "Security products snapshotting LSASS for behavioral analysis — add vendor path to filter_wer"
       ],
       "testing": {
-        "enabled": false,
+        "enabled": true,
         "runner": "windows-victim",
         "type": "emulation",
         "atomics": []
@@ -1425,7 +1425,7 @@
         "Authorized backup software invoking esentutl directly for hive-level backups (uncommon — most backup tools use VSS API, not esentutl)"
       ],
       "testing": {
-        "enabled": false,
+        "enabled": true,
         "runner": "windows-victim",
         "type": "atomic",
         "atomics": [
@@ -1538,7 +1538,7 @@
         "Automated deployment or Group Policy scripts validating stored credentials before mapping drives"
       ],
       "testing": {
-        "enabled": false,
+        "enabled": true,
         "runner": "windows-victim",
         "type": "atomic",
         "atomics": [
@@ -1594,7 +1594,7 @@
         "Security assessment tools (e.g. PingCastle, Purple Knight) invoking DSInternals cmdlets during an authorized engagement"
       ],
       "testing": {
-        "enabled": false,
+        "enabled": true,
         "runner": "windows-victim",
         "type": "atomic",
         "atomics": [
@@ -1647,7 +1647,7 @@
         "No known legitimate use case for symlinking to a raw Volume Shadow Copy device path outside of forensic/incident response tooling under documented change control"
       ],
       "testing": {
-        "enabled": false,
+        "enabled": true,
         "runner": "windows-dc",
         "type": "atomic",
         "atomics": [
@@ -1701,7 +1701,7 @@
         "No known legitimate use case — UnderlayCopy is a single-purpose offensive/red-team acquisition tool with no administrative function"
       ],
       "testing": {
-        "enabled": false,
+        "enabled": true,
         "runner": "windows-dc",
         "type": "atomic",
         "atomics": [
