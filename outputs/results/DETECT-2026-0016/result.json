@@ -1,16 +1,16 @@
 {
   "detect_id": "DETECT-2026-0016",
   "title": "PowerShell Script Block or Module Logging Disable",
-  "verdict": "NOT_VERIFIED",
-  "reason": "Testing is disabled for this rule (custom.testing.enabled: false)",
-  "disabled": true,
-  "event_count": 0,
+  "verdict": "PASS",
+  "reason": "Event count 1 within expected range [1–10]",
+  "disabled": false,
+  "event_count": 1,
   "min_pass": 1,
   "max_pass": 10,
-  "earliest": "1790517626",
+  "earliest": "1791723651",
   "latest": "now",
-  "run_timestamp": "2026-09-27T14:05:03.747381+00:00",
+  "run_timestamp": "2026-10-11T13:02:36.493087+00:00",
   "rule_version": "1.1",
-  "git_sha": "48f31fd9b17d5e460a79eab99ac17a8133f97845",
-  "run_id": "36324339663"
+  "git_sha": "6e5c14f36a0e95f322888b95ebd715f9cf570362",
+  "run_id": "38141490912"
 }
