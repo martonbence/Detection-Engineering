@@ -2,8 +2,8 @@
   "environments": {
     "dev": {
       "last_deploy": {
-        "at": "2026-10-11T12:46:21.728146+00:00",
-        "commit": "7ce0c948d114e51034e156993ed663dbb596d61c",
+        "at": "2026-10-11T13:01:34.627990+00:00",
+        "commit": "6e5c14f36a0e95f322888b95ebd715f9cf570362",
         "rules": {
           "DETECT-2026-0001": {
             "at": "2026-09-12T12:23:09.439785+00:00",
@@ -66,12 +66,12 @@
             "rule_version": "1.1"
           },
           "DETECT-2026-0013": {
-            "at": "2026-08-29T11:52:44.951558+00:00",
+            "at": "2026-10-11T13:01:34.627990+00:00",
             "outcome": "updated",
             "rule_version": "1.1"
           },
           "DETECT-2026-0014": {
-            "at": "2026-08-29T11:52:44.951558+00:00",
+            "at": "2026-10-11T13:01:34.627990+00:00",
             "outcome": "updated",
             "rule_version": "1.2"
           },
@@ -81,12 +81,12 @@
             "rule_version": "1.1"
           },
           "DETECT-2026-0016": {
-            "at": "2026-09-27T14:01:09.987606+00:00",
+            "at": "2026-10-11T13:01:34.627990+00:00",
             "outcome": "updated",
             "rule_version": "1.1"
           },
           "DETECT-2026-0018": {
-            "at": "2026-09-27T14:01:09.987606+00:00",
+            "at": "2026-10-11T13:01:34.627990+00:00",
             "outcome": "updated",
             "rule_version": "1.2"
           },
@@ -226,14 +226,14 @@
             "rule_version": "1.0"
           }
         },
-        "run_id": "38140493672",
-        "run_url": "https://github.com/martonbence/Detection-Engineering/actions/runs/38140493672",
+        "run_id": "38141490912",
+        "run_url": "https://github.com/martonbence/Detection-Engineering/actions/runs/38141490912",
         "totals": {
-          "updated": 5
+          "updated": 4
         }
       },
       "splunk_state": {
-        "checked_at": "2026-10-11T12:48:16.188435+00:00",
+        "checked_at": "2026-10-11T13:03:01.956636+00:00",
         "duplicate_names": 0,
         "exclude_status": [],
         "excluded": 0,
