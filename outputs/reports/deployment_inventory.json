@@ -2,8 +2,8 @@
   "environments": {
     "dev": {
       "last_deploy": {
-        "at": "2026-10-11T13:33:18.224098+00:00",
-        "commit": "767e3d7ea598936f0674e4dca9c32f3702e3cc7c",
+        "at": "2026-10-11T13:52:43.146178+00:00",
+        "commit": "b042fffcd8a5830331ca18d45c10661dd094b7cc",
         "rules": {
           "DETECT-2026-0001": {
             "at": "2026-09-12T12:23:09.439785+00:00",
@@ -51,12 +51,12 @@
             "rule_version": "1.3"
           },
           "DETECT-2026-0010": {
-            "at": "2026-08-29T11:52:44.951558+00:00",
+            "at": "2026-10-11T13:47:27.183545+00:00",
             "outcome": "updated",
             "rule_version": "1.1"
           },
           "DETECT-2026-0011": {
-            "at": "2026-08-29T11:52:44.951558+00:00",
+            "at": "2026-10-11T13:47:27.183545+00:00",
             "outcome": "updated",
             "rule_version": "1.1"
           },
@@ -101,17 +101,17 @@
             "rule_version": "1.0"
           },
           "DETECT-2026-0021": {
-            "at": "2026-08-29T11:52:44.951558+00:00",
+            "at": "2026-10-11T13:40:27.962634+00:00",
             "outcome": "updated",
             "rule_version": "1.0"
           },
           "DETECT-2026-0022": {
-            "at": "2026-08-29T11:52:44.951558+00:00",
+            "at": "2026-10-11T13:52:43.146178+00:00",
             "outcome": "updated",
             "rule_version": "1.1"
           },
           "DETECT-2026-0023": {
-            "at": "2026-08-29T11:52:44.951558+00:00",
+            "at": "2026-10-11T13:40:27.962634+00:00",
             "outcome": "updated",
             "rule_version": "1.1"
           },
@@ -226,14 +226,14 @@
             "rule_version": "1.0"
           }
         },
-        "run_id": "38143592034",
-        "run_url": "https://github.com/martonbence/Detection-Engineering/actions/runs/38143592034",
+        "run_id": "38144887662",
+        "run_url": "https://github.com/martonbence/Detection-Engineering/actions/runs/38144887662",
         "totals": {
           "updated": 1
         }
       },
       "splunk_state": {
-        "checked_at": "2026-10-11T13:35:03.696538+00:00",
+        "checked_at": "2026-10-11T13:54:23.211279+00:00",
         "duplicate_names": 0,
         "exclude_status": [],
         "excluded": 0,

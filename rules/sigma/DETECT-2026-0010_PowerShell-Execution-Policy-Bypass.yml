@@ -74,7 +74,7 @@ custom:
     severity: medium
 
   testing:
-    enabled: false
+    enabled: true
     runner: windows-victim
     type: atomic
     atomics:

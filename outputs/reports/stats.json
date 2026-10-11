@@ -1,29 +1,29 @@
 {
-  "generated_at": "2026-10-11T13:35:04.027443+00:00",
+  "generated_at": "2026-10-11T13:54:23.469768+00:00",
   "total_rules": 41,
   "total_sigma_rules": 41,
   "total_compiled_sigma_rules": 36,
   "total_splunk_rules": 41,
   "total_native_spl_rules": 5,
-  "verified_pass": 31,
+  "verified_pass": 36,
   "verified_fail": 1,
-  "verified_not_verified": 9,
-  "verified_testing_disabled": 8,
-  "verified_testing_disabled_current": 8,
+  "verified_not_verified": 4,
+  "verified_testing_disabled": 3,
+  "verified_testing_disabled_current": 3,
   "never_tested": 0,
-  "not_verified": 9,
+  "not_verified": 4,
   "verified_stale": 0,
   "verified_superseded": 0,
   "verified_expired": 0,
-  "verified_pass_current": 31,
+  "verified_pass_current": 36,
   "verified_fail_current": 1,
-  "verified_current": 33,
-  "pass_rate_pct": 94,
+  "verified_current": 38,
+  "pass_rate_pct": 95,
   "pass_rate_color": "brightgreen",
-  "verification_current_pct": 80,
+  "verification_current_pct": 93,
   "verification_current_color": "brightgreen",
-  "confirmed_working_pct": 76,
-  "last_live_verification_at": "2026-10-11T13:34:34.463689+00:00",
+  "confirmed_working_pct": 88,
+  "last_live_verification_at": "2026-10-11T13:53:51.371743+00:00",
   "last_live_verification_count": 1,
   "mitre_covered_techniques": 22,
   "mitre_total_techniques": 222,
@@ -583,11 +583,11 @@
       "level": "medium",
       "status": "stable",
       "source": "sigma",
-      "verdict": "NOT_VERIFIED",
-      "run_id": "33251116121",
-      "verdict_at": "2026-08-29T11:54:09.559750+00:00",
+      "verdict": "PASS",
+      "run_id": "38144535045",
+      "verdict_at": "2026-10-11T13:48:48.032947+00:00",
       "verdict_rule_version": "1.1",
-      "verdict_testing_disabled": true,
+      "verdict_testing_disabled": false,
       "tactics": [
         "Execution"
       ],
@@ -614,7 +614,7 @@
         "Remote management tools (SCCM, Ansible, DSC)"
       ],
       "testing": {
-        "enabled": false,
+        "enabled": true,
         "runner": "windows-victim",
         "type": "atomic",
         "atomics": [
@@ -638,11 +638,11 @@
       "level": "high",
       "status": "stable",
       "source": "sigma",
-      "verdict": "NOT_VERIFIED",
-      "run_id": "33251116121",
-      "verdict_at": "2026-08-29T11:54:09.559750+00:00",
+      "verdict": "PASS",
+      "run_id": "38144535045",
+      "verdict_at": "2026-10-11T13:48:48.032947+00:00",
       "verdict_rule_version": "1.1",
-      "verdict_testing_disabled": true,
+      "verdict_testing_disabled": false,
       "tactics": [
         "Execution",
         "Stealth"
@@ -670,7 +670,7 @@
         "PowerShell-based archive utilities using IO.Compression internally"
       ],
       "testing": {
-        "enabled": false,
+        "enabled": true,
         "runner": "windows-victim",
         "type": "emulation",
         "atomics": []
@@ -1087,11 +1087,11 @@
       "level": "critical",
       "status": "stable",
       "source": "sigma",
-      "verdict": "NOT_VERIFIED",
-      "run_id": "33251116121",
-      "verdict_at": "2026-08-29T11:54:09.559750+00:00",
+      "verdict": "PASS",
+      "run_id": "38144068315",
+      "verdict_at": "2026-10-11T13:41:36.002501+00:00",
       "verdict_rule_version": "1.0",
-      "verdict_testing_disabled": true,
+      "verdict_testing_disabled": false,
       "tactics": [
         "Credential Access"
       ],
@@ -1117,7 +1117,7 @@
         "Incident response workflows creating LSASS captures for forensic investigation"
       ],
       "testing": {
-        "enabled": false,
+        "enabled": true,
         "runner": "windows-victim",
         "type": "atomic",
         "atomics": [
@@ -1141,11 +1141,11 @@
       "level": "critical",
       "status": "stable",
       "source": "sigma",
-      "verdict": "NOT_VERIFIED",
-      "run_id": "33251116121",
-      "verdict_at": "2026-08-29T11:54:09.559750+00:00",
+      "verdict": "PASS",
+      "run_id": "38144887662",
+      "verdict_at": "2026-10-11T13:53:51.371743+00:00",
       "verdict_rule_version": "1.1",
-      "verdict_testing_disabled": true,
+      "verdict_testing_disabled": false,
       "tactics": [
         "Credential Access"
       ],
@@ -1186,7 +1186,7 @@
         "CTF competitions and training lab environments"
       ],
       "testing": {
-        "enabled": false,
+        "enabled": true,
         "runner": "windows-victim",
         "type": "atomic",
         "atomics": [
@@ -1218,11 +1218,11 @@
       "level": "critical",
       "status": "stable",
       "source": "sigma",
-      "verdict": "NOT_VERIFIED",
-      "run_id": "33251116121",
-      "verdict_at": "2026-08-29T11:54:09.559750+00:00",
+      "verdict": "PASS",
+      "run_id": "38144068315",
+      "verdict_at": "2026-10-11T13:41:36.002501+00:00",
       "verdict_rule_version": "1.1",
-      "verdict_testing_disabled": true,
+      "verdict_testing_disabled": false,
       "tactics": [
         "Credential Access"
       ],
@@ -1252,7 +1252,7 @@
         "HKLM\\SYSTEM export by legitimate backup software using reg.exe directly (rare — most backup tools use their own API, not reg.exe)"
       ],
       "testing": {
-        "enabled": false,
+        "enabled": true,
         "runner": "windows-victim",
         "type": "atomic",
         "atomics": [
