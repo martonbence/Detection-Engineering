@@ -1,16 +1,16 @@
 {
   "detect_id": "DETECT-2026-0029",
   "title": "DCSync via DSInternals Get-ADReplAccount",
-  "verdict": "NOT_VERIFIED",
-  "reason": "Testing is disabled for this rule (custom.testing.enabled: false)",
-  "disabled": true,
-  "event_count": 0,
+  "verdict": "PASS",
+  "reason": "Event count 1 within expected range [1–10]",
+  "disabled": false,
+  "event_count": 1,
   "min_pass": 1,
   "max_pass": 10,
-  "earliest": "1788004322",
+  "earliest": "1791725555",
   "latest": "now",
-  "run_timestamp": "2026-08-29T11:54:09.559750+00:00",
+  "run_timestamp": "2026-10-11T13:34:34.463689+00:00",
   "rule_version": "1.0",
-  "git_sha": "775322617c1efddf7323d63946269f9eeb01559e",
-  "run_id": "33251116121"
+  "git_sha": "767e3d7ea598936f0674e4dca9c32f3702e3cc7c",
+  "run_id": "38143592034"
 }

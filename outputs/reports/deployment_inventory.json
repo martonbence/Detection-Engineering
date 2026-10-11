@@ -2,8 +2,8 @@
   "environments": {
     "dev": {
       "last_deploy": {
-        "at": "2026-10-11T13:06:54.666967+00:00",
-        "commit": "da8044f850358eb8abd2196a14c792cb952e4e00",
+        "at": "2026-10-11T13:33:18.224098+00:00",
+        "commit": "767e3d7ea598936f0674e4dca9c32f3702e3cc7c",
         "rules": {
           "DETECT-2026-0001": {
             "at": "2026-09-12T12:23:09.439785+00:00",
@@ -76,7 +76,7 @@
             "rule_version": "1.2"
           },
           "DETECT-2026-0015": {
-            "at": "2026-08-29T11:52:44.951558+00:00",
+            "at": "2026-10-11T13:12:26.695602+00:00",
             "outcome": "updated",
             "rule_version": "1.1"
           },
@@ -91,7 +91,7 @@
             "rule_version": "1.2"
           },
           "DETECT-2026-0019": {
-            "at": "2026-08-29T11:52:44.951558+00:00",
+            "at": "2026-10-11T13:12:26.695602+00:00",
             "outcome": "updated",
             "rule_version": "1.0"
           },
@@ -121,7 +121,7 @@
             "rule_version": "1.0"
           },
           "DETECT-2026-0025": {
-            "at": "2026-10-11T08:07:32.172575+00:00",
+            "at": "2026-10-11T13:12:26.695602+00:00",
             "outcome": "updated",
             "rule_version": "1.0"
           },
@@ -141,7 +141,7 @@
             "rule_version": "1.0"
           },
           "DETECT-2026-0029": {
-            "at": "2026-10-11T08:07:32.172575+00:00",
+            "at": "2026-10-11T13:33:18.224098+00:00",
             "outcome": "updated",
             "rule_version": "1.0"
           },
@@ -226,14 +226,14 @@
             "rule_version": "1.0"
           }
         },
-        "run_id": "38141849672",
-        "run_url": "https://github.com/martonbence/Detection-Engineering/actions/runs/38141849672",
+        "run_id": "38143592034",
+        "run_url": "https://github.com/martonbence/Detection-Engineering/actions/runs/38143592034",
         "totals": {
           "updated": 1
         }
       },
       "splunk_state": {
-        "checked_at": "2026-10-11T13:08:45.361032+00:00",
+        "checked_at": "2026-10-11T13:35:03.696538+00:00",
         "duplicate_names": 0,
         "exclude_status": [],
         "excluded": 0,
