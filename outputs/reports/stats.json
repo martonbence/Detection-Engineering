@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-11T14:03:19.653543+00:00",
+  "generated_at": "2026-10-11T14:10:08.454371+00:00",
   "total_rules": 41,
   "total_sigma_rules": 41,
   "total_compiled_sigma_rules": 36,
@@ -868,15 +868,8 @@
       "testing": {
         "enabled": true,
         "runner": "windows-victim",
-        "type": "atomic",
-        "atomics": [
-          {
-            "technique": "T1059.001",
-            "test_numbers": [
-              4
-            ]
-          }
-        ]
+        "type": "emulation",
+        "atomics": []
       },
       "rule_body": "detection:\n  selection_image:\n    Image|endswith:\n    - \\powershell.exe\n    - \\pwsh.exe\n  selection_reflect:\n    CommandLine|contains:\n    - Reflection.Assembly]::Load(\n    - Reflection.Assembly]::LoadFile(\n    - Reflection.Assembly]::LoadFrom(\n    - Reflection.Assembly]::LoadWithPartialName(\n    - Reflection.Assembly]::UnsafeLoadFrom(\n    - '[Runtime.InteropServices.Marshal]::Copy('\n    - '[Runtime.InteropServices.Marshal]::AllocHGlobal('\n    - '[AppDomain]::CurrentDomain.Load('\n    - ::Load([Convert]::FromBase64String(\n  filter_legitimate:\n    ParentImage|endswith:\n    - \\devenv.exe\n    - \\msbuild.exe\n  condition: selection_image and selection_reflect and not filter_legitimate",
       "rule_body_lang": "yaml",
