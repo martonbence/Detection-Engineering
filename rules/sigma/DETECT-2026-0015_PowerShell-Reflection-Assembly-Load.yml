@@ -81,7 +81,15 @@ custom:
   testing:
     enabled: true
     runner: windows-victim
-    type: atomic
-    atomics:
-      - technique: T1059.001
-        test_numbers: [4]
+    type: emulation
+    custom:
+      - name: "PowerShell Reflection.Assembly LoadWithPartialName"
+        description: >
+          Spawns a child powershell.exe whose CommandLine contains
+          Reflection.Assembly]::LoadWithPartialName(, matching selection_reflect.
+          The call loads System.Windows.Forms, a framework assembly, and
+          modifies nothing, so no cleanup is needed. Non-interactive and
+          windowless, so it completes in a session 0 service context.
+        executor: powershell
+        command: >-
+          Start-Process powershell.exe -Wait -ArgumentList '-NonInteractive', '-Command', '[System.Reflection.Assembly]::LoadWithPartialName(''System.Windows.Forms'') | Out-Null'
