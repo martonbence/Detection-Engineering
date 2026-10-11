@@ -2,8 +2,8 @@
   "environments": {
     "dev": {
       "last_deploy": {
-        "at": "2026-10-11T13:33:18.224098+00:00",
-        "commit": "767e3d7ea598936f0674e4dca9c32f3702e3cc7c",
+        "at": "2026-10-11T13:40:27.962634+00:00",
+        "commit": "947f4572f979a768ca5ac1276260a0ab7b90be6e",
         "rules": {
           "DETECT-2026-0001": {
             "at": "2026-09-12T12:23:09.439785+00:00",
@@ -101,7 +101,7 @@
             "rule_version": "1.0"
           },
           "DETECT-2026-0021": {
-            "at": "2026-08-29T11:52:44.951558+00:00",
+            "at": "2026-10-11T13:40:27.962634+00:00",
             "outcome": "updated",
             "rule_version": "1.0"
           },
@@ -111,7 +111,7 @@
             "rule_version": "1.1"
           },
           "DETECT-2026-0023": {
-            "at": "2026-08-29T11:52:44.951558+00:00",
+            "at": "2026-10-11T13:40:27.962634+00:00",
             "outcome": "updated",
             "rule_version": "1.1"
           },
@@ -226,14 +226,14 @@
             "rule_version": "1.0"
           }
         },
-        "run_id": "38143592034",
-        "run_url": "https://github.com/martonbence/Detection-Engineering/actions/runs/38143592034",
+        "run_id": "38144068315",
+        "run_url": "https://github.com/martonbence/Detection-Engineering/actions/runs/38144068315",
         "totals": {
-          "updated": 1
+          "updated": 2
         }
       },
       "splunk_state": {
-        "checked_at": "2026-10-11T13:35:03.696538+00:00",
+        "checked_at": "2026-10-11T13:42:04.896433+00:00",
         "duplicate_names": 0,
         "exclude_status": [],
         "excluded": 0,
