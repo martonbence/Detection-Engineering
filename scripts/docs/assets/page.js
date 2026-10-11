@@ -574,64 +574,6 @@ function buildDashboardCharts() {
   const evidencePct = evidenceTotal > 0 ? Math.round(evidenceCount.current / evidenceTotal * 100) : 0;
   const evidencePctEl = document.getElementById('evidence-overlay-pct');
   if (evidencePctEl) evidencePctEl.textContent = evidencePct + '%';
-  // The one number on this page that explains a low Current % without the
-  // reader having to open a filter: rules nobody set out to measure. Shown
-  // only while there are any, so the card carries no permanent footnote about
-  // a state the library is normally not in -- and hidden via the hidden
-  // attribute so it leaves no empty line behind when it goes.
-  const scopeNoteEl = document.getElementById('evidence-scope-note');
-  if (scopeNoteEl) {
-    if (evidenceCount.scoped > 0) {
-      scopeNoteEl.textContent =
-        evidenceCount.scoped + ' of ' + RULES.length + ' rules are out of testing scope' +
-        ' — testing is switched off on the rule itself, so the pipeline skips them' +
-        ' rather than failing to measure them. Not counted in the Pass Rate.';
-      scopeNoteEl.hidden = false;
-    } else {
-      scopeNoteEl.hidden = true;
-    }
-  }
-
-  // Last live verification — a plain historical fact ("when did the pipeline
-  // last actually measure anything, and how much of the library did that run
-  // cover"), not a standing that erodes with elapsed time like the pass rate
-  // or the Evidence segments above. It is recomputed here from RULES, rather
-  // than left as the build-time @@LAST_LIVE_TEXT@@ seed, purely so it can
-  // never silently drift from the Python-side figure in stats.json -- both
-  // sides use the identical predicate (see _last_live_verification()'s
-  // docstring in generate_stats.py): a rule counts only if its verdict is
-  // not N/A, testing was not deliberately disabled for that run, and it
-  // carries both a runId and a verdictAt. Rows failing that (e.g. legacy
-  // result.json files written before run_id existed) are left out of the
-  // grouping entirely, matching the Python side row for row.
-  let lastLiveAt = '';
-  let lastLiveRunId = '';
-  RULES.forEach(r => {
-    const v = r.verdict || 'N/A';
-    if (v === 'N/A' || !v || r.testingDisabled) return;
-    if (!r.runId || !r.verdictAt) return;
-    if (r.verdictAt > lastLiveAt) { lastLiveAt = r.verdictAt; lastLiveRunId = r.runId; }
-  });
-  let lastLiveCount = 0;
-  if (lastLiveAt) {
-    RULES.forEach(r => {
-      const v = r.verdict || 'N/A';
-      if (v === 'N/A' || !v || r.testingDisabled) return;
-      if (r.runId === lastLiveRunId) lastLiveCount++;
-    });
-  }
-  const lastLiveNoteEl = document.getElementById('evidence-lastlive-note');
-  if (lastLiveNoteEl) {
-    if (lastLiveCount > 0) {
-      const displayAt = lastLiveAt.slice(0, 19).replace('T', ' ') + ' UTC';
-      lastLiveNoteEl.textContent =
-        'Last live verification: ' + displayAt + ' — ' + lastLiveCount + ' of ' +
-        RULES.length + ' rules measured in that run.';
-      lastLiveNoteEl.hidden = false;
-    } else {
-      lastLiveNoteEl.hidden = true;
-    }
-  }
   const evidenceCanvas = document.getElementById('chart-evidence');
   if (evidenceCanvas) {
     evidenceCanvas.setAttribute('aria-label',
@@ -1117,6 +1059,7 @@ let currentView = [];
 let selectedPos = -1;
 let currentTab = 'rules';
 let currentRuleBody = '';
+let currentRuleBodyLang = '';
 const openSections = new Set();
 const openGroups = new Set();
 
@@ -1872,17 +1815,59 @@ function highlightSPL(code) {
   return out;
 }
 
+// Hand-written custom.splunk.raw_query rules are stored as one continuous
+// line -- break it into one pipeline stage per line so it reads like a
+// normal SPL search. Quote- and paren-aware: a "|" is only treated as a new
+// pipeline stage when it sits at the top level -- one inside a quoted string
+// (the common case being a regex alternation passed to match()/rex, e.g.
+// "(foo|bar)") or inside an unbalanced/open paren is left untouched. Used
+// both for on-screen rendering and (as of the Copy-preserves-formatting
+// change) for what gets written to the clipboard for SPL rules -- see
+// copyRuleBody().
+function formatSPLPipesForDisplay(code) {
+  const rx = /('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")|(\|)|([()])|([\s\S])/g;
+  let out = '';
+  let depth = 0;
+  let m;
+  while ((m = rx.exec(code)) !== null) {
+    const [, str, pipe, paren, other] = m;
+    if (str) { out += str; continue; }
+    if (paren) { depth += paren === '(' ? 1 : -1; out += paren; continue; }
+    if (pipe) {
+      if (depth <= 0) {
+        // Drop the trailing space that a hand-written "... | eval ..." style
+        // query has before the pipe, so the new line starts flush with "|".
+        out = out.replace(/[ \t]+$/, '');
+        out += '\n|';
+      } else {
+        out += pipe;
+      }
+      continue;
+    }
+    out += other;
+  }
+  return out;
+}
+
 function highlightRuleBody(code, lang) {
-  return lang === 'spl' ? highlightSPL(code) : highlightYAML(code);
+  return lang === 'spl' ? highlightSPL(formatSPLPipesForDisplay(code)) : highlightYAML(code);
 }
 
 async function copyRuleBody(btn) {
   if (!currentRuleBody) return;
+  // Native SPL is stored as one continuous line, but the drawer displays it
+  // pipe-broken onto multiple lines (formatSPLPipesForDisplay). Copy is meant
+  // to hand back what's on screen, so SPL gets the same formatting applied
+  // before it hits the clipboard. Sigma YAML is already multi-line as
+  // stored, so it's copied as-is.
+  const textToCopy = currentRuleBodyLang === 'spl'
+    ? formatSPLPipesForDisplay(currentRuleBody)
+    : currentRuleBody;
   try {
-    await navigator.clipboard.writeText(currentRuleBody);
+    await navigator.clipboard.writeText(textToCopy);
   } catch (e) {
     const ta = document.createElement('textarea');
-    ta.value = currentRuleBody;
+    ta.value = textToCopy;
     ta.style.position = 'fixed';
     ta.style.opacity = '0';
     document.body.appendChild(ta);
@@ -2008,13 +1993,14 @@ function openDrawer(idx) {
   }
 
   currentRuleBody = '';
+  currentRuleBodyLang = '';
   if (r.ruleBody) {
     currentRuleBody = r.ruleBody;
+    currentRuleBodyLang = r.ruleBodyLang;
     const langLabel = r.ruleBodyLang === 'spl' ? 'SPL' : 'Sigma YAML';
     // Wrapping is a display-only concern scoped to native SPL: Sigma YAML is
-    // already multi-line and stays on the default `pre` rendering. The class
-    // never touches currentRuleBody/r.ruleBody, so Copy still yields the
-    // exact original single-line string.
+    // already multi-line and stays on the default `pre` rendering. Copy
+    // mirrors this for SPL too -- see copyRuleBody().
     const preCls = r.ruleBodyLang === 'spl' ? 'rule-body-pre rule-body-wrap' : 'rule-body-pre';
     body += `<div>
         <div class="code-head">

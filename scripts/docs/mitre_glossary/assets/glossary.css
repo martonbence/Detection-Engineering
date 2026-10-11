@@ -1,208 +1,108 @@
-/* Visual language copied from the rule browser (scripts/docs/assets/page.css),
-   per the web-visual-system skill: navy + two radial washes, glass panels
-   with a bright hairline, amber (#ffaa00) as the brand/interactive colour,
-   solid-amber tactic headers, mono for IDs, sans for headings. */
-* { box-sizing: border-box; margin: 0; padding: 0; }
+/* ── MITRE-Notes glossary: additions on top of page.css ──────────────────
+   Everything above this block is the rule browser's own page.css, inlined
+   verbatim by generate_mitre_glossary.py with one change: the brand accent
+   #ffaa00 / rgba(255,170,0,..) is swapped for cyan #00d4ff (same saturation
+   and lightness, hue 190). Body background, glass panels, particles, matrix
+   cells, verdict rails and the detail panel are therefore the rule browser's
+   own rules, not copies -- this file only covers what that page has no
+   equivalent for. Keep it small; anything reusable belongs in page.css. */
 
-:root {
-  --bg3: #1c2128;
-  --bg4: #21262d;
-  --border2: #444c56;
-  --text: #e6edf3;
-  --text2: #a2a9b1;
-  --text3: #9a9fa7;
-  --accent: #58a6ff;
-  --amber: #ffaa00;
-  --radius: 6px;
-  --radius-lg: 10px;
-  --font: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-}
-
-html, body { height: 100%; }
-
-body {
-  background-color: #0f172a;
-  background-image:
-    radial-gradient(1500px 1200px at 8% -10%, rgba(64, 116, 244, 0.26), transparent 72%),
-    radial-gradient(1300px 1100px at 100% 16%, rgba(132, 98, 230, 0.30), transparent 70%);
-  color: var(--text);
-  font-family: var(--font-ui);
-  font-size: 14px;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
-
-/* ── Top strip (same recipe as page.css .stats-strip) ── */
-.stats-strip {
-  flex-shrink: 0;
+/* Strip: the rule browser's right-hand side is just the Legend button; this
+   page adds its build timestamp next to it. --text2 on the strip's glass
+   measures 5.62:1 (page.css .filters-generated uses the same pairing). */
+.strip-right {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 14px;
-  height: 60px;
-  padding: 0 16px;
-  background: rgba(20, 25, 34, 0.55);
-  backdrop-filter: blur(16px) saturate(1.3);
-  -webkit-backdrop-filter: blur(16px) saturate(1.3);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 12px 30px -10px rgba(0, 0, 0, 0.6);
-  position: relative;
-  z-index: 2;
-}
-.strip-brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
-.strip-logo { width: 40px; height: 40px; flex-shrink: 0; display: block; }
-.strip-title { font-size: 14px; font-weight: 700; letter-spacing: -0.2px; white-space: nowrap; }
-.strip-sep { width: 1px; height: 14px; background: var(--border2); flex-shrink: 0; }
-.strip-total { font-family: var(--font); font-size: 12px; white-space: nowrap; }
-
-.search-input-wrap { position: relative; width: 340px; max-width: 45vw; height: 28px; display: flex; align-items: center; }
-.search-input-wrap svg {
-  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
-  width: 14px; height: 14px; stroke: var(--text3); fill: none;
-}
-.search-input {
-  width: 100%; height: 28px; padding: 0 10px 0 32px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: var(--radius);
-  color: var(--text); font-size: 13px; font-family: var(--font-ui);
-  outline: none;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25);
-  transition: border-color 0.12s;
-}
-.search-input:focus { border-color: var(--amber); }
-.search-input::placeholder { color: var(--text2); }
-
-/* ── Body: matrix + detail panel ── */
-main {
-  flex: 1; min-height: 0;
-  display: flex; gap: 14px; padding: 14px;
+  flex-shrink: 0;
 }
 
-.matrix-wrap {
-  flex: 1; min-width: 0;
-  display: flex; flex-direction: column; gap: 10px;
-  overflow: auto;
+.strip-generated {
+  font-family: var(--font);
+  font-size: 11px;
+  color: var(--text2);
+  white-space: nowrap;
 }
 
-.legend { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; font-size: 12px; color: var(--text2); }
-.lg { display: inline-flex; align-items: center; gap: 6px; }
-.lg-ts { margin-left: auto; font-family: var(--font); font-size: 11px; }
-.sw { width: 14px; height: 14px; border-radius: 2px; display: inline-block; }
-.sw-cov { background: var(--bg4); border-left: 3px solid var(--amber); }
-.sw-part { background: rgba(255, 170, 0, .13); border-left: 2px solid rgba(255, 170, 0, .55); }
+/* The single "tab" is a label (aria-current), not a control. */
+.tab-bar .tab-btn.active {
+  cursor: default;
+}
 
-.att-matrix { display: flex; gap: 2px; align-items: flex-start; padding-bottom: 4px; }
-
-.tc-col { flex: 0 0 185px; display: flex; flex-direction: column; gap: 1px; }
-
-.tc-hdr {
-  width: 100%;
-  background: var(--amber);
-  color: #111;
-  border: none;
-  font-family: var(--font-ui);
-  font-size: 12px; font-weight: 700;
-  padding: 6px 5px;
-  text-align: center;
-  border-radius: 3px 3px 0 0;
-  min-height: 44px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+/* Every cell opens a panel here, uncovered ones included (the rule browser
+   only makes cells with rules clickable), so every cell gets the pointer. */
+.att-matrix .tc[data-id],
+.att-matrix .tc-hdr {
   cursor: pointer;
 }
-.tc-hdr .tc-count { font-size: 10px; font-weight: 400; opacity: .8; font-family: var(--font); }
-.tc-hdr:hover, .tc-hdr.sel { box-shadow: inset 0 0 0 2px #111; }
 
-.tc {
-  width: 100%;
-  text-align: left;
-  font-family: var(--font-ui);
-  font-size: 12px;
-  padding: 5px 6px;
-  border: none;
-  border-radius: 2px;
-  min-height: 40px;
-  display: flex; flex-direction: column; gap: 1px;
-  cursor: pointer;
-  color: var(--text);
-  background: var(--bg4);
-  border-left: 3px solid var(--amber);
-  transition: box-shadow 0.12s, background 0.12s;
+.att-matrix .tc[data-id]:focus-visible {
+  outline: 2px solid #00d4ff;
+  outline-offset: -2px;
 }
-.tc.partial {
-  background: rgba(255, 170, 0, .13);
-  border-left: 2px solid rgba(255, 170, 0, .55);
-}
-.tc.sub { margin-left: 12px; width: calc(100% - 12px); min-height: 34px; background: var(--bg3); }
-.tc .ti { font-family: var(--font); font-size: 11px; font-weight: 600; color: var(--amber); }
-.tc .tn { line-height: 1.25; }
-.tc .tm { font-family: var(--font); font-size: 10px; color: var(--text2); }
-.tc:hover, .tc.sel {
-  box-shadow: 0 0 0 2px rgba(255, 170, 0, .14), inset 0 0 0 1px var(--amber);
-}
-.tc:focus-visible, .tc-hdr:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.tc.dim, .tc-hdr.dim { opacity: .28; }
-.tc.nob .ti::after { content: ' ·?'; color: #f85149; }
 
-/* ── Detail panel: the rule browser's glass card recipe ── */
-.detail {
-  flex: 0 0 440px;
-  max-width: 45vw;
-  overflow-y: auto;
-  padding: 20px;
-  display: flex; flex-direction: column; gap: 12px;
-  background: rgba(22, 27, 34, 0.82);
-  backdrop-filter: blur(12px) saturate(1.2);
-  -webkit-backdrop-filter: blur(12px) saturate(1.2);
-  border: 1px solid rgba(255, 255, 255, 0.10);
+/* Selected tactic header: an inset ring in the header's own text colour
+   (the header is already the solid accent, so a fill change can't show). */
+.tc-hdr.gl-selected {
+  box-shadow: inset 0 0 0 2px #111;
+}
+
+/* Detail panel: the glossary entry is prose (the blurbs run ~10 sentences),
+   so the panel takes the rule drawer's width (.drawer, 560px) rather than
+   the rule-list panel's 340px, and its sections use the drawer's section
+   cards (.drawer-body > div) so the two read as one component family. */
+#detail-panel {
+  width: 560px;
+}
+
+#detail-body {
+  padding: 18px 20px;
+  gap: 14px;
+}
+
+#detail-body > div {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
   border-radius: var(--radius-lg);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 12px 34px -14px rgba(0, 0, 0, 0.6);
+  padding: 14px 16px;
 }
-.d-id { font-family: var(--font); font-size: 13px; font-weight: 700; color: var(--amber); }
-.d-name { font-size: 18px; font-weight: 700; letter-spacing: -0.2px; }
-.d-pills { display: flex; flex-wrap: wrap; gap: 6px; }
-.pill {
-  display: inline-block; padding: 2px 7px; border-radius: 20px;
-  font-family: var(--font); font-size: 10px; font-weight: 600; letter-spacing: .3px;
-  background: #262c35; color: var(--text2); border: 1px solid rgba(162, 169, 177, .35);
-}
-.pill.cov { background: #3a2f16; color: #ffc34d; border-color: rgba(255, 170, 0, .4); }
-.pill.part { background: #2b2717; color: #e3b659; border-color: rgba(255, 170, 0, .28); }
-.d-section-title {
-  align-self: flex-start;
-  font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px;
-  border-radius: 5px; padding: 3px 10px; background: var(--amber); color: #111;
-}
-.d-blurb { font-size: 14px; line-height: 1.6; color: var(--text); }
-.d-blurb code, .d-meta code {
-  font-family: var(--font); font-size: 12px;
-  background: rgba(255, 255, 255, 0.06); border-radius: 4px; padding: 1px 4px;
-}
-.d-missing {
-  font-size: 13px; line-height: 1.5; color: var(--text);
-  border-left: 3px solid #f0883e; padding: 6px 10px; background: rgba(240, 136, 62, .08);
-}
-.d-meta { font-size: 12px; line-height: 1.7; color: var(--text2); }
-.d-meta b { color: var(--text); font-weight: 600; }
-.d-links { display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px; }
-.d-rel { display: flex; flex-wrap: wrap; gap: 6px; }
-.d-rel button {
-  background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.10);
-  color: var(--text); border-radius: 20px; padding: 3px 9px; cursor: pointer;
-  font-family: var(--font); font-size: 11px;
-}
-.d-rel button:hover { border-color: var(--amber); box-shadow: 0 0 0 2px rgba(255, 170, 0, .14); }
 
-@media (max-width: 900px) {
-  body { height: auto; overflow: auto; }
-  main { flex-direction: column; }
-  .detail { flex: none; max-width: none; }
-  .search-input-wrap { width: 200px; }
-  .strip-total, .strip-sep { display: none; }
+/* The coverage-state line reuses the Legend dialog's .sw swatches, so the
+   panel says "covered / partial / none" in exactly the matrix's own colours. */
+#detail-body > .gl-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.gl-missing {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text2);
+}
+
+.drawer-desc code {
+  font-family: var(--font);
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.gl-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+button.mitre-pill {
+  cursor: pointer;
+  text-align: left;
+}
+
+button.mitre-pill:hover {
+  filter: brightness(1.25);
 }

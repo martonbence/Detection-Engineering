@@ -89,7 +89,7 @@ custom:
     severity: critical
 
   testing:
-    enabled: false
+    enabled: true
     runner: windows-dc
     type: atomic
     atomics:

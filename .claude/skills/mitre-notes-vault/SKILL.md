@@ -80,14 +80,23 @@ existing rule's `detection:` / `custom.splunk.raw_query` changes, its
 ## D — Regenerate the Obsidian MITRE Navigator glossary
 
 `scripts/docs/mitre_glossary/` (built 2026-09-27, Sienna, Bjorn-reviewed)
-generates a companion quick-reference glossary page for the vault —
-`personal/MITRE-Notes/mitre-navigator.html` — styled like the rule
-browser's own MITRE Navigator. It's a *glossary*, not a coverage tracker:
-for every tactic/technique/sub-technique that's covered or partially
-covered, it shows a tight ~10-sentence "what is this, mechanically" blurb.
-It reuses `generate_stats.py`'s own coverage computation, so it can never
-disagree with the real rule-browser Navigator about what's in scope — you
-never need to (and must not) re-derive that scope by hand.
+generates a companion page for the vault —
+`personal/MITRE-Notes/mitre-navigator.html` — that is a structural clone
+of the rule browser's own MITRE Navigator (same matrix markup, CSS and JS,
+sliced from `generate_stats.py`/`page.js`/`page.css`, cyan accent instead
+of amber so the two pages aren't confused). It shows the **full ATT&CK
+matrix** — every tactic/technique/sub-technique, not only covered ones —
+with coverage state (✅/🟡/❌) using the exact same legend/colors as the
+real Navigator. For a covered or partially-covered item, its detail panel
+additionally shows a tight ~10-sentence "what is this, mechanically" blurb
+(`blurbs.yaml`); an uncovered item's panel says plainly that no blurb/note/
+rule exists yet, no invented content. Coverage state and scope both come
+from `generate_stats.py`'s own coverage computation, so this page can
+never disagree with the real rule-browser Navigator about what's covered —
+never re-derive that by hand. (2026-09-27: an earlier version of this page
+only rendered the covered/partial subset as glossary cards — the user
+rejected it as not matching the real Navigator's look; this full-matrix,
+shared-markup version replaced it.)
 
 Trigger this in the same cases as part A — a new rule lands, tags change,
 a rule finishes review — since those are exactly the events that can pull

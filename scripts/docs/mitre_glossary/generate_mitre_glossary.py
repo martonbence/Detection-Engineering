@@ -1,40 +1,49 @@
 """
 generate_mitre_glossary.py -- the MITRE-Notes vault's companion "MITRE Navigator".
 
-A quick-reference glossary, not a coverage-status matrix: for every ATT&CK
-tactic / technique / sub-technique that at least one rule in rules/sigma/
-is tagged against (covered), or whose sub-techniques are (partial), it shows
-a short, fixed-shape blurb on what that item *is* mechanically.
+A structural clone of the rule browser's MITRE Navigator tab (docs/index.html),
+re-themed so the two pages can't be mistaken for each other, whose detail
+panel shows a short hand-written blurb on what each ATT&CK item *is*.
 
-Scope is computed with the rule browser's own code, not re-derived:
-  - generate_stats.load_sigma_rules() / _collect_rule_details() -> rule tags
-  - generate_stats.build_technique_coverage()                   -> covered IDs
-  - outputs/reports/mitre_technique_map.json                    -> names/tactics
-so this page and the rule-browser Navigator (docs/index.html) can never
-disagree on what counts as "covered". Classification mirrors
-generate_stats._build_matrix_html():
+Built from the rule browser's own components, not a parallel implementation:
+  - matrix markup      -> generate_stats._build_matrix_html()   (the full
+                          ATT&CK matrix, identical DOM/classes/cell states)
+  - platform menu      -> generate_stats._build_platform_menu_html()
+  - coverage           -> generate_stats.build_technique_coverage()
+  - stylesheet         -> scripts/docs/assets/page.css, inlined whole, with
+                          the brand accent (#ffaa00) swapped for ACCENT_HEX
+  - behaviour          -> the Navigator block + ambient-background IIFE of
+                          scripts/docs/assets/page.js, sliced out by marker
+                          lines (hard failure if a marker moves), plus a few
+                          helper functions extracted by name
+  - glossary.{template.html,css,js,shims.js} only add what the rule browser lacks:
+                          page shell, the blurb detail panel, and shims for
+                          the rule-browser globals the sliced JS references.
+
+Required-blurb scope (for --check/--strict) is the covered/partial subset,
+classified exactly like _build_matrix_html():
   - sub-technique / technique with its own rule(s)   -> "covered"
-  - technique with rules only on its sub-techniques  -> "partial" (the matrix's
-    `has-cov` state)
-  - tactic with >=1 in-scope technique in its column  -> in scope, shown with
-    the same "n/m covered" ratio as the rule-browser column header
+  - technique with rules only on its sub-techniques  -> "partial" (`has-cov`)
+  - tactic with >=1 in-scope technique in its column  -> in scope
+Every other matrix item is still rendered and clickable; its panel says
+plainly that there is no blurb / vault note / rule coverage yet.
 
 Reads:
   - rules/sigma/**/*.yml, outputs/results/*/result.json (via generate_stats)
   - outputs/reports/mitre_technique_map.json (cache written by generate_stats.py;
     never fetched here -- run generate_stats.py first if it is missing/stale)
   - scripts/docs/mitre_glossary/blurbs.yaml   -- hand-written blurbs, keyed by ID
-  - scripts/docs/mitre_glossary/assets/glossary.{template.html,css,js}
+  - scripts/docs/mitre_glossary/assets/glossary.{template.html,css,js,shims.js}
+  - scripts/docs/assets/page.{css,js}          -- the rule browser's own assets
   - personal/MITRE-Notes/{Tactics,Techniques,Subtechniques}/*.md -- only to link
     each item to its existing vault note, if there is one
 
 Writes:
   - personal/MITRE-Notes/mitre-navigator.html
 
-Blurbs are NOT generated: an in-scope ID with no entry in blurbs.yaml renders
-with a visible "missing blurb" placeholder and is listed on stderr. With
---strict that exits non-zero instead of writing, so a regenerate after a new
-rule can't silently ship a half-empty glossary.
+Blurbs are NOT generated: an in-scope ID with no entry in blurbs.yaml is
+listed on stderr. With --strict that exits non-zero instead of writing, so a
+regenerate after a new rule can't silently ship a half-empty glossary.
 
 Usage:
   python3 scripts/docs/mitre_glossary/generate_mitre_glossary.py [--strict] [--check]
@@ -64,7 +73,29 @@ BLURBS_PATH = _HERE / "blurbs.yaml"
 ASSETS_DIR = _HERE / "assets"
 REPO_SLUG = "martonbence/Detection-Engineering"
 
-_INLINE_ASSETS = (("@@INLINE_CSS@@", "glossary.css"), ("@@INLINE_JS@@", "glossary.js"))
+PAGE_ASSETS_DIR = gs.REPO_ROOT / "scripts" / "docs" / "assets"
+
+# Theme: the rule browser's brand accent is solid amber #ffaa00 (hsl 40,100%,50%).
+# This page keeps every structural/background token and swaps only that
+# accent for the same saturation/lightness at hue 190 (cyan), so the two read
+# as "same tool, different instance". Measured contrast never drops below the
+# amber it replaces: #111 on #00d4ff 10.67:1 (amber 9.89:1) for the solid
+# tactic headers / highlighted cells; #00d4ff on the #1c2128 cell 9.14:1
+# (amber 8.48:1) for the sub-technique n/m badge.
+ACCENT_HEX = "#00d4ff"
+ACCENT_RGB = "0, 212, 255"
+_BRAND_HEX = ("#ffaa00", "#FFAA00")
+_BRAND_RGBA = "rgba(255, 170, 0,"
+
+# page.js slices. Each marker must match exactly one full line; a moved or
+# renamed marker is a SystemExit, never a silent partial page.
+_JS_NAV_START = "var navTip = document.getElementById('att-tip');"
+_JS_NAV_END = "renderStripTotal();"          # exclusive: rule-browser init follows
+_JS_BG_START = "(function bgParticles() {"   # to end of file
+_JS_HELPERS = (
+    "escHtml", "vLabel", "downloadFile", "todayStamp", "toCSV", "isDrawerOpen",
+    "isInfoOpen", "setInfo", "openInfo", "closeInfo", "toggleInfo",
+)
 _ID_RE = re.compile(r"^(TA\d{4}|T\d{4}(?:\.\d{3})?)\b")
 
 
@@ -74,6 +105,57 @@ def _read_asset(name: str) -> str:
         return path.read_text(encoding="utf-8")
     except FileNotFoundError:
         raise SystemExit(f"generate_mitre_glossary.py: asset not found: {path}") from None
+
+
+def _line_index(lines: list[str], marker: str, what: str) -> int:
+    hits = [i for i, ln in enumerate(lines) if ln.strip() == marker]
+    if len(hits) != 1:
+        raise SystemExit(
+            f"generate_mitre_glossary.py: page.js marker for {what} matched {len(hits)} "
+            f"lines (need exactly 1): {marker!r}"
+        )
+    return hits[0]
+
+
+def _extract_function(lines: list[str], name: str) -> str:
+    """A top-level `function name(...) {...}` from page.js: one-liner, or up
+    to the first column-0 closing brace."""
+    start = next((i for i, ln in enumerate(lines) if ln.startswith(f"function {name}(")), None)
+    if start is None:
+        raise SystemExit(f"generate_mitre_glossary.py: page.js has no top-level function {name}()")
+    if lines[start].rstrip().endswith("}"):
+        return lines[start]
+    end = next((i for i in range(start + 1, len(lines)) if lines[i].rstrip() == "}"), None)
+    if end is None:
+        raise SystemExit(f"generate_mitre_glossary.py: could not find the end of {name}() in page.js")
+    return "\n".join(lines[start:end + 1])
+
+
+def build_shared_js() -> tuple[str, str]:
+    """(helpers + Navigator block, ambient-background IIFE) sliced from page.js."""
+    lines = (PAGE_ASSETS_DIR / "page.js").read_text(encoding="utf-8").split("\n")
+    a = _line_index(lines, _JS_NAV_START, "Navigator block start")
+    b = _line_index(lines, _JS_NAV_END, "Navigator block end")
+    c = _line_index(lines, _JS_BG_START, "background IIFE")
+    if not a < b < c:
+        raise SystemExit("generate_mitre_glossary.py: page.js slice markers out of order")
+    helpers = "\n\n".join(_extract_function(lines, n) for n in _JS_HELPERS)
+    nav = "\n".join(lines[a:b])
+    return helpers + "\n\n" + nav, "\n".join(lines[c:])
+
+
+def build_themed_css() -> str:
+    """page.css verbatim, brand accent swapped. Refuses to run if the swap
+    target disappears (i.e. the rule browser changed its brand colour)."""
+    css = (PAGE_ASSETS_DIR / "page.css").read_text(encoding="utf-8")
+    if not any(h in css for h in _BRAND_HEX) or _BRAND_RGBA not in css:
+        raise SystemExit(
+            "generate_mitre_glossary.py: page.css no longer contains the #ffaa00 brand accent "
+            "-- update _BRAND_HEX/_BRAND_RGBA before regenerating, or the theme swap no-ops."
+        )
+    for h in _BRAND_HEX:
+        css = css.replace(h, ACCENT_HEX)
+    return css.replace(_BRAND_RGBA, f"rgba({ACCENT_RGB},")
 
 
 def load_technique_map() -> list[dict]:
@@ -105,12 +187,15 @@ def index_vault_notes() -> dict[str, str]:
     return notes
 
 
-def compute_scope(technique_map: list[dict]) -> list[dict]:
-    """Tactic columns (TACTIC_ORDER) holding only in-scope techniques/subs."""
+def compute_coverage() -> dict:
     rules = gs.load_sigma_rules()
     rules_detail, _ = gs._collect_rule_details(rules, gs.load_verdicts())
-    cov = gs.build_technique_coverage(rules_detail, REPO_SLUG)
+    return gs.build_technique_coverage(rules_detail, REPO_SLUG)
 
+
+def compute_scope(technique_map: list[dict], cov: dict) -> list[dict]:
+    """Tactic columns (TACTIC_ORDER) holding only the covered/partial items --
+    the set every blurb is *required* for (--check/--strict)."""
     columns = []
     for tactic in gs.TACTIC_ORDER:
         techs = sorted(
@@ -165,67 +250,60 @@ def _render_blurb(text: str) -> str:
     return re.sub(r"`([^`]+)`", r"<code>\1</code>", _html.escape(text))
 
 
-def build_payload(columns: list[dict], blurbs: dict[str, str], notes: dict[str, str]) -> dict:
-    items: dict[str, dict] = {}
-
-    def attach(entry: dict, kind: str) -> None:
-        tid = entry["id"]
-        blurb = blurbs.get(tid)
-        items[tid] = {
-            "id": tid,
-            "name": entry["name"],
-            "kind": kind,
-            "state": entry.get("state", "covered"),
-            "blurb": _render_blurb(blurb) if blurb else "",
-            "note": notes.get(tid, ""),
-            "rules": entry.get("rules", []),
-            "platforms": entry.get("platforms", []),
-            "url": (
-                f"https://attack.mitre.org/tactics/{tid}/" if kind == "tactic"
-                else gs.technique_url(tid)
-            ),
-        }
-
-    for col in columns:
-        attach(col, "tactic")
-        items[col["id"]]["coverage"] = f"{col['covered']}/{col['total']}"
-        for t in col["techniques"]:
-            if t["id"] not in items:
-                attach(t, "technique")
-                items[t["id"]]["tacticNames"] = t["tactics"]
-                items[t["id"]]["subTotal"] = t["subTotal"]
-            for s in t["subs"]:
-                if s["id"] not in items:
-                    attach(s, "subtechnique")
-                    items[s["id"]]["parent"] = t["id"]
-    layout = [{
-        "id": c["id"],
-        "techniques": [{"id": t["id"], "subs": [s["id"] for s in t["subs"]]} for t in c["techniques"]],
-    } for c in columns]
-    return {"items": items, "layout": layout}
+def build_payload(technique_map: list[dict], blurbs: dict[str, str], notes: dict[str, str]) -> dict:
+    """Only what the matrix DOM doesn't already carry: blurbs, vault-note
+    links, tactic names/IDs. Names, platforms, rules and coverage state are
+    read from the cells _build_matrix_html() rendered."""
+    known = {gs.TACTIC_ID_MAP.get(t, "") for t in gs.TACTIC_ORDER}
+    for t in technique_map:
+        known.add(t["id"])
+        known.update(s["id"] for s in t.get("subs") or [])
+    return {
+        "blurbs": {k: _render_blurb(v) for k, v in blurbs.items() if k in known},
+        "notes": {k: v for k, v in notes.items() if k in known},
+        "tactics": {t: gs.TACTIC_ID_MAP.get(t, "") for t in gs.TACTIC_ORDER},
+    }
 
 
-def render_html(payload: dict) -> str:
+def render_html(technique_map: list[dict], cov: dict, payload: dict) -> str:
     html = _read_asset("glossary.template.html")
-    for marker, asset in _INLINE_ASSETS:
+    shared_js, bg_js = build_shared_js()
+    n_subs = sum(len(t.get("subs") or []) for t in technique_map)
+    data_json = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
+    # Order matters: the big inlined assets go in last so a literal "@@X@@"
+    # inside page.css/page.js could never be mistaken for one of ours.
+    subs = [
+        ("@@TS@@", datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")),
+        ("@@N_TACTICS@@", str(len(gs.TACTIC_ORDER))),
+        ("@@N_TECHNIQUES@@", str(len(technique_map))),
+        ("@@N_SUBS@@", str(n_subs)),
+        ("@@N_BLURBS@@", str(len(payload["blurbs"]))),
+        ("@@FAVICON_DATA@@", gs._read_image_b64("favicon-32.png")),
+        ("@@LOGO_DATA@@", gs._read_image_b64("logo-header.png")),
+        ("@@PLATFORM_MENU_HTML@@", gs._build_platform_menu_html(technique_map)),
+        ("@@DATA_JSON@@", data_json),
+        ("@@MATRIX_HTML@@", gs._build_matrix_html(technique_map, cov)),
+        ("@@INLINE_CSS@@", build_themed_css() + "\n" + _read_asset("glossary.css")),
+        ("@@SHARED_JS@@", shared_js),
+        ("@@INLINE_JS@@", _read_asset("glossary.shims.js")),
+        ("@@GLOSSARY_JS@@", _read_asset("glossary.js")),
+        ("@@BG_JS@@", bg_js),
+    ]
+    for marker, _ in subs:
         if marker not in html:
             raise SystemExit(f"generate_mitre_glossary.py: marker {marker!r} missing from template")
-        html = html.replace(marker, _read_asset(asset))
-    items = payload["items"]
-    counts = {k: sum(1 for i in items.values() if i["kind"] == k) for k in ("tactic", "technique", "subtechnique")}
-    data_json = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
-    html = (
-        html.replace("@@DATA_JSON@@", data_json)
-        .replace("@@TS@@", datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC"))
-        .replace("@@N_TACTICS@@", str(counts["tactic"]))
-        .replace("@@N_TECHNIQUES@@", str(counts["technique"]))
-        .replace("@@N_SUBS@@", str(counts["subtechnique"]))
-        .replace("@@FAVICON_DATA@@", gs._read_image_b64("favicon-32.png"))
-        .replace("@@LOGO_DATA@@", gs._read_image_b64("logo-header.png"))
-    )
-    leftover = sorted(set(re.findall(r"@@[A-Z_]+ ?@@", html)))
+    # Check for leftovers on the template alone, before substitution: a
+    # misspelled marker (e.g. the 2026-08-10 "@@INLINE_JS @@" stray-space
+    # failure) is caught here, and nothing in the inlined page.css/page.js
+    # slices can trip it.
+    probe = html
+    for marker, _ in subs:
+        probe = probe.replace(marker, "")
+    leftover = sorted(set(re.findall(r"@@[A-Z_]+ ?@@", probe)))
     if leftover:
         raise SystemExit(f"generate_mitre_glossary.py: unreplaced marker(s): {', '.join(leftover)}")
+    for marker, value in subs:
+        html = html.replace(marker, value)
     return html
 
 
@@ -235,7 +313,9 @@ def main() -> int:
     ap.add_argument("--check", action="store_true", help="report only, write nothing")
     args = ap.parse_args()
 
-    columns = compute_scope(load_technique_map())
+    technique_map = load_technique_map()
+    cov = compute_coverage()
+    columns = compute_scope(technique_map, cov)
     blurbs = load_blurbs()
     ids = _all_ids(columns)
     missing = [i for i in ids if i not in blurbs]
@@ -245,14 +325,18 @@ def main() -> int:
     if missing:
         print(f"MISSING blurb ({len(missing)}): {', '.join(missing)}", file=sys.stderr)
     if orphans:
-        print(f"orphan blurb, no longer in scope (kept, not rendered): {', '.join(orphans)}", file=sys.stderr)
+        print(
+            f"blurb outside the covered/partial scope (kept; still shown in its panel): {', '.join(orphans)}",
+            file=sys.stderr,
+        )
     if args.check:
         return 1 if (missing and args.strict) else 0
     if missing and args.strict:
         print("--strict: not writing", file=sys.stderr)
         return 1
 
-    OUTPUT_PATH.write_text(render_html(build_payload(columns, blurbs, index_vault_notes())), encoding="utf-8")
+    payload = build_payload(technique_map, blurbs, index_vault_notes())
+    OUTPUT_PATH.write_text(render_html(technique_map, cov, payload), encoding="utf-8")
     print(f"wrote {OUTPUT_PATH.relative_to(REPO_ROOT)}")
     return 0
 

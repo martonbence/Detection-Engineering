@@ -756,7 +756,7 @@
          ~5.9:1, better than at 0.68. If the user wants the wash visible behind
          the table too, that needs a broad centre gradient -- flagged in report,
          not done (higher "distracting" risk). */
-      background: rgba(20, 25, 34, 0.42);
+      background: transparent;
       /* PREVIEW item 6: the main table card is "the hero" -- a restrained violet
          accent (methodology purple #a799e8) on the border + a soft outer bloom,
          so it reads as primary without a neon ring. The filter panel is left
@@ -766,8 +766,8 @@
          0.42 keeps it a clean line, not a slab. Bloom kept as-is. */
       border: 2px solid rgba(167, 153, 232, 0.42);
       border-radius: var(--radius-lg);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
       box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.06),
         0 0 0 1px rgba(167, 153, 232, 0.12),
@@ -2350,9 +2350,9 @@
          violet-tinted border + blur, same see-through tray/inner-card layering
          model (.dash-section behind, .chart-card in front, like .content vs
          .filters-panel). */
-      background: rgba(20, 25, 34, 0.48);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
+      background: transparent;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
       border: 2px solid rgba(167, 153, 232, 0.4);
       border-radius: var(--radius-lg);
       padding: 18px;
@@ -2386,10 +2386,34 @@
     }
 
     .dash-section-grid-mitre {
-      grid-template-columns: minmax(300px, 400px) minmax(360px, 1fr);
+      grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 
-    @media (max-width: 900px) {
+    .dash-section-grid-mitre > .chart-card {
+      height: 265px;
+    }
+
+    .dash-section-grid-mitre > .chart-card:nth-child(2) {
+      grid-column: span 2;
+    }
+
+    .dash-section-grid-mitre .chart-card-canvas-wrap {
+      height: auto;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    @media (max-width: 1100px) {
+      .dash-section-grid-mitre {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .dash-section-grid-mitre > .chart-card:nth-child(2) {
+        grid-column: auto;
+      }
+    }
+
+    @media (max-width: 560px) {
       .dash-section-grid-mitre {
         grid-template-columns: 1fr;
       }
@@ -2403,10 +2427,16 @@
        card gets a small capped track instead of grabbing the leftover width
        it does not need. */
     .dash-section-grid-deploy {
-      grid-template-columns: minmax(480px, 1fr) minmax(220px, 320px);
+      grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 
-    @media (max-width: 900px) {
+    @media (max-width: 1100px) {
+      .dash-section-grid-deploy {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 560px) {
       .dash-section-grid-deploy {
         grid-template-columns: 1fr;
       }
@@ -2448,28 +2478,6 @@
       margin-top: -6px;
     }
 
-    /* The Evidence card's scope note. Tinted and rule-marked rather than left
-       as plain sub-text: it explains a number that otherwise looks like a
-       broken pipeline, so it has to survive a glance. No display property
-       here on purpose — the element carries the `hidden` attribute when there
-       is nothing to say, and a display rule would override it. */
-    .chart-card-sub-scope {
-      border-left: 2px solid #db6d28;
-      padding: 2px 0 2px 8px;
-      color: var(--text2);
-    }
-
-    /* The Evidence card's last-live-verification note. Same treatment as the
-       scope note above -- rule-marked so it survives a glance -- but in the
-       page's neutral accent blue rather than the scope note's orange: this is
-       informational context ("here is when and how much"), not a caveat
-       about something being excluded from a number. */
-    .chart-card-sub-lastlive {
-      border-left: 2px solid var(--accent);
-      padding: 2px 0 2px 8px;
-      color: var(--text2);
-    }
-
     /* Second row of the Rule Overview section. Its own grid so the four cards
        above keep exactly the track sizing they had before this card existed.
        Two fixed tracks, not the auto-fit above: auto-fit COLLAPSES its empty
@@ -2497,7 +2505,19 @@
        one beside it gets pushed onto a line of its own. */
     .chart-card-wide2 {
       grid-column: span 2;
+      height: 265px;
     }
+
+    .chart-card-wide2 .chart-card-canvas-wrap {
+      height: auto;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    .chart-card-evidence {
+      height: 265px;
+    }
+
 
     @media (max-width: 1100px) {
       .dash-section-grid-row2 {
@@ -2542,21 +2562,21 @@
     }
 
     .gauge-overlay-title {
-      font-size: 15px;
+      font-size: 11px;
       font-weight: 700;
       color: #FFAA00;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
     }
 
     .gauge-pct {
-      font-size: 34px;
+      font-size: 26px;
       font-weight: 800;
       color: #FFAA00;
       line-height: 1.1;
     }
 
     .gauge-frac {
-      font-size: 12px;
+      font-size: 11px;
       color: #e6edf3;
       margin-top: 2px;
     }
@@ -2848,9 +2868,9 @@
       /* PREVIEW: aligned to the Rule Library's .content card language --
          violet-tinted border + more transparent fill, matrix cells keep their
          own solid verdict colours so cell legibility is unaffected. */
-      background: rgba(20, 25, 34, 0.48);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
+      background: transparent;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
       border: 2px solid rgba(167, 153, 232, 0.4);
       border-radius: var(--radius-lg);
       padding: 16px;
@@ -3306,7 +3326,7 @@
     }
 
     .tc.uncov.has-cov {
-      background: rgba(255, 170, 0, .13);
+      background: #3a3323;
       color: #545f6e;
       border-left: 2px solid rgba(255, 170, 0, .55);
     }
@@ -3347,20 +3367,22 @@
     /* Directly-covered PARENT techniques get an extra soft verdict tint so they
        stand out from their (rail-only) covered sub-techniques and read as the
        higher level in the hierarchy. */
+    /* Opaque equivalents of the old 11-14% verdict tints over #21262d, so the
+       transparent .nav-wrap behind them does not show through. */
     .tc.pass:not(.sub) {
-      background: rgba(46, 164, 79, .11);
+      background: #223431;
     }
 
     .tc.notver:not(.sub) {
-      background: rgba(210, 153, 34, .11);
+      background: #35332c;
     }
 
     .tc.fail:not(.sub) {
-      background: rgba(248, 81, 73, .11);
+      background: #392b30;
     }
 
     .tc.nv:not(.sub) {
-      background: rgba(110, 118, 129, .14);
+      background: #2c3139;
     }
 
     /* Covered SUB techniques carry a small verdict dot at the top-right (parents
@@ -4450,9 +4472,9 @@
       flex: none;
       height: 300px;
       overflow-y: auto;
-      border: 1px solid var(--border);
+      border: 1px solid rgba(255, 255, 255, 0.05);
       border-radius: var(--radius);
-      background: var(--bg3);
+      background: rgba(22, 27, 34, 0.82);
     }
 
     /* table-layout: auto, against the page-wide `table { table-layout: fixed }`
@@ -4481,7 +4503,7 @@
       max-width: 100%;
       border-collapse: separate;
       border-spacing: 0;
-      font-size: 12.5px;
+      font-size: 11.5px;
       table-layout: auto;
     }
 
@@ -4493,19 +4515,23 @@
        tbody's `.dep-id` row headers (the DETECT-ID cells) -- so without this
        reset the id column silently loses text selection along with a
        misleading pointer cursor. */
+    .dep-rules thead tr {
+      box-shadow: 0 6px 14px -4px rgba(0, 0, 0, 0.5);
+    }
+
     .dep-rules thead th {
       position: sticky;
       top: 0;
       z-index: 1;
-      background: var(--bg4);
-      color: var(--text3);
+      background: #ffaa00;
+      color: #111111;
       font-family: var(--font);
-      font-size: 10.5px;
-      letter-spacing: .08em;
+      font-size: 10px;
+      letter-spacing: .06em;
       text-transform: uppercase;
-      font-weight: 500;
+      font-weight: 800;
       text-align: right;
-      padding: 8px 8px;
+      padding: 6px 6px;
       border-bottom: 1px solid var(--border);
       white-space: nowrap;
       cursor: default;
@@ -4518,7 +4544,7 @@
 
     .dep-rules tbody th,
     .dep-rules tbody td {
-      padding: 6px 8px;
+      padding: 5px 6px;
       border-bottom: 1px solid var(--border2);
     }
 
@@ -4526,6 +4552,92 @@
        sideways. The height is the scrollable axis here, not the width. */
     .dep-table-wrap {
       overflow-x: auto;
+    }
+
+    /* Two Rule Overview cards tall (2 x 265px + the 16px row gap); the table
+       fills whatever the title and subtitle leave. */
+    .dash-section-grid-deploy .chart-card-wide2 {
+      height: 546px;
+    }
+
+    .dash-section-grid-deploy .dep-table-wrap {
+      flex: 1 1 auto;
+      height: auto;
+      min-height: 0;
+    }
+
+    /* Column dividers in the header, same hairline as the Rule Library's
+       .col-resizer::after. */
+    .dep-rules thead th:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      right: 0;
+      top: 20%;
+      height: 60%;
+      width: 1px;
+      background: var(--border2);
+      border-radius: 1px;
+    }
+
+    .dep-rules thead th:nth-child(2),
+    .dep-rules thead th:nth-child(3),
+    .dep-rules thead th:nth-child(4) {
+      width: 13%;
+    }
+
+    /* Fill the two-card width: proportional tracks, REPO/DEV/PROD kept equal. */
+    .dep-rules {
+      width: 100%;
+      table-layout: fixed;
+    }
+
+    .dep-rules thead th:nth-child(1) {
+      width: 34%;
+    }
+
+    .dep-rules thead th:nth-child(5) {
+      width: 27%;
+    }
+
+    /* Same row height as the Rule Library table. */
+    .dep-rules tbody tr {
+      height: 36px;
+    }
+
+    /* Rule Library header + id/value text treatment. */
+    .dep-rules thead th {
+      font-size: 11px;
+      letter-spacing: 0.5px;
+      padding: 12px 6px;
+    }
+
+    .dep-rules tbody td,
+    .dep-rules tbody th {
+      font-size: 12px;
+    }
+
+    .dep-rules .dep-id {
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 11px;
+      letter-spacing: 0.2px;
+    }
+
+    .dep-rules .dep-repo-ver {
+      color: #ffffff;
+    }
+
+    .dep-rules .dep-repo-ver,
+    .dep-rules .dep-cell {
+      text-align: center;
+    }
+
+    .dep-rules thead th:nth-child(n+2) {
+      text-align: center;
+    }
+
+    .dep-rules .dep-id {
+      padding-right: 4px;
     }
 
     .dep-rules tbody tr:last-child th,
@@ -4552,7 +4664,7 @@
       color: var(--text3);
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
-      padding-right: 10px;
+      padding-right: 6px;
     }
 
     .dep-table a,
@@ -4584,6 +4696,7 @@
     .dep-spark-svg {
       display: inline-block;
       vertical-align: middle;
+      height: auto;
     }
 
     .dep-spark-line {
@@ -4593,8 +4706,8 @@
     }
 
     .dep-spark-dot {
-      stroke: var(--bg3);
-      stroke-width: 1;
+      stroke: none;
+      stroke-width: 0;
     }
 
     .dep-spark-dot.dep-spark-pass {
@@ -4619,9 +4732,9 @@
 
     .dep-ver {
       font-variant-numeric: tabular-nums;
-      margin-left: 5px;
+      margin-left: 3px;
       display: inline-block;
-      min-width: 2.2em;
+      min-width: 1.8em;
       text-align: right;
     }
 
