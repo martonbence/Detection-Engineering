@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-10-11T12:10:37 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
+  "description": "Auto-generated detection coverage. 2026-10-11T12:33:42 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
   "filters": {
     "platforms": [
       "Windows",
@@ -226,10 +226,10 @@
     },
     {
       "techniqueID": "T1003.003",
-      "color": "#d29922",
-      "comment": "DETECT-2026-0024: NTDS.dit Credential Dump Attempt (NOT_VERIFIED)\nDETECT-2026-0030: Symlink Creation to Volume Shadow Copy Device Path (NOT_VERIFIED)\nDETECT-2026-0031: Credential Hive Access via Low-Level NTFS Acquisition (NOT_VERIFIED)",
+      "color": "#2EA44F",
+      "comment": "DETECT-2026-0024: NTDS.dit Credential Dump Attempt (NOT_VERIFIED)\nDETECT-2026-0030: Symlink Creation to Volume Shadow Copy Device Path (PASS)\nDETECT-2026-0031: Credential Hive Access via Low-Level NTFS Acquisition (NOT_VERIFIED)",
       "enabled": true,
-      "score": 75,
+      "score": 100,
       "showSubtechniques": true
     },
     {
