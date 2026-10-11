@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-27T17:42:26.945664+00:00",
+  "generated_at": "2026-10-11T07:25:48.142907+00:00",
   "total_rules": 41,
   "total_sigma_rules": 41,
   "total_compiled_sigma_rules": 36,
@@ -27,7 +27,7 @@
   "last_live_verification_count": 1,
   "mitre_covered_techniques": 22,
   "mitre_total_techniques": 222,
-  "mitre_total_fetched_at": "2026-09-26T07:25:20.203789+00:00",
+  "mitre_total_fetched_at": "2026-10-11T07:25:48.142907+00:00",
   "mitre_coverage_pct": 9.9,
   "by_level": {
     "critical": 14,
@@ -768,7 +768,7 @@
         "SCCM and Intune deployments using msiexec to install software that internally invokes PS"
       ],
       "testing": {
-        "enabled": false,
+        "enabled": true,
         "runner": "windows-victim",
         "type": "emulation",
         "atomics": []
@@ -817,7 +817,7 @@
         "CI/CD pipeline agents invoking PS non-interactively without a profile"
       ],
       "testing": {
-        "enabled": false,
+        "enabled": true,
         "runner": "windows-victim",
         "type": "emulation",
         "atomics": []
@@ -866,7 +866,7 @@
         "Custom automation frameworks loading helper assemblies at runtime"
       ],
       "testing": {
-        "enabled": false,
+        "enabled": true,
         "runner": "windows-victim",
         "type": "atomic",
         "atomics": [
@@ -922,7 +922,7 @@
         "SIEM/EDR deployment scripts configuring PS logging policy"
       ],
       "testing": {
-        "enabled": false,
+        "enabled": true,
         "runner": "windows-victim",
         "type": "emulation",
         "atomics": []
@@ -969,7 +969,7 @@
         "Security researchers running PowerSploit or Nishang in isolated lab environments"
       ],
       "testing": {
-        "enabled": false,
+        "enabled": true,
         "runner": "windows-victim",
         "type": "emulation",
         "atomics": []
@@ -1016,7 +1016,7 @@
         "SIEM/XDR agents collecting process telemetry (add agent path to filter)"
       ],
       "testing": {
-        "enabled": false,
+        "enabled": true,
         "runner": "windows-victim",
         "type": "emulation",
         "atomics": []
@@ -1064,7 +1064,7 @@
         "Authorized red team or incident response activities under change control"
       ],
       "testing": {
-        "enabled": false,
+        "enabled": true,
         "runner": "windows-victim",
         "type": "atomic",
         "atomics": [
