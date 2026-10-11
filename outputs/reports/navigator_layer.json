@@ -6,7 +6,7 @@
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "Auto-generated detection coverage. 2026-10-11T12:33:42 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
+  "description": "Auto-generated detection coverage. 2026-10-11T12:48:16 UTC. Colour is the best verdict among the rules covering a technique; a ⚠ in the comment marks techniques where a covering rule failed verification despite that.",
   "filters": {
     "platforms": [
       "Windows",
@@ -170,18 +170,18 @@
     },
     {
       "techniqueID": "T1003.002",
-      "color": "#d29922",
-      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (NOT_VERIFIED)\nDETECT-2026-0023: SAM and LSA Secrets Dump via Registry Hive Export (NOT_VERIFIED)\nDETECT-2026-0026: SAM and LSA Credential Hive Copy via esentutl (NOT_VERIFIED)\nDETECT-2026-0027: Credential Hive Access via Volume Shadow Copy (NOT_VERIFIED)",
+      "color": "#2EA44F",
+      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (NOT_VERIFIED)\nDETECT-2026-0023: SAM and LSA Secrets Dump via Registry Hive Export (NOT_VERIFIED)\nDETECT-2026-0026: SAM and LSA Credential Hive Copy via esentutl (PASS)\nDETECT-2026-0027: Credential Hive Access via Volume Shadow Copy (NOT_VERIFIED)",
       "enabled": true,
-      "score": 75,
+      "score": 100,
       "showSubtechniques": true
     },
     {
       "techniqueID": "T1003.004",
-      "color": "#d29922",
-      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (NOT_VERIFIED)\nDETECT-2026-0023: SAM and LSA Secrets Dump via Registry Hive Export (NOT_VERIFIED)\nDETECT-2026-0026: SAM and LSA Credential Hive Copy via esentutl (NOT_VERIFIED)",
+      "color": "#2EA44F",
+      "comment": "DETECT-2026-0022: Known Credential Dumping Tool Execution (NOT_VERIFIED)\nDETECT-2026-0023: SAM and LSA Secrets Dump via Registry Hive Export (NOT_VERIFIED)\nDETECT-2026-0026: SAM and LSA Credential Hive Copy via esentutl (PASS)",
       "enabled": true,
-      "score": 75,
+      "score": 100,
       "showSubtechniques": true
     },
     {
@@ -227,7 +227,7 @@
     {
       "techniqueID": "T1003.003",
       "color": "#2EA44F",
-      "comment": "DETECT-2026-0024: NTDS.dit Credential Dump Attempt (NOT_VERIFIED)\nDETECT-2026-0030: Symlink Creation to Volume Shadow Copy Device Path (PASS)\nDETECT-2026-0031: Credential Hive Access via Low-Level NTFS Acquisition (NOT_VERIFIED)",
+      "comment": "DETECT-2026-0024: NTDS.dit Credential Dump Attempt (PASS)\nDETECT-2026-0030: Symlink Creation to Volume Shadow Copy Device Path (PASS)\nDETECT-2026-0031: Credential Hive Access via Low-Level NTFS Acquisition (PASS)",
       "enabled": true,
       "score": 100,
       "showSubtechniques": true
