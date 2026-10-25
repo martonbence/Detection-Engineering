@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-11T14:13:37.641166+00:00",
+  "generated_at": "2026-10-25T13:28:05.162296+00:00",
   "total_rules": 41,
   "total_sigma_rules": 41,
   "total_compiled_sigma_rules": 36,
@@ -26,9 +26,9 @@
   "last_live_verification_at": "2026-10-11T14:10:13.587482+00:00",
   "last_live_verification_count": 1,
   "mitre_covered_techniques": 22,
-  "mitre_total_techniques": 222,
-  "mitre_total_fetched_at": "2026-10-11T07:25:48.142907+00:00",
-  "mitre_coverage_pct": 9.9,
+  "mitre_total_techniques": 227,
+  "mitre_total_fetched_at": "2026-10-25T13:28:05.162296+00:00",
+  "mitre_coverage_pct": 9.7,
   "by_level": {
     "critical": 14,
     "high": 14,
