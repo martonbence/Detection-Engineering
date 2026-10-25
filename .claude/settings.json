@@ -31,6 +31,32 @@
           }
         ]
       }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "python3 .claude/hooks/log_subagent_usage.py",
+            "timeout": 15,
+            "statusMessage": "Logging subagent usage..."
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "python3 .claude/hooks/log_session_usage.py",
+            "timeout": 30,
+            "statusMessage": "Logging lead-session usage..."
+          }
+        ]
+      }
     ]
   }
 }
