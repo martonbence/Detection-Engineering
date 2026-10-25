@@ -37,7 +37,8 @@ on:
       # deliberately does not gain env.py: env.py cannot change a rule's SPL or
       # its saved search name, so it is no reason to re-attack all 27 rules.
       - "scripts/lib/**"
-      - "scripts/atomic/run_atomic.ps1"
+      # A glob: run_atomic_linux.ps1 sat beside run_atomic.ps1 unlisted.
+      - "scripts/atomic/**"
       - "scripts/verify/**"
       - "scripts/state/**"
       - ".github/workflows/ci_dev_workflow.yml"
@@ -76,7 +77,8 @@ on:
       # deliberately does not gain env.py: env.py cannot change a rule's SPL or
       # its saved search name, so it is no reason to re-attack all 27 rules.
       - "scripts/lib/**"
-      - "scripts/atomic/run_atomic.ps1"
+      # A glob: run_atomic_linux.ps1 sat beside run_atomic.ps1 unlisted.
+      - "scripts/atomic/**"
       - "scripts/verify/**"
       - "scripts/state/**"
       - ".github/workflows/ci_dev_workflow.yml"
@@ -217,6 +219,7 @@ jobs:
       base_sha: ${{ steps.changes.outputs.base_sha }}
       has_rules: ${{ steps.changes.outputs.has_rules }}
       has_spl: ${{ steps.bundle.outputs.has_spl }}
+      pruned: ${{ steps.prune.outputs.pruned }}
       rule_files: ${{ steps.changes.outputs.rule_files }}
       spl_files: ${{ steps.bundle.outputs.spl_files }}
       has_atomic_tests: ${{ steps.test_types.outputs.has_atomic_tests }}
@@ -337,6 +340,7 @@ jobs:
       # deletions exist on disk for it to stage, and before anything else in
       # this job that might care whether an orphaned file is still present.
       - name: Prune repo artefacts of deleted rules
+        id: prune
         if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev'
         shell: bash
         run: |
@@ -349,6 +353,19 @@ jobs:
           python -c "import yaml" 2>/dev/null || python -m pip install -r .github/requirements.txt
 
           python scripts/state/prune_orphans.py --apply
+
+          # pruned=true lets update_dashboard republish the Console on a
+          # deletion-only push, where has_spl is false. Without it the deleted
+          # rule stayed on the live Console until some later run happened to
+          # republish (run 35526413313, 2026-09-20: 0034/0035 removed, dashboard
+          # and Pages skipped; only rescued by an unrelated ci_code_checks run).
+          # Nothing earlier in this job writes under these two paths, so any
+          # change here is prune's own.
+          if [[ -n "$(git status --porcelain -- rules/splunk outputs/results)" ]]; then
+            echo "pruned=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "pruned=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Validate Sigma rules
         if: steps.changes.outputs.has_rules == 'true'
@@ -877,7 +894,16 @@ jobs:
           # later if a promotion PR sits unreviewed that long -- 1 day would
           # let it expire out from under a slow reviewer and fail the prod
           # deploy on a missing artifact rather than a real problem.
-          retention-days: 7
+          #
+          # 90 days, not 7 (2026-10-25): the same reasoning one step further.
+          # The pointer names the last dev run that *converted* anything, and
+          # on a lab that is only on when someone is working, 7 days between
+          # that run and the promotion merge is ordinary, not exceptional.
+          # 90 is the ceiling this repo already uses (prod-deploy-report,
+          # dev-deploy-report) and the bundle is small; artifact storage on a
+          # public repo costs nothing. Past 90 days the prod-side download step
+          # still fails, with an error that says how to recover.
+          retention-days: 90
 
       # Register item 2.20. The failure mode of a manual switch is forgetting to
       # switch it back, and the symptom -- rules that quietly never reach Splunk
@@ -1182,6 +1208,10 @@ jobs:
         env:
           ATOMIC_RUNNER: windows-victim
           ATOMIC_TESTER_TYPE: atomic
+          # These three vars are not set in the repo (same in
+          # atomic_verify_dc): empty falls back to run_atomic.ps1's defaults --
+          # the Invoke-AtomicRedTeam 2.3.0 module path, Invoke-AtomicTest's own
+          # atomics folder, and the `|| 'true'` below. Set one only to override.
           ATOMIC_RED_TEAM_MODULE_PATH: ${{ vars.ATOMIC_RED_TEAM_MODULE_PATH }}
           ATOMIC_RED_TEAM_PATH: ${{ vars.ATOMIC_RED_TEAM_PATH }}
           ATOMIC_DISABLE_REALTIME_MONITORING: ${{ vars.ATOMIC_DISABLE_REALTIME_MONITORING || 'true' }}
@@ -2385,11 +2415,17 @@ jobs:
     # the GitHub contents API) are UNCHANGED by this and keep committing
     # exactly as before. See merge_verification_results.py's module
     # docstring for the full picture.
+    #
+    # `|| pruned == 'true'` (2026-10-25): a deletion-only push converts
+    # nothing (has_spl false) but still changes what the Console must show --
+    # see the prune step's comment in prepare_validate_convert. On that path
+    # splunk_verify is skipped, so this runs exactly like the LAB_ONLINE=false
+    # path already does: no artifacts, regenerate from the committed state.
     if: |
       always() &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev' &&
       needs.prepare_validate_convert.result == 'success' &&
-      needs.prepare_validate_convert.outputs.has_spl == 'true'
+      (needs.prepare_validate_convert.outputs.has_spl == 'true' || needs.prepare_validate_convert.outputs.pruned == 'true')
     runs-on: ubuntu-latest
     # Checkout, one generate_stats.py run (its slowest part is the MITRE STIX
     # fetch, capped at 30s) and up to 3 push attempts. No Splunk call and no
@@ -2519,8 +2555,9 @@ jobs:
       # for Pages" step comment for the full version, not repeated twice).
       # Short version: same unchanged invocation
       # (`python3 .claude/generate_dashboard.py`) now also writes
-      # docs/team-ops.html + docs/assets/team-ops/avatars/*.png alongside
-      # its existing .claude/team-ops.html output; placed after "Merge
+      # docs/team-ops.html alongside its existing .claude/team-ops.html
+      # output (avatars come from the committed docs/pictures/avatars/,
+      # already inside docs/ -- nothing is copied any more); placed after "Merge
       # verification results, generate stats and commit" (stable tree, no
       # more `git reset --hard` retries ahead to wipe an untracked file) and
       # before this job's own "Upload console artifact for Pages" so the
@@ -2541,8 +2578,8 @@ jobs:
       # verification results, generate stats and commit" step above
       # (generate_stats.py itself is unchanged) but are no longer part of
       # that step's commit -- this is the transport that replaces it for
-      # Pages, now also carrying docs/team-ops.html + docs/assets/team-ops/
-      # from the dashboard step directly above (2026-08-28). Default step
+      # Pages, now also carrying docs/team-ops.html from the dashboard step
+      # directly above (2026-08-28). Default step
       # sequencing does the right thing here without an explicit `if:`: if
       # the merge/commit step failed (e.g. 3 failed push attempts), the
       # dashboard step and this one are both skipped, the job's result is
@@ -2831,9 +2868,10 @@ jobs:
     #
     # Gated the same way deploy_pages is: only fire once update_dashboard
     # actually attempted something (success or failure). A *skipped*
-    # update_dashboard means this push had has_spl == 'false' (no rule files
-    # changed, e.g. a workflow-only or docs-only push) -- nothing pipeline-ish
-    # happened worth a Slack message. LAB_ONLINE=false does NOT skip this job:
+    # update_dashboard means this push had has_spl == 'false' and pruned
+    # nothing (no rule files changed or deleted, e.g. a workflow-only or
+    # docs-only push) -- nothing pipeline-ish happened worth a Slack
+    # message. LAB_ONLINE=false does NOT skip this job:
     # update_dashboard still runs and regenerates the dashboard from the
     # previously committed verification state on that path (see
     # [dashboard-decoupling] above), so "N rules still NOT_VERIFIED/stale" is

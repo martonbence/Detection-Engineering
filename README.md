@@ -114,5 +114,5 @@ The exact mechanics behind a verdict — and there's real nuance to it — live 
 ## Further reading
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) — the end-to-end flow for adding a new detection, plus [how to run the lint + test checks locally](CONTRIBUTING.md#running-the-checks-locally)
-- [docs/architecture/](docs/architecture/) — pipeline overview, data flow, threat model, a per-file scripts reference, and the agent-workflow guide, all with Mermaid diagrams
+- [docs/architecture/](docs/architecture/) — pipeline overview, the [full workflow topology](docs/architecture/workflow_topology.md) (every workflow, job, script and artifact), data flow, threat model, a per-file [scripts reference](docs/architecture/scripts_reference.md), and the agent-workflow guide, all with Mermaid diagrams
 - [LICENSE](LICENSE) — MIT

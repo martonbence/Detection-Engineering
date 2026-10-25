@@ -1,15 +1,18 @@
 # Scripts Reference
 
-Every executable file in this repo, what it is for, and who runs it. This is the "what does
+Every script in this repo (Python, PowerShell, JavaScript, shell), what it is for, and who runs it.
+Start with the [index](#index) below. This is the "what does
 this file do" lookup; [`pipeline_overview.md`](pipeline_overview.md) is the "how do they fit
-together" narrative, [`data_flow.md`](data_flow.md) traces the artefacts they pass around,
+together" narrative, [`workflow_topology.md`](workflow_topology.md) is the full workflow/job/script
+map with diagrams, [`data_flow.md`](data_flow.md) traces the artefacts they pass around,
 [`threat_model.md`](threat_model.md) covers scope and credential handling, and
 [`agent_workflow.md`](agent_workflow.md) documents the AI-agent team that maintains all of it.
 
 Nothing here is run by hand in the happy path — the CI workflows invoke everything. The manual
-entry points (`scripts/new_rule.py` to scaffold a rule, the one-off migration scripts, the
-`workflow_dispatch`-only selection paths, and `ci_prod_audit.yml`) are called out explicitly where
-they exist.
+entry points (`scripts/new_rule.py` to scaffold a rule, the one-off migration script, the MITRE
+glossary generator, `diff_matched_events.py`, the `workflow_dispatch`-only selection paths, and
+`ci_prod_audit.yml`) are called out explicitly where they exist. "Console" is the current name for
+the rule browser (`docs/index.html`); older comments in the code still say "rule browser".
 
 > **Keeping this honest.** This file is maintained by hand, so it can drift from the code. The
 > descriptions below state what a script is *for*; for exact flags and behaviour the module
@@ -18,59 +21,77 @@ they exist.
 
 ---
 
-## At a glance
+## Index
 
-| File | Job | Run by |
+Every script in the repo, one line each. "Called by" names the workflow and job (or the trigger).
+Paths are relative to the repo root; details are in the sections below.
+
+| Script | Purpose | Called by |
 |---|---|---|
-| **Workflows** | | |
-| [`.github/workflows/ci_dev_workflow.yml`](../../.github/workflows/ci_dev_workflow.yml) | The whole dev loop: validate → convert → deploy → attack → verify → report | push/PR to any branch but `main` |
-| [`.github/workflows/ci_prod_workflow.yml`](../../.github/workflows/ci_prod_workflow.yml) | Deploys already-verified rules to the prod Splunk app (same server as dev, different app), then folds that run's own deploy report into the dashboard and republishes it — 4 jobs: `announce_lab_offline`, `deploy_to_prod`, `update_dashboard`, `deploy_pages` | push to `main` |
-| [`.github/workflows/ci_prod_audit.yml`](../../.github/workflows/ci_prod_audit.yml) | Live reconcile of the prod Splunk app against `main` + records what prod was last deployed from into `deployment_inventory.json` — 2 jobs: `audit_prod`, `record_inventory` | `workflow_dispatch` only, never automatic |
-| [`.github/workflows/ci_code_checks.yml`](../../.github/workflows/ci_code_checks.yml) | CI for the pipeline's *own* code: ruff, pytest, PowerShell analysis, actionlint, `pip-audit`, Console republish | push/PR touching `scripts/`, `tests/`, `config/`, `pyproject.toml`, the requirements files, `.github/workflows/**`, `.github/PSScriptAnalyzerSettings.psd1`, `.github/actionlint.yaml`, `.claude/generate_dashboard.py`, `.claude/agent_usage_log.jsonl` |
 | **Authoring** | | |
-| [`scripts/new_rule.py`](../../scripts/new_rule.py) | Scaffolds a schema-valid new Sigma rule file with the next free `detect_id` filled in | manual, run by hand from any directory |
-| **Pipeline stages** | | |
-| [`scripts/validate/validate_sigma.ps1`](../../scripts/validate/validate_sigma.ps1) | Thin wrapper that feeds the rule list to the Python validator in one process | dev workflow |
-| [`scripts/validate/validate_sigma.py`](../../scripts/validate/validate_sigma.py) | Validates each Sigma rule against the JSON Schema | the wrapper above |
-| [`scripts/validate/check_test_routing.py`](../../scripts/validate/check_test_routing.py) | Warns when a rule's test runner has no job that services it, and tells the workflow which test jobs a batch needs | dev workflow (twice), pytest |
-| [`scripts/validate/check_mitre_tags.py`](../../scripts/validate/check_mitre_tags.py) | Checks every rule's ATT&CK tags against the committed technique map — offline, advisory in CI | dev workflow, pytest |
-| [`scripts/validate/check_detect_id_uniqueness.py`](../../scripts/validate/check_detect_id_uniqueness.py) | **Hard gate:** fails if two rule files share a `detect_id` (they would collide on one Splunk saved search) | dev workflow, pytest |
-| [`scripts/validate/check_version_bump.py`](../../scripts/validate/check_version_bump.py) | **Hard gate:** that a rule's `version:` moved when its `detection:`/`logsource:`/`raw_query` did — the CI backstop for `.githooks/pre-commit` | dev workflow, pytest |
-| [`.githooks/pre-commit`](../../.githooks/pre-commit) | Auto-bumps a rule's `version:` at commit time on a real logic change (not installed until `git config core.hooksPath .githooks` is run once per clone) | local `git commit`, opt-in |
-| [`scripts/migrate_backfill_rule_version.py`](../../scripts/migrate_backfill_rule_version.py) | One-time backfill that recomputed every rule's `version:` from its real logic-change history; already run | manual, one-off |
-| [`scripts/convert/sigma_to_spl.py`](../../scripts/convert/sigma_to_spl.py) | Sigma YAML → `.spl` query + `.meta.json` sidecar | dev + prod workflows |
-| [`scripts/convert/backend_config.py`](../../scripts/convert/backend_config.py) | Loads `config/backends.yml` — which backend the converter targets and which pipeline each rule gets | `sigma_to_spl.py`, pytest |
-| [`scripts/deploy/check_spl_syntax.py`](../../scripts/deploy/check_spl_syntax.py) | **Hard gate:** parses every SPL query against Splunk's own parser before the deploy writes it into a saved search | dev workflow, pytest |
-| [`scripts/deploy/deploy_spl_to_splunk.py`](../../scripts/deploy/deploy_spl_to_splunk.py) | Creates/updates the Splunk saved searches | dev + prod workflows |
-| [`scripts/atomic/run_atomic.ps1`](../../scripts/atomic/run_atomic.ps1) | Executes the attack that is supposed to trigger each rule | dev workflow, 3 jobs |
-| [`scripts/verify/check_saved_search_hits.py`](../../scripts/verify/check_saved_search_hits.py) | Asks Splunk how many events each deployed search matched | dev workflow |
-| [`scripts/verify/wait_for_indexing.py`](../../scripts/verify/wait_for_indexing.py) | Polls Splunk until the test window's events are indexed, instead of sleeping a fixed minute | dev workflow |
-| [`scripts/verify/pass_fail_eval.py`](../../scripts/verify/pass_fail_eval.py) | Turns those counts into a per-rule PASS / FAIL / NOT_VERIFIED verdict | dev workflow |
-| [`scripts/verify/anonymize_matched_events.py`](../../scripts/verify/anonymize_matched_events.py) | Pseudonymises lab hostnames/domain/accounts in the matched-events artifact before it is uploaded | dev workflow |
-| [`scripts/verify/diff_matched_events.py`](../../scripts/verify/diff_matched_events.py) | Field-level outlier analysis of a rule's matched events — investigative, run by hand | manual, not in CI |
-| [`scripts/docs/generate_stats.py`](../../scripts/docs/generate_stats.py) | Aggregates everything into `stats.json`, the README block and the rule browser | dev workflow + code checks |
-| [`scripts/docs/assets/`](../../scripts/docs/assets/) | `page.template.html` + `page.css` + `page.js` — the rule browser's source, inlined into `docs/index.html` | `generate_stats.py` |
-| **Shared and state** | | |
-| [`scripts/lib/rule_naming.py`](../../scripts/lib/rule_naming.py) | The one function deciding a rule's Splunk object name | deploy, verify, reconcile |
-| [`scripts/lib/rules.py`](../../scripts/lib/rules.py) | The one Sigma-rule discoverer/loader — recursive, both `.yml`/`.yaml`; each caller keeps its own failure policy | every script that reads the rule library |
-| [`scripts/lib/env.py`](../../scripts/lib/env.py) | Shared env-var reading (`env_bool`, `env_required`) + the TLS-mode announcement, for the Splunk scripts | deploy, verify, reconcile, `check_spl_syntax.py` |
-| [`scripts/lib/splunk_client.py`](../../scripts/lib/splunk_client.py) | Builds the `requests.Session` (TLS flag, basic auth, JSON header) every Splunk call uses | the 5 Splunk-facing scripts |
-| [`scripts/lib/splunk_ns.py`](../../scripts/lib/splunk_ns.py) | Which `servicesNS/{owner}/{app}` namespace saved-search writes go through (`nobody` in the path, real account in the ACL) | deploy, reconcile |
-| [`scripts/lib/meta_sidecar.py`](../../scripts/lib/meta_sidecar.py) | Finds and parses a rule's `<name>.meta.json` sidecar; each caller keeps its own except clause | deploy, verify |
-| [`scripts/lib/verdict_history.py`](../../scripts/lib/verdict_history.py) | Read/write the append-only `history.jsonl` next to each `result.json` | `pass_fail_eval.py`, `generate_stats.py` |
-| [`scripts/lib/summary.py`](../../scripts/lib/summary.py) | Shared vocabulary (outcome marks) for `$GITHUB_STEP_SUMMARY` output | the validators, deploy, verify |
-| [`scripts/state/determine_changed_rules.py`](../../scripts/state/determine_changed_rules.py) | The scope-decision gate: which rules this run validates/converts/deploys/attacks/verifies | dev workflow (`prepare_validate_convert`), pytest |
-| [`scripts/state/build_pipeline_bundle.py`](../../scripts/state/build_pipeline_bundle.py) | Assembles the `spl-pipeline-bundle` artefact the later jobs consume | dev workflow (`prepare_validate_convert`), pytest |
-| [`scripts/state/merge_verification_results.py`](../../scripts/state/merge_verification_results.py) | Resets to `origin/dev`, merges this run's verification delta, regenerates stats and commits (the one write-back) | dev workflow (`update_dashboard`), pytest |
-| [`scripts/state/reconcile_step.py`](../../scripts/state/reconcile_step.py) | Assembles `reconcile.py`'s CLI args and runs it, mirroring the old inline shell | dev workflow (`splunk_verify`), pytest |
-| [`scripts/state/open_promotion_pr.py`](../../scripts/state/open_promotion_pr.py) | Opens (or short-circuits) the `dev` → `main` promotion PR and adds it to Project #3 | dev workflow (`open_promotion_pr`), pytest |
-| [`scripts/state/deployment_inventory.py`](../../scripts/state/deployment_inventory.py) | Folds a deploy/reconcile report into the committed `deployment_inventory.json` digest the dashboard reads | via `merge_verification_results.py` (dev); prod + prod-audit workflows |
-| [`scripts/state/reconcile.py`](../../scripts/state/reconcile.py) | Compares the repo against live Splunk, and cleans up what no longer belongs | dev workflow (+ manual for removals) |
-| [`scripts/state/prune_orphans.py`](../../scripts/state/prune_orphans.py) | Deletes repo-side artefacts of rules that no longer exist | dev workflow |
-| [`scripts/state/select_unverified.py`](../../scripts/state/select_unverified.py) | Picks the rules whose verification is missing or stale, for a manual run | dev workflow (`workflow_dispatch`) |
-| [`scripts/state/resolve_rule_selection.py`](../../scripts/state/resolve_rule_selection.py) | Turns a hand-typed list of detect_ids into rule paths, or fails loudly | dev workflow (`workflow_dispatch`) |
-| **Tests** | | |
-| [`tests/`](../../tests/) | pytest suite over the Python scripts, with Splunk faked | `ci_code_checks.yml` |
+| [`scripts/new_rule.py`](../../scripts/new_rule.py) | Scaffolds a schema-valid Sigma rule with the next free `detect_id` | manual |
+| [`.githooks/pre-commit`](../../.githooks/pre-commit) | Auto-bumps a rule's `version:` on a real logic change | local `git commit` (opt-in: `git config core.hooksPath .githooks`) |
+| [`scripts/migrate_backfill_rule_version.py`](../../scripts/migrate_backfill_rule_version.py) | One-time backfill of every rule's `version:` from git history (already run) | manual, one-off |
+| **Validate** | | |
+| [`scripts/validate/validate_sigma.ps1`](../../scripts/validate/validate_sigma.ps1) | Feeds the rule list to the validator in one process | dev: `prepare_validate_convert` |
+| [`scripts/validate/validate_sigma.py`](../../scripts/validate/validate_sigma.py) | Draft-07 schema validation of each rule (hard gate) | `validate_sigma.ps1`, pytest |
+| [`scripts/validate/check_test_routing.py`](../../scripts/validate/check_test_routing.py) | Warns when no test job services a rule's `(type, runner)`; `--job-flags` tells the workflow which test jobs a batch needs | dev: `prepare_validate_convert` (twice), pytest |
+| [`scripts/validate/check_mitre_tags.py`](../../scripts/validate/check_mitre_tags.py) | Offline ATT&CK tag check against the cached technique map (advisory in CI) | dev: `prepare_validate_convert`, pytest |
+| [`scripts/validate/check_detect_id_uniqueness.py`](../../scripts/validate/check_detect_id_uniqueness.py) | Hard gate: no two rules share a `detect_id` | dev: `prepare_validate_convert`, pytest |
+| [`scripts/validate/check_version_bump.py`](../../scripts/validate/check_version_bump.py) | Hard gate: `version:` moved when `detection:`/`logsource:`/`raw_query` did | dev: `prepare_validate_convert`, `.githooks/pre-commit` (imports it), pytest |
+| **Convert** | | |
+| [`scripts/convert/sigma_to_spl.py`](../../scripts/convert/sigma_to_spl.py) | Sigma YAML to `.spl` + `.meta.json` sidecar (`raw_query` rules emitted verbatim; `--meta-only` for unchanged rules) | dev: `prepare_validate_convert` |
+| [`scripts/convert/backend_config.py`](../../scripts/convert/backend_config.py) | Loads `config/backends.yml` (backend + pipeline routing) | `sigma_to_spl.py`, pytest |
+| **Deploy** | | |
+| [`scripts/deploy/check_spl_syntax.py`](../../scripts/deploy/check_spl_syntax.py) | Hard gate: parses each query with Splunk's own parser before deploy | dev: `deploy_to_splunk`, pytest |
+| [`scripts/deploy/deploy_spl_to_splunk.py`](../../scripts/deploy/deploy_spl_to_splunk.py) | Creates/updates one saved search per `.spl` (`--report`, `--exclude-status`) | dev: `deploy_to_splunk`; prod: `deploy_to_prod` |
+| **Attack** | | |
+| [`scripts/atomic/run_atomic.ps1`](../../scripts/atomic/run_atomic.ps1) | Windows runner for Atomic Red Team tests / emulation commands | dev: `atomic_verify`, `atomic_verify_dc`, `emulation_verify` |
+| [`scripts/atomic/run_atomic_linux.ps1`](../../scripts/atomic/run_atomic_linux.ps1) | Linux (`pwsh`) counterpart, same contract and progress markers | dev: `atomic_verify_linux`, `emulation_verify_linux` |
+| **Verify** | | |
+| [`scripts/verify/wait_for_indexing.py`](../../scripts/verify/wait_for_indexing.py) | Polls Splunk until the test window's events are indexed | dev: `splunk_verify` |
+| [`scripts/verify/check_saved_search_hits.py`](../../scripts/verify/check_saved_search_hits.py) | Dispatches each deployed saved search, writes `hits.json` | dev: `splunk_verify` |
+| [`scripts/verify/pass_fail_eval.py`](../../scripts/verify/pass_fail_eval.py) | Counts to PASS / FAIL / NOT_VERIFIED verdicts (`result.json`, `history.jsonl`) | dev: `splunk_verify` |
+| [`scripts/verify/anonymize_matched_events.py`](../../scripts/verify/anonymize_matched_events.py) | Pseudonymises lab identifiers in the matched-events artifact | dev: `splunk_verify` |
+| [`scripts/verify/diff_matched_events.py`](../../scripts/verify/diff_matched_events.py) | Field-level outlier analysis of a rule's matched events | manual, not in CI |
+| **State** | | |
+| [`scripts/state/determine_changed_rules.py`](../../scripts/state/determine_changed_rules.py) | Scope gate: which rules this run validates/deploys/attacks/verifies | dev: `prepare_validate_convert`, pytest |
+| [`scripts/state/prune_orphans.py`](../../scripts/state/prune_orphans.py) | Deletes repo-side artefacts of rules that no longer exist | dev: `prepare_validate_convert` |
+| [`scripts/state/build_pipeline_bundle.py`](../../scripts/state/build_pipeline_bundle.py) | Assembles the `spl-pipeline-bundle` artefact | dev: `prepare_validate_convert` |
+| [`scripts/state/reconcile.py`](../../scripts/state/reconcile.py) | Compares the repo with live Splunk; cleans up orphans | via `reconcile_step.py` (dev); `ci_prod_audit.yml: audit_prod`; manual |
+| [`scripts/state/reconcile_step.py`](../../scripts/state/reconcile_step.py) | Builds `reconcile.py`'s args and runs it | dev: `splunk_verify` |
+| [`scripts/state/merge_verification_results.py`](../../scripts/state/merge_verification_results.py) | Merges this run's verdicts onto `origin/dev`, regenerates stats, commits | dev: `update_dashboard` |
+| [`scripts/state/deployment_inventory.py`](../../scripts/state/deployment_inventory.py) | Folds deploy/reconcile reports into `deployment_inventory.json` | `merge_verification_results.py` (dev); prod: `update_dashboard`; audit: `record_inventory` |
+| [`scripts/state/open_promotion_pr.py`](../../scripts/state/open_promotion_pr.py) | Opens the `dev` to `main` promotion PR | dev: `open_promotion_pr` |
+| [`scripts/state/select_unverified.py`](../../scripts/state/select_unverified.py) | Picks rules with missing/stale verification (manual runs) | dev: `workflow_dispatch` selection |
+| [`scripts/state/resolve_rule_selection.py`](../../scripts/state/resolve_rule_selection.py) | Turns hand-typed detect_ids into rule paths, or fails | dev: `workflow_dispatch` selection |
+| **Console and reports** | | |
+| [`scripts/docs/generate_stats.py`](../../scripts/docs/generate_stats.py) | Builds `stats.json`, the MITRE map/Navigator layer, the README stats block and the Console (`docs/index.html`) | dev: `update_dashboard`; prod: `update_dashboard`; code checks: `static_analysis`, `regenerate_console` |
+| [`scripts/docs/assets/`](../../scripts/docs/assets/) | `page.template.html` + `page.css` + `page.js`, the Console's source | `generate_stats.py`; `page.js` also `node --check`ed in `static_analysis` |
+| [`scripts/docs/smoke_test_rule_browser.js`](../../scripts/docs/smoke_test_rule_browser.js) | Headless Playwright smoke test of the generated Console | code checks: `static_analysis` (`Rule browser smoke test`) |
+| [`scripts/docs/mitre_glossary/generate_mitre_glossary.py`](../../scripts/docs/mitre_glossary/generate_mitre_glossary.py) | Builds the MITRE-Notes vault's glossary Navigator (`personal/MITRE-Notes/mitre-navigator.html`) | manual (no workflow calls it) |
+| [`scripts/docs/mitre_glossary/assets/`](../../scripts/docs/mitre_glossary/assets/) | `glossary.template.html`/`.css`/`.js`/`.shims.js` plus `../blurbs.yaml` (hand-written blurbs) | the glossary generator |
+| [`.claude/generate_dashboard.py`](../../.claude/generate_dashboard.py) | Builds the internal team-ops dashboard (`.claude/team-ops.html`, `docs/team-ops.html`) | dev: `update_dashboard`; prod: `update_dashboard`; code checks: `regenerate_console`; manual |
+| **Shared libraries (`scripts/lib/`)** | | |
+| [`rule_naming.py`](../../scripts/lib/rule_naming.py) | The one function naming a rule's Splunk object | deploy, verify, reconcile |
+| [`rules.py`](../../scripts/lib/rules.py) | Rule discovery/loading, `status` helpers | nearly every script reading `rules/sigma/` |
+| [`env.py`](../../scripts/lib/env.py) | `env_bool`/`env_required`, TLS-mode notice | the Splunk-facing scripts |
+| [`splunk_client.py`](../../scripts/lib/splunk_client.py) | Builds the shared `requests.Session` | the Splunk-facing scripts |
+| [`splunk_ns.py`](../../scripts/lib/splunk_ns.py) | `servicesNS/nobody/{app}` namespace and ACL helpers | deploy, reconcile |
+| [`meta_sidecar.py`](../../scripts/lib/meta_sidecar.py) | Locates/parses `<name>.meta.json` | deploy, verify |
+| [`verdict_history.py`](../../scripts/lib/verdict_history.py) | Append-only `history.jsonl` reader/writer | `pass_fail_eval.py`, `generate_stats.py` |
+| [`summary.py`](../../scripts/lib/summary.py) | Outcome marks for `$GITHUB_STEP_SUMMARY` | validators, deploy, verify |
+| **Hooks (local agent tooling)** | | |
+| [`.claude/hooks/docs-drift-check.sh`](../../.claude/hooks/docs-drift-check.sh) | After a `git commit`, reminds when committed paths are ones the architecture docs describe | Claude Code `PostToolUse` hook on `Bash` (`.claude/settings.json`) |
+| [`.claude/hooks/log_subagent_usage.py`](../../.claude/hooks/log_subagent_usage.py) | After every roster subagent finishes, appends one row (`date, name, slug, task, tokens, tool_uses, duration_ms, model`) to `.claude/agent_usage_log.jsonl` from the agent's own transcript; feeds the team-ops dashboard's Tokens/Team tabs | Claude Code `SubagentStop` hook (`.claude/settings.json`); tests in `tests/test_log_subagent_usage.py` |
+| [`.claude/hooks/log_session_usage.py`](../../.claude/hooks/log_session_usage.py) | At session end, upserts the lead's (Gaz) own whole-session usage as one `Lead session <id>` row in `.claude/agent_usage_log.jsonl` (throughput tokens over non-sidechain turns, active time without idle gaps); also runnable by hand with a transcript path | Claude Code `SessionEnd` hook (`.claude/settings.json`); tests in `tests/test_log_session_usage.py` |
+| [`.claude/hooks/test-docs-drift-check.sh`](../../.claude/hooks/test-docs-drift-check.sh) | Self-test for the hook, on a throwaway git repo | manual: `bash .claude/hooks/test-docs-drift-check.sh` |
+| **Workflows and tests** | | |
+| [`ci_dev_workflow.yml`](../../.github/workflows/ci_dev_workflow.yml) | The dev loop: validate, convert, deploy, attack, verify, report | push/PR to any branch but `main`; `workflow_dispatch` |
+| [`ci_prod_workflow.yml`](../../.github/workflows/ci_prod_workflow.yml) | Deploys verified rules to the prod app, folds the report into the dashboard | push to `main`; `workflow_dispatch` |
+| [`ci_prod_audit.yml`](../../.github/workflows/ci_prod_audit.yml) | Live reconcile of prod against `main`, records the inventory | `workflow_dispatch` only |
+| [`ci_code_checks.yml`](../../.github/workflows/ci_code_checks.yml) | CI for the pipeline's own code, plus Console republish | push/PR on code paths; `workflow_dispatch` |
+| [`tests/`](../../tests/) | pytest suite with Splunk faked | `ci_code_checks.yml: static_analysis` |
 
 ---
 
@@ -78,24 +99,26 @@ they exist.
 
 ### `ci_dev_workflow.yml` — the pipeline
 
-The main event. Eleven jobs; the interesting property is that the middle ones run on **self-hosted
-runners** because they need the lab: a Linux runner that can reach Splunk, and Windows machines
-that get genuinely attacked. [`pipeline_overview.md`](pipeline_overview.md#named-workflow-jobs-and-steps)
+The main event. Thirteen jobs; the interesting property is that the middle ones run on **self-hosted
+runners** because they need the lab: a Linux runner (`de-lab`) that can reach Splunk, and Windows and
+Linux victim machines that get genuinely attacked. [`pipeline_overview.md`](pipeline_overview.md#named-workflow-jobs-and-steps)
 has the per-step breakdown; this is the one-line-per-job summary.
 
 | Job | Runner | Does |
 |---|---|---|
 | `prepare_validate_convert` | `ubuntu-latest` | Works out which rules changed, prunes orphans, validates, checks test routing / ATT&CK tags / `detect_id` uniqueness / version-bump discipline, converts, attests and commits the `.spl`, builds the *pipeline bundle* artefact the later jobs consume |
-| `deploy_to_splunk` | self-hosted Linux | Parses each SPL against Splunk (`check_spl_syntax.py`), then deploys the bundle's SPL to the dev Splunk app |
-| `atomic_verify` | self-hosted Windows (victim) | Runs the Atomic Red Team tests |
-| `atomic_verify_dc` | self-hosted Windows (DC) | Same, for rules that must be attacked on a domain controller |
-| `emulation_verify` | self-hosted Windows (victim) | Runs `emulation`-type rules' own commands; shares the victim host with `atomic_verify`, so these run in sequence |
-| `splunk_verify` | self-hosted Linux | Queries Splunk, evaluates verdicts, reconciles state, and *stages* this run's results as an artifact (it no longer commits or regenerates stats itself) |
+| `deploy_to_splunk` | self-hosted Linux (`self-hosted, linux, de-lab`) | Parses each SPL against Splunk (`check_spl_syntax.py`), then deploys the bundle's SPL to the dev Splunk app |
+| `atomic_verify` | self-hosted Windows victim (`windows-victim`) | Runs the Atomic Red Team tests via `run_atomic.ps1` |
+| `atomic_verify_dc` | self-hosted Windows DC (`windows-dc`) | Same, for rules that must be attacked on a domain controller |
+| `atomic_verify_linux` | self-hosted Linux victim (`linux-victim`) | Atomic Red Team tests on Linux via `run_atomic_linux.ps1` |
+| `emulation_verify` | self-hosted Windows victim | Runs `emulation`-type rules' own commands; shares the victim host with `atomic_verify`, so these run in sequence |
+| `emulation_verify_linux` | self-hosted Linux victim | Same for Linux; shares the host with `atomic_verify_linux` |
+| `splunk_verify` | self-hosted Linux (`de-lab`) | Queries Splunk, evaluates verdicts, reconciles state, and *stages* this run's results as an artifact (it no longer commits or regenerates stats itself) |
 | `update_dashboard` | `ubuntu-latest` | Downloads that artifact, merges it, regenerates `stats.json` / `docs/index.html` / `team-ops.html`, and makes the one write-back commit to `dev`. `always()` — runs even when the lab was off, so a new rule still reaches the dashboard as "Not Verified" |
 | `persist_results_fallback` | `ubuntu-latest` | Zero steps on a normal run. Only if `update_dashboard` failed/was cancelled: commits the raw `outputs/results/` from the artifact so the evidence is not lost |
 | `open_promotion_pr` | `ubuntu-latest` | On an overall PASS (`splunk_verify` result `success`), opens the `dev` → `main` promotion PR |
 | `notify_pipeline_status` | `ubuntu-latest` | Posts the run verdict + library counts to Slack |
-| `deploy_pages` | `ubuntu-latest` | Publishes the rule browser to GitHub Pages from `update_dashboard`'s console artifact |
+| `deploy_pages` | `ubuntu-latest` | Publishes the Console to GitHub Pages from `update_dashboard`'s console artifact |
 
 Two things worth knowing before editing it:
 
@@ -308,9 +331,7 @@ output the jobs gate on — the only part that cannot be derived, because it is 
 naming. Flag mode is deliberately quiet: the dedicated routing step earlier in the same job already
 reported any findings, over a superset of these rules.
 
-One behaviour change worth knowing: a rule requesting an unserviced runner used to set
-`has_atomic_tests` and start the victim job, which then skipped it. Now no job is started for work
-that does not exist.
+A rule requesting an unserviced runner therefore starts no test job at all (it used to start the victim job, which then skipped it).
 
 ### `scripts/validate/check_mitre_tags.py`
 
@@ -527,7 +548,10 @@ the object ACL, and stamps every description with `Managed by CI/CD (Detection-E
 That stamp is load-bearing: it is how `reconcile.py` later tells the pipeline's own objects apart
 from searches an analyst built by hand.
 
-**Skips `status: deprecated` rules.** Skipping only stops the object being created or updated —
+**Skips `status: deprecated` rules** (always), and any status named by `--exclude-status` (repeatable
+or comma-separated). `ci_prod_workflow.yml` passes `--exclude-status experimental` so a WIP rule never
+reaches prod; dev passes nothing (`reconcile.py` and `ci_prod_audit.yml` take the same flag). `--report
+<path>` writes the per-rule outcome JSON. Skipping only stops the object being created or updated —
 retiring one that already exists is `reconcile.py --apply-removals`, deliberately a separate,
 manual act.
 
@@ -586,6 +610,17 @@ What it does beyond "run the test":
 
 `-PreflightOnly` and `-DryRun` are the manual entry points for checking a batch without attacking
 anything.
+
+### `scripts/atomic/run_atomic_linux.ps1`
+
+The Linux counterpart, run under `pwsh` by `atomic_verify_linux` and `emulation_verify_linux` on the
+`linux-victim` runner. Same contract as `run_atomic.ps1`: same sidecar reading, the same exact
+`(ATOMIC_TESTER_TYPE, ATOMIC_RUNNER)` match, and the same progress markers `pass_fail_eval.py`
+reads. Deliberately **not** ported: everything Defender-related (no Defender on Linux). Linux
+specifics: it needs a shebang and the executable bit (the jobs `chmod +x` it; `build_pipeline_bundle.py`
+copies it with `copy2` to keep the bit), and atomics whose metadata says `elevation_required: true`
+are run by re-invoking the script as `sudo -n --preserve-env=... pwsh -File ... -ElevatedChild` for that
+one test. Paths come from `ATOMIC_RED_TEAM_PATH_LINUX` / `ATOMIC_RED_TEAM_MODULE_PATH_LINUX`.
 
 ### `scripts/verify/wait_for_indexing.py`
 
@@ -662,7 +697,7 @@ byte-identity the way phase 1 was.
 **Writes**
 `outputs/reports/stats.json` (which the README badges read), `mitre_technique_map.json`,
 `navigator_layer.json` (a portable ATT&CK Navigator layer), the stats block inside `README.md`, and
-the whole of `docs/index.html`.
+the whole of `docs/index.html` (the Console).
 
 It is also where a verdict's *standing* is derived: it recomputes each rule's current version from
 git history, compares it to the version recorded in the result file, and checks the result's age
@@ -676,7 +711,7 @@ validation layer.
 
 ### `scripts/docs/assets/page.template.html`, `page.css`, `page.js`
 
-The rule browser's markup, styling and behaviour, split out of `generate_stats.py` by register item
+The Console's (rule browser's) markup, styling and behaviour, split out of `generate_stats.py` by register item
 3.4 phase 1. They are **not** servable on their own: they still carry the `@@MARKER@@` placeholders
 `render_html_summary()` substitutes, and `load_page_template()` inlines the stylesheet and the
 script into the markup (`@@INLINE_CSS@@` / `@@INLINE_JS@@`, each alone on its line, newline
@@ -693,6 +728,49 @@ The extraction was done from the original module's runtime `_PAGE_TEMPLATE` valu
 cutting text out of the source, and the resulting `docs/index.html` is byte-identical (with the
 clock frozen — the generator stamps `datetime.now()` and the HEAD sha into the page, so a naive
 diff shows the same three lines for an unmodified generator too).
+
+### `scripts/docs/smoke_test_rule_browser.js`
+
+Headless Playwright (Node) smoke test of the generated `docs/index.html` (register item 4.7). Checks, in
+order: no leftover `@@MARKER@@` placeholders, page loads, zero console/page errors, the Rule Library
+row count matches `stats.json`'s `total_rules` *and* the page's own `RULES` array *and* the
+`#result-count` text, and the Dashboards tab's two doughnut charts render non-empty. Options:
+`--docs-dir`, `--stats`, `--port`, `--timeout-ms`. Exit `0` all passed, `1` any check failed or the
+script itself errored. Runs in `ci_code_checks.yml: static_analysis` (`Rule browser smoke test`) after
+a fresh `generate_stats.py` run; needs the `playwright` npm package and Chromium (not in the Python
+requirements).
+
+### `scripts/docs/mitre_glossary/generate_mitre_glossary.py`
+
+Builds `personal/MITRE-Notes/mitre-navigator.html`, a re-themed (cyan accent) clone of the Console's
+MITRE Navigator tab whose detail panel shows a hand-written blurb per ATT&CK item. It imports
+`generate_stats` for the matrix markup and coverage, slices the Navigator JS out of `page.js` by marker
+lines (hard failure if a marker moves), and reads `blurbs.yaml`, the cached
+`outputs/reports/mitre_technique_map.json` (never fetches; run `generate_stats.py` first) and the vault
+notes (only to link them). Its `assets/` hold `glossary.template.html`, `glossary.css`, `glossary.js`
+(swaps the detail panel for the blurb) and `glossary.shims.js` (stubs for the rule-browser globals the
+sliced JS references). `--check` reports scope and missing/orphan blurbs and writes nothing; `--strict`
+exits non-zero instead of writing when an in-scope ID has no blurb. No workflow calls it; the vault is
+outside CI.
+
+### `.claude/generate_dashboard.py`
+
+Generates the internal team-ops dashboard: `.claude/team-ops.html`, plus `docs/team-ops.html` and
+`docs/assets/team-ops/` for Pages. Not a detection-pipeline script: it renders the roster/org
+chart/bios (`ROSTER`/`TREE`/`BIOS` in the file, mirroring `CLAUDE.md`), a Token Monitor from
+`.claude/agent_usage_log.jsonl` and an activity feed read from `git log` at generation time. Run as
+`python3 .claude/generate_dashboard.py`. CI runs it only so the page ships to Pages: `update_dashboard`
+(dev and prod) and `regenerate_console` (`Generate team-ops dashboard for Pages`); changes to the
+generator or the usage log trigger `ci_code_checks.yml`.
+
+### `.claude/hooks/docs-drift-check.sh` and `test-docs-drift-check.sh`
+
+Local Claude Code tooling, not CI. The hook is registered in `.claude/settings.json` as a `PostToolUse`
+hook on `Bash`. It is deterministic (no model call): if the tool call contained `git commit`, HEAD is
+fresher than `DOCS_DRIFT_MAX_AGE_SECONDS` (default 300) and the commit touched paths the architecture
+docs describe, it prints one JSON `systemMessage` asking for a docs check. It always exits `0`: a
+reminder, never a gate. The test script builds a throwaway git repo and asserts the hook is silent in
+every case except the positive ones.
 
 ---
 
@@ -771,17 +849,9 @@ therefore needs a run when it has no result at all, or when its result belongs t
 itself — the same "drift" the rule browser already displays, made into something you can *start* a
 run from.
 
-`classify()` reads the rule's current version straight from the loaded rule dict —
-`data.get("version")`, the same field and the same read pattern `generate_stats.py` uses — and
-compares it against `result.json`'s `rule_version`. Both sides are now the single, unified version
-number: the rule's hand-set Sigma YAML `version:` field, auto-bumped by `.githooks/pre-commit` on a
-real `detection:`/`logsource:`/`custom.splunk.raw_query` change (register item 3.5, closed same day
-as commit `cd40d34`). The script previously computed its own "current version" via a local
-`git_version()` (a raw git-commit-count scheme, `1.<commit-count-1>`), which briefly diverged from
-the newer YAML-field scheme after 3.5 landed and made `classify()`'s `verified != current` check
-compare two unrelated numbering schemes — that bug is fixed as of commit `4bc4ea5`: `git_version()`
-was deleted outright (no other caller depended on it) and `classify()` now reads `version:` directly,
-matching `result.json`'s `rule_version` for real.
+`classify()` compares the rule's own `version:` field (`data.get("version")`) with `result.json`'s
+`rule_version` — the same single, unified version number `.githooks/pre-commit` bumps and
+`generate_stats.py` reads.
 
 Deprecated rules are skipped, because they are not deployed and measuring them would measure nothing.
 A FAIL still counts as verified at that version: this selects work, it does not re-litigate verdicts.
@@ -885,6 +955,7 @@ in this repo: the real one is a full pipeline run with live attacks.
 | [`tests/test_prune_orphans.py`](../../tests/test_prune_orphans.py) | Which artefacts count as orphaned, the fail-safes, idempotency |
 | [`tests/test_deploy_deprecated.py`](../../tests/test_deploy_deprecated.py) | That a deprecated rule generates *zero* HTTP calls, and that everything else still deploys |
 | [`tests/test_deploy_report.py`](../../tests/test_deploy_report.py) | What the deploy writes down: every outcome including skips and failures, and that no connection detail reaches the artifact |
+| [`tests/test_deploy_exclude_status.py`](../../tests/test_deploy_exclude_status.py) | `--exclude-status`: excluded statuses generate no Splunk requests (the 2026-09-09 experimental-in-prod incident), unset changes nothing |
 | [`tests/test_deploy_upsert.py`](../../tests/test_deploy_upsert.py) | That create-vs-update comes from the status code: none of the old magic phrases steer anything, and an unexpected response fails instead of falling through to create |
 | [`tests/test_wait_for_indexing.py`](../../tests/test_wait_for_indexing.py) | When the wait stops: on the first indexed event, at the timeout, and that a failed probe means "keep waiting" rather than "go ahead" |
 | [`tests/test_sigma_to_spl.py`](../../tests/test_sigma_to_spl.py) | Index-prefix injection, including that a query opening with a generating command is left alone rather than turned into invalid SPL |
