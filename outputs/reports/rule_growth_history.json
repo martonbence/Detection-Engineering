@@ -434,8 +434,16 @@
     },
     {
       "date": "2026-10-11",
-      "timestamp": "2026-10-11T14:10:46.112872+00:00",
-      "git_sha": "7fed45c7c87ff03fa060c1ef312ff1e81ca9c045",
+      "timestamp": "2026-10-11T14:13:37.641187+00:00",
+      "git_sha": "639637d11841819e5520aeaab6515fd0fa04d2c7",
+      "total_rules": 41,
+      "total_sigma_rules": 41,
+      "total_native_spl_rules": 5
+    },
+    {
+      "date": "2026-10-25",
+      "timestamp": "2026-10-25T13:28:05.162348+00:00",
+      "git_sha": "ade60c4f4fbaafb976c56452695da9f2be3007ac",
       "total_rules": 41,
       "total_sigma_rules": 41,
       "total_native_spl_rules": 5

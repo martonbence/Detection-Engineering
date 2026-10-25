@@ -75,7 +75,7 @@ The pipeline runs in five phases — Strategic, Development, Validation, its nes
 The diagram below spans both workflows that implement it: [ci_dev_workflow.yml](.github/workflows/ci_dev_workflow.yml), which runs the full detection engineering CI/CD pipeline on the `dev` branch, and [ci_prod_workflow.yml](.github/workflows/ci_prod_workflow.yml), which deploys already-verified rules to the production Splunk app once a promotion PR merges to `main`.
 
 <p align="center">
-  <a href="https://raw.githubusercontent.com/martonbence/Detection-Engineering/dev/docs/pictures/Workflow.drawio.svg" target="_blank" rel="noopener">
+  <a href="https://raw.githubusercontent.com/martonbence/Detection-Engineering/main/docs/pictures/Workflow.drawio.svg" target="_blank" rel="noopener">
     <img src="docs/pictures/Workflow.drawio.svg" alt="Detection-Engineering pipeline diagram: the Strategic Phase feeds the Development Phase (write a Sigma or native-SPL rule, validate against the schema, convert to SPL), which feeds the Validation Phase (deploy to the dev proving-ground Splunk, then a nested Testing Phase running Atomic Red Team and script-emulation tests on a Windows workstation and/or domain controller, then a pass/fail verification), which feeds the Measurement &amp; Reporting Phase (update docs and stats, deploy GitHub Pages, open a promotion PR to main, notify Slack) — with a Calibration / Tune feedback loop running from Verification back into Development; merging the promotion PR triggers a separate prod workflow that deploys the verified rules to production Splunk." width="900">
   </a>
 </p>
