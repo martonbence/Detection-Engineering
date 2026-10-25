@@ -172,11 +172,21 @@ jobs:
           run_id="$(jq -r '.workflow_run_id' "$pointer")"
           artifact_name="$(jq -r '.artifact_name' "$pointer")"
 
+          # The pointer names one dev run, and that run's bundle artifact has a
+          # finite retention (see "Upload pipeline bundle" in
+          # ci_dev_workflow.yml). Once it has expired -- a promotion PR merged
+          # long after the last dev run that converted anything -- gh's own
+          # error is a bare "no valid artifacts found", so say what it means
+          # and how to recover. The attestations themselves do not expire;
+          # only the sidecars are missing.
           echo "Downloading '$artifact_name' from dev run $run_id..."
-          gh run download "$run_id" \
+          if ! gh run download "$run_id" \
             --repo "${{ github.repository }}" \
             --name "$artifact_name" \
-            --dir _bundle_download
+            --dir _bundle_download; then
+            echo "::error title=Dev bundle unavailable::Could not download '$artifact_name' from dev run $run_id (named by $pointer). Most likely the artifact has expired. Nothing was deployed. Recover: run ci_dev_workflow.yml on dev via workflow_dispatch with 'rules' set to any one rule, so it rebuilds the bundle and commits a fresh pointer; merge dev into main (merge commit); then run this workflow via workflow_dispatch -- a merge that changes no rules/sigma file does not match its push paths filter."
+            exit 1
+          fi
 
           # Only the sidecars -- the .spl content that gets deployed stays the
           # git-checked-out copy, so what a promotion-PR reviewer saw diffed is

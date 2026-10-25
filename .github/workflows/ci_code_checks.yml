@@ -569,8 +569,8 @@ jobs:
     # through the promotion PR like everything else.
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
-    # Regenerates the whole console (generate_stats.py, including a git
-    # log --follow per rule) and commits, so it gets more room than the two
+    # Regenerates the whole console (generate_stats.py, including its
+    # full-history trend backfill) and commits, so it gets more room than the
     # analysis jobs.
     #
     # audit/feature-and-process-audit.md item 4.4, 2026-08-24 follow-up: this
@@ -730,9 +730,10 @@ jobs:
       # change: same invocation as the manual/local-only usage
       # (`python3 .claude/generate_dashboard.py`, no new flags), now wired
       # into CI for the first time. Writes .claude/team-ops.html (unused
-      # here) AND docs/team-ops.html + docs/assets/team-ops/avatars/*.png --
-      # the second pair is what needs to reach the "Upload console artifact
-      # for Pages" step below, alongside docs/index.html, so this runs
+      # here) AND docs/team-ops.html -- the second is what needs to reach the
+      # "Upload console artifact for Pages" step below, alongside
+      # docs/index.html (its avatars are the committed docs/pictures/avatars/,
+      # already inside docs/; it no longer copies them), so this runs
       # after the regen-and-commit step above (stable working tree, no more
       # `git reset --hard` retries to wipe an untracked file) and before the
       # upload. Stdlib-only (json/shutil/subprocess/pathlib) plus the `git`
@@ -753,8 +754,8 @@ jobs:
       # docs/index.html is regenerated on disk by the "Regenerate and commit
       # if changed" step above regardless of whether outputs/reports/ had
       # anything new to commit -- this uploads it (and, as of 2026-08-28,
-      # docs/team-ops.html + docs/assets/team-ops/ from the dashboard step
-      # directly above) as a same-run artifact for publish_console to
+      # docs/team-ops.html from the dashboard step directly above) as a
+      # same-run artifact for publish_console to
       # consume instead of that job checking out dev's tip. No explicit
       # `if:` here on purpose: default step sequencing already does the
       # right thing -- this step only runs if "Regenerate and commit if

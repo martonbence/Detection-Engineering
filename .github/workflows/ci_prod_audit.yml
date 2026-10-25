@@ -37,6 +37,34 @@ concurrency:
 permissions: {}
 
 jobs:
+  # Same reason as ci_prod_workflow.yml's announce_lab_offline: with
+  # LAB_ONLINE=false both jobs below skip and the run would otherwise show a
+  # plain green check -- an audit that checked nothing, looking like one that
+  # found nothing. Advisory only (warning + step summary), not a failure.
+  announce_lab_offline:
+    name: Lab Offline Notice
+    if: vars.LAB_ONLINE == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Say that prod was not audited
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "::warning title=Prod audit skipped::LAB_ONLINE is false, so the prod Splunk audit did not run. Nothing was compared and deployment_inventory.json was not updated."
+
+          {
+            echo "### Prod was not audited"
+            echo ""
+            echo "\`LAB_ONLINE\` is \`false\`, so **Audit Prod Splunk** and **Record Prod State on dev** were skipped."
+            echo ""
+            echo "This run says nothing about whether prod matches \`main\` -- it did not look."
+            echo ""
+            echo "To audit: set \`LAB_ONLINE\` to \`true\` (or delete the variable) once the lab is up, then run this workflow again from the Actions tab."
+          } >> "$GITHUB_STEP_SUMMARY"
+
   audit_prod:
     name: Audit Prod Splunk
     # Register item 2.20's polarity, copied deliberately: only the literal
@@ -96,10 +124,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          # No --apply, and no --apply-removals. This workflow runs unattended
-          # on a schedule against production; the one thing it must never do is
-          # decide on its own that a live detection should go away. Reporting is
-          # the whole job.
+          # No --apply, and no --apply-removals. This workflow runs against
+          # production with nobody reviewing a plan first; the one thing it must
+          # never do is decide on its own that a live detection should go away.
+          # Reporting is the whole job.
           #
           # --exclude-status experimental: matches ci_prod_workflow.yml's deploy
           # step. Prod is not supposed to contain experimental (WIP) rules, so
@@ -226,7 +254,7 @@ jobs:
   # that keep it up to date come from an admin's PAT -- which is why the dev
   # pipeline checks out with GH_PAT_DEV_PUSH. The default GITHUB_TOKEN is not an
   # admin and cannot push to dev at all; a commit step in the job above would
-  # have failed every night at 05:40 with nobody watching.
+  # fail on every run.
   #
   # That PAT is scoped to the `dev` environment, which a `environment: prod` job
   # cannot read. So the environments split the work the way the rights do: prod
@@ -348,7 +376,7 @@ jobs:
             # [skip ci]: this commit carries one JSON file that no build step
             # reads at build time. The dashboard picks it up on the next run
             # that regenerates the page, and triggering the whole dev pipeline
-            # nightly to publish a timestamp would be a poor trade.
+            # on every audit to publish a timestamp would be a poor trade.
             git commit -m "chore(inventory): prod state as audited [skip ci]"
 
             if git push origin HEAD:dev; then
