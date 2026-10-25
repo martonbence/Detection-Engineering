@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-25T13:32:33.001684+00:00",
+  "generated_at": "2026-10-25T15:19:26.691104+00:00",
   "total_rules": 41,
   "total_sigma_rules": 41,
   "total_compiled_sigma_rules": 36,
@@ -23,7 +23,7 @@
   "verification_current_pct": 95,
   "verification_current_color": "brightgreen",
   "confirmed_working_pct": 93,
-  "last_live_verification_at": "2026-10-11T14:10:13.587482+00:00",
+  "last_live_verification_at": "2026-10-25T15:18:54.742832+00:00",
   "last_live_verification_count": 1,
   "mitre_covered_techniques": 22,
   "mitre_total_techniques": 227,
@@ -1975,8 +1975,8 @@
       "status": "stable",
       "source": "sigma",
       "verdict": "PASS",
-      "run_id": "36239792567",
-      "verdict_at": "2026-09-26T11:50:09.593007+00:00",
+      "run_id": "40206230152",
+      "verdict_at": "2026-10-25T15:18:54.742832+00:00",
       "verdict_rule_version": "1.1",
       "verdict_testing_disabled": false,
       "tactics": [
